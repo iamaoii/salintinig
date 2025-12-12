@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In • SalinTinig</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Back to Home -->
+    <a href="index.html" class="back-home">
+        <i class="fas fa-arrow-left"></i> Back to Home
+    </a>
+
+    <!-- Split Screen Auth -->
+    <section class="auth-split">
+        <!-- Left Side - Characters -->
+        <div class="auth-left">
+            <div class="auth-left-content">
+                <h1>Hello Again!</h1>
+                <p class="lead mb-5">
+                    Welcome back! You've been missed.<br>
+                    Continue your reading journey with SalinTinig.
+                </p>
+
+                <div class="floating-characters">
+                    <img src="assets/Blue Circle.png" alt="Blue" class="float-char char1">
+                    <img src="assets/Orange Star.png" alt="Orange" class="float-char char2">
+                    <img src="assets/Yellow Star.png" alt="Yellow" class="float-char char3">
+                </div>
+
+                <div class="decor-shapes">
+                    <div class="shape shape1"></div>
+                    <div class="shape shape2"></div>
+                    <div class="shape shape3"></div>
+                    <div class="shape shape4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side - Login Form -->
+        <div class="auth-right">
+            <div class="auth-form-container">
+                <div class="text-center mb-5">
+                    <h2>Log In to SalinTinig</h2>
+                    <p class="text-muted">Choose your role to continue</p>
+                </div>
+
+                <!-- Tabs -->
+                <ul class="nav nav-pills mb-4 justify-content-center" id="authTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="student-tab" data-bs-toggle="pill"
+                            data-bs-target="#student">
+                            Student
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="teacher-tab" data-bs-toggle="pill" data-bs-target="#teacher">
+                            Teacher
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="authTabContent">
+                    <!-- Student Login -->
+                    <div class="tab-pane fade show active" id="student">
+                        <form>
+                            <div class="mb-4">
+                                <input type="email" class="form-control form-control-lg" placeholder="Email or Username"
+                                    required>
+                            </div>
+                            <div class="mb-4">
+                                <input type="password" class="form-control form-control-lg" placeholder="Password"
+                                    required>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rememberStudent">
+                                    <label class="form-check-label" for="rememberStudent">Remember me</label>
+                                </div>
+                                <a href="#" class="text-decoration-none small text-white">Forgot password?</a>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Student</button>
+                        </form>
+                    </div>
+
+                    <!-- Teacher Login -->
+                    <div class="tab-pane fade" id="teacher">
+                        <form>
+                            <div class="mb-4">
+                                <input type="email" class="form-control form-control-lg" placeholder="School Email"
+                                    required>
+                            </div>
+                            <div class="mb-4">
+                                <input type="password" class="form-control form-control-lg" placeholder="Password"
+                                    required>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rememberTeacher">
+                                    <label class="form-check-label" for="rememberTeacher">Remember me</label>
+                                </div>
+                                <a href="#" class="text-decoration-none small text-white">Forgot password?</a>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Teacher</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <p class="text-white opacity-90">
+                        Don't have an account?
+                        <a href="#" class="fw-bold text-white text-decoration-underline">Sign up here</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
