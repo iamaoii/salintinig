@@ -339,7 +339,6 @@ h1, h2, h3, h4, h5 {
     flex-wrap: wrap;
 }
 
-/* CTA Buttons */
 .cta-final .btn-primary {
     background: white;
     color: var(--blue);
@@ -420,7 +419,7 @@ h1, h2, h3, h4, h5 {
 }
 
 /* ========================================
-   AUTH PAGE - LEFT SIDE COLOR CHANGES WITH TAB
+   AUTH PAGE
    ======================================== */
 .auth-split {
     min-height: 100vh;
@@ -430,7 +429,7 @@ h1, h2, h3, h4, h5 {
     padding: 0;
 }
 
-/* Left Side - Dynamic Color */
+/* Left Side */
 .auth-left {
     color: white;
     flex: 1;
@@ -440,34 +439,21 @@ h1, h2, h3, h4, h5 {
     position: relative;
     overflow: hidden;
     transition: background 0.5s ease;
-}
-
-/* Default (Student) - Orange */
-.auth-left {
     background: linear-gradient(135deg, var(--orange), #E65A26);
 }
 
-/* Teacher - Green */
 .tab-teacher-active .auth-left {
     background: linear-gradient(135deg, var(--green), #1E8449);
 }
 
-/* Text stays white */
+.signup-active .auth-left {
+    background: linear-gradient(135deg, var(--blue), #357ABD);
+}
+
 .auth-left h1, .auth-left .lead {
     color: white;
 }
 
-/* Right Side - Always White */
-.auth-right {
-    background: white;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-}
-
-/* Auth Content */
 .auth-left-content {
     text-align: center;
     max-width: 420px;
@@ -484,6 +470,17 @@ h1, h2, h3, h4, h5 {
     font-size: 1.3rem;
     opacity: 0.95;
     line-height: 1.6;
+}
+
+/* Messages */
+.welcome-message {
+    display: none;
+}
+
+.tab-student-active .student-message,
+.tab-teacher-active .teacher-message,
+.signup-active .signup-message {
+    display: block;
 }
 
 /* Floating Characters */
@@ -508,7 +505,16 @@ h1, h2, h3, h4, h5 {
     50% { transform: translateY(-20px) rotate(5deg); }
 }
 
-/* Form Container */
+/* Right Side */
+.auth-right {
+    background: white;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
 .auth-form-container {
     width: 100%;
     max-width: 420px;
@@ -520,7 +526,7 @@ h1, h2, h3, h4, h5 {
     margin-bottom: 0.5rem;
 }
 
-/* Tabs - Color matches left side */
+/* Tabs */
 .nav-pills .nav-link {
     background: #f0f0f0;
     color: var(--text);
@@ -532,7 +538,7 @@ h1, h2, h3, h4, h5 {
 }
 
 .nav-pills .nav-link.active {
-    background: var(--orange); /* Default Student */
+    background: var(--orange);
     color: white;
 }
 
@@ -540,16 +546,20 @@ h1, h2, h3, h4, h5 {
     background: var(--green);
 }
 
-/* Login Button - Matches left side + Hover darker */
+.signup-active .nav-pills {
+    display: none;
+}
+
+/* Buttons */
 .btn-primary {
-    background: var(--orange); /* Default Student */
+    background: var(--orange);
     color: white;
     border: none;
     transition: background 0.3s ease, transform 0.2s ease;
 }
 
 .btn-primary:hover {
-    background: #E65A26; /* Darker orange */
+    background: #E65A26;
     transform: translateY(-2px);
 }
 
@@ -558,24 +568,44 @@ h1, h2, h3, h4, h5 {
 }
 
 .tab-teacher-active .btn-primary:hover {
-    background: #1E8449; /* Darker green */
-    transform: translateY(-2px);
+    background: #1E8449;
+}
+
+#signup-section .btn-primary {
+    background: var(--blue);
+}
+
+#signup-section .btn-primary:hover {
+    background: #357ABD;
 }
 
 /* Form Controls */
-.form-control {
+.form-control, .form-select {
     border-radius: 20px;
     padding: 16px 20px;
     font-size: 1.1rem;
     border: 2px solid #e0e0e0;
 }
 
-.form-control:focus {
+.form-control:focus, .form-select:focus {
     border-color: currentColor;
     box-shadow: 0 0 0 0.25rem rgba(255,107,53,0.15);
 }
 
-/* Back to Home - Hover color matches active tab */
+/* Section Visibility */
+#signup-section {
+    display: none;
+}
+
+.signup-active #login-section {
+    display: none;
+}
+
+.signup-active #signup-section {
+    display: block;
+}
+
+/* Back to Home */
 .back-home {
     position: fixed;
     top: 30px;
@@ -595,67 +625,22 @@ h1, h2, h3, h4, h5 {
     transition: all 0.3s ease;
 }
 
-/* Default hover (Student) - Orange */
 .back-home:hover {
     color: var(--orange);
     transform: translateX(-5px);
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
-/* Teacher tab - Green hover */
 .tab-teacher-active .back-home:hover {
     color: var(--green);
 }
 
+.signup-active .back-home:hover {
+    color: var(--blue);
+}
+
 .back-home i {
     font-size: 1.3rem;
-}
-
-/* ========================================
-   SIGN UP FORM - BLUE THEME
-   ======================================== */
-   #signup-section .btn-primary {
-    background: var(--blue);
-    border: none;
-}
-
-#signup-section .btn-primary:hover {
-    background: #357ABD;
-    transform: translateY(-2px);
-}
-
-/* When Sign Up is active - Left side turns blue */
-.signup-active .auth-left {
-    background: linear-gradient(135deg, var(--blue), #357ABD);
-}
-
-/* Tabs hidden in Sign Up mode */
-.signup-active .nav-pills {
-    display: none;
-}
-
-/* Login section hidden in Sign Up mode */
-.signup-active #login-section {
-    display: none;
-}
-
-.signup-active #signup-section {
-    display: block;
-}
-
-/* Show correct message in left side */
-.signup-active .student-message,
-.signup-active .teacher-message {
-    display: none;
-}
-
-.signup-active .signup-message {
-    display: block;
-}
-
-/* Back to Home - Blue hover only on Sign Up page */
-.signup-hover-blue:hover {
-    color: var(--blue) !important;
 }
 
 /* ========================================
@@ -667,6 +652,11 @@ h1, h2, h3, h4, h5 {
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .auth-split { flex-direction: column; }
     .auth-left, .auth-right { min-height: 50vh; }
+    .auth-left-content { padding: 4rem 2rem; }
+    .floating-characters { height: 300px; }
+    .char1 { width: 200px; }
+    .char2 { width: 240px; }
+    .char3 { width: 190px; }
     .back-home { top: 15px; left: 15px; }
 }
 
