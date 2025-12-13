@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Practice - SalinTinig</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="index.html">
+                <i class="fas fa-book-open text-primary"></i> SalinTinig
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><span class="nav-link">Hello, Student!</span></li>
+                    <li class="nav-item"><a class="nav-link" href="index.html">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <!-- User Stats Bar -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="stats-bar p-3 rounded-3">
+                    <div class="row text-center">
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-star text-warning"></i>
+                                <p class="small mb-0 fw-bold">Stars</p>
+                                <p class="mb-0 h5" id="totalStars">245</p>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-medal text-success"></i>
+                                <p class="small mb-0 fw-bold">Badges</p>
+                                <p class="mb-0 h5" id="totalBadges">8</p>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-fire text-danger"></i>
+                                <p class="small mb-0 fw-bold">Streak</p>
+                                <p class="mb-0 h5" id="totalStreak">12</p>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-book text-primary"></i>
+                                <p class="small mb-0 fw-bold">Stories</p>
+                                <p class="mb-0 h5" id="totalStories">24</p>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-trophy" style="color: #FFD700;"></i>
+                                <p class="small mb-0 fw-bold">Points</p>
+                                <p class="mb-0 h5" id="totalPoints">5,320</p>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="stat-item">
+                                <i class="fas fa-percentage text-info"></i>
+                                <p class="small mb-0 fw-bold">Level</p>
+                                <p class="mb-0 h5" id="totalLevel">12</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Language Toggle -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="fw-bold mb-0">Reading Practice</h4>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="language" id="englishBtn" value="english" checked>
+                        <label class="btn btn-outline-primary" for="englishBtn">
+                            <i class="fas fa-language me-2"></i>English
+                        </label>
+
+                        <input type="radio" class="btn-check" name="language" id="tagalogBtn" value="tagalog">
+                        <label class="btn btn-outline-primary" for="tagalogBtn">
+                            <i class="fas fa-language me-2"></i>Tagalog
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Story Card -->
+            <div class="col-lg-8 mb-4">
+                <div class="card reading-card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-book me-2"></i>The Little Runner</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="storyContent">
+                            <p class="lead lh-lg mb-3">
+                                Maya was a small girl who loved to run. Every morning, she would wake up early and run
+                                through the park near her house. The fresh air made her feel happy and strong. One day,
+                                she decided to join a running race at her school.
+                            </p>
+                            <p class="lh-lg mb-3">
+                                She practiced hard every day, running faster and faster. Her friends cheered for her. On
+                                the day of the race, Maya felt nervous but ready. When the race started, she ran with
+                                all her heart. She crossed the finish line and everyone clapped. Maya learned that with
+                                practice and determination, she could achieve her dreams.
+                            </p>
+                        </div>
+
+                        <!-- Microphone Section -->
+                        <div class="mt-4 p-3 rounded-3 bg-light text-center">
+                            <p class="small text-muted mb-3">Now it's your turn! Click to read the story aloud:</p>
+                            <div class="microphone-animation mb-3">
+                                <i class="fas fa-microphone"></i>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-danger btn-lg" id="startBtn" onclick="startRecording()">
+                                    <i class="fas fa-circle me-2"></i>Start Recording
+                                </button>
+                                <button class="btn btn-warning btn-lg" id="stopBtn" onclick="stopRecording()" disabled>
+                                    <i class="fas fa-stop me-2"></i>Stop Recording
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Results Card -->
+            <div class="col-lg-4 mb-4">
+                <div class="card analysis-card shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Analysis Results</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="analysisResults" style="display: none;">
+                            <!-- Accuracy -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong class="small">Accuracy</strong>
+                                    <span class="badge bg-success" id="accuracyScore">85%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-success" id="accuracyBar" style="width: 85%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Fluency -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong class="small">Fluency</strong>
+                                    <span class="badge bg-info" id="fluencyScore">78%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-info" id="fluencyBar" style="width: 78%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Comprehension -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong class="small">Comprehension</strong>
+                                    <span class="badge bg-warning text-dark" id="comprehensionScore">82%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-warning" id="comprehensionBar" style="width: 82%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Overall Score -->
+                            <div class="alert alert-success mb-3" role="alert">
+                                <strong>Overall Score: <span id="overallScore">82%</span></strong>
+                            </div>
+
+                            <!-- Awards -->
+                            <div id="awardsSection" class="mb-3">
+                                <p class="small fw-bold mb-2">🎉 You earned:</p>
+                                <div id="awardsList"></div>
+                            </div>
+
+                            <!-- Quiz -->
+                            <div class="mt-4 p-3 bg-light rounded-2">
+                                <p class="small fw-bold mb-2">Quick Comprehension Check:</p>
+                                <p class="small mb-2">What did Maya decide to do?</p>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-sm btn-outline-primary text-start"
+                                        onclick="checkAnswer(this, false)">
+                                        Play games
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary text-start"
+                                        onclick="checkAnswer(this, true)">
+                                        Join a running race
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary text-start"
+                                        onclick="checkAnswer(this, false)">
+                                        Learn to swim
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="readyMessage" class="text-center py-5">
+                            <i class="fas fa-microphone text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-3">Click "Start Recording" to begin reading and see your analysis!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Next Story Button -->
+        <div class="row mt-4">
+            <div class="col-md-12 text-center">
+                <button class="btn btn-primary btn-lg me-2" onclick="nextStory()">
+                    <i class="fas fa-arrow-right me-2"></i>Next Story
+                </button>
+                <a href="index.html" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-home me-2"></i>Home
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-5 border-top">
+        <div class="container">
+            <p class="text-center small text-muted mb-0">Keep practicing! You're doing great! 🌟</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/script.js"></script>
+</body>
+
+</html>

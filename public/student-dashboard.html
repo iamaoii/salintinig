@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard • SalinTinig</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+
+<body class="dashboard-body">
+
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar">
+        <div class="sidebar-logo">
+            <span>SalinTinig</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="#"><i class="fas fa-book"></i> My Stories</a>
+            <a href="#"><i class="fas fa-trophy"></i> Badges</a>
+            <a href="#"><i class="fas fa-cog"></i> Settings</a>
+            <a href="index.html"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <div class="container-fluid">
+            <!-- Welcome Card -->
+            <div class="welcome-card mb-5">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h1>Hi Heer, welcome back! 👋</h1>
+                        <h2 class="mt-3">This is your <strong>15th Day</strong> of reading!</h2>
+                        <p class="lead">Keep going — you're becoming a Reading Star! 🌟</p>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <img src="https://media.istockphoto.com/id/696499812/vector/cartoon-childrens-holding-a-pencil.jpg?s=612x612&w=0&k=20&c=J2FgreVz1ZsK10Xj-1jN5rlKj9f0q5vRn1TS989E_FE="
+                            alt="Happy student with pencil" class="welcome-character">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Missions / Stories -->
+            <h3 class="section-title mb-4">Today's Reading Missions</h3>
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="mission-card">
+                        <div class="mission-header">Fluency Practice</div>
+                        <img src="assets/Orange Star.png" alt="Fluency" class="mission-icon">
+                        <h4>The Magic Tree</h4>
+                        <p>Read aloud and beat your best speed!</p>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: 70%;"></div>
+                        </div>
+                        <small>4/6 completed</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mission-card completed">
+                        <div class="mission-header">Comprehension Quiz</div>
+                        <img src="assets/Blue Circle.png" alt="Quiz" class="mission-icon">
+                        <h4>Animal Friends</h4>
+                        <p>Answer questions about the story</p>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: 100%;"></div>
+                        </div>
+                        <small>Completed! ⭐</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mission-card">
+                        <div class="mission-header">Challenge</div>
+                        <img src="assets/Yellow Star.png" alt="Challenge" class="mission-icon">
+                        <h4>Filipino Folktale</h4>
+                        <p>Read in Filipino and earn double stars!</p>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: 30%;"></div>
+                        </div>
+                        <small>2/6 completed</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="progress-card">
+                        <h4>Weekly Reading Progress</h4>
+                        <img src="https://lh7-rt.googleusercontent.com/docsz/AD_4nXdWggLpO1BqAQ07kayoTsTAbQehWqQaRT8t2n86KyyN-BytaN0w23WlN8a7bps9ZeVfrHSQtvR1JZizFHBSFTcdaW0Fhv2zoWxAwOXHugyAbae3yDncK6UHH1exvr4kIaH-Tl2wdA?key=ROr9Ut6QLVL4rpQCPj_4ZQ"
+                            alt="Weekly progress graph" class="img-fluid">
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="circular-progress-card">
+                                <div class="circular-progress" data-percent="80">
+                                    <span>80%</span>
+                                </div>
+                                <h5>Fluency Goal</h5>
+                                <p>Keep trying!</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="circular-progress-card orange">
+                                <div class="circular-progress orange" data-percent="60">
+                                    <span>60%</span>
+                                </div>
+                                <h5>Overall Progress</h5>
+                                <p>Better than most! 🔥</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="rank-card">
+                                <h5>Ranking</h5>
+                                <h2>15th</h2>
+                                <p>Out of your class</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

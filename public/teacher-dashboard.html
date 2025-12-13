@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard • SalinTinig</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+
+<body class="dashboard-body teacher">
+
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar teacher">
+        <div class="sidebar-logo">
+            <span>SalinTinig</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="#"><i class="fas fa-users"></i> My Classes</a>
+            <a href="#"><i class="fas fa-chart-bar"></i> Analytics</a>
+            <a href="#"><i class="fas fa-cog"></i> Settings</a>
+            <a href="index.html"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <div class="container-fluid">
+            <h1 class="mb-4">Welcome back, Teacher Maria! 📊</h1>
+            <p class="lead mb-5">Here's an overview of your classes' reading progress.</p>
+
+            <!-- Class Cards -->
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="class-card">
+                        <h4>Grade 3 - Section A</h4>
+                        <p>28 students</p>
+                        <div class="class-progress">
+                            <span>Average Fluency</span>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" style="width: 75%;"></div>
+                            </div>
+                            <strong>75%</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="class-card">
+                        <h4>Grade 4 - Section B</h4>
+                        <p>25 students</p>
+                        <div class="class-progress">
+                            <span>Average Comprehension</span>
+                            <div class="progress">
+                                <div class="progress-bar bg-info" style="width: 82%;"></div>
+                            </div>
+                            <strong>82%</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="class-card">
+                        <h4>Grade 5 - Section C</h4>
+                        <p>30 students</p>
+                        <div class="class-progress">
+                            <span>Overall Progress</span>
+                            <div class="progress">
+                                <div class="progress-bar bg-warning" style="width: 60%;"></div>
+                            </div>
+                            <strong>60%</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="analytics-card">
+                        <h4>Class Reading Trends (This Week)</h4>
+                        <img src="https://multipurposethemes.com/wp-content/uploads/2023/09/1.jpg"
+                            alt="Teacher analytics chart" class="img-fluid rounded">
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="students-need-help">
+                        <h4>Students Needing Attention</h4>
+                        <ul class="list-group">
+                            <li class="list-group-item">Juan Dela Cruz <span class="badge bg-danger">Low Fluency</span>
+                            </li>
+                            <li class="list-group-item">Maria Santos <span class="badge bg-warning">Missed
+                                    Quizzes</span></li>
+                            <li class="list-group-item">Pedro Penduko <span class="badge bg-info">Improving!</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

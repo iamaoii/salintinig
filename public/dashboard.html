@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - SalinTinig</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/public/css/style.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="index.html">
+                <i class="fas fa-book-open text-primary"></i> SalinTinig
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><span class="nav-link">Teacher: Mrs. Rivera</span></li>
+                    <li class="nav-item"><a class="nav-link" href="index.html">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Dashboard Header -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h2 class="fw-bold mb-2">Teacher Dashboard</h2>
+                <p class="text-muted">Monitor your students' reading progress and performance</p>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="summary-card p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="small text-muted mb-1">Total Students</p>
+                            <h3 class="mb-0 fw-bold">28</h3>
+                        </div>
+                        <i class="fas fa-users" style="font-size: 2.5rem; color: #5B9BD5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="small text-muted mb-1">Avg Accuracy</p>
+                            <h3 class="mb-0 fw-bold">81%</h3>
+                        </div>
+                        <i class="fas fa-chart-pie" style="font-size: 2.5rem; color: #A8D88F;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="small text-muted mb-1">At Risk</p>
+                            <h3 class="mb-0 fw-bold" style="color: #FF9F9F;">5</h3>
+                        </div>
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; color: #FF9F9F;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="small text-muted mb-1">Top Performer</p>
+                            <h3 class="mb-0 fw-bold" style="color: #FFD700; font-size: 1.5rem;">Juan</h3>
+                        </div>
+                        <i class="fas fa-crown" style="font-size: 2.5rem; color: #FFD700;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs for Different Views -->
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="students-tab" data-bs-toggle="tab" href="#studentsView">
+                    <i class="fas fa-list me-2"></i>Student Performance
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="analysis-tab" data-bs-toggle="tab" href="#analysisView">
+                    <i class="fas fa-chart-bar me-2"></i>Analysis & Insights
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Students Tab -->
+            <div id="studentsView" class="tab-pane fade show active">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>Accuracy</th>
+                                        <th>Fluency</th>
+                                        <th>Comprehension</th>
+                                        <th>Overall</th>
+                                        <th>Status</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Juan Santos</strong></td>
+                                        <td><span class="badge bg-success">92%</span></td>
+                                        <td><span class="badge bg-success">88%</span></td>
+                                        <td><span class="badge bg-success">90%</span></td>
+                                        <td><strong>90%</strong></td>
+                                        <td><span class="badge bg-success">Excellent</span></td>
+                                        <td>Top performer - helping other students</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Maria Cruz</strong></td>
+                                        <td><span class="badge bg-success">85%</span></td>
+                                        <td><span class="badge bg-info">79%</span></td>
+                                        <td><span class="badge bg-success">82%</span></td>
+                                        <td><strong>82%</strong></td>
+                                        <td><span class="badge bg-info">Good</span></td>
+                                        <td>Improving fluency consistently</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Carlo Reyes</strong></td>
+                                        <td><span class="badge bg-info">78%</span></td>
+                                        <td><span class="badge bg-warning text-dark">72%</span></td>
+                                        <td><span class="badge bg-info">75%</span></td>
+                                        <td><strong>75%</strong></td>
+                                        <td><span class="badge bg-warning text-dark">Average</span></td>
+                                        <td>Needs more practice with complex words</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Ana Dela Cruz</strong></td>
+                                        <td><span class="badge bg-warning text-dark">68%</span></td>
+                                        <td><span class="badge bg-danger">62%</span></td>
+                                        <td><span class="badge bg-warning text-dark">65%</span></td>
+                                        <td><strong>65%</strong></td>
+                                        <td><span class="badge bg-danger">At Risk</span></td>
+                                        <td>Requires intervention - schedule 1-on-1</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Roberto Valdez</strong></td>
+                                        <td><span class="badge bg-danger">55%</span></td>
+                                        <td><span class="badge bg-danger">58%</span></td>
+                                        <td><span class="badge bg-danger">60%</span></td>
+                                        <td><strong>58%</strong></td>
+                                        <td><span class="badge bg-danger">At Risk</span></td>
+                                        <td>Urgent: Very low performance - contact parents</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Tab -->
+            <div id="analysisView" class="tab-pane fade">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">Class Strengths</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <p class="small fw-bold mb-2">Vocabulary Understanding</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" style="width: 88%"></div>
+                                    </div>
+                                    <small class="text-muted">88% of students show good vocabulary comprehension</small>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="small fw-bold mb-2">Pronunciation</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" style="width: 82%"></div>
+                                    </div>
+                                    <small class="text-muted">82% accuracy in pronunciation</small>
+                                </div>
+                                <div>
+                                    <p class="small fw-bold mb-2">Story Retention</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" style="width: 80%"></div>
+                                    </div>
+                                    <small class="text-muted">80% can recall key story details</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">Areas for Improvement</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <p class="small fw-bold mb-2">Reading Speed</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" style="width: 62%"></div>
+                                    </div>
+                                    <small class="text-muted">62% - Many students need to work on pace</small>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="small fw-bold mb-2">Complex Sentence Structure</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" style="width: 65%"></div>
+                                    </div>
+                                    <small class="text-muted">65% - Struggles with longer sentences</small>
+                                </div>
+                                <div>
+                                    <p class="small fw-bold mb-2">Inference & Analysis</p>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-danger" style="width: 55%"></div>
+                                    </div>
+                                    <small class="text-muted">55% - Difficulty with deeper comprehension</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-12 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Recommendations</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-light border-left border-4" style="border-color: #5B9BD5;">
+                                    <strong>For the Class:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Focus on speed drills with familiar texts</li>
+                                        <li>Practice complex sentence structures through chunking</li>
+                                        <li>Use guided reading for inference practice</li>
+                                        <li>Incorporate more Tagalog stories for context</li>
+                                    </ul>
+                                </div>
+                                <div class="alert alert-light border-left border-4" style="border-color: #FF9F9F;">
+                                    <strong>At-Risk Students (Ana & Roberto):</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Schedule 1-on-1 intervention sessions</li>
+                                        <li>Start with simpler texts and build up</li>
+                                        <li>Use peer mentoring with top performers</li>
+                                        <li>Consider speech-to-text for confidence building</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-5 border-top">
+        <div class="container-fluid">
+            <p class="text-center small text-muted mb-0">Keep monitoring progress and celebrate improvements! 🎓</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/js/script.js"></script>
+</body>
+
+</html>
