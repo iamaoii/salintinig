@@ -19,26 +19,31 @@
 
     <!-- Split Screen Auth -->
     <section class="auth-split">
-        <!-- Left Side - Characters -->
+        <!-- Left Side - Characters (Color changes with tab) -->
         <div class="auth-left">
             <div class="auth-left-content">
-                <h1>Hello Again!</h1>
-                <p class="lead mb-5">
-                    Welcome back! You've been missed.<br>
-                    Continue your reading journey with SalinTinig.
-                </p>
+                <!-- Student Message -->
+                <div class="welcome-message student-message">
+                    <h1>Hello Again!</h1>
+                    <p class="lead mb-5">
+                        Welcome back! You've been missed.<br>
+                        Continue your reading journey with SalinTinig.
+                    </p>
+                </div>
+
+                <!-- Teacher Message -->
+                <div class="welcome-message teacher-message">
+                    <h1>Welcome back!</h1>
+                    <p class="lead mb-5">
+                        Great to see you again!<br>
+                        Let's help your students become reading stars.
+                    </p>
+                </div>
 
                 <div class="floating-characters">
                     <img src="assets/Blue Circle.png" alt="Blue" class="float-char char1">
                     <img src="assets/Orange Star.png" alt="Orange" class="float-char char2">
                     <img src="assets/Yellow Star.png" alt="Yellow" class="float-char char3">
-                </div>
-
-                <div class="decor-shapes">
-                    <div class="shape shape1"></div>
-                    <div class="shape shape2"></div>
-                    <div class="shape shape3"></div>
-                    <div class="shape shape4"></div>
                 </div>
             </div>
         </div>
@@ -83,7 +88,7 @@
                                     <input class="form-check-input" type="checkbox" id="rememberStudent">
                                     <label class="form-check-label" for="rememberStudent">Remember me</label>
                                 </div>
-                                <a href="#" class="text-decoration-none small text-white">Forgot password?</a>
+                                <a href="#" class="text-decoration-none small">Forgot password?</a>
                             </div>
                             <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Student</button>
                         </form>
@@ -105,7 +110,7 @@
                                     <input class="form-check-input" type="checkbox" id="rememberTeacher">
                                     <label class="form-check-label" for="rememberTeacher">Remember me</label>
                                 </div>
-                                <a href="#" class="text-decoration-none small text-white">Forgot password?</a>
+                                <a href="#" class="text-decoration-none small">Forgot password?</a>
                             </div>
                             <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Teacher</button>
                         </form>
@@ -113,9 +118,9 @@
                 </div>
 
                 <div class="text-center mt-4">
-                    <p class="text-white opacity-90">
+                    <p class="text-muted">
                         Don't have an account?
-                        <a href="#" class="fw-bold text-white text-decoration-underline">Sign up here</a>
+                        <a href="#" class="fw-bold text-decoration-none">Sign up here</a>
                     </p>
                 </div>
             </div>
