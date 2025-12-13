@@ -612,6 +612,53 @@ h1, h2, h3, h4, h5 {
 }
 
 /* ========================================
+   SIGN UP FORM - BLUE THEME
+   ======================================== */
+   #signup-section .btn-primary {
+    background: var(--blue);
+    border: none;
+}
+
+#signup-section .btn-primary:hover {
+    background: #357ABD;
+    transform: translateY(-2px);
+}
+
+/* When Sign Up is active - Left side turns blue */
+.signup-active .auth-left {
+    background: linear-gradient(135deg, var(--blue), #357ABD);
+}
+
+/* Tabs hidden in Sign Up mode */
+.signup-active .nav-pills {
+    display: none;
+}
+
+/* Login section hidden in Sign Up mode */
+.signup-active #login-section {
+    display: none;
+}
+
+.signup-active #signup-section {
+    display: block;
+}
+
+/* Show correct message in left side */
+.signup-active .student-message,
+.signup-active .teacher-message {
+    display: none;
+}
+
+.signup-active .signup-message {
+    display: block;
+}
+
+/* Back to Home - Blue hover only on Sign Up page */
+.signup-hover-blue:hover {
+    color: var(--blue) !important;
+}
+
+/* ========================================
    RESPONSIVE
    ======================================== */
 @media (max-width: 992px) {

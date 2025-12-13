@@ -8,6 +8,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Fix: Ensure Sign Up section is visible when active */
+        .signup-active #signup-section {
+            display: block !important;
+        }
+
+        .signup-active #login-section {
+            display: none !important;
+        }
+    </style>
 </head>
 
 <body>
@@ -19,7 +29,7 @@
 
     <!-- Split Screen Auth -->
     <section class="auth-split">
-        <!-- Left Side - Characters (Color changes with tab) -->
+        <!-- Left Side - Characters -->
         <div class="auth-left">
             <div class="auth-left-content">
                 <!-- Student Message -->
@@ -40,6 +50,16 @@
                     </p>
                 </div>
 
+                <!-- Sign Up Message (Blue Theme) -->
+                <div class="welcome-message signup-message" style="display: none;">
+                    <h1>Join SalinTinig!</h1>
+                    <p class="lead mb-5">
+                        Create your account and start your<br>
+                        reading adventure today.
+                        <br> <br>
+                    </p>
+                </div>
+
                 <div class="floating-characters">
                     <img src="assets/Blue Circle.png" alt="Blue" class="float-char char1">
                     <img src="assets/Orange Star.png" alt="Orange" class="float-char char2">
@@ -48,80 +68,125 @@
             </div>
         </div>
 
-        <!-- Right Side - Login Form -->
+        <!-- Right Side - Forms -->
         <div class="auth-right">
-            <div class="auth-form-container">
-                <div class="text-center mb-5">
-                    <h2>Log In to SalinTinig</h2>
-                    <p class="text-muted">Choose your role to continue</p>
-                </div>
-
-                <!-- Tabs -->
-                <ul class="nav nav-pills mb-4 justify-content-center" id="authTab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="student-tab" data-bs-toggle="pill"
-                            data-bs-target="#student">
-                            Student
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="teacher-tab" data-bs-toggle="pill" data-bs-target="#teacher">
-                            Teacher
-                        </button>
-                    </li>
-                </ul>
-
-                <div class="tab-content" id="authTabContent">
-                    <!-- Student Login -->
-                    <div class="tab-pane fade show active" id="student">
-                        <form>
-                            <div class="mb-4">
-                                <input type="email" class="form-control form-control-lg" placeholder="Email or Username"
-                                    required>
-                            </div>
-                            <div class="mb-4">
-                                <input type="password" class="form-control form-control-lg" placeholder="Password"
-                                    required>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="rememberStudent">
-                                    <label class="form-check-label" for="rememberStudent">Remember me</label>
-                                </div>
-                                <a href="#" class="text-decoration-none small">Forgot password?</a>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Student</button>
-                        </form>
+            <div class="auth-form-container w-100" style="max-width: 480px;">
+                <!-- Login Section -->
+                <div id="login-section">
+                    <div class="text-center mb-5">
+                        <h2>Log In to SalinTinig</h2>
+                        <p class="text-muted">Choose your role to continue</p>
                     </div>
 
-                    <!-- Teacher Login -->
-                    <div class="tab-pane fade" id="teacher">
-                        <form>
-                            <div class="mb-4">
-                                <input type="email" class="form-control form-control-lg" placeholder="School Email"
-                                    required>
-                            </div>
-                            <div class="mb-4">
-                                <input type="password" class="form-control form-control-lg" placeholder="Password"
-                                    required>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="rememberTeacher">
-                                    <label class="form-check-label" for="rememberTeacher">Remember me</label>
+                    <!-- Tabs -->
+                    <ul class="nav nav-pills mb-4 justify-content-center" id="authTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="student-tab" data-bs-toggle="pill"
+                                data-bs-target="#student">
+                                Student
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="teacher-tab" data-bs-toggle="pill" data-bs-target="#teacher">
+                                Teacher
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="authTabContent">
+                        <!-- Student Login -->
+                        <div class="tab-pane fade show active" id="student">
+                            <form>
+                                <div class="mb-4">
+                                    <input type="email" class="form-control form-control-lg"
+                                        placeholder="Email or Username" required>
                                 </div>
-                                <a href="#" class="text-decoration-none small">Forgot password?</a>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Teacher</button>
-                        </form>
+                                <div class="mb-4">
+                                    <input type="password" class="form-control form-control-lg" placeholder="Password"
+                                        required>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="rememberStudent">
+                                        <label class="form-check-label" for="rememberStudent">Remember me</label>
+                                    </div>
+                                    <a href="#" class="text-decoration-none small">Forgot password?</a>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Student</button>
+                            </form>
+                        </div>
+
+                        <!-- Teacher Login -->
+                        <div class="tab-pane fade" id="teacher">
+                            <form>
+                                <div class="mb-4">
+                                    <input type="email" class="form-control form-control-lg" placeholder="School Email"
+                                        required>
+                                </div>
+                                <div class="mb-4">
+                                    <input type="password" class="form-control form-control-lg" placeholder="Password"
+                                        required>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="rememberTeacher">
+                                        <label class="form-check-label" for="rememberTeacher">Remember me</label>
+                                    </div>
+                                    <a href="#" class="text-decoration-none small">Forgot password?</a>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 btn-lg">Log In as Teacher</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <p class="text-muted">
+                            Don't have an account?
+                            <a href="#" id="show-signup" class="fw-bold text-decoration-none">Sign up here</a>
+                        </p>
                     </div>
                 </div>
 
-                <div class="text-center mt-4">
-                    <p class="text-muted">
-                        Don't have an account?
-                        <a href="#" class="fw-bold text-decoration-none">Sign up here</a>
-                    </p>
+                <!-- Sign Up Section -->
+                <div id="signup-section" style="display: none;">
+                    <div class="text-center mb-5">
+                        <h2>Create Your Account</h2>
+                        <p class="text-muted">Fill in your details to get started</p>
+                    </div>
+
+                    <form>
+                        <div class="mb-4">
+                            <input type="text" class="form-control form-control-lg" placeholder="Full Name" required>
+                        </div>
+                        <div class="mb-4">
+                            <select class="form-select form-select-lg" required>
+                                <option value="" disabled selected>Classification</option>
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <input type="email" class="form-control form-control-lg" placeholder="Email" required>
+                        </div>
+                        <div class="mb-4">
+                            <input type="text" class="form-control form-control-lg" placeholder="LRN Number" required>
+                        </div>
+                        <div class="mb-4">
+                            <input type="password" class="form-control form-control-lg" placeholder="Password" required>
+                        </div>
+                        <div class="mb-4">
+                            <input type="password" class="form-control form-control-lg" placeholder="Confirm Password"
+                                required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 btn-lg">Create Account</button>
+                    </form>
+
+                    <div class="text-center mt-4">
+                        <p class="text-muted">
+                            Already have an account?
+                            <a href="#" id="show-login" class="fw-bold text-decoration-none">Log in here</a>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
