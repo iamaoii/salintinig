@@ -1,8 +1,15 @@
 <?php
+session_start();  // Critical: Start session first
+
 require_once '../includes/functions.php';
+
 if (!isLoggedIn() || getUserRole() !== 'student') {
+    // Not logged in or wrong role → redirect to auth
     redirect('auth.html');
 }
+
+// Now safe to use session data
+$studentName = getUserName();
 ?>
 
 <!DOCTYPE html>
@@ -42,7 +49,7 @@ if (!isLoggedIn() || getUserRole() !== 'student') {
             <div class="greeting-card mb-5">
                 <div class="row align-items-center">
                     <div class="col-md-7">
-                        <h1>Hi Maria! Welcome back!</h1>
+                        <h1>Hi <?= htmlspecialchars(getUserName()) ?>! Welcome back!</h1>
                         <p class="lead fs-3">You're on a 12-day reading streak! Keep going!</p>
                     </div>
                     <div class="col-md-5 text-center">

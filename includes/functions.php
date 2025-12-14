@@ -1,5 +1,5 @@
 <?php
-require_once 'db.php';        // Brings in getDB()
+require_once 'db.php';
 require_once 'config.php';
 
 function startSession() {

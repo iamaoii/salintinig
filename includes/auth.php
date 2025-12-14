@@ -1,7 +1,11 @@
 <?php
-// includes/auth.php - Fixed version with proper duplicate handling
+// includes/auth.php - Auto-login after signup + correct dashboard redirect
 
-startSession();
+session_start();  // Must be first
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../functions.php';
 
 header('Content-Type: application/json');
 
@@ -31,8 +35,11 @@ if ($action === 'signup') {
     }
 
     $password_hash = hashPassword($password);
+    $role = $classification; // 'student' or 'teacher'
 
     try {
+        $user_id = null;
+
         if ($classification === 'student') {
             $lrn_number = sanitizeInput($_POST['lrn_number'] ?? '');
 
@@ -41,14 +48,12 @@ if ($action === 'signup') {
                 exit();
             }
 
-            // Insert student (UNIQUE constraints will throw exception if duplicate)
             $stmt = $pdo->prepare("INSERT INTO students_account (full_name, email, lrn_number, password_hash) VALUES (?, ?, ?, ?)");
             $stmt->execute([$full_name, $email, $lrn_number, $password_hash]);
+            $user_id = $pdo->lastInsertId();
 
-            $student_id = $pdo->lastInsertId();
-
-            // Create progress record
-            $pdo->prepare("INSERT INTO student_progress (student_id) VALUES (?)")->execute([$student_id]);
+            // Create initial progress record
+            $pdo->prepare("INSERT INTO student_progress (student_id) VALUES (?)")->execute([$user_id]);
 
         } elseif ($classification === 'teacher') {
             $id_number = sanitizeInput($_POST['id_number'] ?? '');
@@ -58,20 +63,30 @@ if ($action === 'signup') {
                 exit();
             }
 
-            // Insert teacher
             $stmt = $pdo->prepare("INSERT INTO teachers_account (full_name, email, id_number, password_hash) VALUES (?, ?, ?, ?)");
             $stmt->execute([$full_name, $email, $id_number, $password_hash]);
+            $user_id = $pdo->lastInsertId();
 
         } else {
             echo json_encode(['error' => 'Invalid classification']);
             exit();
         }
 
-        // Only reach here if INSERT succeeded
-        echo json_encode(['success' => 'Account created successfully! Please log in.']);
+        // === AUTO-LOGIN AFTER SUCCESSFUL SIGNUP ===
+        $_SESSION['user_id'] = $user_id;
+        $_SESSION['role'] = $role;
+        $_SESSION['name'] = $full_name;
+
+        $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
+        $redirect_url = SITE_URL . $dashboard;
+
+        echo json_encode([
+            'success' => true,
+            'redirect' => $redirect_url
+        ]);
 
     } catch (PDOException $e) {
-        // Catch duplicate entry error (MySQL error code 1062)
+        // Handle duplicate email or ID/LRN
         if ($e->getCode() == '23000' && strpos($e->getMessage(), 'Duplicate entry') !== false) {
             if (strpos($e->getMessage(), 'email') !== false) {
                 echo json_encode(['error' => 'This email is already registered']);
@@ -81,8 +96,7 @@ if ($action === 'signup') {
                 echo json_encode(['error' => 'Email or ID Number already exists']);
             }
         } else {
-            // Other database errors (log in production, hide from user)
-            echo json_encode(['error' => 'An error occurred. Please try again.']);
+            echo json_encode(['error' => 'An error occurred. Please try again later.']);
         }
     }
 
@@ -91,14 +105,7 @@ if ($action === 'signup') {
     $password = $_POST['password'] ?? '';
     $role = sanitizeInput($_POST['role'] ?? '');
 
-    if ($role === 'student') {
-        $table = 'students_account';
-    } elseif ($role === 'teacher') {
-        $table = 'teachers_account';
-    } else {
-        echo json_encode(['error' => 'Invalid role']);
-        exit();
-    }
+    $table = $role === 'student' ? 'students_account' : 'teachers_account';
 
     $stmt = $pdo->prepare("SELECT id, full_name, password_hash FROM $table WHERE email = ?");
     $stmt->execute([$email]);
@@ -109,8 +116,10 @@ if ($action === 'signup') {
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $user['full_name'];
 
-        $redirect = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
-        echo json_encode(['success' => true, 'redirect' => $redirect]);
+        $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
+        $redirect_url = SITE_URL . $dashboard;
+
+        echo json_encode(['success' => true, 'redirect' => $redirect_url]);
     } else {
         echo json_encode(['error' => 'Invalid email or password']);
     }
