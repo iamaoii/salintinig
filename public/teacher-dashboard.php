@@ -211,14 +211,25 @@ $teacherName = getUserName();
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5><?= htmlspecialchars($story['title']) ?></h5>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-link text-muted" data-bs-toggle="dropdown">
-                                            <i class="fas fa-ellipsis-v"></i>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item" href="#" onclick='openEditModal(<?= json_encode($story) ?>)'>Edit</a></li>
-                                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteStory(<?= $story['id'] ?>)">Delete</a></li>
-                                        </ul>
-                                    </div>
+                                    <button class="btn btn-sm btn-link text-muted" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#"
+                                            data-id="<?= $story['id'] ?>"
+                                            data-title="<?= htmlspecialchars($story['title'], ENT_QUOTES) ?>"
+                                            data-description="<?= htmlspecialchars($story['description'] ?? '', ENT_QUOTES) ?>"
+                                            data-content="<?= htmlspecialchars($story['content'] ?? '', ENT_QUOTES) ?>"
+                                            data-grade="<?= htmlspecialchars($story['grade_level']) ?>"
+                                            data-language="<?= htmlspecialchars($story['language']) ?>"
+                                            onclick="openEditModalFromLink(this)">
+                                            Edit
+                                            </a>
+                                        </li>
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteStory(<?= $story['id'] ?>)">Delete</a></li>
+                                    </ul>
+                                </div>
                                 </div>
                                 <p class="small text-muted"><?= htmlspecialchars($story['description'] ?? 'No description') ?></p>
                                 <div class="mt-3">
@@ -258,7 +269,7 @@ $teacherName = getUserName();
 
         <!-- Story Modal -->
         <div class="modal fade" id="storyModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg"> <!-- Larger modal for content -->
                 <div class="modal-content">
                     <form id="storyForm">
                         <div class="modal-header">
@@ -274,26 +285,32 @@ $teacherName = getUserName();
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label">Description</label>
-                                <textarea name="description" id="storyDesc" class="form-control" rows="4"></textarea>
+                                <label class="form-label">Short Description</label>
+                                <textarea name="description" id="storyDesc" class="form-control" rows="3" placeholder="Brief summary shown in story card"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Full Story Content</label>
+                                <textarea name="content" id="storyContent" class="form-control" rows="10" placeholder="Paste or write the complete story text here that students will read aloud..." required></textarea>
                             </div>
                             
-                            <div class="mb-3">
-                                <label class="form-label">Grade Level</label>
-                                <select name="grade_level" id="storyGrade" class="form-select">
-                                    <option value="1-2">Grades 1-2</option>
-                                    <option value="3-4">Grades 3-4</option>
-                                    <option value="5-6">Grades 5-6</option>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Language</label>
-                                <select name="language" id="storyLang" class="form-select">
-                                    <option value="English">English</option>
-                                    <option value="Filipino">Filipino</option>
-                                    <option value="Bilingual">Bilingual</option>
-                                </select>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Grade Level</label>
+                                    <select name="grade_level" id="storyGrade" class="form-select">
+                                        <option value="1-2">Grades 1-2</option>
+                                        <option value="3-4">Grades 3-4</option>
+                                        <option value="5-6">Grades 5-6</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Language</label>
+                                    <select name="language" id="storyLang" class="form-select">
+                                        <option value="English">English</option>
+                                        <option value="Filipino">Filipino</option>
+                                        <option value="Bilingual">Bilingual</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -304,7 +321,7 @@ $teacherName = getUserName();
                 </div>
             </div>
         </div>
-        
+
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

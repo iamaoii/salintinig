@@ -1,4 +1,4 @@
-// public/js/teacher-dashboard.js - Final fixed version
+// public/js/teacher-dashboard.js - FINAL: Edit works for ALL stories (safe data attributes)
 
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // ==================== CHARTS (your original) ====================
+    // ==================== CHARTS ====================
     const progressCtx = document.getElementById('progressChart');
     if (progressCtx) {
         new Chart(progressCtx, {
@@ -70,21 +70,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ==================== CRUD FOR STORIES ====================
+    // ==================== CRUD FOR STORIES (SAFE & WORKING) ====================
 
     window.openAddModal = function() {
         document.getElementById('modalTitle').textContent = 'Add New Story';
         document.getElementById('storyForm').reset();
         document.getElementById('storyId').value = '';
+        document.getElementById('storyDesc').value = '';
+        document.getElementById('storyContent').value = '';
     };
 
-    window.openEditModal = function(story) {
+    // Safe edit using data attributes
+    window.openEditModalFromLink = function(link) {
         document.getElementById('modalTitle').textContent = 'Edit Story';
-        document.getElementById('storyId').value = story.id;
-        document.getElementById('storyTitle').value = story.title;
-        document.getElementById('storyDesc').value = story.description || '';
-        document.getElementById('storyGrade').value = story.grade_level;
-        document.getElementById('storyLang').value = story.language;
+        document.getElementById('storyId').value = link.dataset.id;
+        document.getElementById('storyTitle').value = link.dataset.title;
+        document.getElementById('storyDesc').value = link.dataset.description;
+        document.getElementById('storyContent').value = link.dataset.content;
+        document.getElementById('storyGrade').value = link.dataset.grade;
+        document.getElementById('storyLang').value = link.dataset.language;
         new bootstrap.Modal(document.getElementById('storyModal')).show();
     };
 
@@ -137,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Activate Stories tab if #stories in URL
+    // Keep on Stories tab after reload
     if (window.location.hash === '#stories') {
         document.querySelector('.tab-link[data-tab="stories"]')?.click();
     }

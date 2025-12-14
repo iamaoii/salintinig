@@ -14,18 +14,34 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'create') {
-        $stmt = $pdo->prepare("INSERT INTO stories (title, description, grade_level, language) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$_POST['title'], $_POST['description'], $_POST['grade_level'], $_POST['language']]);
+        $stmt = $pdo->prepare("INSERT INTO stories (title, description, content, grade_level, language) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $_POST['title'],
+            $_POST['description'],
+            $_POST['content'],
+            $_POST['grade_level'],
+            $_POST['language']
+        ]);
         echo json_encode(['success' => true]);
-    } elseif ($action === 'update') {
-        $stmt = $pdo->prepare("UPDATE stories SET title = ?, description = ?, grade_level = ?, language = ? WHERE id = ?");
-        $stmt->execute([$_POST['title'], $_POST['description'], $_POST['grade_level'], $_POST['language'], $_POST['id']]);
+    }
+    elseif ($action === 'update') {
+        $stmt = $pdo->prepare("UPDATE stories SET title = ?, description = ?, content = ?, grade_level = ?, language = ? WHERE id = ?");
+        $stmt->execute([
+            $_POST['title'],
+            $_POST['description'],
+            $_POST['content'],
+            $_POST['grade_level'],
+            $_POST['language'],
+            $_POST['id']
+        ]);
         echo json_encode(['success' => true]);
-    } elseif ($action === 'delete') {
+    }
+    elseif ($action === 'delete') {
         $stmt = $pdo->prepare("DELETE FROM stories WHERE id = ?");
         $stmt->execute([$_POST['id']]);
         echo json_encode(['success' => true]);
-    } else {
+    }
+    else {
         echo json_encode(['error' => 'Invalid action']);
     }
 } catch (Exception $e) {

@@ -111,10 +111,10 @@ $studentName = getUserName();
             <!-- My Stories Tab -->
             <div id="stories" class="tab-content">
                 <h2 class="mb-4">My Current Stories 📚</h2>
-                <div class="row g-4 text-center" id="studentStoriesList">
+                <div class="row g-4 text-center">
                     <?php
                     $pdo = getDB();
-                    $stmt = $pdo->query("SELECT * FROM stories ORDER BY created_at DESC");
+                    $stmt = $pdo->query("SELECT id, title, description, content, grade_level, language FROM stories ORDER BY created_at DESC");
                     $stories = $stmt->fetchAll();
 
                     if (empty($stories)) {
@@ -122,19 +122,23 @@ $studentName = getUserName();
                     }
 
                     foreach ($stories as $story) {
+                        // Truncate content for preview (first 200 characters)
+                        $preview = $story['content'] ? substr(strip_tags($story['content']), 0, 200) . '...' : 'No content available.';
                     ?>
                         <div class="col-md-4">
                             <div class="chart-container p-4">
-                                <img src="assets/Yellow Star.png" width="100" class="mb-3" alt="Story Icon">
+                                <img src="assets/Yellow Star.png" width="100" class="mb-3" alt="Story">
                                 <h5><?= htmlspecialchars($story['title']) ?></h5>
                                 <small class="text-muted d-block mb-3">
-                                    <?= htmlspecialchars($story['description'] ?? 'No description') ?>
+                                    <?= htmlspecialchars($story['description'] ?? $preview) ?>
                                 </small>
                                 <div class="mb-3">
                                     <span class="badge bg-primary"><?= htmlspecialchars($story['grade_level']) ?></span>
                                     <span class="badge bg-info"><?= htmlspecialchars($story['language']) ?></span>
                                 </div>
-                                <button class="btn btn-primary rounded-pill">Start Reading →</button>
+                                <a href="reading.php?story_id=<?= $story['id'] ?>" class="btn btn-primary rounded-pill">
+                                    Start Reading →
+                                </a>
                             </div>
                         </div>
                     <?php } ?>
