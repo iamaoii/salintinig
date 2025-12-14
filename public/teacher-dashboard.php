@@ -31,7 +31,7 @@ $teacherName = getUserName();
     <!-- Sidebar -->
     <aside class="teacher-sidebar">
         <div class="sidebar-logo">
-            <a href="index.html" style="text-decoration: none; color: inherit;">
+            <a href="index.php" style="text-decoration: none; color: inherit;">
                 SalinTinig
             </a>
         </div>

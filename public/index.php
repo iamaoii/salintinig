@@ -12,11 +12,11 @@
 
 <body>
 
-    <!-- Floating Navbar - Logo Now Clickable -->
+    <!-- Floating Navbar - Dynamic for logged-in users -->
     <header class="floating-navbar">
         <div class="container navbar-inner">
             <div class="nav-logo">
-                <a href="#home" class="logo-link">
+                <a href="index.php" class="logo-link">
                     <span class="logo-text">SalinTinig</span>
                 </a>
             </div>
@@ -27,8 +27,29 @@
                 <a href="#about">About</a>
             </nav>
             <div class="nav-right">
-                <a href="auth.html" class="btn btn-login">Log In</a>
-                <a href="auth.html" class="btn btn-start">Start Free</a>
+                <?php
+                session_start();
+                require_once '../includes/functions.php';
+
+                if (isLoggedIn()) {
+                    $userName = htmlspecialchars(getUserName());
+                    $role = getUserRole();
+                    $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
+                ?>
+                    <div class="dropdown user-greeting">
+                        <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Hi, <?= $userName ?>!
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="<?= $dashboard ?>"><i class="fas fa-tachometer-alt me-2"></i> My Dashboard</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="logout.php"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+                        </ul>
+                    </div>
+                <?php } else { ?>
+                    <a href="auth.html" class="btn btn-login">Log In</a>
+                    <a href="auth.html" class="btn btn-start">Start Free</a>
+                <?php } ?>
             </div>
         </div>
     </header>

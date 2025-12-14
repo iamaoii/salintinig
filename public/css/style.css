@@ -644,6 +644,78 @@ h1, h2, h3, h4, h5 {
 }
 
 /* ========================================
+   LOGGED-IN USER DROPDOWN (Orange Background - No Pop-Up Effect)
+   ======================================== */
+
+/* The user name button - orange background, same as previous formal style */
+.nav-right .dropdown .dropdown-toggle {
+    background: var(--orange);
+    color: white;
+    border: 2px solid var(--orange);
+    border-radius: 30px;
+    padding: 10px 28px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: background 0.3s ease;
+    min-width: 160px;
+    box-shadow: 0 5px 15px rgba(255, 107, 53, 0.2);
+}
+
+.nav-right .dropdown .dropdown-toggle:hover {
+    background: #e65a26; /* Darker orange on hover */
+    color: white;
+    border-color: #e65a26;
+    /* No transform or lift effect */
+}
+
+.nav-right .dropdown .dropdown-toggle:focus {
+    box-shadow: none;
+}
+
+/* Dropdown arrow - white */
+.nav-right .dropdown .dropdown-toggle::after {
+    border-top-color: white;
+    margin-left: 12px;
+    vertical-align: middle;
+}
+
+.nav-right .dropdown .dropdown-toggle:hover::after {
+    border-top-color: white;
+}
+
+/* Dropdown menu */
+.nav-right .dropdown-menu {
+    border: none;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    padding: 10px 0;
+    margin-top: 8px;
+    min-width: 180px;
+    background: white;
+}
+
+.nav-right .dropdown-item {
+    padding: 10px 24px;
+    font-weight: 500;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+.nav-right .dropdown-item:hover,
+.nav-right .dropdown-item:focus {
+    background-color: #f8f9fa;
+    color: var(--orange);
+}
+
+.nav-right .dropdown-item.text-danger:hover {
+    background-color: #fff5f5;
+    color: #dc3545;
+}
+
+.nav-right .dropdown-divider {
+    margin: 8px 0;
+}
+/* ========================================
    RESPONSIVE
    ======================================== */
 @media (max-width: 992px) {
