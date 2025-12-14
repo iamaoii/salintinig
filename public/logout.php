@@ -1,8 +1,7 @@
 <?php
-require_once '../includes/functions.php';
-
-startSession();
+session_start();
 session_destroy();
 
-redirect('index.html');
+header("Location: auth.html");
+exit();
 ?>

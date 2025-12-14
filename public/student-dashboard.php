@@ -30,14 +30,18 @@ $studentName = getUserName();
 
     <!-- Sidebar -->
     <aside class="student-sidebar">
-        <div class="sidebar-logo">SalinTinig</div>
+        <div class="sidebar-logo">
+            <a href="index.html" style="text-decoration: none; color: inherit;">
+                SalinTinig
+            </a>
+        </div>
         <nav class="sidebar-nav">
             <a href="#" class="tab-link active" data-tab="progress"><i class="fas fa-home"></i> <span>My
                     Progress</span></a>
             <a href="#" class="tab-link" data-tab="stories"><i class="fas fa-book-open"></i> <span>My Stories</span></a>
             <a href="#" class="tab-link" data-tab="badges"><i class="fas fa-trophy"></i> <span>My Badges</span></a>
             <a href="#" class="tab-link" data-tab="profile"><i class="fas fa-user"></i> <span>Profile</span></a>
-            <a href="index.html"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
+            <a href="logout.php"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
         </nav>
     </aside>
 

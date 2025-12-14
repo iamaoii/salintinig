@@ -30,14 +30,18 @@ $teacherName = getUserName();
 
     <!-- Sidebar -->
     <aside class="teacher-sidebar">
-        <div class="sidebar-logo">SalinTinig</div>
+        <div class="sidebar-logo">
+            <a href="index.html" style="text-decoration: none; color: inherit;">
+                SalinTinig
+            </a>
+        </div>
         <nav class="sidebar-nav">
             <a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-home"></i>
                 <span>Dashboard</span></a>
             <a href="#" class="tab-link" data-tab="students"><i class="fas fa-users"></i> <span>Students</span></a>
             <a href="#" class="tab-link" data-tab="stories"><i class="fas fa-book-open"></i> <span>Stories</span></a>
             <a href="#" class="tab-link" data-tab="reports"><i class="fas fa-chart-bar"></i> <span>Reports</span></a>
-            <a href="index.html"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
+            <a href="logout.php"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
         </nav>
     </aside>
 
@@ -127,7 +131,7 @@ $teacherName = getUserName();
 
                     <div class="col-lg-4">
                         <div class="top-students">
-                            <h3 class="title">Top Reading Stars ⭐</h3>
+                            <h3 class="title">Top Reading Stars</h3>
                             <div class="student-item">
                                 <div class="student-avatar">MS</div>
                                 <div class="student-info">
@@ -156,7 +160,7 @@ $teacherName = getUserName();
 
             <!-- Students Tab -->
             <div id="students" class="tab-content">
-                <h2 class="mb-4">My Students 👨‍🎓👩‍🎓</h2>
+                <h2 class="mb-4">My Students</h2>
                 <div class="row g-4">
                     <div class="col-md-6">
                         <div class="chart-container p-4 text-center">
@@ -180,38 +184,57 @@ $teacherName = getUserName();
 
             <!-- Stories Tab -->
             <div id="stories" class="tab-content">
-                <h2 class="mb-4">Available Stories 📚</h2>
-                <div class="row g-4 text-center">
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Blue Circle.png" width="80" class="mb-3" alt="Story">
-                            <h5>Ang Alamat ng Pakwan</h5>
-                            <small>Filipino Folktale • Grade 3</small>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Orange Star.png" width="80" class="mb-3" alt="Story">
-                            <h5>The Magic Fish</h5>
-                            <small>English Adventure • Grade 4</small>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Yellow Star.png" width="80" class="mb-3" alt="Story">
-                            <h5>Si Juan Tamad</h5>
-                            <small>Filipino Classic • Challenge</small>
-                        </div>
-                    </div>
+                <h2 class="mb-4">Manage Stories</h2>
+                
+                <!-- Add New Story Button -->
+                <div class="text-end mb-3">
+                    <button class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#storyModal" onclick="openAddModal()">
+                        Add New Story +
+                    </button>
                 </div>
-                <div class="text-center mt-4">
-                    <button class="btn btn-primary rounded-pill px-5">Add New Story +</button>
+
+                <!-- Stories List -->
+                <div class="row g-4" id="storiesList">
+                    <!-- Stories will be loaded here via PHP -->
+                    <?php
+                    $pdo = getDB();
+                    $stmt = $pdo->query("SELECT * FROM stories ORDER BY created_at DESC");
+                    $stories = $stmt->fetchAll();
+
+                    if (empty($stories)) {
+                        echo '<p class="text-center text-muted">No stories yet. Add one above!</p>';
+                    }
+
+                    foreach ($stories as $story) {
+                    ?>
+                        <div class="col-md-4">
+                            <div class="chart-container p-4 position-relative">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5><?= htmlspecialchars($story['title']) ?></h5>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-link text-muted" data-bs-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="#" onclick='openEditModal(<?= json_encode($story) ?>)'>Edit</a></li>
+                                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteStory(<?= $story['id'] ?>)">Delete</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <p class="small text-muted"><?= htmlspecialchars($story['description']) ?></p>
+                                <div class="mt-3">
+                                    <span class="badge bg-primary"><?= $story['grade_level'] ?></span>
+                                    <span class="badge bg-info"><?= $story['language'] ?></span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php } ?>
                 </div>
             </div>
 
             <!-- Reports Tab -->
             <div id="reports" class="tab-content">
-                <h2 class="mb-4">Class Reports 📊</h2>
+                <h2 class="mb-4">Class Reports</h2>
                 <div class="chart-container p-4">
                     <h4 class="text-center mb-4">Monthly Reading Summary</h4>
                     <div class="row text-center mb-4">
