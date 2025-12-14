@@ -1,7 +1,0 @@
-# Block direct access to parent directories
-RewriteEngine On
-RewriteRule ^(includes|api)/ - [F,L]
-
-# Optional: Force HTTPS (uncomment when live)
-# RewriteCond %{HTTPS} off
-# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
