@@ -195,14 +195,13 @@ $teacherName = getUserName();
 
                 <!-- Stories List -->
                 <div class="row g-4" id="storiesList">
-                    <!-- Stories will be loaded here via PHP -->
                     <?php
                     $pdo = getDB();
                     $stmt = $pdo->query("SELECT * FROM stories ORDER BY created_at DESC");
                     $stories = $stmt->fetchAll();
 
                     if (empty($stories)) {
-                        echo '<p class="text-center text-muted">No stories yet. Add one above!</p>';
+                        echo '<p class="text-center text-muted col-12">No stories yet. Add one above!</p>';
                     }
 
                     foreach ($stories as $story) {
@@ -221,10 +220,10 @@ $teacherName = getUserName();
                                         </ul>
                                     </div>
                                 </div>
-                                <p class="small text-muted"><?= htmlspecialchars($story['description']) ?></p>
+                                <p class="small text-muted"><?= htmlspecialchars($story['description'] ?? 'No description') ?></p>
                                 <div class="mt-3">
-                                    <span class="badge bg-primary"><?= $story['grade_level'] ?></span>
-                                    <span class="badge bg-info"><?= $story['language'] ?></span>
+                                    <span class="badge bg-primary"><?= htmlspecialchars($story['grade_level']) ?></span>
+                                    <span class="badge bg-info"><?= htmlspecialchars($story['language']) ?></span>
                                 </div>
                             </div>
                         </div>
@@ -256,6 +255,56 @@ $teacherName = getUserName();
             </div>
 
         </div>
+
+        <!-- Story Modal -->
+        <div class="modal fade" id="storyModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="storyForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalTitle">Add New Story</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="id" id="storyId">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Title</label>
+                                <input type="text" name="title" id="storyTitle" class="form-control" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" id="storyDesc" class="form-control" rows="4"></textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Grade Level</label>
+                                <select name="grade_level" id="storyGrade" class="form-select">
+                                    <option value="1-2">Grades 1-2</option>
+                                    <option value="3-4">Grades 3-4</option>
+                                    <option value="5-6">Grades 5-6</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Language</label>
+                                <select name="language" id="storyLang" class="form-select">
+                                    <option value="English">English</option>
+                                    <option value="Filipino">Filipino</option>
+                                    <option value="Bilingual">Bilingual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Story</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -1,7 +1,8 @@
-// public/js/teacher-dashboard.js
+// public/js/teacher-dashboard.js - Final fixed version
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Tab Switching
+
+    // ==================== TAB SWITCHING ====================
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
@@ -12,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Dashboard Charts
+    // ==================== CHARTS (your original) ====================
     const progressCtx = document.getElementById('progressChart');
     if (progressCtx) {
         new Chart(progressCtx, {
@@ -51,7 +52,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Reports Tab Chart
     const reportCtx = document.getElementById('reportChart');
     if (reportCtx) {
         new Chart(reportCtx, {
@@ -68,5 +68,77 @@ document.addEventListener('DOMContentLoaded', function () {
                 scales: { y: { beginAtZero: true, max: 100 } }
             }
         });
+    }
+
+    // ==================== CRUD FOR STORIES ====================
+
+    window.openAddModal = function() {
+        document.getElementById('modalTitle').textContent = 'Add New Story';
+        document.getElementById('storyForm').reset();
+        document.getElementById('storyId').value = '';
+    };
+
+    window.openEditModal = function(story) {
+        document.getElementById('modalTitle').textContent = 'Edit Story';
+        document.getElementById('storyId').value = story.id;
+        document.getElementById('storyTitle').value = story.title;
+        document.getElementById('storyDesc').value = story.description || '';
+        document.getElementById('storyGrade').value = story.grade_level;
+        document.getElementById('storyLang').value = story.language;
+        new bootstrap.Modal(document.getElementById('storyModal')).show();
+    };
+
+    window.deleteStory = function(id) {
+        if (confirm('Are you sure you want to delete this story?')) {
+            fetch('api/stories.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=delete&id=' + id
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '#stories';
+                    location.reload();
+                } else {
+                    alert('Error deleting story');
+                }
+            })
+            .catch(() => alert('Error deleting story'));
+        }
+    };
+
+    const storyForm = document.getElementById('storyForm');
+    if (storyForm) {
+        storyForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const storyId = document.getElementById('storyId').value;
+            formData.append('action', storyId ? 'update' : 'create');
+
+            fetch('api/stories.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('storyModal')).hide();
+                    window.location.href = '#stories';
+                    location.reload();
+                } else {
+                    alert('Error saving story: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Error saving story');
+            });
+        });
+    }
+
+    // Activate Stories tab if #stories in URL
+    if (window.location.hash === '#stories') {
+        document.querySelector('.tab-link[data-tab="stories"]')?.click();
     }
 });

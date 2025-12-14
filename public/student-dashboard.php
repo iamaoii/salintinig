@@ -110,32 +110,34 @@ $studentName = getUserName();
 
             <!-- My Stories Tab -->
             <div id="stories" class="tab-content">
-                <h2 class="mb-4">My Current Stories</h2>
-                <div class="row g-4 text-center">
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Blue Circle.png" width="100" class="mb-3">
-                            <h5>Ang Alamat ng Pakwan</h5>
-                            <small>70% Complete • 12 Stars</small>
-                            <button class="btn btn-primary rounded-pill mt-3">Continue Reading →</button>
+                <h2 class="mb-4">My Current Stories 📚</h2>
+                <div class="row g-4 text-center" id="studentStoriesList">
+                    <?php
+                    $pdo = getDB();
+                    $stmt = $pdo->query("SELECT * FROM stories ORDER BY created_at DESC");
+                    $stories = $stmt->fetchAll();
+
+                    if (empty($stories)) {
+                        echo '<p class="text-center text-muted col-12">No stories available yet. Ask your teacher to add some!</p>';
+                    }
+
+                    foreach ($stories as $story) {
+                    ?>
+                        <div class="col-md-4">
+                            <div class="chart-container p-4">
+                                <img src="assets/Yellow Star.png" width="100" class="mb-3" alt="Story Icon">
+                                <h5><?= htmlspecialchars($story['title']) ?></h5>
+                                <small class="text-muted d-block mb-3">
+                                    <?= htmlspecialchars($story['description'] ?? 'No description') ?>
+                                </small>
+                                <div class="mb-3">
+                                    <span class="badge bg-primary"><?= htmlspecialchars($story['grade_level']) ?></span>
+                                    <span class="badge bg-info"><?= htmlspecialchars($story['language']) ?></span>
+                                </div>
+                                <button class="btn btn-primary rounded-pill">Start Reading →</button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Orange Star.png" width="100" class="mb-3">
-                            <h5>The Magic Fish</h5>
-                            <small>45% Complete • 8 Stars</small>
-                            <button class="btn btn-primary rounded-pill mt-3">Continue Reading →</button>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="chart-container p-4">
-                            <img src="assets/Yellow Star.png" width="100" class="mb-3">
-                            <h5>Si Juan Tamad</h5>
-                            <small>New! • Challenge Story</small>
-                            <button class="btn btn-success rounded-pill mt-3">Start Reading →</button>
-                        </div>
-                    </div>
+                    <?php } ?>
                 </div>
             </div>
 
@@ -178,29 +180,76 @@ $studentName = getUserName();
             <div id="profile" class="tab-content">
                 <h2 class="mb-4">My Profile</h2>
                 <div class="row">
+                    <!-- Left: Profile Information -->
+                    <div class="col-md-6">
+                        <div class="chart-container p-5">
+                            <?php
+                            // Fetch latest student data from database
+                            $pdo = getDB();
+                            $stmt = $pdo->prepare("SELECT full_name, email, lrn_number, created_at FROM students_account WHERE id = ?");
+                            $stmt->execute([$_SESSION['user_id']]);
+                            $student = $stmt->fetch();
+                            ?>
+
+                            <!-- Read-Only View -->
+                            <div id="profileView">
+                                <h4 class="mb-4">My Information</h4>
+                                <p><strong>Full Name:</strong> <span id="viewName"><?= htmlspecialchars($student['full_name'] ?? 'Not set') ?></span></p>
+                                <p><strong>Email:</strong> <span id="viewEmail"><?= htmlspecialchars($student['email'] ?? 'Not set') ?></span></p>
+                                <p><strong>LRN Number:</strong> <span id="viewLRN"><?= htmlspecialchars($student['lrn_number'] ?? 'Not set') ?></span></p>
+                                <p><strong>Account Created:</strong> 
+                                    <?= $student['created_at'] ? date('F j, Y', strtotime($student['created_at'])) : 'Unknown' ?>
+                                </p>
+
+                                <button class="btn btn-primary mt-4" onclick="enableEdit()">Edit Profile</button>
+                            </div>
+
+                            <!-- Edit Form (Hidden by default) -->
+                            <div id="profileEdit" style="display: none;">
+                                <h4 class="mb-4">Update Information</h4>
+                                <form id="updateProfileForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Full Name</label>
+                                        <input type="text" name="full_name" id="editName" class="form-control" value="<?= htmlspecialchars($student['full_name'] ?? '') ?>" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="email" id="editEmail" class="form-control" value="<?= htmlspecialchars($student['email'] ?? '') ?>" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">LRN Number (cannot be changed)</label>
+                                        <input type="text" class="form-control" value="<?= htmlspecialchars($student['lrn_number'] ?? '') ?>" disabled>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">New Password (leave blank to keep current)</label>
+                                        <input type="password" name="password" class="form-control" placeholder="Enter new password only if changing">
+                                    </div>
+                                    <div class="d-flex gap-2 mt-4">
+                                        <button type="submit" class="btn btn-success">Save Changes</button>
+                                        <button type="button" class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <hr class="my-5">
+
+                            <h5 class="text-danger">Danger Zone</h5>
+                            <p>Once you delete your account, there is no going back.</p>
+                            <button class="btn btn-danger" onclick="deleteAccount()">Delete My Account</button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Avatar -->
                     <div class="col-md-6">
                         <div class="chart-container p-5 text-center">
                             <img src="assets/Blue Circle.png" width="150" class="rounded-circle mb-3">
-                            <h4>Maria Santos</h4>
-                            <p>Grade 4 • Section A</p>
-                            <p>LRN: 123456789012</p>
+                            <h4><?= htmlspecialchars($student['full_name'] ?? getUserName()) ?></h4>
+                            <p>Student Account</p>
                             <p>Total Reading Time: 48 hours</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="chart-container p-5">
-                            <h4>Reading Streak Calendar</h4>
-                            <p class="text-center">You've read on 12 days this month!</p>
-                            <!-- Placeholder for calendar -->
-                            <div class="text-center mt-4">
-                                <i class="fas fa-calendar fa-10x text-muted opacity-25"></i>
-                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-        </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

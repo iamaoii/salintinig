@@ -1,4 +1,4 @@
-// public/js/student-dashboard.js
+// public/js/student-dashboard.js - Complete with profile edit, delete, and tab switching
 
 document.addEventListener('DOMContentLoaded', function () {
     // Tab Switching
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Student Progress Line Chart (small & reasonable)
+    // Existing Charts
     const progressCtx = document.getElementById('studentProgressChart');
     if (progressCtx) {
         new Chart(progressCtx, {
@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Goals Doughnut Chart (compact)
     const goalsCtx = document.getElementById('goalsChart');
     if (goalsCtx) {
         new Chart(goalsCtx, {
@@ -53,4 +52,61 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    // === PROFILE EDIT FUNCTIONS ===
+    window.enableEdit = function() {
+        document.getElementById('profileView').style.display = 'none';
+        document.getElementById('profileEdit').style.display = 'block';
+    };
+
+    window.cancelEdit = function() {
+        document.getElementById('profileEdit').style.display = 'none';
+        document.getElementById('profileView').style.display = 'block';
+    };
+
+    // Update Profile
+    const updateForm = document.getElementById('updateProfileForm');
+    if (updateForm) {
+        updateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('action', 'update_profile');
+
+            fetch('api/student.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Profile updated successfully!');
+                    location.reload();
+                } else {
+                    alert(data.error || 'Error updating profile');
+                }
+            })
+            .catch(() => alert('Connection error. Please try again.'));
+        });
+    }
+
+    // Delete Account
+    window.deleteAccount = function() {
+        if (confirm('Are you sure you want to delete your account? This cannot be undone.')) {
+            fetch('api/student.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=delete_account'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Account deleted. Goodbye!');
+                    window.location.href = 'logout.php';
+                } else {
+                    alert(data.error || 'Error deleting account');
+                }
+            })
+            .catch(() => alert('Connection error. Please try again.'));
+        }
+    };
 });

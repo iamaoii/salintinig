@@ -1,5 +1,5 @@
 <?php
-// includes/auth.php - Auto-login after signup + correct dashboard redirect
+// includes/auth.php - Auto-login after signup + store email & LRN in session
 
 session_start();  // Must be first
 
@@ -35,10 +35,11 @@ if ($action === 'signup') {
     }
 
     $password_hash = hashPassword($password);
-    $role = $classification; // 'student' or 'teacher'
+    $role = $classification;
 
     try {
         $user_id = null;
+        $lrn_number = null;
 
         if ($classification === 'student') {
             $lrn_number = sanitizeInput($_POST['lrn_number'] ?? '');
@@ -52,7 +53,6 @@ if ($action === 'signup') {
             $stmt->execute([$full_name, $email, $lrn_number, $password_hash]);
             $user_id = $pdo->lastInsertId();
 
-            // Create initial progress record
             $pdo->prepare("INSERT INTO student_progress (student_id) VALUES (?)")->execute([$user_id]);
 
         } elseif ($classification === 'teacher') {
@@ -66,16 +66,20 @@ if ($action === 'signup') {
             $stmt = $pdo->prepare("INSERT INTO teachers_account (full_name, email, id_number, password_hash) VALUES (?, ?, ?, ?)");
             $stmt->execute([$full_name, $email, $id_number, $password_hash]);
             $user_id = $pdo->lastInsertId();
-
         } else {
             echo json_encode(['error' => 'Invalid classification']);
             exit();
         }
 
-        // === AUTO-LOGIN AFTER SUCCESSFUL SIGNUP ===
+        // === AUTO-LOGIN + STORE EMAIL & LRN ===
         $_SESSION['user_id'] = $user_id;
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $full_name;
+        $_SESSION['email'] = $email;  // Store email
+
+        if ($role === 'student') {
+            $_SESSION['lrn_number'] = $lrn_number;  // Store LRN for students
+        }
 
         $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
         $redirect_url = SITE_URL . $dashboard;
@@ -86,7 +90,6 @@ if ($action === 'signup') {
         ]);
 
     } catch (PDOException $e) {
-        // Handle duplicate email or ID/LRN
         if ($e->getCode() == '23000' && strpos($e->getMessage(), 'Duplicate entry') !== false) {
             if (strpos($e->getMessage(), 'email') !== false) {
                 echo json_encode(['error' => 'This email is already registered']);
@@ -107,7 +110,14 @@ if ($action === 'signup') {
 
     $table = $role === 'student' ? 'students_account' : 'teachers_account';
 
-    $stmt = $pdo->prepare("SELECT id, full_name, password_hash FROM $table WHERE email = ?");
+    // Fetch email and lrn_number for students
+    $sql = "SELECT id, full_name, email, password_hash";
+    if ($role === 'student') {
+        $sql .= ", lrn_number";
+    }
+    $sql .= " FROM $table WHERE email = ?";
+
+    $stmt = $pdo->prepare($sql);
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
@@ -115,6 +125,11 @@ if ($action === 'signup') {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $user['full_name'];
+        $_SESSION['email'] = $user['email'];  // Store email
+
+        if ($role === 'student' && isset($user['lrn_number'])) {
+            $_SESSION['lrn_number'] = $user['lrn_number'];  // Store LRN for students
+        }
 
         $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
         $redirect_url = SITE_URL . $dashboard;
