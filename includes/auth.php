@@ -52,7 +52,11 @@ if ($action === 'signup') {
             $stmt->execute([$full_name, $email, $lrn_number, $password_hash]);
             $user_id = $pdo->lastInsertId();
 
-            $pdo->prepare("INSERT INTO student_progress (student_id) VALUES (?)")->execute([$user_id]);
+            try {
+                $pdo->prepare("INSERT INTO student_progress (student_id) VALUES (?)")->execute([$user_id]);
+            } catch (PDOException $progressException) {
+                error_log('student_progress insert failed for student_id ' . $user_id . ': ' . $progressException->getMessage());
+            }
 
         } elseif ($classification === 'teacher') {
             $id_number = sanitizeInput($_POST['id_number'] ?? '');
