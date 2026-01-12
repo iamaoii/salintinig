@@ -1,14 +1,12 @@
 <?php
-session_start();  // Critical: Start session first
+session_start();
 
 require_once '../includes/functions.php';
 
 if (!isLoggedIn() || getUserRole() !== 'student') {
-    // Not logged in or wrong role → redirect to auth
     redirect('auth.html');
 }
 
-// Now safe to use session data
 $studentName = getUserName();
 ?>
 
@@ -65,7 +63,6 @@ $studentName = getUserName();
 
             <!-- My Progress Tab -->
             <div id="progress" class="tab-content active">
-                <!-- Stats Cards -->
                 <div class="row stats-cards g-4 mb-5">
                     <div class="col-md-4">
                         <div class="stat-card orange">
@@ -90,7 +87,6 @@ $studentName = getUserName();
                     </div>
                 </div>
 
-                <!-- Charts -->
                 <div class="row g-4">
                     <div class="col-lg-7">
                         <div class="chart-container">
@@ -110,7 +106,7 @@ $studentName = getUserName();
 
             <!-- My Stories Tab -->
             <div id="stories" class="tab-content">
-                <h2 class="mb-4">My Current Stories 📚</h2>
+                <h2 class="mb-4">My Current Stories</h2>
                 <div class="row g-4 text-center">
                     <?php
                     $pdo = getDB();
@@ -122,7 +118,6 @@ $studentName = getUserName();
                     }
 
                     foreach ($stories as $story) {
-                        // Truncate content for preview (first 200 characters)
                         $preview = $story['content'] ? substr(strip_tags($story['content']), 0, 200) . '...' : 'No content available.';
                     ?>
                         <div class="col-md-4">
@@ -188,7 +183,6 @@ $studentName = getUserName();
                     <div class="col-md-6">
                         <div class="chart-container p-5">
                             <?php
-                            // Fetch latest student data from database
                             $pdo = getDB();
                             $stmt = $pdo->prepare("SELECT full_name, email, lrn_number, created_at FROM students_account WHERE id = ?");
                             $stmt->execute([$_SESSION['user_id']]);
@@ -208,7 +202,7 @@ $studentName = getUserName();
                                 <button class="btn btn-primary mt-4" onclick="enableEdit()">Edit Profile</button>
                             </div>
 
-                            <!-- Edit Form (Hidden by default) -->
+                            <!-- Edit Form -->
                             <div id="profileEdit" style="display: none;">
                                 <h4 class="mb-4">Update Information</h4>
                                 <form id="updateProfileForm">
@@ -243,7 +237,7 @@ $studentName = getUserName();
                         </div>
                     </div>
 
-                    <!-- Right: Avatar -->
+                    <!-- Avatar -->
                     <div class="col-md-6">
                         <div class="chart-container p-5 text-center">
                             <img src="assets/Blue Circle.png" width="150" class="rounded-circle mb-3">

@@ -38,7 +38,6 @@ try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
-        // Update session
         $_SESSION['name'] = $full_name;
         $_SESSION['email'] = $email;
 

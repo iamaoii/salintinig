@@ -12,7 +12,7 @@
 
 <body>
 
-    <!-- Floating Navbar - Dynamic for logged-in users -->
+    <!-- Floating Navbar -->
     <header class="floating-navbar">
         <div class="container navbar-inner">
             <div class="nav-logo">

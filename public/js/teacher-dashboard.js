@@ -1,8 +1,6 @@
-// public/js/teacher-dashboard.js - FINAL: Edit works for ALL stories (safe data attributes)
-
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ==================== TAB SWITCHING ====================
+    // TAB SWITCHING
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
@@ -13,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // ==================== CHARTS ====================
+    // EXISTING CHARTS
     const progressCtx = document.getElementById('progressChart');
     if (progressCtx) {
         new Chart(progressCtx, {
@@ -70,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ==================== CRUD FOR STORIES (SAFE & WORKING) ====================
+    // STORY MANAGEMENT
 
     window.openAddModal = function() {
         document.getElementById('modalTitle').textContent = 'Add New Story';
@@ -80,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('storyContent').value = '';
     };
 
-    // Safe edit using data attributes
+    // Edit Story
     window.openEditModalFromLink = function(link) {
         document.getElementById('modalTitle').textContent = 'Edit Story';
         document.getElementById('storyId').value = link.dataset.id;

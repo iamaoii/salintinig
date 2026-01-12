@@ -1,6 +1,5 @@
-// public/js/student-dashboard.js - Complete with profile edit, delete, and tab switching
-
 document.addEventListener('DOMContentLoaded', function () {
+
     // Tab Switching
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', function(e) {
@@ -53,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // === PROFILE EDIT FUNCTIONS ===
+    // Profile Edit Toggle
     window.enableEdit = function() {
         document.getElementById('profileView').style.display = 'none';
         document.getElementById('profileEdit').style.display = 'block';

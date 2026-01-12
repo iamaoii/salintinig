@@ -1,5 +1,5 @@
 <?php
-session_start();  // MUST BE FIRST — no whitespace before this
+session_start();
 
 require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/db.php';
@@ -67,8 +67,7 @@ if ($action === 'signup') {
             echo json_encode(['error' => 'Invalid classification']);
             exit();
         }
-
-        // AUTO-LOGIN AFTER SIGNUP
+        
         $_SESSION['user_id'] = $user_id;
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $full_name;

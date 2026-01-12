@@ -1,14 +1,12 @@
 <?php
-session_start();  // Critical: Start session first
+session_start();
 
 require_once '../includes/functions.php';
 
 if (!isLoggedIn() || getUserRole() !== 'teacher') {
-    // Not logged in or wrong role → redirect to auth
     redirect('auth.html');
 }
 
-// Now safe to use session data
 $teacherName = getUserName();
 ?>
 

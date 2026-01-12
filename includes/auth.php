@@ -1,7 +1,6 @@
 <?php
-// includes/auth.php - Auto-login after signup + store email & LRN in session
 
-session_start();  // Must be first
+session_start();
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
@@ -71,14 +70,13 @@ if ($action === 'signup') {
             exit();
         }
 
-        // === AUTO-LOGIN + STORE EMAIL & LRN ===
         $_SESSION['user_id'] = $user_id;
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $full_name;
-        $_SESSION['email'] = $email;  // Store email
+        $_SESSION['email'] = $email;
 
         if ($role === 'student') {
-            $_SESSION['lrn_number'] = $lrn_number;  // Store LRN for students
+            $_SESSION['lrn_number'] = $lrn_number;
         }
 
         $dashboard = $role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php';
@@ -110,7 +108,6 @@ if ($action === 'signup') {
 
     $table = $role === 'student' ? 'students_account' : 'teachers_account';
 
-    // Fetch email and lrn_number for students
     $sql = "SELECT id, full_name, email, password_hash";
     if ($role === 'student') {
         $sql .= ", lrn_number";

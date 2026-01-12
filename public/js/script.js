@@ -1,5 +1,3 @@
-// public/js/script.js - FINAL: Auto-redirect after signup + login, clean UI
-
 document.addEventListener('DOMContentLoaded', function () {
     const authTab = document.getElementById('authTab');
     const studentMessage = document.querySelector('.student-message');
@@ -84,10 +82,8 @@ document.addEventListener('DOMContentLoaded', function () {
         signupSection.style.display = 'none';
     });
 
-    // === SIGNUP & LOGIN: SAME REDIRECT LOGIC ===
     const handleAuthResponse = (data) => {
         if (data.success && data.redirect) {
-            // No alert — just redirect immediately
             window.location.href = data.redirect;
         } else {
             alert(data.error || 'Something went wrong. Please try again.');
@@ -133,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Default state
     document.body.classList.add('tab-student-active');
     if (studentMessage) studentMessage.style.display = 'block';
     if (teacherMessage) teacherMessage.style.display = 'none';

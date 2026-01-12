@@ -1,5 +1,5 @@
 <?php
-session_start();  // <-- THIS LINE WAS MISSING
+session_start();
 
 require_once '../includes/functions.php';
 
