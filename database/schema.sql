@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS stories (
     title VARCHAR(200) NOT NULL,
     description TEXT,
     content LONGTEXT NOT NULL,
+    image_url VARCHAR(500) DEFAULT NULL,
     grade_level VARCHAR(20) DEFAULT '4-6',
     language ENUM('English', 'Filipino') DEFAULT 'English',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

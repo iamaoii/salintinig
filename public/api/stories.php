@@ -14,26 +14,43 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'create') {
-        $stmt = $pdo->prepare("INSERT INTO stories (title, description, content, grade_level, language) VALUES (?, ?, ?, ?, ?)");
+        $imageUrl = !empty($_POST['image_url']) ? $_POST['image_url'] : null;
+        $stmt = $pdo->prepare("INSERT INTO stories (title, description, content, image_url, grade_level, language) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['title'],
             $_POST['description'],
             $_POST['content'],
+            $imageUrl,
             $_POST['grade_level'],
             $_POST['language']
         ]);
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
     }
     elseif ($action === 'update') {
-        $stmt = $pdo->prepare("UPDATE stories SET title = ?, description = ?, content = ?, grade_level = ?, language = ? WHERE id = ?");
-        $stmt->execute([
-            $_POST['title'],
-            $_POST['description'],
-            $_POST['content'],
-            $_POST['grade_level'],
-            $_POST['language'],
-            $_POST['id']
-        ]);
+        $imageUrl = !empty($_POST['image_url']) ? $_POST['image_url'] : null;
+        
+        if ($imageUrl) {
+            $stmt = $pdo->prepare("UPDATE stories SET title = ?, description = ?, content = ?, image_url = ?, grade_level = ?, language = ? WHERE id = ?");
+            $stmt->execute([
+                $_POST['title'],
+                $_POST['description'],
+                $_POST['content'],
+                $imageUrl,
+                $_POST['grade_level'],
+                $_POST['language'],
+                $_POST['id']
+            ]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE stories SET title = ?, description = ?, content = ?, grade_level = ?, language = ? WHERE id = ?");
+            $stmt->execute([
+                $_POST['title'],
+                $_POST['description'],
+                $_POST['content'],
+                $_POST['grade_level'],
+                $_POST['language'],
+                $_POST['id']
+            ]);
+        }
         echo json_encode(['success' => true]);
     }
     elseif ($action === 'delete') {

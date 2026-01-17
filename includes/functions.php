@@ -163,7 +163,7 @@ function completeReadingSession($sessionId, $starsEarned, $wpm = 0) {
 function getContinueReading($studentId) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT s.id, s.title, s.description, rs.id as session_id, rs.started_at
+        SELECT s.id, s.title, s.description, s.image_url, rs.id as session_id, rs.started_at
         FROM reading_sessions rs
         JOIN stories s ON rs.story_id = s.id
         WHERE rs.student_id = ? AND rs.completed_at IS NULL

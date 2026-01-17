@@ -140,7 +140,7 @@ $recommendedStories = getRecommendedStories($studentId, $progress['current_level
                     </div>
                     <div class="missionCard">
                         <div class="missionCard__image"
-                            style='background: linear-gradient(135deg, #FF8C42, #FFA726);'
+                            style='<?php if (!empty($continueReading['image_url'])): ?>background-image: url("../<?= htmlspecialchars($continueReading['image_url']) ?>"); background-size: cover; background-position: center;<?php else: ?>background: linear-gradient(135deg, #FF8C42, #FFA726);<?php endif; ?>'
                             aria-label="Story cover image">
                             <div class="missionCard__overlay">
                                 <div class="missionCard__overlayInner">
@@ -186,8 +186,12 @@ $recommendedStories = getRecommendedStories($studentId, $progress['current_level
                         <?php foreach ($assignedStories as $story): ?>
                         <a href="reading.php?story_id=<?= $story['id'] ?>" class="choiceCard choiceCard--assigned" tabindex="0">
                             <div class="choiceCard__media">
-                                <div class="choiceCard__bg" style="background: linear-gradient(135deg, #FF6B6B, #FF8E53);"></div>
-                                <span class="material-symbols-outlined choiceCard__icon">assignment</span>
+                                <?php if (!empty($story['image_url'])): ?>
+                                    <div class="choiceCard__bg" style="background-image: url('../<?= htmlspecialchars($story['image_url']) ?>'); background-size: cover; background-position: center; opacity: 1;"></div>
+                                <?php else: ?>
+                                    <div class="choiceCard__bg" style="background: linear-gradient(135deg, #FF6B6B, #FF8E53);"></div>
+                                    <span class="material-symbols-outlined choiceCard__icon">assignment</span>
+                                <?php endif; ?>
                             </div>
                             <h4 class="choiceCard__title"><?= htmlspecialchars($story['title']) ?></h4>
                             <p class="choiceCard__desc">
@@ -215,8 +219,12 @@ $recommendedStories = getRecommendedStories($studentId, $progress['current_level
                             <?php foreach ($recommendedStories as $story): ?>
                             <a href="reading.php?story_id=<?= $story['id'] ?>" class="choiceCard" tabindex="0">
                                 <div class="choiceCard__media">
-                                    <div class="choiceCard__bg" style="background: linear-gradient(135deg, <?= $story['language'] === 'Filipino' ? '#9B59B6, #8E44AD' : '#3498DB, #2980B9' ?>);"></div>
-                                    <span class="material-symbols-outlined choiceCard__icon">auto_stories</span>
+                                    <?php if (!empty($story['image_url'])): ?>
+                                        <div class="choiceCard__bg" style="background-image: url('../<?= htmlspecialchars($story['image_url']) ?>'); background-size: cover; background-position: center; opacity: 1;"></div>
+                                    <?php else: ?>
+                                        <div class="choiceCard__bg" style="background: linear-gradient(135deg, <?= $story['language'] === 'Filipino' ? '#9B59B6, #8E44AD' : '#3498DB, #2980B9' ?>);"></div>
+                                        <span class="material-symbols-outlined choiceCard__icon">auto_stories</span>
+                                    <?php endif; ?>
                                 </div>
                                 <h4 class="choiceCard__title"><?= htmlspecialchars($story['title']) ?></h4>
                                 <p class="choiceCard__desc"><?= htmlspecialchars($story['language']) ?> • Grade <?= htmlspecialchars($story['grade_level']) ?></p>

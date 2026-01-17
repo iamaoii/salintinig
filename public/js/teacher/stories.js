@@ -110,6 +110,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('modalTitle').textContent = 'Add New Story';
         document.getElementById('storyForm').reset();
         document.getElementById('storyId').value = '';
+        document.getElementById('storyImageUrl').value = '';
+        resetImagePreview();
         openModal('storyModal');
     };
 
@@ -122,6 +124,16 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('storyContent').value = dataset.content;
         document.getElementById('storyGrade').value = dataset.grade;
         document.getElementById('storyLang').value = dataset.language;
+
+        // Handle image
+        const imageUrl = dataset.image || '';
+        document.getElementById('storyImageUrl').value = imageUrl;
+        if (imageUrl) {
+            showImagePreview('../' + imageUrl);
+        } else {
+            resetImagePreview();
+        }
+
         openModal('storyModal');
     };
 
@@ -151,4 +163,56 @@ document.addEventListener('DOMContentLoaded', function () {
                 .catch(() => alert('Error deleting story'));
         }
     };
+
+    // Image Upload Handling
+    window.handleImageUpload = function (input) {
+        if (!input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const uploadArea = document.getElementById('imageUploadArea');
+        uploadArea.innerHTML = '<span class="material-symbols-outlined" style="font-size: 2rem; color: #64748B;">hourglass_empty</span><p style="margin: 0.5rem 0 0; color: #64748B;">Uploading...</p>';
+
+        fetch('../api/upload-image.php', {
+            method: 'POST',
+            body: formData
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('storyImageUrl').value = data.image_url;
+                    showImagePreview('../' + data.image_url);
+                } else {
+                    alert(data.error || 'Upload failed');
+                    resetImagePreview();
+                }
+            })
+            .catch(() => {
+                alert('Upload error');
+                resetImagePreview();
+            });
+    };
+
+    function showImagePreview(src) {
+        const area = document.getElementById('imageUploadArea');
+        area.innerHTML = `
+            <input type="file" id="imageFileInput" accept="image/*" style="display: none" onchange="handleImageUpload(this)">
+            <img src="${src}" class="image-preview" style="display: block;">
+            <p style="margin: 0.5rem 0 0; color: #10B981; font-size: 0.75rem;">✓ Image uploaded (click to change)</p>
+        `;
+        area.classList.add('has-image');
+    }
+
+    function resetImagePreview() {
+        const area = document.getElementById('imageUploadArea');
+        area.innerHTML = `
+            <input type="file" id="imageFileInput" accept="image/*" style="display: none" onchange="handleImageUpload(this)">
+            <span class="material-symbols-outlined" style="font-size: 2rem; color: #94A3B8;">add_photo_alternate</span>
+            <p style="margin: 0.5rem 0 0; color: #64748B; font-size: 0.875rem;">Click to upload image</p>
+            <img id="imagePreview" class="image-preview" style="display: none;">
+        `;
+        area.classList.remove('has-image');
+    }
 });

@@ -43,6 +43,18 @@ $teacherName = getUserName();
         }
         .badge-grade { background: #EEF2FF; color: #4F46E5; }
         .badge-lang { background: #F0FDF4; color: #16A34A; }
+        .image-upload-area {
+            border: 2px dashed #CBD5E1;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #F8FAFC;
+        }
+        .image-upload-area:hover { border-color: var(--primary); background: #FFF7ED; }
+        .image-upload-area.has-image { border-style: solid; border-color: #10B981; }
+        .image-preview { max-width: 200px; max-height: 150px; border-radius: 8px; margin-top: 0.5rem; }
     </style>
 </head>
 
@@ -164,6 +176,7 @@ $teacherName = getUserName();
                                             data-content="<?= htmlspecialchars($story['content'] ?? '', ENT_QUOTES) ?>"
                                             data-grade="<?= htmlspecialchars($story['grade_level']) ?>"
                                             data-language="<?= htmlspecialchars($story['language']) ?>"
+                                            data-image="<?= htmlspecialchars($story['image_url'] ?? '', ENT_QUOTES) ?>"
                                             onclick="openEditModal(this)" title="Edit">
                                             <span class="material-symbols-outlined text-sm">edit</span>
                                         </button>
@@ -216,6 +229,16 @@ $teacherName = getUserName();
                     <div class="form-group">
                         <label class="form-label">Full Story Content</label>
                         <textarea name="content" id="storyContent" class="form-control" rows="10" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Cover Image (Optional)</label>
+                        <input type="hidden" name="image_url" id="storyImageUrl">
+                        <div class="image-upload-area" id="imageUploadArea" onclick="document.getElementById('imageFileInput').click()">
+                            <input type="file" id="imageFileInput" accept="image/*" style="display: none" onchange="handleImageUpload(this)">
+                            <span class="material-symbols-outlined" style="font-size: 2rem; color: #94A3B8;">add_photo_alternate</span>
+                            <p style="margin: 0.5rem 0 0; color: #64748B; font-size: 0.875rem;">Click to upload image</p>
+                            <img id="imagePreview" class="image-preview" style="display: none;">
+                        </div>
                     </div>
                     <div class="flex gap-4">
                         <div class="form-group flex-1">

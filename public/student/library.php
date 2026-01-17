@@ -115,8 +115,12 @@ $filipinoStories = $pdo->query("SELECT * FROM stories WHERE language = 'Filipino
                         <?php foreach ($assignedStories as $story): ?>
                         <a href="reading.php?story_id=<?= $story['id'] ?>" class="choiceCard choiceCard--assigned" tabindex="0">
                             <div class="choiceCard__media">
-                                <div class="choiceCard__bg" style="background: linear-gradient(135deg, #FF6B6B, #FF8E53);"></div>
-                                <span class="material-symbols-outlined choiceCard__icon">assignment</span>
+                                <?php if (!empty($story['image_url'])): ?>
+                                    <div class="choiceCard__bg" style="background-image: url('../<?= htmlspecialchars($story['image_url']) ?>'); background-size: cover; background-position: center; opacity: 1;"></div>
+                                <?php else: ?>
+                                    <div class="choiceCard__bg" style="background: linear-gradient(135deg, #FF6B6B, #FF8E53);"></div>
+                                    <span class="material-symbols-outlined choiceCard__icon">assignment</span>
+                                <?php endif; ?>
                             </div>
                             <h4 class="choiceCard__title"><?= htmlspecialchars($story['title']) ?></h4>
                             <p class="choiceCard__desc">
@@ -148,8 +152,12 @@ $filipinoStories = $pdo->query("SELECT * FROM stories WHERE language = 'Filipino
                             <?php foreach ($englishStories as $story): ?>
                             <a href="reading.php?story_id=<?= $story['id'] ?>" class="choiceCard choiceCard--blue" tabindex="0">
                                 <div class="choiceCard__media">
-                                    <div class="choiceCard__bg" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8);"></div>
-                                    <span class="material-symbols-outlined choiceCard__icon">menu_book</span>
+                                    <?php if (!empty($story['image_url'])): ?>
+                                        <div class="choiceCard__bg" style="background-image: url('../<?= htmlspecialchars($story['image_url']) ?>'); background-size: cover; background-position: center; opacity: 1;"></div>
+                                    <?php else: ?>
+                                        <div class="choiceCard__bg" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8);"></div>
+                                        <span class="material-symbols-outlined choiceCard__icon">menu_book</span>
+                                    <?php endif; ?>
                                 </div>
                                 <h4 class="choiceCard__title"><?= htmlspecialchars($story['title']) ?></h4>
                                 <p class="choiceCard__desc">Grade <?= htmlspecialchars($story['grade_level']) ?></p>
@@ -175,8 +183,12 @@ $filipinoStories = $pdo->query("SELECT * FROM stories WHERE language = 'Filipino
                             <?php foreach ($filipinoStories as $story): ?>
                             <a href="reading.php?story_id=<?= $story['id'] ?>" class="choiceCard choiceCard--red" tabindex="0">
                                 <div class="choiceCard__media">
-                                    <div class="choiceCard__bg" style="background: linear-gradient(135deg, #EF4444, #B91C1C);"></div>
-                                    <span class="material-symbols-outlined choiceCard__icon">auto_stories</span>
+                                    <?php if (!empty($story['image_url'])): ?>
+                                        <div class="choiceCard__bg" style="background-image: url('../<?= htmlspecialchars($story['image_url']) ?>'); background-size: cover; background-position: center; opacity: 1;"></div>
+                                    <?php else: ?>
+                                        <div class="choiceCard__bg" style="background: linear-gradient(135deg, #EF4444, #B91C1C);"></div>
+                                        <span class="material-symbols-outlined choiceCard__icon">auto_stories</span>
+                                    <?php endif; ?>
                                 </div>
                                 <h4 class="choiceCard__title"><?= htmlspecialchars($story['title']) ?></h4>
                                 <p class="choiceCard__desc">Grade <?= htmlspecialchars($story['grade_level']) ?></p>
