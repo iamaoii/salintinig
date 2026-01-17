@@ -1,0 +1,298 @@
+<!doctype html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>SalinTinig Student Dashboard - Reading</title>
+
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..800&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+
+    <!-- Your CSS -->
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="css/student/style.css" />
+    <link rel="stylesheet" href="css/student/reading.css" />
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header__inner">
+                <a class="brand" href="student/home.html">
+                    <h1 class="brand__title">SalinTinig</h1>
+                </a>
+
+                <nav class="topnav" aria-label="Primary">
+                    <a class="topnav__item topnav__item--inactive" href="student/home.html">
+                        <span class="material-symbols-outlined">home</span>
+                        <span class="topnav__label">Home</span>
+                    </a>
+                    <a class="topnav__item topnav__item--inactive" href="student/progress.html">
+                        <span class="material-symbols-outlined">analytics</span>
+                        <span class="topnav__label">Progress</span>
+                    </a>
+                    <a class="topnav__item topnav__item--active" href="student/reading.html">
+                        <span class="material-symbols-outlined">auto_stories</span>
+                        <span class="topnav__label">Reading</span>
+                    </a>
+                    <a class="topnav__item topnav__item--inactive" href="student/library.html">
+                        <span class="material-symbols-outlined">library_books</span>
+                        <span class="topnav__label">Library</span>
+                    </a>
+                    <a class="topnav__item topnav__item--inactive" href="student/rewards.html">
+                        <span class="material-symbols-outlined">military_tech</span>
+                        <span class="topnav__label">Rewards</span>
+                    </a>
+                </nav>
+
+                <div class="header__actions">
+                    <button class="iconBtn iconBtn--desktopOnly" type="button" aria-label="Notifications">
+                        <span class="material-symbols-outlined">notifications</span>
+                    </button>
+                    <div class="dropdown">
+                        <div class="avatar" role="button" aria-haspopup="true" aria-expanded="false"
+                            aria-label="User profile"
+                            style='background-image:url("https://lh3.googleusercontent.com/aida-public/AB6AXuD7hpPAKn5pdGO3eslTGiMonVR4pevUl0aC14EpdlwKpDmuCvdnGAL5Dpwxa0aUhDp4KbA6G6M75Ba4zt-tOdJfUCxWOB1U-pMyhnfv26oNQeI5YtnuVW6mmgqWTB96PEQwWr4KfWmkr46jQgQ3kzMiidaZ5JZ6Ktf3tUNPzR8Sl3Fhqkt0lzGwa8Huz9aCa2wl6sxMthrSkHtqPKeBMdDE49uMIZB-cF6vFhLSTFTcRcpVvDa_mPfEUNtK3XGvjsykmM56zZbuYQ");'>
+                        </div>
+                        <div class="dropdown__menu">
+                            <a href="#" class="dropdown__item">
+                                <span class="material-symbols-outlined">person</span>
+                                My Portfolio
+                            </a>
+                            <a href="#" class="dropdown__item">
+                                <span class="material-symbols-outlined">settings</span>
+                                Account Settings
+                            </a>
+                            <a href="#" class="dropdown__item">
+                                <span class="material-symbols-outlined">help</span>
+                                Support
+                            </a>
+                            <a href="student/library.html" class="dropdown__item">
+                                <span class="material-symbols-outlined">library_books</span>
+                                My Library
+                            </a>
+                            <div class="dropdown__divider"></div>
+                            <a href="logout.php" class="dropdown__item dropdown__item--danger">
+                                <span class="material-symbols-outlined">logout</span>
+                                Log Out
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main -->
+        <main class="main">
+            <div class="container">
+                <!-- Greeting + Streak -->
+                <section class="hero">
+                    <div class="hero__text">
+                        <h2 class="hero__title">Kumusta, Bayani! ☀️</h2>
+                        <p class="hero__subtitle">Handa ka na bang matuto ngayong araw?</p>
+                    </div>
+
+                    <div class="streakCard">
+                        <span class="material-symbols-outlined streakCard__icon"
+                            data-filled="1">local_fire_department</span>
+                        <div class="streakCard__meta">
+                            <span class="streakCard__days">7 Days</span>
+                            <span class="streakCard__label">Streak!</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Daily mission card -->
+                <section class="mission">
+                    <div class="missionCard">
+                        <div class="missionCard__image"
+                            style='background-image:url("https://lh3.googleusercontent.com/aida-public/AB6AXuC5kQd_b24Kj9re8uDKmMs-cpjK7yIC3yS-EHuDa1KRhFTjQt5GTyuZHCZQh-xmoO4Gp2WXDawCUuLkLkGDJTblJoiJG3JY4oi3FXn5O4RdwoMMyuYpjlzj6Ei9ANSeUIqpXF1sSlbEMaqoYw6cayMvto0zwcjRun5Cd2R5xI9H9ZlJ8NVWg68-PjTBphbA_HPaqtxX8qO7145Qk1Eh8o2wamRTKJndLMyQN5QeF8yRt9aldyp5vgb0XdAEI2PjozSt1HuzNZdM7Q");'
+                            aria-label="Daily Mission cover image">
+                            <div class="missionCard__overlay">
+                                <div class="missionCard__overlayInner">
+                                    <span class="pill pill--primary">Daily Mission</span>
+                                    <div class="missionCard__source">
+                                        <span class="material-symbols-outlined">local_library</span>
+                                        NGO Literacy Project
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="missionCard__content">
+                            <div>
+                                <h3 class="missionCard__title">Oras na para magbasa!</h3>
+                                <p class="missionCard__subtitle">Time to read!</p>
+                            </div>
+
+                            <p class="missionCard__desc">
+                                Today's Mission: Read
+                                <span class="missionCard__story">'Ang Alamat ng Pinya'</span> aloud to earn 50
+                                shiny stars.
+                            </p>
+
+                            <div class="missionCard__actions">
+                                <button class="primaryBtn" type="button" id="startBtn">
+                                    <span class="material-symbols-outlined">play_circle</span>
+                                    <span>Magsimula (Start)</span>
+                                </button>
+
+                                <div class="timePill">
+                                    <span class="material-symbols-outlined">schedule</span>
+                                    <span>10 mins</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Choose Your Adventure -->
+                <section class="section">
+                    <div class="section__header">
+                        <h3 class="section__title">Choose Your Adventure</h3>
+                        <a class="section__link" href="#">View All</a>
+                    </div>
+
+                    <div class="cardGrid">
+                        <article class="choiceCard choiceCard--blue" tabindex="0">
+                            <div class="choiceCard__media">
+                                <div class="choiceCard__bg"
+                                    style='background-image:url("https://lh3.googleusercontent.com/aida-public/AB6AXuBRgeOlYaalmUNT0atSY_hVOXngpXV1GNkf3OQVWuj88jDzORbypTB_-czQteyyOWBZ_EkyzoSb4QngQX6FUZYt4Ab4a_ESuN1UgpHdZachq3Yk1aSnBA8-IvUKmsCULUIL9H_rdGOFaw1BKULcKVp6FGUNjknQ_-0pShXu56JC_gTz-B48X8Yu3VMbQlM4WQIbZTdroZrPG2nV7k6zwOCrvfVMf31rEeeGp2MQmq27tZXMt8556ShjE1ney9qMEOoBvQ9PYjdgNw");'>
+                                </div>
+                                <span class="material-symbols-outlined choiceCard__icon">menu_book</span>
+                            </div>
+                            <h4 class="choiceCard__title">English Stories</h4>
+                            <p class="choiceCard__desc">Practice your English vocabulary</p>
+                        </article>
+
+                        <article class="choiceCard choiceCard--red" tabindex="0">
+                            <div class="choiceCard__media">
+                                <div class="choiceCard__bg"
+                                    style='background-image:url("https://lh3.googleusercontent.com/aida-public/AB6AXuDj2H03UU8YW9eVBJCD06Fs6ddkpy20vLIwoBUAo8E3PnBaHwyKnwjRONCGxQEHyZ-8Me-p2gAn2VeOHmjMfRxEeAETPDjl5S12NuDBeCqOEKetaprleLdcZgmDez9K--kn36ouhSKntfPNNZKJ841Ge-AFpceqJkueP4qv96z3e9FkM9VHQDA6BN9ezTFnvQVQuPztfbCITmamj7ImtUYcn9PS5GsozinMZQDVa4M7K4V4ctqk4u6DAuebwV36AfBvEYBa8Uh2Dg");'>
+                                </div>
+                                <span class="material-symbols-outlined choiceCard__icon">auto_stories</span>
+                            </div>
+                            <h4 class="choiceCard__title">Filipino Stories</h4>
+                            <p class="choiceCard__desc">Mga kwentong pambata</p>
+                        </article>
+
+                        <article class="choiceCard choiceCard--yellow" tabindex="0">
+                            <div class="choiceCard__media">
+                                <div class="choiceCard__bg"
+                                    style='background-image:url("https://lh3.googleusercontent.com/aida-public/AB6AXuBGpsvT5z1MxmYhY4QVABsLk6mRCrzsMGjEuOHl5SBmZYY5tOeNf8FVPSHT02rh12X-U6kJ9XgrCqJBjIO0cmqhRGwfOUZXTUfAYTBSLGiPMW9pWHbbncNhTy_j9JTG8u_TzGpecb_EwEEEh6mMFv0FpqGATRunOni95kShSBoC7Df0gwvxcvvjgy0wsUAE-0CuoKBqAcraUl6l4I_fyq3vJZJzg2Wwi8pLcmrL1f4zQxXV5NPHlE8FPoBySANxJj_3pMO-8n483Q");'>
+                                </div>
+                                <span class="material-symbols-outlined choiceCard__icon"
+                                    data-filled="1">emoji_events</span>
+                            </div>
+                            <h4 class="choiceCard__title">Aking Gantimpala</h4>
+                            <p class="choiceCard__desc">View your earned stars and badges</p>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- Progress -->
+                <section class="section section--bottomSpace">
+                    <h3 class="section__title section__title--pad">Aking Pag-unlad (My Progress)</h3>
+
+                    <div class="progressGrid">
+                        <!-- Fluency speed -->
+                        <article class="progressCard">
+                            <div class="progressCard__top">
+                                <div>
+                                    <p class="eyebrow">Fluency Speed</p>
+                                    <h4 class="bigStat">
+                                        85 <span class="bigStat__unit">wpm</span>
+                                    </h4>
+                                </div>
+
+                                <div class="deltaPill">
+                                    <span class="material-symbols-outlined">trending_up</span>
+                                    <span>+5%</span>
+                                </div>
+                            </div>
+
+                            <div class="sparkline" aria-label="Fluency speed chart">
+                                <!-- kept as-is (SVG is already “normal” HTML) -->
+                                <svg class="sparkline__svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                                    <defs>
+                                        <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
+                                            <stop offset="0%" stop-color="#FF8C42" stop-opacity="0.3"></stop>
+                                            <stop offset="100%" stop-color="#FF8C42" stop-opacity="0"></stop>
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 15 T 80 20 T 100 5" fill="none"
+                                        stroke="#FF8C42" stroke-linecap="round" stroke-linejoin="round"
+                                        stroke-width="3"></path>
+                                    <path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 15 T 80 20 T 100 5 V 40 H 0 Z"
+                                        fill="url(#gradient)" stroke="none"></path>
+                                    <circle cx="100" cy="5" fill="#FF8C42" r="3" stroke="white" stroke-width="2" />
+                                </svg>
+                            </div>
+                        </article>
+
+                        <!-- Current level -->
+                        <article class="levelCard">
+                            <div class="levelCard__glow" aria-hidden="true"></div>
+
+                            <div class="levelBadge">
+                                <span class="material-symbols-outlined" data-filled="1">workspace_premium</span>
+                            </div>
+
+                            <div class="levelInfo">
+                                <div>
+                                    <p class="eyebrow">Current Level</p>
+                                    <h4 class="levelInfo__title">Word Explorer</h4>
+                                </div>
+
+                                <div class="stars" aria-label="Level stars">
+                                    <span class="material-symbols-outlined" data-filled="1">star</span>
+                                    <span class="material-symbols-outlined" data-filled="1">star</span>
+                                    <span class="material-symbols-outlined" data-filled="1">star</span>
+                                    <span class="material-symbols-outlined">star</span>
+                                    <span class="material-symbols-outlined">star</span>
+                                </div>
+
+                                <div class="bar">
+                                    <div class="bar__fill" style="width: 60%"></div>
+                                </div>
+
+                                <p class="levelInfo__note">150 points to next level</p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Mobile bottom nav -->
+        <nav class="bottomNav" aria-label="Bottom navigation">
+            <a class="bottomNav__item bottomNav__item--inactive" href="#">
+                <span class="material-symbols-outlined">analytics</span>
+                <span class="bottomNav__label">Progress</span>
+            </a>
+            <a class="bottomNav__item bottomNav__item--active" href="#">
+                <span class="material-symbols-outlined" data-filled="1">auto_stories</span>
+                <span class="bottomNav__label">Reading</span>
+            </a>
+            <a class="bottomNav__item bottomNav__item--inactive" href="#">
+                <span class="material-symbols-outlined">library_books</span>
+                <span class="bottomNav__label">Library</span>
+            </a>
+            <a class="bottomNav__item bottomNav__item--inactive" href="#">
+                <span class="material-symbols-outlined">military_tech</span>
+                <span class="bottomNav__label">Rewards</span>
+            </a>
+        </nav>
+    </div>
+
+    <script src="js/student/script.js"></script>
+    <script src="js/student/reading.js"></script>
+</body>
+
+</html>

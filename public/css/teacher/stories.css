@@ -1,0 +1,81 @@
+/* Teacher Stories Page Specific Styles */
+/* stories.php specific styles go here */
+
+/* Stories Grid */
+.stories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Story Card */
+.story-card {
+    background-color: var(--bg-white);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-subtle);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.story-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+.story-card-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.story-card-body {
+    padding: 1.5rem;
+}
+
+.story-card-footer {
+    padding: 1rem 1.5rem;
+    background-color: #f8fafc;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.story-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-900);
+    margin-bottom: 0.5rem;
+}
+
+.story-meta {
+    font-size: 0.75rem;
+    color: var(--text-500);
+}
+
+.story-excerpt {
+    color: var(--text-600);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+/* Story Actions */
+.story-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.story-action-btn {
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-400);
+    border-radius: 0.25rem;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.story-action-btn:hover {
+    color: var(--primary);
+    background-color: #fff7ed;
+}

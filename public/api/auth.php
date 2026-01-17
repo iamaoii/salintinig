@@ -38,14 +38,15 @@ if ($action === 'signup') {
     try {
         if ($classification === 'student') {
             $lrn_number = sanitizeInput($_POST['lrn_number'] ?? '');
+            $grade_level = (int)($_POST['grade_level'] ?? 4);
 
             if (empty($lrn_number)) {
                 echo json_encode(['error' => 'LRN is required']);
                 exit();
             }
 
-            $stmt = $pdo->prepare("INSERT INTO students_account (full_name, email, lrn_number, password_hash) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$full_name, $email, $lrn_number, $password_hash]);
+            $stmt = $pdo->prepare("INSERT INTO students_account (full_name, email, lrn_number, grade_level, password_hash) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$full_name, $email, $lrn_number, $grade_level, $password_hash]);
 
             $user_id = $pdo->lastInsertId();
             try {
@@ -55,15 +56,8 @@ if ($action === 'signup') {
             }
 
         } elseif ($classification === 'teacher') {
-            $id_number = sanitizeInput($_POST['id_number'] ?? '');
-
-            if (empty($id_number)) {
-                echo json_encode(['error' => 'ID Number is required']);
-                exit();
-            }
-
-            $stmt = $pdo->prepare("INSERT INTO teachers_account (full_name, email, id_number, password_hash) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$full_name, $email, $id_number, $password_hash]);
+            $stmt = $pdo->prepare("INSERT INTO teachers_account (full_name, email, password_hash) VALUES (?, ?, ?)");
+            $stmt->execute([$full_name, $email, $password_hash]);
 
             $user_id = $pdo->lastInsertId();
 
@@ -76,7 +70,7 @@ if ($action === 'signup') {
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $full_name;
 
-        $redirect = SITE_URL . ($role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php');
+        $redirect = SITE_URL . ($role === 'student' ? 'student/home.php' : 'teacher/dashboard.php');
 
         echo json_encode([
             'success' => true,
@@ -120,7 +114,7 @@ if ($action === 'signup') {
         $_SESSION['role'] = $role;
         $_SESSION['name'] = $user['full_name'];
 
-        $redirect = SITE_URL . ($role === 'student' ? 'student-dashboard.php' : 'teacher-dashboard.php');
+        $redirect = SITE_URL . ($role === 'student' ? 'student/home.php' : 'teacher/dashboard.php');
 
         echo json_encode(['success' => true, 'redirect' => $redirect]);
     } else {

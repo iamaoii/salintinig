@@ -1,0 +1,134 @@
+/* ============ Support Page Styles ============ */
+.support-page {
+    padding: 32px 0;
+}
+
+.support-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.support-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+}
+
+.support-header p {
+    color: #666;
+    font-size: 16px;
+}
+
+.faq-section {
+    max-width: 700px;
+    margin: 0 auto 40px;
+}
+
+.faq-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.faq-title .material-symbols-outlined {
+    color: var(--accent);
+}
+
+.faq-item {
+    background: white;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.faq-question {
+    padding: 20px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 200ms ease;
+}
+
+.faq-question:hover {
+    background: #fafafa;
+}
+
+.faq-answer {
+    padding: 0 24px 20px;
+    color: #666;
+    line-height: 1.6;
+    display: none;
+}
+
+.faq-item.active .faq-answer {
+    display: block;
+}
+
+.faq-item.active .faq-question .material-symbols-outlined {
+    transform: rotate(180deg);
+}
+
+.contact-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.contact-card {
+    background: white;
+    border-radius: 20px;
+    padding: 28px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.contact-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+
+.contact-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #fff8f0 0%, #fff 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.contact-icon .material-symbols-outlined {
+    font-size: 32px;
+    color: var(--accent);
+}
+
+.contact-card h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+}
+
+.contact-card p {
+    color: #666;
+    font-size: 14px;
+    margin: 0 0 16px 0;
+}
+
+.contact-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.contact-link:hover {
+    text-decoration: underline;
+}

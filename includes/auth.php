@@ -96,9 +96,9 @@ if ($action === 'signup') {
             if (strpos($e->getMessage(), 'email') !== false) {
                 echo json_encode(['error' => 'This email is already registered']);
             } elseif (strpos($e->getMessage(), 'lrn_number') !== false || strpos($e->getMessage(), 'id_number') !== false) {
-                echo json_encode(['error' => 'This LRN/ID Number is already in use']);
+                echo json_encode(['error' => 'This LRN Number is already in use']);
             } else {
-                echo json_encode(['error' => 'Email or ID Number already exists']);
+                echo json_encode(['error' => 'Email already exists']);
             }
         } else {
             echo json_encode(['error' => 'An error occurred. Please try again later.']);

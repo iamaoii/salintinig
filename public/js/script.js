@@ -11,15 +11,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let lastTab = 'student';
 
-    // Dynamic ID field
-    if (classificationSelect && idField) {
+    // Dynamic fields - hide/show based on role
+    const idFieldContainer = document.getElementById('id-field-container');
+    const gradeFieldContainer = document.getElementById('grade-field-container');
+    const gradeField = document.getElementById('grade-field');
+
+    if (classificationSelect && idField && idFieldContainer) {
         classificationSelect.addEventListener('change', function () {
             if (this.value === 'student') {
-                idField.name = 'lrn_number';
-                idField.placeholder = 'LRN Number';
+                // Show Student Fields
+                idFieldContainer.style.display = 'block';
+                idField.required = true;
+
+                if (gradeFieldContainer && gradeField) {
+                    gradeFieldContainer.style.display = 'block';
+                    gradeField.required = true;
+                }
+
             } else if (this.value === 'teacher') {
-                idField.name = 'id_number';
-                idField.placeholder = 'ID Number';
+                // Hide Student Fields (LRN & Grade)
+                idFieldContainer.style.display = 'none';
+                idField.required = false;
+                idField.value = '';
+
+                if (gradeFieldContainer && gradeField) {
+                    gradeFieldContainer.style.display = 'none';
+                    gradeField.required = false;
+                    gradeField.value = '';
+                }
             }
         });
     }
@@ -100,12 +119,12 @@ document.addEventListener('DOMContentLoaded', function () {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(handleAuthResponse)
-        .catch(err => {
-            console.error('Signup error:', err);
-            alert('Connection error. Please try again.');
-        });
+            .then(response => response.json())
+            .then(handleAuthResponse)
+            .catch(err => {
+                console.error('Signup error:', err);
+                alert('Connection error. Please try again.');
+            });
     });
 
     // Login
@@ -120,12 +139,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(handleAuthResponse)
-            .catch(err => {
-                console.error('Login error:', err);
-                alert('Connection error. Please try again.');
-            });
+                .then(response => response.json())
+                .then(handleAuthResponse)
+                .catch(err => {
+                    console.error('Login error:', err);
+                    alert('Connection error. Please try again.');
+                });
         });
     });
 
