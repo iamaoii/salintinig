@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS stories (
     description TEXT,
     content LONGTEXT NOT NULL,
     image_url VARCHAR(500) DEFAULT NULL,
-    grade_level VARCHAR(20) DEFAULT '4-6',
+    grade_level INT DEFAULT 4,
     language ENUM('English', 'Filipino') DEFAULT 'English',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS student_achievements (
 );
 
 -- Default Achievements
-INSERT INTO achievements (name, description, icon, requirement_type, requirement_value) VALUES
+INSERT IGNORE INTO achievements (name, description, icon, requirement_type, requirement_value) VALUES
 ('First Story', 'Complete your first story', 'auto_stories', 'stories_read', 1),
 ('Bookworm', 'Read 10 stories', 'menu_book', 'stories_read', 10),
 ('Week Warrior', '7-day reading streak', 'local_fire_department', 'streak', 7),

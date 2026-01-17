@@ -1,12 +1,16 @@
 -- Clear existing data (reset database)
+-- Disable foreign key checks to allow deletion in any order
 SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE story_assignments;
-TRUNCATE TABLE student_achievements;
-TRUNCATE TABLE reading_sessions;
-TRUNCATE TABLE student_progress;
-TRUNCATE TABLE stories;
-TRUNCATE TABLE students_account;
-TRUNCATE TABLE teachers_account;
+
+DELETE FROM story_assignments;
+DELETE FROM student_achievements;
+DELETE FROM reading_sessions;
+DELETE FROM student_progress;
+DELETE FROM stories;
+DELETE FROM students_account;
+DELETE FROM teachers_account;
+
+-- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =========================
