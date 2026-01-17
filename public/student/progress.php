@@ -1,6 +1,6 @@
 <?php
-session_start();
 require_once __DIR__ . '/../../includes/functions.php';
+startSession();
 
 if (!isLoggedIn() || getUserRole() !== 'student') {
     header('Location: ../auth.html');

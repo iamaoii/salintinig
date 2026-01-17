@@ -1,6 +1,6 @@
 <?php
-session_start();
 require_once '../../includes/functions.php';
+startSession();
 if (!isLoggedIn() || getUserRole() !== 'teacher') {
     redirect('../auth.html');
 }

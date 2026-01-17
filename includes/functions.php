@@ -4,6 +4,11 @@ require_once 'config.php';
 
 function startSession() {
     if (session_status() === PHP_SESSION_NONE) {
+        session_set_cookie_params([
+            'path' => '/salintinig/',
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
         session_start();
     }
 }
