@@ -63,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete'])) {
         rel="stylesheet" />
     <!-- Your CSS -->
     <link rel="stylesheet" href="../css/student/style.css" />
-    <link rel="stylesheet" href="../css/student/reading.css" />
 </head>
 
 <body>

@@ -1022,3 +1022,10 @@ html.dark .bottomNav {
     padding: 0 40px;
   }
 }
+
+/* Mobile Bottom Nav Visibility */
+@media (max-width: 767px) {
+  .bottomNav {
+    display: none !important;
+  }
+}

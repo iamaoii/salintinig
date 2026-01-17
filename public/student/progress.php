@@ -83,7 +83,6 @@ $levelProgress = ($totalStars % 100);
 
     <!-- Your CSS -->
     <link rel="stylesheet" href="../css/student/style.css" />
-    <link rel="stylesheet" href="../css/student/progress.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 

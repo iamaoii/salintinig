@@ -1,8 +1,0 @@
-/* Page-specific styles for Reading page */
-/* Theme is inherited from style.css */
-
-@media (max-width: 767px) {
-    .bottomNav {
-        display: none !important;
-    }
-}
