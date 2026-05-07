@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,18 +19,18 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20), // Reduced from 40 to balance the space below the status bar
+              const SizedBox(height: 20),
               // Header
               Row(
                 children: [
                   Image.asset(
                     'assets/logo/logo_v2.webp',
-                    height: 36, // Slightly larger
+                    height: 36,
                   ),
-                  const SizedBox(width: 12), // Increased from 8
-                  const Text(
+                  const SizedBox(width: 12),
+                  Text(
                     'SalinTinig',
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: Colors.black,
@@ -62,22 +63,24 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 32),
               // Greetings
-              const Text(
+              Text(
                 'Hello!',
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
                   height: 1.1,
                   letterSpacing: -1.2,
+                  color: Colors.black,
                 ),
               ),
-              const Text(
+              Text(
                 "Let's get you started.",
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
                   height: 1.1,
                   letterSpacing: -1.2,
+                  color: Colors.black,
                 ),
               ),
               const SizedBox(height: 12),
@@ -178,9 +181,10 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(width: 12),
           Text(
             label,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
           ),
         ],

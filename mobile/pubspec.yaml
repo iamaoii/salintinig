@@ -70,6 +70,7 @@ flutter:
     - assets/logo/logo_v2.webp
     - assets/landing/bg_upper_left.webp
     - assets/landing/bg_lower_right.webp
+    - assets/landing/onboard/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

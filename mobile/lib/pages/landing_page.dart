@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:salintinig/pages/home_page.dart';
+import 'package:salintinig/pages/onboarding_page.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 
 class LandingPage extends StatefulWidget {
@@ -13,11 +14,11 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    // Navigate to HomePage after 3 seconds with a slide-left animation
+    // Navigate to OnboardingPage after 3 seconds with a slide-left animation
     Timer(const Duration(seconds: 3), () {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+          pageBuilder: (context, animation, secondaryAnimation) => const OnboardingPage(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             const begin = Offset(1.0, 0.0);
             const end = Offset.zero;
@@ -73,9 +74,9 @@ class _LandingPageState extends State<LandingPage> {
                 ),
                 const SizedBox(height: 8),
                 // App Name
-                const Text(
+                Text(
                   'SalinTinig',
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 38,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
