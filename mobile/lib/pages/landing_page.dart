@@ -13,10 +13,26 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    // Navigate to HomePage after 3 seconds
+    // Navigate to HomePage after 3 seconds with a slide-left animation
     Timer(const Duration(seconds: 3), () {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomePage()),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOutCubic;
+
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+
+            return SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 600),
+        ),
       );
     });
   }
@@ -63,7 +79,7 @@ class _LandingPageState extends State<LandingPage> {
                     fontSize: 38,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    letterSpacing: -0.5,
+                    letterSpacing: -1.2,
                   ),
                 ),
               ],

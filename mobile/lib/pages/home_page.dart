@@ -18,21 +18,22 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
+              const SizedBox(height: 20), // Reduced from 40 to balance the space below the status bar
               // Header
               Row(
                 children: [
                   Image.asset(
-                    'assets/logo/logo_v1.webp',
-                    height: 32,
+                    'assets/logo/logo_v2.webp',
+                    height: 36, // Slightly larger
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12), // Increased from 8
                   const Text(
                     'SalinTinig',
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
                       color: Colors.black,
+                      letterSpacing: -0.8,
                     ),
                   ),
                 ],
@@ -65,16 +66,18 @@ class _HomePageState extends State<HomePage> {
                 'Hello!',
                 style: TextStyle(
                   fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                  letterSpacing: -1.2,
                 ),
               ),
               const Text(
                 "Let's get you started.",
                 style: TextStyle(
                   fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                  letterSpacing: -1.2,
                 ),
               ),
               const SizedBox(height: 12),
@@ -95,14 +98,14 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 12),
               _buildRoleButton(
-                icon: Icons.person_outline,
+                icon: Icons.badge_outlined,
                 label: 'Teacher',
                 color: const Color(0xFFD34426),
                 isOutlined: false,
               ),
               const SizedBox(height: 12),
               _buildRoleButton(
-                icon: Icons.people_outline,
+                icon: Icons.group_outlined,
                 label: 'Parent',
                 color: const Color(0xFF1B64D8),
                 isOutlined: true,
@@ -125,7 +128,7 @@ class _HomePageState extends State<HomePage> {
                           text: 'Terms of Service',
                           style: TextStyle(
                             color: Colors.grey[600],
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const TextSpan(text: ' and '),
@@ -133,7 +136,7 @@ class _HomePageState extends State<HomePage> {
                           text: 'Privacy Policy',
                           style: TextStyle(
                             color: Colors.grey[600],
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -177,7 +180,7 @@ class _HomePageState extends State<HomePage> {
             label,
             style: const TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

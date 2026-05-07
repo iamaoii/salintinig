@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/landing_page.dart';
 
 void main() {
@@ -19,7 +20,25 @@ class SalinTinigApp extends StatelessWidget {
           seedColor: const Color(0xFF673AB7), // Deep Purple
           brightness: Brightness.light,
         ),
-        fontFamily: 'Roboto',
+        textTheme: GoogleFonts.interTextTheme(
+          ThemeData.light().textTheme,
+        ).copyWith(
+          titleLarge: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+          ),
+          titleMedium: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+          ),
+          headlineLarge: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -1.0,
+          ),
+          headlineMedium: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -27,7 +46,25 @@ class SalinTinigApp extends StatelessWidget {
           seedColor: const Color(0xFF673AB7),
           brightness: Brightness.dark,
         ),
-        fontFamily: 'Roboto',
+        textTheme: GoogleFonts.interTextTheme(
+          ThemeData.dark().textTheme,
+        ).copyWith(
+          titleLarge: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+          ),
+          titleMedium: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+          ),
+          headlineLarge: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -1.0,
+          ),
+          headlineMedium: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
       ),
       themeMode: ThemeMode.system,
       home: const LandingPage(),
