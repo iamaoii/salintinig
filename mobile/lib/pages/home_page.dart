@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:salintinig/pages/student_login_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -98,6 +99,12 @@ class _HomePageState extends State<HomePage> {
                 label: 'Student',
                 color: const Color(0xFF1B64D8),
                 isOutlined: false,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const StudentLoginPage()),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               _buildRoleButton(
@@ -105,6 +112,7 @@ class _HomePageState extends State<HomePage> {
                 label: 'Teacher',
                 color: const Color(0xFFD34426),
                 isOutlined: false,
+                onTap: () {},
               ),
               const SizedBox(height: 12),
               _buildRoleButton(
@@ -112,6 +120,7 @@ class _HomePageState extends State<HomePage> {
                 label: 'Parent',
                 color: const Color(0xFF1B64D8),
                 isOutlined: true,
+                onTap: () {},
               ),
               const Spacer(),
               // Footer
@@ -159,6 +168,7 @@ class _HomePageState extends State<HomePage> {
     required String label,
     required Color color,
     required bool isOutlined,
+    required VoidCallback onTap,
   }) {
     final buttonStyle = ElevatedButton.styleFrom(
       backgroundColor: isOutlined ? Colors.white : color,
@@ -172,7 +182,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: onTap,
       style: buttonStyle,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
