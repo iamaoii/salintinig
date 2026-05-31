@@ -176,63 +176,72 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // ─── Panel 1 & 3: Single mascot overlapping the diagonal stripe ───────────
   Widget _buildSingleMascotPage(OnboardingData data) {
-    return Stack(
-      children: [
-        // 1. Background diagonal stripe
-        Positioned(
-          top: 60,
-          left: 0,
-          right: 0,
-          child: Image.asset(
-            data.imagePath,
-            fit: BoxFit.fitWidth,
-          ),
-        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Scale relative to 720px baseline — on current device scale ≈ 1.0 (no visual change).
+        // Shrinks on small phones, grows on tablets. Clamped so it never gets extreme.
+        final scale = (constraints.maxHeight / 720.0).clamp(0.75, 1.35);
+        final topPadding = MediaQuery.of(context).padding.top;
 
-        // 2. Mascot — full width container so visible character ≈ 80% of screen
-        Positioned(
-          top: 150,
-          left: 0,
-          right: 0,
-          child: _buildMascotWithShadow(
-            data.primaryMascot!,
-            widthFactor: 0.85,
-          ),
-        ),
-
-        // 3. Text content anchored to the bottom
-        Positioned.fill(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Spacer(),
-                Text(
-                  data.title,
-                  style: GoogleFonts.inter(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
-                    letterSpacing: -1.2,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  data.description,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ],
+        return Stack(
+          children: [
+            // 1. Background diagonal stripe
+            Positioned(
+              top: topPadding + (20 * scale),
+              left: 0,
+              right: 0,
+              child: Image.asset(
+                data.imagePath,
+                fit: BoxFit.fitWidth,
+              ),
             ),
-          ),
-        ),
-      ],
+
+            // 2. Mascot — full width container so visible character ≈ 80% of screen
+            Positioned(
+              top: topPadding + (90 * scale),
+              left: 0,
+              right: 0,
+              child: _buildMascotWithShadow(
+                data.primaryMascot!,
+                widthFactor: 0.85,
+              ),
+            ),
+
+            // 3. Text content anchored to the bottom
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Spacer(),
+                    Text(
+                      data.title,
+                      style: GoogleFonts.inter(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                        letterSpacing: -1.2,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      data.description,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -240,14 +249,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _buildMultiMascotPage(OnboardingData data) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Respect device status bar so nothing is hidden under notch/time display
+        // Scale relative to 720px baseline — on current device scale ≈ 1.0 (no visual change).
+        final scale = (constraints.maxHeight / 720.0).clamp(0.75, 1.35);
         final topPadding = MediaQuery.of(context).padding.top + 16;
 
         return Stack(
           children: [
             // 1. Background diagonal stripe
             Positioned(
-              top: 60,
+              top: 60 * scale,
               left: 0,
               right: 0,
               child: Image.asset(
@@ -258,7 +268,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
             // 2. Primary mascot (listening/headphones) — pushed below status bar
             Positioned(
-              top: topPadding + 20,
+              top: topPadding + (20 * scale),
               left: 0,
               right: 0,
               child: _buildMascotWithShadow(
@@ -267,9 +277,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
 
-            // 3. Text content — below listening mascot (~38% of screen)
+            // 3. Text content — below listening mascot
             Positioned(
-              top: topPadding + 295,
+              top: topPadding + (295 * scale),
               left: 24,
               right: 24,
               child: Column(
@@ -298,13 +308,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
 
-            // 4. Secondary mascot (speaking/microphone) — right side, bigger
+            // 4. Secondary mascot (speaking/microphone) — right side
             Positioned(
-              top: topPadding + 390,
-              right: 20,
+              top: topPadding + (390 * scale),
+              right: 20 * scale,
               child: SizedBox(
-                width: 145,
-                height: 145,
+                width: 145 * scale,
+                height: 145 * scale,
                 child: _buildMascotWithShadow(
                   data.secondaryMascot!,
                   widthFactor: 1.0,
@@ -312,13 +322,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
 
-            // 5. Tertiary mascot (sitting/backpack) — left side, bigger
+            // 5. Tertiary mascot (sitting/backpack) — left side
             Positioned(
-              top: topPadding + 470,
-              left: 30,
+              top: topPadding + (470 * scale),
+              left: 30 * scale,
               child: SizedBox(
-                width: 260,
-                height: 260,
+                width: 260 * scale,
+                height: 260 * scale,
                 child: _buildMascotWithShadow(
                   data.tertiaryMascot!,
                   widthFactor: 1.0,

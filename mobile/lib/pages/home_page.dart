@@ -15,149 +15,182 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              // Header
-              Row(
-                children: [
-                  Image.asset(
-                    'assets/logo/logo_v2.webp',
-                    height: 36,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'SalinTinig',
-                    style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      letterSpacing: -0.8,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              // Mascot Placeholder
-              Center(
-                child: Container(
-                  width: double.infinity,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'MASCOT / DRAWING',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // On tablets (width > 600), center content with a max width so it
+            // doesn't stretch across the full iPad canvas.
+            final isTablet = constraints.maxWidth > 600;
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isTablet ? 520 : double.infinity,
+                ),
+                child: Column(
+                  children: [
+                    // ── Scrollable body ────────────────────────────────────
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 0 : 24.0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 20),
+                            // Header
+                            Row(
+                              children: [
+                                Image.asset(
+                                  'assets/logo/logo_v2.webp',
+                                  height: 36,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'SalinTinig',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black,
+                                    letterSpacing: -0.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 32),
+                            // Mascot Placeholder
+                            Center(
+                              child: Container(
+                                width: double.infinity,
+                                height: 250,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'MASCOT / DRAWING',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            // Greetings
+                            Text(
+                              'Hello!',
+                              style: GoogleFonts.inter(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                                letterSpacing: -1.2,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Text(
+                              "Let's get you started.",
+                              style: GoogleFonts.inter(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                                letterSpacing: -1.2,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Set up your account in few quick steps and explore everything the app has to offer.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            // Buttons
+                            _buildRoleButton(
+                              icon: Icons.menu_book_outlined,
+                              label: 'Student',
+                              color: const Color(0xFF1B64D8),
+                              isOutlined: false,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const StudentLoginPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _buildRoleButton(
+                              icon: Icons.badge_outlined,
+                              label: 'Teacher',
+                              color: const Color(0xFFD34426),
+                              isOutlined: false,
+                              onTap: () {},
+                            ),
+                            const SizedBox(height: 12),
+                            _buildRoleButton(
+                              icon: Icons.group_outlined,
+                              label: 'Parent',
+                              color: const Color(0xFF1B64D8),
+                              isOutlined: true,
+                              onTap: () {},
+                            ),
+                            const SizedBox(height: 32),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Greetings
-              Text(
-                'Hello!',
-                style: GoogleFonts.inter(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  letterSpacing: -1.2,
-                  color: Colors.black,
-                ),
-              ),
-              Text(
-                "Let's get you started.",
-                style: GoogleFonts.inter(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  letterSpacing: -1.2,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Set up your account in few quick steps and explore everything the app has to offer.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Buttons
-              _buildRoleButton(
-                icon: Icons.menu_book_outlined,
-                label: 'Student',
-                color: const Color(0xFF1B64D8),
-                isOutlined: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const StudentLoginPage()),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildRoleButton(
-                icon: Icons.badge_outlined,
-                label: 'Teacher',
-                color: const Color(0xFFD34426),
-                isOutlined: false,
-                onTap: () {},
-              ),
-              const SizedBox(height: 12),
-              _buildRoleButton(
-                icon: Icons.group_outlined,
-                label: 'Parent',
-                color: const Color(0xFF1B64D8),
-                isOutlined: true,
-                onTap: () {},
-              ),
-              const Spacer(),
-              // Footer
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
+
+                    // ── Footer — always pinned at the bottom ───────────────
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isTablet ? 0 : 24,
+                        0,
+                        isTablet ? 0 : 24,
+                        16,
                       ),
-                      children: [
-                        const TextSpan(text: 'By using this application you accept the '),
-                        TextSpan(
-                          text: 'Terms of Service',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w600,
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
                           ),
+                          children: [
+                            const TextSpan(
+                                text: 'By using this application you accept the '),
+                            TextSpan(
+                              text: 'Terms of Service',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                        const TextSpan(text: ' and '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
