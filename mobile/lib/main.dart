@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:salintinig/pages/landing_page.dart';
+import 'package:salintinig/pages/loading_page.dart';
 
 void main() {
   runApp(const SalinTinigApp());
@@ -67,7 +67,8 @@ class SalinTinigApp extends StatelessWidget {
         ),
       ),
       themeMode: ThemeMode.system,
-      home: const LandingPage(),
+      home: const LoadingPage(),
     );
   }
 }
+
