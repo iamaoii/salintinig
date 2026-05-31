@@ -258,7 +258,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
             // 2. Primary mascot (listening/headphones) — pushed below status bar
             Positioned(
-              top: topPadding + 60,
+              top: topPadding + 20,
               left: 0,
               right: 0,
               child: _buildMascotWithShadow(
@@ -269,7 +269,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
             // 3. Text content — below listening mascot (~38% of screen)
             Positioned(
-              top: topPadding + 355,
+              top: topPadding + 295,
               left: 24,
               right: 24,
               child: Column(
@@ -300,8 +300,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
             // 4. Secondary mascot (speaking/microphone) — right side, bigger
             Positioned(
-              top: topPadding + 450,
-              right: 30,
+              top: topPadding + 390,
+              right: 20,
               child: SizedBox(
                 width: 145,
                 height: 145,
@@ -314,11 +314,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
             // 5. Tertiary mascot (sitting/backpack) — left side, bigger
             Positioned(
-              top: topPadding + 535,
+              top: topPadding + 470,
               left: 30,
               child: SizedBox(
-                width: 270,
-                height: 270,
+                width: 260,
+                height: 260,
                 child: _buildMascotWithShadow(
                   data.tertiaryMascot!,
                   widthFactor: 1.0,
