@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
+import 'package:salintinig/pages/registration_page.dart';
 
 class TeacherLoginPage extends StatefulWidget {
   const TeacherLoginPage({super.key});
@@ -17,45 +18,25 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
   bool _obscurePassword = true;
   bool _hasError = false;
 
+  void _resetState() {
+    setState(() {
+      _teacherIdController.clear();
+      _passwordController.clear();
+      _obscurePassword = true;
+      _hasError = false;
+    });
+  }
+
   void _showContactAdminDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Contact Admin',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-          content: Text(
-            'Please email the system administrator at admin@edu.org.ph or visit the faculty administration desk to request your teacher credentials.',
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              color: const Color(0xFF3F3F46),
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF1B64D8),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    Feedback.forTap(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RegistrationPage(),
+      ),
+    ).then((_) {
+      _resetState();
+    });
   }
 
   void _showForgotPasswordDialog() {
