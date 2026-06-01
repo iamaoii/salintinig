@@ -41,6 +41,7 @@ dependencies:
   # Audio Recording
   record: ^6.2.0
   google_fonts: ^8.1.0
+  iconify_flutter: ^0.0.7
 
 dev_dependencies:
   flutter_test:

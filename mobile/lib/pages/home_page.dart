@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student_login_page.dart';
+import 'dart:ui' as ui;
+import 'package:iconify_flutter/iconify_flutter.dart';
+import 'package:iconify_flutter/icons/ph.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,6 +23,7 @@ class _HomePageState extends State<HomePage> {
             // On tablets (width > 600), center content with a max width so it
             // doesn't stretch across the full iPad canvas.
             final isTablet = constraints.maxWidth > 600;
+            final double H = constraints.maxHeight;
 
             return Center(
               child: ConstrainedBox(
@@ -58,29 +62,17 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 32),
-                            // Mascot Placeholder
+                            SizedBox(height: H * 0.05), // Responsive spacer to move mascot lower
+                            // Mascot Display
                             Center(
-                              child: Container(
-                                width: double.infinity,
-                                height: 250,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    'MASCOT / DRAWING',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
+                              child: SizedBox(
+                                height: H * 0.32, // Responsive height (approx 256px on standard screens)
+                                child: _buildMascotWithShadow(
+                                  'assets/mascot/sally_standing.webp',
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            SizedBox(height: H * 0.04), // Responsive spacer below mascot
                             // Greetings
                             Text(
                               'Hello!',
@@ -113,7 +105,7 @@ class _HomePageState extends State<HomePage> {
                             const SizedBox(height: 32),
                             // Buttons
                             _buildRoleButton(
-                              icon: Icons.menu_book_outlined,
+                              iconSvg: Ph.books,
                               label: 'Student',
                               color: const Color(0xFF1B64D8),
                               isOutlined: false,
@@ -129,7 +121,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 12),
                             _buildRoleButton(
-                              icon: Icons.badge_outlined,
+                              iconSvg: Ph.user_list,
                               label: 'Teacher',
                               color: const Color(0xFFD34426),
                               isOutlined: false,
@@ -137,7 +129,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 12),
                             _buildRoleButton(
-                              icon: Icons.group_outlined,
+                              iconSvg: Ph.users,
                               label: 'Parent',
                               color: const Color(0xFF1B64D8),
                               isOutlined: true,
@@ -197,7 +189,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRoleButton({
-    required IconData icon,
+    required String iconSvg,
     required String label,
     required Color color,
     required bool isOutlined,
@@ -220,7 +212,11 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 24),
+          Iconify(
+            iconSvg,
+            color: isOutlined ? color : Colors.white,
+            size: 24,
+          ),
           const SizedBox(width: 12),
           Text(
             label,
@@ -231,6 +227,54 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMascotWithShadow(
+    String assetPath, {
+    double widthFactor = 1.0,
+    Offset shadowOffset = const Offset(4, 7), // Exact down-right sticker offset from onboarding
+    double blurRadius = 4.0,                  // Crisp, defined outline blur
+  }) {
+    return Center(
+      child: FractionallySizedBox(
+        widthFactor: widthFactor,
+        child: AspectRatio(
+          aspectRatio: 1.0,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              // Silhouette sticker shadow
+              Positioned.fill(
+                child: Transform.translate(
+                  offset: shadowOffset,
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(
+                      sigmaX: blurRadius,
+                      sigmaY: blurRadius,
+                      tileMode: TileMode.decal,
+                    ),
+                    child: Image.asset(
+                      assetPath,
+                      color: Colors.black.withValues(alpha: 0.35),
+                      colorBlendMode: BlendMode.srcIn,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+              // High-resolution mascot
+              Positioned.fill(
+                child: Image.asset(
+                  assetPath,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
