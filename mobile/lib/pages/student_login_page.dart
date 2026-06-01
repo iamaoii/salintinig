@@ -14,10 +14,15 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _hasError = false;
 
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
+    const borderRed = Color(0xFFEF4444);
+    const borderSlate = Color(0xFFE4E4E7);
+    final activeBorderColor = _hasError ? borderRed : primaryBlue;
+    final inactiveBorderColor = _hasError ? borderRed : borderSlate;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFCFAF7),
@@ -140,6 +145,13 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         fontSize: 16,
                                         color: Colors.black,
                                       ),
+                                      onChanged: (val) {
+                                        if (_hasError) {
+                                          setState(() {
+                                            _hasError = false;
+                                          });
+                                        }
+                                      },
                                       decoration: InputDecoration(
                                         hintText: 'Email',
                                         hintStyle: GoogleFonts.inter(
@@ -153,15 +165,15 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFE4E4E7),
-                                            width: 1.0,
+                                          borderSide: BorderSide(
+                                            color: inactiveBorderColor,
+                                            width: _hasError ? 1.5 : 1.0,
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(
-                                            color: primaryBlue,
+                                          borderSide: BorderSide(
+                                            color: activeBorderColor,
                                             width: 1.5,
                                           ),
                                         ),
@@ -176,6 +188,13 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         fontSize: 16,
                                         color: Colors.black,
                                       ),
+                                      onChanged: (val) {
+                                        if (_hasError) {
+                                          setState(() {
+                                            _hasError = false;
+                                          });
+                                        }
+                                      },
                                       decoration: InputDecoration(
                                         hintText: 'Password',
                                         hintStyle: GoogleFonts.inter(
@@ -201,20 +220,32 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFE4E4E7),
-                                            width: 1.0,
+                                          borderSide: BorderSide(
+                                            color: inactiveBorderColor,
+                                            width: _hasError ? 1.5 : 1.0,
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(
-                                            color: primaryBlue,
+                                          borderSide: BorderSide(
+                                            color: activeBorderColor,
                                             width: 1.5,
                                           ),
                                         ),
                                       ),
                                     ),
+                                    if (_hasError) ...[
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Incorrect credentials, please try again.',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.inter(
+                                          color: const Color(0xFFEF4444),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 12),
                                     // Forgot Password Link
                                     Align(
@@ -239,7 +270,40 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                     const SizedBox(height: 24),
                                     // Log in Button
                                     ElevatedButton(
-                                      onPressed: () {},
+                                      onPressed: () {
+                                        final email = _emailController.text.trim();
+                                        final password = _passwordController.text;
+
+                                        if (email.isEmpty || password.isEmpty) {
+                                          setState(() {
+                                            _hasError = true;
+                                          });
+                                          return;
+                                        }
+
+                                        // Simulating validation for presentation:
+                                        if (email == 'student@edu.org.ph' && password == 'password') {
+                                          setState(() {
+                                            _hasError = false;
+                                          });
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Logged in successfully!',
+                                                style: GoogleFonts.inter(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        } else {
+                                          setState(() {
+                                            _hasError = true;
+                                          });
+                                        }
+                                      },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: primaryBlue,
                                         foregroundColor: Colors.white,
