@@ -80,264 +80,282 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F4EF),
-      body: Stack(
-        children: [
-          Column(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final double W = constraints.maxWidth;
+          final double H = constraints.maxHeight;
+          final double scale = (H / 720.0).clamp(0.75, 1.35);
+          final double topPadding = MediaQuery.of(context).padding.top;
+
+          return Stack(
+            clipBehavior: Clip.hardEdge,
             children: [
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentPage = index;
-                    });
-                  },
-                  itemCount: _onboardingSteps.length,
-                  itemBuilder: (context, index) {
-                    return _buildPage(_onboardingSteps[index]);
-                  },
-                ),
-              ),
+              // 1. Continuous Background Stripe (behind PageView)
+              AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  final double pageValue = (_pageController.hasClients &&
+                          _pageController.position.hasContentDimensions)
+                      ? (_pageController.page ?? 0.0)
+                      : 0.0;
 
-              // Bottom Controls
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Skip Button
-                    TextButton(
-                      onPressed: _navigateToHome,
-                      child: Text(
-                        'Skip',
-                        style: GoogleFonts.inter(
-                          color: Colors.grey[500],
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                  // Adjust to a middle ground to hit the sweet spot.
+                  return Positioned(
+                    top: H * 0.06,
+                    left: -pageValue * W,
+                    width: 3 * W,
+                    child: Image.asset(
+                      'assets/onboarding/onboarding_bg.webp',
+                      width: 3 * W,
+                      fit: BoxFit.fitWidth,
                     ),
-
-                    // Page Indicators
-                    Row(
-                      children: List.generate(
-                        _onboardingSteps.length,
-                        (index) => AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          width: index == _currentPage ? 24 : 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            color: index == _currentPage
-                                ? const Color(0xFF1B64D8)
-                                : Colors.grey[300],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Next Button
-                    GestureDetector(
-                      onTap: _onNext,
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1B64D8),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildPage(OnboardingData data) {
-    if (data.panelType == PanelType.multi) {
-      return _buildMultiMascotPage(data);
-    }
-    return _buildSingleMascotPage(data);
-  }
-
-  // ─── Panel 1 & 3: Single mascot overlapping the diagonal stripe ───────────
-  Widget _buildSingleMascotPage(OnboardingData data) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Scale relative to 720px baseline — on current device scale ≈ 1.0 (no visual change).
-        // Shrinks on small phones, grows on tablets. Clamped so it never gets extreme.
-        final scale = (constraints.maxHeight / 720.0).clamp(0.75, 1.35);
-        final topPadding = MediaQuery.of(context).padding.top;
-
-        return Stack(
-          children: [
-            // 1. Background diagonal stripe
-            Positioned(
-              top: topPadding + (20 * scale),
-              left: 0,
-              right: 0,
-              child: Image.asset(
-                data.imagePath,
-                fit: BoxFit.fitWidth,
-              ),
-            ),
-
-            // 2. Mascot — full width container so visible character ≈ 80% of screen
-            Positioned(
-              top: topPadding + (90 * scale),
-              left: 0,
-              right: 0,
-              child: _buildMascotWithShadow(
-                data.primaryMascot!,
-                widthFactor: 0.85,
-              ),
-            ),
-
-            // 3. Text content anchored to the bottom
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Spacer(),
-                    Text(
-                      data.title,
-                      style: GoogleFonts.inter(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        height: 1.1,
-                        letterSpacing: -1.2,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      data.description,
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ─── Panel 2: Multi-mascot layout ─────────────────────────────────────────
-  Widget _buildMultiMascotPage(OnboardingData data) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Scale relative to 720px baseline — on current device scale ≈ 1.0 (no visual change).
-        final scale = (constraints.maxHeight / 720.0).clamp(0.75, 1.35);
-        final topPadding = MediaQuery.of(context).padding.top + 16;
-
-        return Stack(
-          children: [
-            // 1. Background diagonal stripe
-            Positioned(
-              top: 60 * scale,
-              left: 0,
-              right: 0,
-              child: Image.asset(
-                data.imagePath,
-                fit: BoxFit.fitWidth,
-              ),
-            ),
-
-            // 2. Primary mascot (listening/headphones) — pushed below status bar
-            Positioned(
-              top: topPadding + (20 * scale),
-              left: 0,
-              right: 0,
-              child: _buildMascotWithShadow(
-                data.primaryMascot!,
-                widthFactor: 0.62,
-              ),
-            ),
-
-            // 3. Text content — below listening mascot
-            Positioned(
-              top: topPadding + (295 * scale),
-              left: 24,
-              right: 24,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // 2. PageView and Controls on top
+              Column(
                 children: [
-                  Text(
-                    data.title,
-                    style: GoogleFonts.inter(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      height: 1.1,
-                      letterSpacing: -1.0,
-                      color: Colors.black,
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentPage = index;
+                        });
+                      },
+                      itemCount: _onboardingSteps.length,
+                      itemBuilder: (context, index) {
+                        return _buildPage(
+                          _onboardingSteps[index],
+                          scale,
+                          topPadding,
+                        );
+                      },
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    data.description,
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      color: Colors.grey[600],
-                      height: 1.5,
+
+                  // Bottom Controls
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Skip Button
+                        TextButton(
+                          onPressed: _navigateToHome,
+                          child: Text(
+                            'Skip',
+                            style: GoogleFonts.inter(
+                              color: Colors.grey[500],
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+
+                        // Page Indicators
+                        Row(
+                          children: List.generate(
+                            _onboardingSteps.length,
+                            (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: index == _currentPage ? 24 : 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(6),
+                                color: index == _currentPage
+                                    ? const Color(0xFF1B64D8)
+                                    : Colors.grey[300],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Next Button
+                        GestureDetector(
+                          onTap: _onNext,
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1B64D8),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-            // 4. Secondary mascot (speaking/microphone) — right side
-            Positioned(
-              top: topPadding + (390 * scale),
-              right: 20 * scale,
-              child: SizedBox(
-                width: 145 * scale,
-                height: 145 * scale,
-                child: _buildMascotWithShadow(
-                  data.secondaryMascot!,
-                  widthFactor: 1.0,
+  Widget _buildPage(OnboardingData data, double scale, double topPadding) {
+    if (data.panelType == PanelType.multi) {
+      return _buildMultiMascotPage(data, scale, topPadding);
+    }
+    return _buildSingleMascotPage(data, scale, topPadding);
+  }
+
+  // ─── Panel 1 & 3: Single mascot ──────────────────────────────────────────
+  Widget _buildSingleMascotPage(
+    OnboardingData data,
+    double scale,
+    double topPadding,
+  ) {
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        // Mascot — full width container so visible character ≈ 80% of screen
+        Positioned(
+          top: 115 * scale,
+          left: 0,
+          right: 0,
+          child: _buildMascotWithShadow(
+            data.primaryMascot!,
+            widthFactor: 0.85,
+          ),
+        ),
+
+        // Text content anchored to the bottom
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+                Text(
+                  data.title,
+                  style: GoogleFonts.inter(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    letterSpacing: -1.2,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  data.description,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Panel 2: Multi-mascot layout ─────────────────────────────────────────
+  Widget _buildMultiMascotPage(
+    OnboardingData data,
+    double scale,
+    double topPadding,
+  ) {
+    // Account for the device status bar (topPadding) plus 32px of scale-adjusted breathing room.
+    final double baseTop = topPadding + (32.0 * scale);
+
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        // 1. Listening mascot — placed safely below the status bar
+        Positioned(
+          top: baseTop,
+          left: 0,
+          right: 0,
+          child: _buildMascotWithShadow(
+            data.primaryMascot!,
+            widthFactor: 0.54,
+          ),
+        ),
+
+        // 2. Text content — flows naturally below the primary mascot
+        Positioned(
+          top: baseTop + (215 * scale),
+          left: 24,
+          right: 24,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                data.title,
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                  letterSpacing: -1.0,
+                  color: Colors.black,
                 ),
               ),
-            ),
-
-            // 5. Tertiary mascot (sitting/backpack) — left side
-            Positioned(
-              top: topPadding + (470 * scale),
-              left: 30 * scale,
-              child: SizedBox(
-                width: 260 * scale,
-                height: 260 * scale,
-                child: _buildMascotWithShadow(
-                  data.tertiaryMascot!,
-                  widthFactor: 1.0,
+              const SizedBox(height: 10),
+              Text(
+                data.description,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Colors.grey[600],
+                  height: 1.5,
                 ),
               ),
+            ],
+          ),
+        ),
+
+        // 3. Speaking mascot — positioned precisely relative to the wave
+        Positioned(
+          top: baseTop + (280 * scale),
+          right: 24 * scale,
+          child: SizedBox(
+            width: 110 * scale,
+            height: 110 * scale,
+            child: _buildMascotWithShadow(
+              data.secondaryMascot!,
+              widthFactor: 1.0,
             ),
-          ],
-        );
-      },
+          ),
+        ),
+
+        // 4. Sitting mascot — positioned elegantly at the bottom left
+        Positioned(
+          top: baseTop + (350 * scale),
+          left: 20 * scale,
+          child: SizedBox(
+            width: 200 * scale,
+            height: 200 * scale,
+            child: _buildMascotWithShadow(
+              data.tertiaryMascot!,
+              widthFactor: 1.0,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
