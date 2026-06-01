@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
 import 'package:salintinig/pages/registration_page.dart';
+import 'package:salintinig/pages/forgot_password_page.dart';
 
 class StudentLoginPage extends StatefulWidget {
   const StudentLoginPage({super.key});
@@ -40,44 +41,15 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
   }
 
   void _showForgotPasswordDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Forgot Password',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-          content: Text(
-            'If you forgot your password, please contact the administrator at admin@edu.org.ph to reset your account password.',
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              color: const Color(0xFF3F3F46),
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF1B64D8),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    Feedback.forTap(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ForgotPasswordPage(),
+      ),
+    ).then((_) {
+      _resetState();
+    });
   }
 
   @override
