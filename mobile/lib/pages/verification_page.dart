@@ -212,69 +212,78 @@ class _VerificationPageState extends State<VerificationPage> {
                                     const SizedBox(height: 24),
 
                                     // 6 Digit OTP Row (Centered with uniform spacing)
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: List.generate(6, (index) {
-                                        return Container(
-                                          margin: const EdgeInsets.symmetric(horizontal: 5),
-                                          width: 50,
-                                          height: 50,
-                                          child: TextField(
-                                            controller: _controllers[index],
-                                            focusNode: _focusNodes[index],
-                                            keyboardType: TextInputType.number,
-                                            textAlign: TextAlign.center,
-                                            maxLength: 1,
-                                            showCursor: false, // matches screenshot
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly,
-                                            ],
-                                            style: GoogleFonts.inter(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black,
-                                            ),
-                                            onChanged: (value) {
-                                              if (_hasError) {
-                                                setState(() {
-                                                  _hasError = false;
-                                                });
-                                              }
-                                              if (value.isNotEmpty) {
-                                                if (index < 5) {
-                                                  _focusNodes[index + 1].requestFocus();
-                                                } else {
-                                                  _focusNodes[index].unfocus();
-                                                }
-                                              } else {
-                                                if (index > 0) {
-                                                  _focusNodes[index - 1].requestFocus();
-                                                }
-                                              }
-                                            },
-                                            decoration: InputDecoration(
-                                              counterText: "",
-                                              filled: true,
-                                              fillColor: _hasError ? bgRedTint : Colors.white,
-                                              contentPadding: EdgeInsets.zero,
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: BorderSide(
-                                                  color: _hasError ? borderRed : borderSlate,
-                                                  width: _hasError ? 1.5 : 1.0,
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        // Dynamically calculate responsive width per box based on available parent space
+                                        final totalMarginSpace = 6 * 8.0; // 6 boxes with horizontal margin of 4 on each side
+                                        final calculatedWidth = (constraints.maxWidth - totalMarginSpace) / 6;
+                                        final boxWidth = calculatedWidth.clamp(32.0, 48.0);
+
+                                        return Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: List.generate(6, (index) {
+                                            return Container(
+                                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                                              width: boxWidth,
+                                              height: 50,
+                                              child: TextField(
+                                                controller: _controllers[index],
+                                                focusNode: _focusNodes[index],
+                                                keyboardType: TextInputType.number,
+                                                textAlign: TextAlign.center,
+                                                maxLength: 1,
+                                                showCursor: false, // matches screenshot
+                                                inputFormatters: [
+                                                  FilteringTextInputFormatter.digitsOnly,
+                                                ],
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black,
+                                                ),
+                                                onChanged: (value) {
+                                                  if (_hasError) {
+                                                    setState(() {
+                                                      _hasError = false;
+                                                    });
+                                                  }
+                                                  if (value.isNotEmpty) {
+                                                    if (index < 5) {
+                                                      _focusNodes[index + 1].requestFocus();
+                                                    } else {
+                                                      _focusNodes[index].unfocus();
+                                                    }
+                                                  } else {
+                                                    if (index > 0) {
+                                                      _focusNodes[index - 1].requestFocus();
+                                                    }
+                                                  }
+                                                },
+                                                decoration: InputDecoration(
+                                                  counterText: "",
+                                                  filled: true,
+                                                  fillColor: _hasError ? bgRedTint : Colors.white,
+                                                  contentPadding: EdgeInsets.zero,
+                                                  enabledBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderSide: BorderSide(
+                                                      color: _hasError ? borderRed : borderSlate,
+                                                      width: _hasError ? 1.5 : 1.0,
+                                                    ),
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderSide: BorderSide(
+                                                      color: _hasError ? borderRed : primaryBlue,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: BorderSide(
-                                                  color: _hasError ? borderRed : primaryBlue,
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                            );
+                                          }),
                                         );
-                                      }),
+                                      },
                                     ),
 
                                     const SizedBox(height: 24),

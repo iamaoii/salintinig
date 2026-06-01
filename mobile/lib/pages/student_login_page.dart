@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
 import 'package:salintinig/pages/registration_page.dart';
 import 'package:salintinig/pages/forgot_password_page.dart';
+import 'package:salintinig/pages/student_overview_page.dart';
 
 class StudentLoginPage extends StatefulWidget {
   const StudentLoginPage({super.key});
@@ -324,7 +325,12 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                           setState(() {
                                             _hasError = false;
                                           });
-                                          Navigator.pop(context);
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => const StudentOverviewPage(),
+                                            ),
+                                          );
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
                                               content: Text(
