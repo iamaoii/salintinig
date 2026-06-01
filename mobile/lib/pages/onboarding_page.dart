@@ -47,6 +47,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   ];
 
   void _onNext() {
+    Feedback.forTap(context);
     if (_currentPage < _onboardingSteps.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 500),
@@ -152,7 +153,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       children: [
                         // Skip Button
                         TextButton(
-                          onPressed: _navigateToHome,
+                          onPressed: () {
+                            Feedback.forTap(context);
+                            _navigateToHome();
+                          },
                           child: Text(
                             'Skip',
                             style: GoogleFonts.inter(
