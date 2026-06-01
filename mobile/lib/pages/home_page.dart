@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student_login_page.dart';
+import 'package:salintinig/pages/teacher_login_page.dart';
 import 'dart:ui' as ui;
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
@@ -125,7 +126,15 @@ class _HomePageState extends State<HomePage> {
                               label: 'Teacher',
                               color: const Color(0xFFD34426),
                               isOutlined: false,
-                              onTap: () {},
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const TeacherLoginPage(),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 12),
                             _buildRoleButton(

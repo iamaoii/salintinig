@@ -4,15 +4,15 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
 
-class StudentLoginPage extends StatefulWidget {
-  const StudentLoginPage({super.key});
+class TeacherLoginPage extends StatefulWidget {
+  const TeacherLoginPage({super.key});
 
   @override
-  State<StudentLoginPage> createState() => _StudentLoginPageState();
+  State<TeacherLoginPage> createState() => _TeacherLoginPageState();
 }
 
-class _StudentLoginPageState extends State<StudentLoginPage> {
-  final TextEditingController _emailController = TextEditingController();
+class _TeacherLoginPageState extends State<TeacherLoginPage> {
+  final TextEditingController _teacherIdController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _hasError = false;
@@ -34,7 +34,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
             ),
           ),
           content: Text(
-            'Please email the system administrator at admin@edu.org.ph or visit the registrar\'s office to request your student credentials.',
+            'Please email the system administrator at admin@edu.org.ph or visit the faculty administration desk to request your teacher credentials.',
             style: GoogleFonts.inter(
               fontSize: 15,
               color: const Color(0xFF3F3F46),
@@ -75,7 +75,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
             ),
           ),
           content: Text(
-            'If you forgot your password, please contact the administrator at admin@edu.org.ph to reset your account password.',
+            'If you forgot your password, please contact the faculty IT helpdesk or administrator at admin@edu.org.ph to trigger a password reset.',
             style: GoogleFonts.inter(
               fontSize: 15,
               color: const Color(0xFF3F3F46),
@@ -223,9 +223,9 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 40),
-                                    // Email Field
+                                    // Teacher ID Field
                                     TextField(
-                                      controller: _emailController,
+                                      controller: _teacherIdController,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -238,7 +238,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Email',
+                                        hintText: 'Email/Teacher ID',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                         ),
@@ -356,18 +356,18 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                     // Log in Button
                                     ElevatedButton(
                                       onPressed: () {
-                                        final email = _emailController.text.trim();
+                                        final teacherId = _teacherIdController.text.trim();
                                         final password = _passwordController.text;
 
-                                        if (email.isEmpty || password.isEmpty) {
+                                        if (teacherId.isEmpty || password.isEmpty) {
                                           setState(() {
                                             _hasError = true;
                                           });
                                           return;
                                         }
 
-                                        // Simulating validation for presentation:
-                                        if (email == 'student@edu.org.ph' && password == 'password') {
+                                        // Simulating validation for presentation (allows ID or Email):
+                                        if ((teacherId == 'T-1001' || teacherId == 'teacher@edu.org.ph') && password == 'password') {
                                           setState(() {
                                             _hasError = false;
                                           });
@@ -375,7 +375,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Logged in successfully!',
+                                                'Teacher Logged in successfully!',
                                                 style: GoogleFonts.inter(
                                                   fontWeight: FontWeight.w600,
                                                 ),
@@ -465,9 +465,8 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _teacherIdController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 }
-
