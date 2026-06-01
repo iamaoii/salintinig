@@ -224,53 +224,68 @@ class _OnboardingPageState extends State<OnboardingPage> {
     double scale,
     double topPadding,
   ) {
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        // Mascot — full width container so visible character ≈ 80% of screen
-        Positioned(
-          top: 115 * scale,
-          left: 0,
-          right: 0,
-          child: _buildMascotWithShadow(
-            data.primaryMascot!,
-            widthFactor: 0.85,
-          ),
-        ),
+    // Check if this is Panel 1 (reading book) vs Panel 3 (celebrating)
+    final bool isFirstPanel = data.primaryMascot == 'assets/mascot/sally_reading.webp';
 
-        // Text content anchored to the bottom
-        Positioned.fill(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Spacer(),
-                Text(
-                  data.title,
-                  style: GoogleFonts.inter(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
-                    letterSpacing: -1.2,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  data.description,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double H = constraints.maxHeight;
+
+        // Define mascot and text offsets independently to match each panel's unique background wave
+        final double mascotTop = topPadding + (H * 0.12);
+
+        final double textTop = isFirstPanel 
+            ? H * 0.71   // Panel 1 text (perfectly centered above bottom controls)
+            : H * 0.76;  // Panel 3 text (placed lower to completely clear the blue wave)
+
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Mascot — centered horizontally
+            Positioned(
+              top: mascotTop,
+              left: 0,
+              right: 0,
+              child: _buildMascotWithShadow(
+                data.primaryMascot!,
+                widthFactor: 0.85,
+              ),
             ),
-          ),
-        ),
-      ],
+
+            // Text content — positioned independently based on the panel
+            Positioned(
+              top: textTop,
+              left: 24,
+              right: 24,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Text(
+                    data.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 30 * scale.clamp(0.85, 1.15),
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                      letterSpacing: -1.2,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: H * 0.02),
+                  Text(
+                    data.description,
+                    style: GoogleFonts.inter(
+                      fontSize: 15 * scale.clamp(0.85, 1.10),
+                      color: Colors.grey[600],
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -280,82 +295,97 @@ class _OnboardingPageState extends State<OnboardingPage> {
     double scale,
     double topPadding,
   ) {
-    // Account for the device status bar (topPadding) plus 32px of scale-adjusted breathing room.
-    final double baseTop = topPadding + (32.0 * scale);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double H = constraints.maxHeight;
 
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        // 1. Listening mascot — placed safely below the status bar
-        Positioned(
-          top: baseTop,
-          left: 0,
-          right: 0,
-          child: _buildMascotWithShadow(
-            data.primaryMascot!,
-            widthFactor: 0.54,
-          ),
-        ),
+        // Status bar + breathing room expressed as a fraction of panel height
+        final double safeTop = topPadding + (H * 0.04);
 
-        // 2. Text content — flows naturally below the primary mascot
-        Positioned(
-          top: baseTop + (215 * scale),
-          left: 24,
-          right: 24,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                data.title,
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  letterSpacing: -1.0,
-                  color: Colors.black,
+        // Mascot size expressed as a fraction of screen height for true responsiveness
+        final double primarySize  = H * 0.32;  // headphones mascot ~32% of panel (slightly larger)
+        final double secondarySize = H * 0.16; // speaking mascot ~16%
+        final double tertiarySize  = H * 0.30; // sitting mascot ~30%
+
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // 1. Listening (headphones) mascot — top, centered
+            Positioned(
+              top: safeTop,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                width: double.infinity,
+                height: primarySize,
+                child: _buildMascotWithShadow(
+                  data.primaryMascot!,
+                  widthFactor: 0.58, // slightly wider to match the height increase
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                data.description,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: Colors.grey[600],
-                  height: 1.5,
+            ),
+
+            // 2. Title + description — positioned elegantly below the larger mascot
+            Positioned(
+              top: safeTop + primarySize + (H * 0.04), // moved lower to provide breathing room
+              left: 24,
+              right: 24,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 26 * scale.clamp(0.85, 1.15),
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                      letterSpacing: -1.0,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: H * 0.012),
+                  Text(
+                    data.description,
+                    style: GoogleFonts.inter(
+                      fontSize: 14 * scale.clamp(0.85, 1.10),
+                      color: Colors.grey[600],
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 3. Speaking (microphone) mascot — right side, on the wave
+            Positioned(
+              top: safeTop + primarySize + (H * 0.14),
+              right: 24,
+              child: SizedBox(
+                width: secondarySize,
+                height: secondarySize,
+                child: _buildMascotWithShadow(
+                  data.secondaryMascot!,
+                  widthFactor: 1.0,
                 ),
               ),
-            ],
-          ),
-        ),
-
-        // 3. Speaking mascot — positioned precisely relative to the wave
-        Positioned(
-          top: baseTop + (280 * scale),
-          right: 24 * scale,
-          child: SizedBox(
-            width: 110 * scale,
-            height: 110 * scale,
-            child: _buildMascotWithShadow(
-              data.secondaryMascot!,
-              widthFactor: 1.0,
             ),
-          ),
-        ),
 
-        // 4. Sitting mascot — positioned elegantly at the bottom left
-        Positioned(
-          top: baseTop + (350 * scale),
-          left: 20 * scale,
-          child: SizedBox(
-            width: 200 * scale,
-            height: 200 * scale,
-            child: _buildMascotWithShadow(
-              data.tertiaryMascot!,
-              widthFactor: 1.0,
+            // 4. Sitting (backpack) mascot — left side, overlapping the wave bottom
+            Positioned(
+              top: safeTop + primarySize + (H * 0.24),
+              left: 20,
+              child: SizedBox(
+                width: tertiarySize,
+                height: tertiarySize,
+                child: _buildMascotWithShadow(
+                  data.tertiaryMascot!,
+                  widthFactor: 1.0,
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
