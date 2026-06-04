@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 
 // Custom Phosphor Bold SVG strings matching reference icons
 const String phExamBold = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M216 36H40a20 20 0 0 0-20 20v160a12 12 0 0 0 17.37 10.73L64 213.42l26.63 13.31a12 12 0 0 0 10.74 0L128 213.42l26.63 13.31a12 12 0 0 0 10.74 0L192 213.42l26.63 13.31A12 12 0 0 0 236 216V56a20 20 0 0 0-20-20m-4 160.58l-14.63-7.31a12 12 0 0 0-10.74 0L160 202.58l-26.63-13.31a12 12 0 0 0-10.74 0L96 202.58l-26.63-13.31a12 12 0 0 0-10.74 0L44 196.58V60h168ZM62.63 170.73a12 12 0 0 0 16.1-5.36l2.69-5.37h37.16l2.69 5.37a12 12 0 1 0 21.46-10.74l-32-64a12 12 0 0 0-21.46 0l-32 64a12 12 0 0 0 5.36 16.1M106.58 136H93.42l6.58-13.17Zm37.42-8a12 12 0 0 1 12-12h4v-4a12 12 0 0 1 24 0v4h4a12 12 0 0 1 0 24h-4v4a12 12 0 0 1-24 0v-4h-4a12 12 0 0 1-12-12"/></svg>';
@@ -46,8 +47,12 @@ class StudentOverviewPage extends StatefulWidget {
 }
 
 class _StudentOverviewPageState extends State<StudentOverviewPage> {
+  // Scaffold key to control drawer programmatically
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   // Simple state toggles for interactive button feedback
   bool _notificationAlert = true;
+  int _drawerSelectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -56,11 +61,27 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     const softCreamBg = Color(0xFFFCFAF7);
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: softCreamBg,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTablet = constraints.maxWidth > 600;
+      drawer: StudentSidebarDrawer(
+        currentIndex: _drawerSelectedIndex,
+        onItemSelected: (index) {
+          setState(() {
+            _drawerSelectedIndex = index;
+          });
+        },
+      ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity != null && details.primaryVelocity! > 200) {
+            _scaffoldKey.currentState?.openDrawer();
+          }
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth > 600;
 
             return Center(
               child: ConstrainedBox(
@@ -78,13 +99,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                           // Left Menu Drawer Icon
                           IconButton(
                             onPressed: () {
-                              Feedback.forTap(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Menu drawer opened (Simulation)', style: GoogleFonts.inter()),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
+                              _scaffoldKey.currentState?.openDrawer();
                             },
                             icon: Iconify(
                               Ph.list,
@@ -407,8 +422,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
           },
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Helper Widgets ──
 
@@ -734,6 +750,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       ),
     );
   }
+
+
 
   Widget _buildActivityCard(String label, String iconSvg, Color iconBg, Color iconColor) {
     return Container(
