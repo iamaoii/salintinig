@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:salintinig/pages/loading_page.dart';
+import 'package:salintinig/pages/common/loading_page.dart';
 
 void main() {
   runApp(const SalinTinigApp());

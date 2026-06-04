@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/services.dart';
-import 'package:salintinig/pages/set_new_password_page.dart';
+import 'package:salintinig/pages/auth/set_new_password_page.dart';
 
 class VerificationPage extends StatefulWidget {
   final String email;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:salintinig/pages/onboarding_page.dart';
+import 'package:salintinig/pages/common/onboarding_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 

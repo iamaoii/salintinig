@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:salintinig/pages/home_page.dart';
+import 'package:salintinig/pages/common/home_page.dart';
 import 'dart:ui' as ui;
 
 class OnboardingPage extends StatefulWidget {
@@ -420,7 +420,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     ),
                     child: Image.asset(
                       assetPath,
-                      color: Colors.black.withOpacity(0.35), // Matches the dark, crisp depth of example
+                      color: Colors.black.withValues(alpha: 0.35), // Matches the dark, crisp depth of example
                       colorBlendMode: BlendMode.srcIn,
                       fit: BoxFit.contain,
                     ),

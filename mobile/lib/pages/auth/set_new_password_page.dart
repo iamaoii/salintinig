@@ -2,61 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:flutter/gestures.dart';
-import 'package:salintinig/pages/registration_page.dart';
-import 'package:salintinig/pages/forgot_password_page.dart';
-import 'package:salintinig/pages/student_overview_page.dart';
+import 'package:salintinig/pages/auth/reset_password_loading_page.dart';
 
-class StudentLoginPage extends StatefulWidget {
-  const StudentLoginPage({super.key});
+class SetNewPasswordPage extends StatefulWidget {
+  const SetNewPasswordPage({super.key});
 
   @override
-  State<StudentLoginPage> createState() => _StudentLoginPageState();
+  State<SetNewPasswordPage> createState() => _SetNewPasswordPageState();
 }
 
-class _StudentLoginPageState extends State<StudentLoginPage> {
-  final TextEditingController _emailController = TextEditingController();
+class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
   final TextEditingController _passwordController = TextEditingController();
-  bool _obscurePassword = true;
+  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _hasError = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String _errorMessage = 'Please create a new password.';
 
-  void _resetState() {
+  void _onResetPassword() {
+    Feedback.forTap(context);
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (password.isEmpty || confirmPassword.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please fill out both password fields.';
+        _hasError = true;
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _errorMessage = 'Passwords do not match.';
+        _hasError = true;
+      });
+      return;
+    }
+
+    // Success flow: Navigate to the ResetPasswordLoadingPage
     setState(() {
-      _emailController.clear();
-      _passwordController.clear();
-      _obscurePassword = true;
       _hasError = false;
     });
-  }
 
-  void _showContactAdminDialog() {
-    Feedback.forTap(context);
-    Navigator.push(
-      context,
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => const RegistrationPage(),
+        builder: (context) => const ResetPasswordLoadingPage(),
       ),
-    ).then((_) {
-      _resetState();
-    });
-  }
-
-  void _showForgotPasswordDialog() {
-    Feedback.forTap(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ForgotPasswordPage(),
-      ),
-    ).then((_) {
-      _resetState();
-    });
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const borderRed = Color(0xFFEF4444);
+    const bgRedTint = Color(0xFFFEF2F2);
     const borderSlate = Color(0xFFE4E4E7);
     final activeBorderColor = _hasError ? borderRed : primaryBlue;
     final inactiveBorderColor = _hasError ? borderRed : borderSlate;
@@ -66,8 +66,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // On tablets (width > 600), center content with a max width so it
-            // doesn't stretch across the full iPad canvas.
             final isTablet = constraints.maxWidth > 600;
 
             return Center(
@@ -90,7 +88,10 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                         children: [
                           // Back Arrow Button
                           IconButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              Feedback.forTap(context);
+                              Navigator.pop(context);
+                            },
                             icon: Iconify(
                               Ph.arrow_u_up_left,
                               size: 32,
@@ -122,7 +123,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                       ),
                     ),
 
-                    // 2. Middle Section (Expanded & Centered Scrollable content)
+                    // 2. Middle Set Password Form (Centered & shifted upward)
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, middleConstraints) {
@@ -140,11 +141,11 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    const SizedBox(height: 24), // Top margin safety buffer
+                                    const SizedBox(height: 0),
                                     // Title
                                     Text(
-                                      'Welcome back!',
-                                      textAlign: TextAlign.center,
+                                      'Set New Password',
+                                      textAlign: TextAlign.start,
                                       style: GoogleFonts.inter(
                                         fontSize: 32,
                                         fontWeight: FontWeight.w800,
@@ -153,33 +154,21 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    // Subtitle with Contact Admin link
-                                    Center(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            color: const Color(0xFF71717A),
-                                          ),
-                                          children: [
-                                            const TextSpan(text: 'Not registered yet? '),
-                                            TextSpan(
-                                              text: 'Contact admin',
-                                              style: GoogleFonts.inter(
-                                                color: primaryBlue,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = _showContactAdminDialog,
-                                            ),
-                                          ],
-                                        ),
+                                    // Subtitle
+                                    Text(
+                                      'Create new unique password',
+                                      textAlign: TextAlign.start,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        color: const Color(0xFF71717A),
                                       ),
                                     ),
                                     const SizedBox(height: 40),
-                                    // Email Field
+
+                                    // Password field 1 (New Password)
                                     TextField(
-                                      controller: _emailController,
+                                      controller: _passwordController,
+                                      obscureText: _obscurePassword,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -192,15 +181,28 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Email',
+                                        hintText: 'New Password',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                         ),
                                         filled: true,
-                                        fillColor: Colors.white,
+                                        fillColor: _hasError ? bgRedTint : Colors.white,
                                         contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 18,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          onPressed: () {
+                                            Feedback.forTap(context);
+                                            setState(() {
+                                              _obscurePassword = !_obscurePassword;
+                                            });
+                                          },
+                                          icon: Iconify(
+                                            _obscurePassword ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
@@ -219,10 +221,11 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    // Password Field
+
+                                    // Password field 2 (Confirm New Password)
                                     TextField(
-                                      controller: _passwordController,
-                                      obscureText: _obscurePassword,
+                                      controller: _confirmPasswordController,
+                                      obscureText: _obscureConfirmPassword,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -235,27 +238,28 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Password',
+                                        hintText: 'Confirm New Password',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                         ),
                                         filled: true,
-                                        fillColor: Colors.white,
-                                        suffixIcon: IconButton(
-                                          icon: Iconify(
-                                            _obscurePassword ? Ph.eye_slash : Ph.eye,
-                                            color: const Color(0xFFA1A1AA),
-                                            size: 22,
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _obscurePassword = !_obscurePassword;
-                                            });
-                                          },
-                                        ),
+                                        fillColor: _hasError ? bgRedTint : Colors.white,
                                         contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 18,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          onPressed: () {
+                                            Feedback.forTap(context);
+                                            setState(() {
+                                              _obscureConfirmPassword = !_obscureConfirmPassword;
+                                            });
+                                          },
+                                          icon: Iconify(
+                                            _obscureConfirmPassword ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
@@ -273,10 +277,11 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                       ),
                                     ),
+
                                     if (_hasError) ...[
                                       const SizedBox(height: 16),
                                       Text(
-                                        'Incorrect credentials, please try again.',
+                                        _errorMessage,
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.inter(
                                           color: const Color(0xFFEF4444),
@@ -285,69 +290,10 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 12),
-                                    // Forgot Password Link
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: _showForgotPasswordDialog,
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: Text(
-                                          'Forgot your password?',
-                                          style: GoogleFonts.inter(
-                                            color: primaryBlue,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
                                     const SizedBox(height: 24),
-                                    // Log in Button
+                                    // Reset Password Button
                                     ElevatedButton(
-                                      onPressed: () {
-                                        final email = _emailController.text.trim();
-                                        final password = _passwordController.text;
-
-                                        if (email.isEmpty || password.isEmpty) {
-                                          setState(() {
-                                            _hasError = true;
-                                          });
-                                          return;
-                                        }
-
-                                        // Simulating validation for presentation:
-                                        if (email == 'student@edu.org.ph' && password == 'password') {
-                                          setState(() {
-                                            _hasError = false;
-                                          });
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => const StudentOverviewPage(),
-                                            ),
-                                          );
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Logged in successfully!',
-                                                style: GoogleFonts.inter(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        } else {
-                                          setState(() {
-                                            _hasError = true;
-                                          });
-                                        }
-                                      },
+                                      onPressed: _onResetPassword,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: primaryBlue,
                                         foregroundColor: Colors.white,
@@ -358,14 +304,14 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         elevation: 0,
                                       ),
                                       child: Text(
-                                        'Log in',
+                                        'Reset Password',
                                         style: GoogleFonts.inter(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 24), // Bottom margin safety buffer
+                                    const SizedBox(height: 155),
                                   ],
                                 ),
                               ),
@@ -375,37 +321,35 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                       ),
                     ),
 
-                    // ── Footer — always pinned at the bottom ───────────────
+                    // 3. Bottom Pinned Link (Back to Log In)
                     Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        isTablet ? 0 : 24,
-                        0,
-                        isTablet ? 0 : 24,
-                        24,
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: TextButton(
+                        onPressed: () {
+                          Feedback.forTap(context);
+                          Navigator.popUntil(context, (route) => route.isFirst);
+                        },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
+                            Iconify(
+                              Ph.arrow_left,
+                              color: primaryBlue,
+                              size: 18,
                             ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
+                            const SizedBox(width: 8),
+                            Text(
+                              'Back to Log In',
                               style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
+                                color: primaryBlue,
                                 fontWeight: FontWeight.w600,
+                                fontSize: 16,
                               ),
                             ),
                           ],
@@ -424,9 +368,8 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 }
-

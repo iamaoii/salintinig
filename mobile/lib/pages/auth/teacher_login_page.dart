@@ -2,55 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/registration_loading_page.dart';
+import 'package:flutter/gestures.dart';
+import 'package:salintinig/pages/auth/registration_page.dart';
+import 'package:salintinig/pages/auth/forgot_password_page.dart';
 
-class RegistrationPage extends StatefulWidget {
-  const RegistrationPage({super.key});
+class TeacherLoginPage extends StatefulWidget {
+  const TeacherLoginPage({super.key});
 
   @override
-  State<RegistrationPage> createState() => _RegistrationPageState();
+  State<TeacherLoginPage> createState() => _TeacherLoginPageState();
 }
 
-class _RegistrationPageState extends State<RegistrationPage> {
-  final TextEditingController _emailController = TextEditingController();
+class _TeacherLoginPageState extends State<TeacherLoginPage> {
+  final TextEditingController _teacherIdController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
   bool _hasError = false;
-  String _errorMessage = 'Please enter your email address.';
 
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
-  }
-
-  void _onSubmit() {
-    Feedback.forTap(context);
-    final email = _emailController.text.trim();
-
-    if (email.isEmpty) {
-      setState(() {
-        _errorMessage = 'Please enter your email address.';
-        _hasError = true;
-      });
-      return;
-    }
-
-    if (!_isValidEmail(email)) {
-      setState(() {
-        _errorMessage = 'Please enter a valid email address.';
-        _hasError = true;
-      });
-      return;
-    }
-
-    // Success flow
+  void _resetState() {
     setState(() {
+      _teacherIdController.clear();
+      _passwordController.clear();
+      _obscurePassword = true;
       _hasError = false;
     });
+  }
 
+  void _showContactAdminDialog() {
+    Feedback.forTap(context);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const RegistrationLoadingPage(),
+        builder: (context) => const RegistrationPage(),
       ),
-    );
+    ).then((_) {
+      _resetState();
+    });
+  }
+
+  void _showForgotPasswordDialog() {
+    Feedback.forTap(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ForgotPasswordPage(),
+      ),
+    ).then((_) {
+      _resetState();
+    });
   }
 
   @override
@@ -66,6 +65,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            // On tablets (width > 600), center content with a max width so it
+            // doesn't stretch across the full iPad canvas.
             final isTablet = constraints.maxWidth > 600;
 
             return Center(
@@ -88,10 +89,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                         children: [
                           // Back Arrow Button
                           IconButton(
-                            onPressed: () {
-                              Feedback.forTap(context);
-                              Navigator.pop(context);
-                            },
+                            onPressed: () => Navigator.pop(context),
                             icon: Iconify(
                               Ph.arrow_u_up_left,
                               size: 32,
@@ -123,7 +121,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                       ),
                     ),
 
-                    // 2. Middle Section (Centered scrollable content)
+                    // 2. Middle Section (Expanded & Centered Scrollable content)
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, middleConstraints) {
@@ -141,10 +139,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 24), // Top margin safety buffer
                                     // Title
                                     Text(
-                                      'Not yet registered?',
+                                      'Welcome back!',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         fontSize: 32,
@@ -154,19 +152,33 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    // Subtitle
-                                    Text(
-                                      'Enter your email.',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 16,
-                                        color: const Color(0xFF71717A),
+                                    // Subtitle with Contact Admin link
+                                    Center(
+                                      child: RichText(
+                                        text: TextSpan(
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            color: const Color(0xFF71717A),
+                                          ),
+                                          children: [
+                                            const TextSpan(text: 'Not registered yet? '),
+                                            TextSpan(
+                                              text: 'Contact admin',
+                                              style: GoogleFonts.inter(
+                                                color: primaryBlue,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              recognizer: TapGestureRecognizer()
+                                                ..onTap = _showContactAdminDialog,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 40),
-                                    // Email Input Field
+                                    // Teacher ID Field
                                     TextField(
-                                      controller: _emailController,
+                                      controller: _teacherIdController,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -179,7 +191,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Email',
+                                        hintText: 'Email/Teacher ID',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                         ),
@@ -205,10 +217,65 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 16),
+                                    // Password Field
+                                    TextField(
+                                      controller: _passwordController,
+                                      obscureText: _obscurePassword,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        color: Colors.black,
+                                      ),
+                                      onChanged: (val) {
+                                        if (_hasError) {
+                                          setState(() {
+                                            _hasError = false;
+                                          });
+                                        }
+                                      },
+                                      decoration: InputDecoration(
+                                        hintText: 'Password',
+                                        hintStyle: GoogleFonts.inter(
+                                          color: const Color(0xFFA1A1AA),
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        suffixIcon: IconButton(
+                                          icon: Iconify(
+                                            _obscurePassword ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _obscurePassword = !_obscurePassword;
+                                            });
+                                          },
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 18,
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                          borderSide: BorderSide(
+                                            color: inactiveBorderColor,
+                                            width: _hasError ? 1.5 : 1.0,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                          borderSide: BorderSide(
+                                            color: activeBorderColor,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                     if (_hasError) ...[
                                       const SizedBox(height: 16),
                                       Text(
-                                        _errorMessage,
+                                        'Incorrect credentials, please try again.',
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.inter(
                                           color: const Color(0xFFEF4444),
@@ -217,10 +284,64 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         ),
                                       ),
                                     ],
+                                    const SizedBox(height: 12),
+                                    // Forgot Password Link
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: _showForgotPasswordDialog,
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: Text(
+                                          'Forgot your password?',
+                                          style: GoogleFonts.inter(
+                                            color: primaryBlue,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                     const SizedBox(height: 24),
-                                    // Contact Admin Button
+                                    // Log in Button
                                     ElevatedButton(
-                                      onPressed: _onSubmit,
+                                      onPressed: () {
+                                        final teacherId = _teacherIdController.text.trim();
+                                        final password = _passwordController.text;
+
+                                        if (teacherId.isEmpty || password.isEmpty) {
+                                          setState(() {
+                                            _hasError = true;
+                                          });
+                                          return;
+                                        }
+
+                                        // Simulating validation for presentation (allows ID or Email):
+                                        if ((teacherId == 'T-1001' || teacherId == 'teacher@edu.org.ph') && password == 'password') {
+                                          setState(() {
+                                            _hasError = false;
+                                          });
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Teacher Logged in successfully!',
+                                                style: GoogleFonts.inter(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        } else {
+                                          setState(() {
+                                            _hasError = true;
+                                          });
+                                        }
+                                      },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: primaryBlue,
                                         foregroundColor: Colors.white,
@@ -231,14 +352,14 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         elevation: 0,
                                       ),
                                       child: Text(
-                                        'Contact admin',
+                                        'Log in',
                                         style: GoogleFonts.inter(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 24), // Bottom margin safety buffer
                                   ],
                                 ),
                               ),
@@ -248,7 +369,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                       ),
                     ),
 
-                    // 3. Footer (Fixed at the bottom)
+                    // ── Footer — always pinned at the bottom ───────────────
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         isTablet ? 0 : 24,
@@ -297,7 +418,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _teacherIdController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 }

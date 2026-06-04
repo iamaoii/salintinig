@@ -3,25 +3,26 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
-import 'package:salintinig/pages/registration_page.dart';
-import 'package:salintinig/pages/forgot_password_page.dart';
+import 'package:salintinig/pages/auth/registration_page.dart';
+import 'package:salintinig/pages/auth/forgot_password_page.dart';
+import 'package:salintinig/pages/student/student_overview_page.dart';
 
-class TeacherLoginPage extends StatefulWidget {
-  const TeacherLoginPage({super.key});
+class StudentLoginPage extends StatefulWidget {
+  const StudentLoginPage({super.key});
 
   @override
-  State<TeacherLoginPage> createState() => _TeacherLoginPageState();
+  State<StudentLoginPage> createState() => _StudentLoginPageState();
 }
 
-class _TeacherLoginPageState extends State<TeacherLoginPage> {
-  final TextEditingController _teacherIdController = TextEditingController();
+class _StudentLoginPageState extends State<StudentLoginPage> {
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _hasError = false;
 
   void _resetState() {
     setState(() {
-      _teacherIdController.clear();
+      _emailController.clear();
       _passwordController.clear();
       _obscurePassword = true;
       _hasError = false;
@@ -176,9 +177,9 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 40),
-                                    // Teacher ID Field
+                                    // Email Field
                                     TextField(
-                                      controller: _teacherIdController,
+                                      controller: _emailController,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -191,7 +192,7 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Email/Teacher ID',
+                                        hintText: 'Email',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                         ),
@@ -309,26 +310,31 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                     // Log in Button
                                     ElevatedButton(
                                       onPressed: () {
-                                        final teacherId = _teacherIdController.text.trim();
+                                        final email = _emailController.text.trim();
                                         final password = _passwordController.text;
 
-                                        if (teacherId.isEmpty || password.isEmpty) {
+                                        if (email.isEmpty || password.isEmpty) {
                                           setState(() {
                                             _hasError = true;
                                           });
                                           return;
                                         }
 
-                                        // Simulating validation for presentation (allows ID or Email):
-                                        if ((teacherId == 'T-1001' || teacherId == 'teacher@edu.org.ph') && password == 'password') {
+                                        // Simulating validation for presentation:
+                                        if (email == 'student@edu.org.ph' && password == 'password') {
                                           setState(() {
                                             _hasError = false;
                                           });
-                                          Navigator.pop(context);
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => const StudentOverviewPage(),
+                                            ),
+                                          );
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                'Teacher Logged in successfully!',
+                                                'Logged in successfully!',
                                                 style: GoogleFonts.inter(
                                                   fontWeight: FontWeight.w600,
                                                 ),
@@ -418,8 +424,9 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
 
   @override
   void dispose() {
-    _teacherIdController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 }
+
