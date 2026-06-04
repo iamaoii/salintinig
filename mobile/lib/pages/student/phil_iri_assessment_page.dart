@@ -65,14 +65,13 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Left Back Button (Caret Left)
+                            // Left Menu Button
                             IconButton(
                               onPressed: () {
-                                Feedback.forTap(context);
-                                Navigator.pop(context);
+                                _scaffoldKey.currentState?.openDrawer();
                               },
-                              icon: const Iconify(
-                                PhIcons.caretLeftRegular,
+                              icon: Iconify(
+                                Ph.list,
                                 size: 28,
                                 color: Colors.black,
                               ),
@@ -87,17 +86,8 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Right Menu Button
-                            IconButton(
-                              onPressed: () {
-                                _scaffoldKey.currentState?.openDrawer();
-                              },
-                              icon: Iconify(
-                                Ph.list,
-                                size: 28,
-                                color: Colors.black,
-                              ),
-                            ),
+                            // Right Spacer to keep title centered
+                            const SizedBox(width: 48),
                           ],
                         ),
                       ),
