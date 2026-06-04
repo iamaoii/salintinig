@@ -71,6 +71,7 @@ flutter:
     - assets/loading/
     - assets/onboarding/
     - assets/mascot/
+    - assets/student page/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
