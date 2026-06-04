@@ -4,8 +4,15 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/listening_assessment_reader_page.dart';
 
-class ListeningAssessmentStoryPage extends StatelessWidget {
+class ListeningAssessmentStoryPage extends StatefulWidget {
   const ListeningAssessmentStoryPage({super.key});
+
+  @override
+  State<ListeningAssessmentStoryPage> createState() => _ListeningAssessmentStoryPageState();
+}
+
+class _ListeningAssessmentStoryPageState extends State<ListeningAssessmentStoryPage> {
+  bool _isBookmarked = false;
 
   @override
   Widget build(BuildContext context) {
@@ -189,10 +196,10 @@ class ListeningAssessmentStoryPage extends StatelessWidget {
                                   height: 50,
                                   width: 50,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: _isBookmarked ? const Color(0xFFFBBF24) : Colors.white,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
+                                      color: _isBookmarked ? const Color(0xFFFBBF24) : const Color(0xFFE2E8F0),
                                       width: 1.5,
                                     ),
                                   ),
@@ -201,9 +208,9 @@ class ListeningAssessmentStoryPage extends StatelessWidget {
                                       Feedback.forTap(context);
                                       _toggleBookmark(context);
                                     },
-                                    icon: const Iconify(
+                                    icon: Iconify(
                                       PhIcons.bookmarksRegular,
-                                      color: Color(0xFF475569),
+                                      color: _isBookmarked ? Colors.white : const Color(0xFF475569),
                                       size: 24,
                                     ),
                                   ),
@@ -274,10 +281,14 @@ class ListeningAssessmentStoryPage extends StatelessWidget {
   }
 
   void _toggleBookmark(BuildContext context) {
+    setState(() {
+      _isBookmarked = !_isBookmarked;
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Passage bookmarked!',
+          _isBookmarked ? 'Passage bookmarked!' : 'Bookmark removed!',
           style: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
         backgroundColor: const Color(0xFF1E293B),

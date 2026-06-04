@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/listening_assessment_congratulations_page.dart';
+import 'package:salintinig/pages/student/student_overview_page.dart';
 
 class ListeningAssessmentQuizPage extends StatefulWidget {
   const ListeningAssessmentQuizPage({super.key});
@@ -106,7 +107,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       }
     }
 
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => ListeningAssessmentCongratulationsPage(
@@ -114,6 +115,54 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
           totalQuestions: _questions.length,
         ),
       ),
+    );
+  }
+
+  void _confirmExit(BuildContext context) {
+    final titleColor = const Color(0xFF1E293B);
+    final descColor = const Color(0xFF475569);
+    final dialogBg = Colors.white;
+    final cancelColor = const Color(0xFF64748B);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Exit Quiz?',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
+          ),
+          content: Text(
+            'Your quiz progress will be lost and you will return to the Home page. Are you sure you want to exit?',
+            style: GoogleFonts.inter(fontSize: 14, color: descColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const StudentOverviewPage()),
+                  (route) => false,
+                );
+              },
+              child: Text(
+                'Exit',
+                style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -127,8 +176,14 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
 
     return Scaffold(
       backgroundColor: softCreamBg,
-      body: SafeArea(
-        child: LayoutBuilder(
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _confirmExit(context);
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
           builder: (context, constraints) {
             final isTablet = constraints.maxWidth > 600;
 
@@ -148,11 +203,11 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                           IconButton(
                             onPressed: () {
                               Feedback.forTap(context);
-                              Navigator.pop(context);
+                              _confirmExit(context);
                             },
                             icon: const Icon(
-                              Icons.chevron_left_rounded,
-                              size: 28,
+                              Icons.close_rounded,
+                              size: 26,
                               color: Color(0xFF475569),
                             ),
                           ),
@@ -165,14 +220,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                               letterSpacing: 1.0,
                             ),
                           ),
-                          IconButton(
-                            onPressed: () {},
-                            icon: const Icon(
-                              Icons.more_horiz_rounded,
-                              size: 28,
-                              color: Color(0xFF475569),
-                            ),
-                          ),
+                          const SizedBox(width: 48),
                         ],
                       ),
                     ),
@@ -403,6 +451,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
           },
         ),
       ),
+    ),
     );
   }
 }

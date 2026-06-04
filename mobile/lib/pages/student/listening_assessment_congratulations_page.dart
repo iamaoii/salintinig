@@ -54,8 +54,14 @@ class _ListeningAssessmentCongratulationsPageState
 
     return Scaffold(
       backgroundColor: goldBg,
-      body: Stack(
-        children: [
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _goToHome();
+        },
+        child: Stack(
+          children: [
           // 1. Mascot Display (drawn first, in the back background)
           Positioned(
             bottom: -110, // offset slightly to align with the cropped bottom look
@@ -227,6 +233,7 @@ class _ListeningAssessmentCongratulationsPageState
           ),
         ],
       ),
+    ),
     );
   }
 }

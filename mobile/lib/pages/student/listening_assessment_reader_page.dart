@@ -95,8 +95,14 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: SafeArea(
-        child: LayoutBuilder(
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _confirmExit(context);
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
           builder: (context, constraints) {
             final isTablet = constraints.maxWidth > 600;
 
@@ -248,6 +254,7 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
           },
         ),
       ),
+    ),
     );
   }
 
@@ -364,7 +371,7 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
                 GestureDetector(
                   onTap: () {
                     Feedback.forTap(context);
-                    _finishReading();
+                    _confirmStartQuiz(context);
                   },
                   child: _buildStartQuizButton(),
                 ),
@@ -510,8 +517,52 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
     );
   }
 
+  void _confirmStartQuiz(BuildContext context) {
+    final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
+    final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
+    final dialogBg = _isDarkMode ? const Color(0xFF22201E) : Colors.white;
+    final cancelColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Start Quiz?',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
+          ),
+          content: Text(
+            'You won\'t be able to read the story again once you start the quiz. Are you ready to begin?',
+            style: GoogleFonts.inter(fontSize: 14, color: descColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+                _finishReading();             // Transition to Quiz Page
+              },
+              child: Text(
+                'Start',
+                style: GoogleFonts.inter(color: const Color(0xFF1B64D8), fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _finishReading() {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => const ListeningAssessmentQuizPage(),
