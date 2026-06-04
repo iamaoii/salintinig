@@ -3,17 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
-
-// Regular weight SVG Icons matching the Phosphor design set
-const String phCaretLeftRegular = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M165.66 202.34a8 8 0 0 1-11.32 11.32l-80-80a8 8 0 0 1 0-11.32l80-80a8 8 0 0 1 11.32 11.32L91.31 128Z"/></svg>';
-
-const String phExamRegular = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M216 40H40a16 16 0 0 0-16 16v160a8 8 0 0 0 11.58 7.16L64 208.94l28.42 14.22a8 8 0 0 0 7.16 0L128 208.94l28.42 14.22a8 8 0 0 0 7.16 0L192 208.94l28.42 14.22A8 8 0 0 0 232 216V56a16 16 0 0 0-16-16m0 163.06l-20.42-10.22a8 8 0 0 0-7.16 0L160 207.06l-28.42-14.22a8 8 0 0 0-7.16 0L96 207.06l-28.42-14.22a8 8 0 0 0-7.16 0L40 203.06V56h176Zm-155.58-35.9a8 8 0 0 0 10.74-3.58L76.94 152h38.12l5.78 11.58a8 8 0 1 0 14.32-7.16l-32-64a8 8 0 0 0-14.32 0l-32 64a8 8 0 0 0 3.58 10.74M96 113.89L107.06 136H84.94ZM136 128a8 8 0 0 1 8-8h16v-16a8 8 0 0 1 16 0v16h16a8 8 0 0 1 0 16h-16v16a8 8 0 0 1-16 0v-16h-16a8 8 0 0 1-8-8"/></svg>';
-
-const String phEarRegular = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,104a8,8,0,0,1-16,0,72,72,0,0,0-144,0c0,26.7,8.53,34.92,17.57,43.64C82.21,156,92,165.41,92,188a36,36,0,0,0,36,36c10.24,0,18.45-4.16,25.83-13.09a8,8,0,1,1,12.34,10.18C155.81,233.64,143,240,128,240a52.06,52.06,0,0,1-52-52c0-15.79-5.68-21.27-13.54-28.84C52.46,149.5,40,137.5,40,104a88,88,0,0,1,176,0Zm-38.13,57.08A8,8,0,0,0,166.93,164,8,8,0,0,1,152,160c0-9.33,4.82-15.76,10.4-23.2,6.37-8.5,13.6-18.13,13.6-32.8a48,48,0,0,0-96,0,8,8,0,0,0,16,0,32,32,0,0,1,64,0c0,9.33-4.82,15.76-10.4,23.2-6.37,8.5-13.6,18.13-13.6,32.8a24,24,0,0,0,44.78,12A8,8,0,0,0,177.87,161.08Z"/></svg>';
-
-const String phBookOpenRegular = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M232 48h-72a40 40 0 0 0-32 16a40 40 0 0 0-32-16H24a8 8 0 0 0-8 8v144a8 8 0 0 0 8 8h72a24 24 0 0 1 24 24a8 8 0 0 0 16 0a24 24 0 0 1 24-24h72a8 8 0 0 0 8-8V56a8 8 0 0 0-8-8M96 192H32V64h64a24 24 0 0 1 24 24v112a39.8 39.8 0 0 0-24-8m128 0h-64a39.8 39.8 0 0 0-24 8V88a24 24 0 0 1 24-24h64Z"/></svg>';
-
-const String phUserSoundRegular = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M144,165.68a68,68,0,1,0-71.9,0c-20.65,6.76-39.23,19.39-54.17,37.17a8,8,0,0,0,12.25,10.3C50.25,189.19,77.91,176,108,176s57.75,13.19,77.88,37.15a8,8,0,1,0,12.25-10.3C183.18,185.07,164.6,172.44,144,165.68ZM56,108a52,52,0,1,1,52,52A52.06,52.06,0,0,1,56,108ZM207.36,65.6a108.36,108.36,0,0,1,0,84.8,8,8,0,0,1-7.36,4.86,8,8,0,0,1-7.36-11.15,92.26,92.26,0,0,0,0-72.22,8,8,0,0,1,14.72-6.29ZM248,108a139,139,0,0,1-11.29,55.15,8,8,0,0,1-14.7-6.3,124.43,124.43,0,0,0,0-97.7,8,8,0,1,1,14.7-6.3A139,139,0,0,1,248,108Z"/></svg>';
+import 'package:salintinig/constants/ph_icons.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
@@ -82,7 +72,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 Navigator.pop(context);
                               },
                               icon: const Iconify(
-                                phCaretLeftRegular,
+                                PhIcons.caretLeftRegular,
                                 size: 28,
                                 color: Colors.black,
                               ),
@@ -122,7 +112,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                             children: [
                               const SizedBox(height: 20),
                               // Section Header
-                              _buildSectionHeader('Phil - IRI Assessments', phExamRegular),
+                              _buildSectionHeader('Phil - IRI Assessments', PhIcons.examRegular),
                               const SizedBox(height: 16),
                               // 1. Listening Comprehension Test
                               _buildAssessmentCard(
@@ -132,7 +122,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 tagTextColor: const Color(0xFFEF4444),
                                 buttonText: 'Start',
                                 buttonColor: primaryBlue,
-                                icon: phEarRegular,
+                                icon: PhIcons.earRegular,
                                 iconColor: const Color(0xFFF59E0B),
                                 iconBg: const Color(0xFFFEF3C7),
                               ),
@@ -145,7 +135,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 buttonText: 'Not Available',
                                 buttonColor: const Color(0xFFE4E4E7),
                                 buttonTextColor: const Color(0xFFA1A1AA),
-                                icon: phBookOpenRegular,
+                                icon: PhIcons.bookOpenRegular,
                                 iconColor: const Color(0xFF10B981),
                                 iconBg: const Color(0xFFD1FAE5),
                               ),
@@ -157,7 +147,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 tagTextColor: const Color(0xFF059669),
                                 buttonText: 'View Result',
                                 buttonColor: const Color(0xFF00A859),
-                                icon: phUserSoundRegular,
+                                icon: PhIcons.userSoundRegular,
                                 iconColor: primaryBlue,
                                 iconBg: const Color(0xFFD0E1F9),
                                 cardBg: const Color(0xFFEAF5EC),
