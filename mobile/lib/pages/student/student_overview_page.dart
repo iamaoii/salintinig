@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/pages/student/phil_iri_assessment_page.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/pages/student/listening_assessment_intro_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -261,6 +262,14 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                               icon: PhIcons.earBold,
                               iconColor: const Color(0xFFF59E0B),
                               iconBg: const Color(0xFFFEF3C7),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ListeningAssessmentIntroPage(),
+                                  ),
+                                );
+                              },
                             ),
                             _buildAssessmentCard(
                               title: 'Silent Reading\nTest',
@@ -494,6 +503,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     required Color iconColor,
     required Color iconBg,
     Color cardBg = Colors.white,
+    VoidCallback? onPressed,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -569,9 +579,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 ? null
                 : () {
                     Feedback.forTap(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Starting $title...')),
-                    );
+                    if (onPressed != null) {
+                      onPressed();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Starting $title...')),
+                      );
+                    }
                   },
             style: ElevatedButton.styleFrom(
               backgroundColor: buttonColor,

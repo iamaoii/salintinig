@@ -72,4 +72,13 @@ class PhIcons {
 
   static const String booksRegular =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="m231.65 194.55l-33.19-157.8a16 16 0 0 0-19-12.39l-46.81 10.06a16.08 16.08 0 0 0-12.3 19l33.19 157.8A16 16 0 0 0 169.16 224a16.3 16.3 0 0 0 3.38-.36l46.81-10.06a16.09 16.09 0 0 0 12.3-19.03M136 50.15v-.09l46.8-10l3.33 15.87L139.33 66Zm6.62 31.47l46.82-10.05l3.34 15.9L146 97.53Zm6.64 31.57l46.82-10.06l13.3 63.24l-46.82 10.06ZM216 197.94l-46.8 10l-3.33-15.87l46.8-10.07l3.33 15.85zM104 32H56a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h48a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M56 48h48v16H56Zm0 32h48v96H56Zm48 128H56v-16h48z"/></svg>';
+
+  static const String dotsThreeRegular =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M140 128a12 12 0 1 1-12-12a12 12 0 0 1 12 12m56-12a12 12 0 1 0 12 12a12 12 0 0 0-12-12m-112 0a12 12 0 1 0 12 12a12 12 0 0 0-12-12"/></svg>';
+
+  static const String warningCircleRegular =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24m0 192a88 88 0 1 1 88-88a88.1 88.1 0 0 1-88 88m-8-80V80a8 8 0 0 1 16 0v56a8 8 0 0 1-16 0zm16 40a12 12 0 1 1-12-12a12 12 0 0 1 12 12"/></svg>';
+
+  static const String bookmarksRegular =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M192 24H88a16 16 0 0 0-16 16v8h96a16 16 0 0 1 16 16v112l8 4a16 16 0 0 0 24-14.31V40a16 16 0 0 0-16-16M144 56H56a16 16 0 0 0-16 16v144a16 16 0 0 0 24.3 13.62L100 207l35.7 22.62A16 16 0 0 0 160 216V72a16 16 0 0 0-16-16m0 160l-40-25.33a8 8 0 0 0-8.6 0L56 216V72h88Z"/></svg>';
 }
