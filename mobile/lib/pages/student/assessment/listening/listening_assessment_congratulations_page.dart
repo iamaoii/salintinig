@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math' as math;
 
@@ -39,6 +40,7 @@ class _ListeningAssessmentCongratulationsPageState
 
   void _goToHome() {
     Feedback.forTap(context);
+    PhilIriAssessmentPage.isListeningDone = true;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const StudentOverviewPage()),

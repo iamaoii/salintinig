@@ -4,10 +4,18 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/student/listening_assessment_intro_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
+
+  static bool isListeningDone = false;
+  static bool isOralReadingDone = false;
+  static int listeningScore = 4;
+  static int oralReadingScore = 3;
 
   @override
   State<PhilIriAssessmentPage> createState() => _PhilIriAssessmentPageState();
@@ -15,6 +23,15 @@ class PhilIriAssessmentPage extends StatefulWidget {
 
 class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isOralReadingDone = false;
+  bool _isListeningDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+    _isListeningDone = PhilIriAssessmentPage.isListeningDone;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,25 +123,56 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                               _buildSectionHeader('Phil - IRI Assessments', PhIcons.examRegular),
                               const SizedBox(height: 16),
                               // 1. Listening Comprehension Test
-                              _buildAssessmentCard(
-                                title: 'Listening\nComprehension Test',
-                                tag: 'Required',
-                                tagBgColor: const Color(0xFFFEE2E2),
-                                tagTextColor: const Color(0xFFEF4444),
-                                buttonText: 'Start',
-                                buttonColor: primaryBlue,
-                                icon: PhIcons.earRegular,
-                                iconColor: const Color(0xFFF59E0B),
-                                iconBg: const Color(0xFFFEF3C7),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const ListeningAssessmentIntroPage(),
+                              _isListeningDone
+                                  ? _buildAssessmentCard(
+                                      title: 'Listening\nComprehension Test',
+                                      tag: 'Done',
+                                      tagBgColor: const Color(0xFFD1FAE5),
+                                      tagTextColor: const Color(0xFF059669),
+                                      buttonText: 'View Result',
+                                      buttonColor: const Color(0xFF00A859),
+                                      icon: PhIcons.earRegular,
+                                      iconColor: const Color(0xFFF59E0B),
+                                      iconBg: const Color(0xFFFEF3C7),
+                                      cardBg: const Color(0xFFEAF5EC),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ListeningResultPage(
+                                              score: PhilIriAssessmentPage.listeningScore,
+                                              totalQuestions: 5,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : _buildAssessmentCard(
+                                      title: 'Listening\nComprehension Test',
+                                      tag: 'Required',
+                                      tagBgColor: const Color(0xFFFEE2E2),
+                                      tagTextColor: const Color(0xFFEF4444),
+                                      buttonText: 'Start',
+                                      buttonColor: primaryBlue,
+                                      icon: PhIcons.earRegular,
+                                      iconColor: const Color(0xFFF59E0B),
+                                      iconBg: const Color(0xFFFEF3C7),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => const ListeningAssessmentInstructionsPage(),
+                                          ),
+                                        ).then((completed) {
+                                          if (completed == true) {
+                                            setState(() {
+                                              _isListeningDone = true;
+                                              PhilIriAssessmentPage.isListeningDone = true;
+                                            });
+                                          }
+                                        });
+                                      },
                                     ),
-                                  );
-                                },
-                              ),
                               // 2. Silent Reading Test
                               _buildAssessmentCard(
                                 title: 'Silent Reading\nTest',
@@ -138,19 +186,54 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 iconColor: const Color(0xFF10B981),
                                 iconBg: const Color(0xFFD1FAE5),
                               ),
-                              // 3. Oral Reading Test (Done state with light-green container highlight)
-                              _buildAssessmentCard(
-                                title: 'Oral Reading Test',
-                                tag: 'Done',
-                                tagBgColor: const Color(0xFFD1FAE5),
-                                tagTextColor: const Color(0xFF059669),
-                                buttonText: 'View Result',
-                                buttonColor: const Color(0xFF00A859),
-                                icon: PhIcons.userSoundRegular,
-                                iconColor: primaryBlue,
-                                iconBg: const Color(0xFFD0E1F9),
-                                cardBg: const Color(0xFFEAF5EC),
-                              ),
+                              // 3. Oral Reading Test
+                              _isOralReadingDone
+                                  ? _buildAssessmentCard(
+                                      title: 'Oral Reading Test',
+                                      tag: 'Done',
+                                      tagBgColor: const Color(0xFFD1FAE5),
+                                      tagTextColor: const Color(0xFF059669),
+                                      buttonText: 'View Result',
+                                      buttonColor: const Color(0xFF00A859),
+                                      icon: PhIcons.userSoundRegular,
+                                      iconColor: primaryBlue,
+                                      iconBg: const Color(0xFFD0E1F9),
+                                      cardBg: const Color(0xFFEAF5EC),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => OralReadingResultPage(
+                                              score: PhilIriAssessmentPage.oralReadingScore,
+                                              totalQuestions: 3,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : _buildAssessmentCard(
+                                      title: 'Oral Reading Test',
+                                      tag: 'Required',
+                                      tagBgColor: const Color(0xFFFEE2E2),
+                                      tagTextColor: const Color(0xFFEF4444),
+                                      buttonText: 'Start',
+                                      buttonColor: primaryBlue,
+                                      icon: PhIcons.userSoundRegular,
+                                      iconColor: primaryBlue,
+                                      iconBg: const Color(0xFFD0E1F9),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => const OralReadingAssessmentInstructionsPage(),
+                                          ),
+                                        ).then((_) {
+                                          setState(() {
+                                            _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+                                          });
+                                        });
+                                      },
+                                    ),
                               const SizedBox(height: 32),
                             ],
                           ),

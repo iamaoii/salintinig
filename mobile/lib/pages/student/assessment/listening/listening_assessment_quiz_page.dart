@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:salintinig/pages/student/listening_assessment_congratulations_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_congratulations_page.dart';
 import 'package:salintinig/pages/student/student_overview_page.dart';
 
 class ListeningAssessmentQuizPage extends StatefulWidget {

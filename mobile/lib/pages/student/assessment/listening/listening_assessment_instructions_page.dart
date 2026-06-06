@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/student/listening_assessment_story_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_story_page.dart';
 
-class ListeningAssessmentIntroPage extends StatelessWidget {
-  const ListeningAssessmentIntroPage({super.key});
+class ListeningAssessmentInstructionsPage extends StatelessWidget {
+  const ListeningAssessmentInstructionsPage({super.key});
 
   @override
   Widget build(BuildContext context) {

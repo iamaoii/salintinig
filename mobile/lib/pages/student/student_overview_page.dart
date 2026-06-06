@@ -3,9 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
-import 'package:salintinig/pages/student/phil_iri_assessment_page.dart';
+import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/student/listening_assessment_intro_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -20,6 +23,16 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   // Simple state toggles for interactive button feedback
   bool _notificationAlert = true;
+
+  bool _isListeningDone = false;
+  bool _isOralReadingDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isListeningDone = PhilIriAssessmentPage.isListeningDone;
+    _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +52,12 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
               MaterialPageRoute(
                 builder: (context) => const PhilIriAssessmentPage(),
               ),
-            );
+            ).then((_) {
+              setState(() {
+                _isListeningDone = PhilIriAssessmentPage.isListeningDone;
+                _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+              });
+            });
           } else if (index != 0) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -252,25 +270,56 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                             // ── Section 1: Phil-IRI Assessments ──
                             _buildSectionHeader('Phil - IRI Assessments', PhIcons.examBold),
                             const SizedBox(height: 12),
-                            _buildAssessmentCard(
-                              title: 'Listening\nComprehension Test',
-                              tag: 'Required',
-                              tagBgColor: const Color(0xFFFEE2E2),
-                              tagTextColor: const Color(0xFFEF4444),
-                              buttonText: 'Start',
-                              buttonColor: primaryBlue,
-                              icon: PhIcons.earBold,
-                              iconColor: const Color(0xFFF59E0B),
-                              iconBg: const Color(0xFFFEF3C7),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ListeningAssessmentIntroPage(),
+                            _isListeningDone
+                                ? _buildAssessmentCard(
+                                    title: 'Listening\nComprehension Test',
+                                    tag: 'Done',
+                                    tagBgColor: const Color(0xFFD1FAE5),
+                                    tagTextColor: const Color(0xFF059669),
+                                    buttonText: 'View Result',
+                                    buttonColor: const Color(0xFF00A859),
+                                    icon: PhIcons.earBold,
+                                    iconColor: const Color(0xFFF59E0B),
+                                    iconBg: const Color(0xFFFEF3C7),
+                                    cardBg: const Color(0xFFEAF5EC),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ListeningResultPage(
+                                            score: PhilIriAssessmentPage.listeningScore,
+                                            totalQuestions: 5,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : _buildAssessmentCard(
+                                    title: 'Listening\nComprehension Test',
+                                    tag: 'Required',
+                                    tagBgColor: const Color(0xFFFEE2E2),
+                                    tagTextColor: const Color(0xFFEF4444),
+                                    buttonText: 'Start',
+                                    buttonColor: primaryBlue,
+                                    icon: PhIcons.earBold,
+                                    iconColor: const Color(0xFFF59E0B),
+                                    iconBg: const Color(0xFFFEF3C7),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const ListeningAssessmentInstructionsPage(),
+                                        ),
+                                      ).then((completed) {
+                                        if (completed == true) {
+                                          setState(() {
+                                            _isListeningDone = true;
+                                            PhilIriAssessmentPage.isListeningDone = true;
+                                          });
+                                        }
+                                      });
+                                    },
                                   ),
-                                );
-                              },
-                            ),
                             _buildAssessmentCard(
                               title: 'Silent Reading\nTest',
                               tag: 'Optional',
@@ -283,18 +332,53 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                               iconColor: const Color(0xFF10B981),
                               iconBg: const Color(0xFFD1FAE5),
                             ),
-                            _buildAssessmentCard(
-                              title: 'Oral Reading Test',
-                              tag: 'Done',
-                              tagBgColor: const Color(0xFFD1FAE5),
-                              tagTextColor: const Color(0xFF059669),
-                              buttonText: 'View Result',
-                              buttonColor: const Color(0xFF00A859),
-                              icon: PhIcons.userSoundBold,
-                              iconColor: primaryBlue,
-                              iconBg: const Color(0xFFD0E1F9),
-                              cardBg: const Color(0xFFEAF5EC),
-                            ),
+                            _isOralReadingDone
+                                ? _buildAssessmentCard(
+                                    title: 'Oral Reading Test',
+                                    tag: 'Done',
+                                    tagBgColor: const Color(0xFFD1FAE5),
+                                    tagTextColor: const Color(0xFF059669),
+                                    buttonText: 'View Result',
+                                    buttonColor: const Color(0xFF00A859),
+                                    icon: PhIcons.userSoundBold,
+                                    iconColor: primaryBlue,
+                                    iconBg: const Color(0xFFD0E1F9),
+                                    cardBg: const Color(0xFFEAF5EC),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => OralReadingResultPage(
+                                            score: PhilIriAssessmentPage.oralReadingScore,
+                                            totalQuestions: 3,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : _buildAssessmentCard(
+                                    title: 'Oral Reading Test',
+                                    tag: 'Required',
+                                    tagBgColor: const Color(0xFFFEE2E2),
+                                    tagTextColor: const Color(0xFFEF4444),
+                                    buttonText: 'Start',
+                                    buttonColor: primaryBlue,
+                                    icon: PhIcons.userSoundBold,
+                                    iconColor: primaryBlue,
+                                    iconBg: const Color(0xFFD0E1F9),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const OralReadingAssessmentInstructionsPage(),
+                                        ),
+                                      ).then((_) {
+                                        setState(() {
+                                          _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+                                        });
+                                      });
+                                    },
+                                  ),
                             const SizedBox(height: 28),
 
                             // ── Section 2: Continue Reading ──

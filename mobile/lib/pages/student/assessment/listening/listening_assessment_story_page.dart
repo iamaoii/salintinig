@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/student/listening_assessment_reader_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_reader_page.dart';
 
 class ListeningAssessmentStoryPage extends StatefulWidget {
   const ListeningAssessmentStoryPage({super.key});
