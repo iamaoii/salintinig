@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_story_page.dart';
 
 class OralReadingAssessmentInstructionsPage extends StatelessWidget {
@@ -12,6 +13,7 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
+    final isPhilIriPeriod = PhilIriAssessmentPage.isPhilIriPeriod;
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -80,7 +82,7 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: isPhilIriPeriod ? Colors.white : const Color(0xFFEEEEEE),
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
@@ -120,15 +122,17 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              'Due: May 18, 11:59 PM',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                                color: const Color(0xFF71717A),
+                                            if (isPhilIriPeriod) ...[
+                                              Text(
+                                                'Due: May 18, 11:59 PM',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: const Color(0xFF71717A),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 4),
+                                              const SizedBox(height: 4),
+                                            ],
                                             Text(
                                               'Oral Reading Assessment',
                                               style: GoogleFonts.inter(
@@ -138,26 +142,37 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
                                                 letterSpacing: -0.5,
                                               ),
                                             ),
-                                            const SizedBox(height: 8),
-                                            // Reward star pill badge
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFD1FAE5),
-                                                borderRadius: BorderRadius.circular(100),
-                                              ),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 4,
-                                              ),
-                                              child: Text(
-                                                '100 Stars',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: const Color(0xFF059669),
-                                                ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Assessment not started.',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                color: const Color(0xFF71717A),
                                               ),
                                             ),
+                                            if (isPhilIriPeriod) ...[
+                                              const SizedBox(height: 8),
+                                              // Reward star pill badge
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFD1FAE5),
+                                                  borderRadius: BorderRadius.circular(100),
+                                                ),
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 4,
+                                                ),
+                                                child: Text(
+                                                  '100 Stars',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(0xFF059669),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -203,19 +218,24 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: primaryBlue.withValues(alpha: 0.25),
+                              color: isPhilIriPeriod
+                                  ? primaryBlue.withValues(alpha: 0.25)
+                                  : Colors.black.withValues(alpha: 0.02),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: () {
-                            Feedback.forTap(context);
-                            _startAssessment(context);
-                          },
+                          onPressed: isPhilIriPeriod
+                              ? () {
+                                  Feedback.forTap(context);
+                                  _startAssessment(context);
+                                }
+                              : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryBlue,
+                            backgroundColor: isPhilIriPeriod ? primaryBlue : const Color(0xFFE4E4E7),
+                            disabledBackgroundColor: const Color(0xFFE4E4E7),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -224,18 +244,18 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Iconify(
+                              Iconify(
                                 PhIcons.examRegular,
-                                color: Colors.white,
+                                color: isPhilIriPeriod ? Colors.white : const Color(0xFFA1A1AA),
                                 size: 24,
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                'Start Assessment',
+                                isPhilIriPeriod ? 'Start Assessment' : 'Not Available',
                                 style: GoogleFonts.inter(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: isPhilIriPeriod ? Colors.white : const Color(0xFFA1A1AA),
                                 ),
                               ),
                             ],
@@ -287,7 +307,7 @@ class OralReadingAssessmentInstructionsPage extends StatelessWidget {
   }
 
   void _startAssessment(BuildContext context) {
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const OralReadingAssessmentStoryPage(),

@@ -4,10 +4,10 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
-import 'package:salintinig/pages/student/assessment/listening/listening_assessment_story_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_story_page.dart';
 
-class ListeningAssessmentInstructionsPage extends StatelessWidget {
-  const ListeningAssessmentInstructionsPage({super.key});
+class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
+  const SilentReadingAssessmentInstructionsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +49,7 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                           ),
                           // Title
                           Text(
-                            'Listening Assessment',
+                            'Silent Reading Test',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -100,18 +100,18 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Styled Ear Badge Icon
+                                      // Styled Book Open Badge Icon
                                       Container(
                                         width: 56,
                                         height: 56,
                                         decoration: const BoxDecoration(
-                                          color: Color(0xFFFEF3C7),
+                                          color: Color(0xFFD1FAE5), // Light Green
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Center(
                                           child: Iconify(
-                                            PhIcons.earRegular,
-                                            color: Color(0xFFF59E0B),
+                                            PhIcons.bookOpenRegular,
+                                            color: Color(0xFF10B981), // Vivid Emerald Green
                                             size: 28,
                                           ),
                                         ),
@@ -134,7 +134,7 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                               const SizedBox(height: 4),
                                             ],
                                             Text(
-                                              'Listening Assessment',
+                                              'Silent Reading Test',
                                               style: GoogleFonts.inter(
                                                 fontSize: 20,
                                                 fontWeight: FontWeight.w800,
@@ -195,10 +195,10 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  _buildInstructionRow('1.', 'Listen carefully while the story is being read aloud.'),
-                                  _buildInstructionRow('2.', 'Focus on the details, characters, and events in the passage.'),
-                                  _buildInstructionRow('3.', 'Answer the questions based on what you heard.'),
-                                  _buildInstructionRow('4.', 'Complete the activity correctly to receive a higher score.'),
+                                  _buildInstructionRow('1.', 'Read the passage silently and understand the story carefully.'),
+                                  _buildInstructionRow('2.', 'Pay attention to important details and unfamiliar words.'),
+                                  _buildInstructionRow('3.', 'Answer the comprehension questions after reading.'),
+                                  _buildInstructionRow('4.', 'Complete all answers correctly to earn a higher score.'),
                                 ],
                               ),
                             ),
@@ -307,10 +307,10 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
   }
 
   void _startAssessment(BuildContext context) {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const ListeningAssessmentStoryPage(),
+        builder: (context) => const SilentReadingAssessmentStoryPage(),
       ),
     );
   }

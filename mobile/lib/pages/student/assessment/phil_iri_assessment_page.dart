@@ -8,14 +8,19 @@ import 'package:salintinig/pages/student/assessment/listening/listening_assessme
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
 
   static bool isListeningDone = false;
   static bool isOralReadingDone = false;
+  static bool isSilentReadingDone = false;
   static int listeningScore = 4;
   static int oralReadingScore = 3;
+  static int silentReadingScore = 3;
+  static bool isPhilIriPeriod = true;
 
   @override
   State<PhilIriAssessmentPage> createState() => _PhilIriAssessmentPageState();
@@ -25,12 +30,14 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isOralReadingDone = false;
   bool _isListeningDone = false;
+  bool _isSilentReadingDone = false;
 
   @override
   void initState() {
     super.initState();
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isListeningDone = PhilIriAssessmentPage.isListeningDone;
+    _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
   }
 
   @override
@@ -174,18 +181,53 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       },
                                     ),
                               // 2. Silent Reading Test
-                              _buildAssessmentCard(
-                                title: 'Silent Reading\nTest',
-                                tag: 'Optional',
-                                tagBgColor: const Color(0xFFF3F4F6),
-                                tagTextColor: const Color(0xFF71717A),
-                                buttonText: 'Not Available',
-                                buttonColor: const Color(0xFFE4E4E7),
-                                buttonTextColor: const Color(0xFFA1A1AA),
-                                icon: PhIcons.bookOpenRegular,
-                                iconColor: const Color(0xFF10B981),
-                                iconBg: const Color(0xFFD1FAE5),
-                              ),
+                              _isSilentReadingDone
+                                  ? _buildAssessmentCard(
+                                      title: 'Silent Reading\nTest',
+                                      tag: 'Done',
+                                      tagBgColor: const Color(0xFFD1FAE5),
+                                      tagTextColor: const Color(0xFF059669),
+                                      buttonText: 'View Result',
+                                      buttonColor: const Color(0xFF00A859),
+                                      icon: PhIcons.bookOpenRegular,
+                                      iconColor: const Color(0xFF10B981),
+                                      iconBg: const Color(0xFFD1FAE5),
+                                      cardBg: const Color(0xFFEAF5EC),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => SilentReadingResultPage(
+                                              score: PhilIriAssessmentPage.silentReadingScore,
+                                              totalQuestions: 3,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : _buildAssessmentCard(
+                                      title: 'Silent Reading\nTest',
+                                      tag: 'Optional',
+                                      tagBgColor: const Color(0xFFF3F4F6),
+                                      tagTextColor: const Color(0xFF71717A),
+                                      buttonText: 'Start',
+                                      buttonColor: primaryBlue,
+                                      icon: PhIcons.bookOpenRegular,
+                                      iconColor: const Color(0xFF10B981),
+                                      iconBg: const Color(0xFFD1FAE5),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => const SilentReadingAssessmentInstructionsPage(),
+                                          ),
+                                        ).then((_) {
+                                          setState(() {
+                                            _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+                                          });
+                                        });
+                                      },
+                                    ),
                               // 3. Oral Reading Test
                               _isOralReadingDone
                                   ? _buildAssessmentCard(
