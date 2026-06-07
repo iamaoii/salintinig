@@ -93,7 +93,7 @@ class _OralReadingAssessmentStoryPageState extends State<OralReadingAssessmentSt
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(24),
                                   child: Image.asset(
-                                    'assets/student page/isang_pangarap.png',
+                                    'assets/stories/isang_pangarap.png',
                                     fit: BoxFit.cover,
                                   ),
                                 ),

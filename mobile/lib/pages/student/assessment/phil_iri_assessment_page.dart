@@ -10,6 +10,7 @@ import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_re
 import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
+import 'package:salintinig/pages/student/library/library_page.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
@@ -54,7 +55,15 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
           if (index == 0) {
             // Navigate back to Home
             Navigator.pop(context);
-          } else {
+          } else if (index == 2) {
+            // Navigate to Library page replacing this one
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LibraryPage(),
+              ),
+            );
+          } else if (index != 1) {
             // For other placeholder pages, show a feedback snackbar
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

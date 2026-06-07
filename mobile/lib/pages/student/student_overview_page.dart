@@ -11,6 +11,8 @@ import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_re
 import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
+import 'package:salintinig/pages/student/library/library_page.dart';
+import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -63,6 +65,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
               });
             });
+          } else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LibraryPage(),
+              ),
+            );
           } else if (index != 0) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -426,13 +435,24 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 _buildSectionHeader('Continue Reading', PhIcons.bookOpenBold),
-                                Text(
-                                  'See all',
-                                  style: GoogleFonts.inter(
-                                    color: primaryBlue,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    decoration: TextDecoration.underline,
+                                GestureDetector(
+                                  onTap: () {
+                                    Feedback.forTap(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const ContinueReadingPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'See all',
+                                    style: GoogleFonts.inter(
+                                      color: primaryBlue,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -580,6 +600,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const PhilIriAssessmentPage(),
+                ),
+              );
+            } else if (label == 'Library') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LibraryPage(),
                 ),
               );
             } else {
@@ -778,7 +805,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                'assets/student page/sari_sari_summers.jpg',
+                'assets/stories/sari_sari_summers.jpg',
                 fit: BoxFit.cover,
               ),
             ),
@@ -843,8 +870,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                     ElevatedButton(
                       onPressed: () {
                         Feedback.forTap(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Opening book reader...')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LibraryPage(),
+                          ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
