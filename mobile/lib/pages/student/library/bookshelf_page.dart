@@ -4,15 +4,41 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 
-class ContinueReadingPage extends StatefulWidget {
-  const ContinueReadingPage({super.key});
+class BookshelfPage extends StatefulWidget {
+  const BookshelfPage({super.key});
 
   @override
-  State<ContinueReadingPage> createState() => _ContinueReadingPageState();
+  State<BookshelfPage> createState() => _BookshelfPageState();
 }
 
-class _ContinueReadingPageState extends State<ContinueReadingPage> {
+class _BookshelfPageState extends State<BookshelfPage> {
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  final List<Map<String, String>> _allBooks = [
+    {
+      'title': 'SARI - SARI SUMMERS',
+      'cover': 'assets/stories/sari_sari_summers.jpg',
+    },
+    {
+      'title': 'A Song of Frutas',
+      'cover': 'assets/stories/a_song_of_frutas.png',
+    },
+    {
+      'title': 'OLD CLOTHES FOR DINNER',
+      'cover': 'assets/stories/old_clothes_for_dinner.png',
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -23,24 +49,12 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
+    const primaryBlue = Color(0xFF1B64D8);
 
-    final unfinishedBooks = [
-      {
-        'title': 'SARI - SARI SUMMERS',
-        'cover': 'assets/stories/sari_sari_summers.jpg',
-        'progress': 0.12,
-      },
-      {
-        'title': 'A Song of Frutas',
-        'cover': 'assets/stories/a_song_of_frutas.png',
-        'progress': 0.45,
-      },
-      {
-        'title': 'OLD CLOTHES FOR DINNER',
-        'cover': 'assets/stories/old_clothes_for_dinner.png',
-        'progress': 0.60,
-      },
-    ];
+    final filteredBooks = _allBooks.where((book) {
+      final title = book['title']!.toLowerCase();
+      return title.contains(_searchQuery);
+    }).toList();
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -65,6 +79,7 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                           // Left Back Caret Icon
                           IconButton(
                             onPressed: () {
+                              Feedback.forTap(context);
                               Navigator.pop(context);
                             },
                             icon: const Icon(
@@ -75,7 +90,7 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                           ),
                           // Center Title
                           Text(
-                            'Continue Reading',
+                            'Bookshelf',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -86,6 +101,7 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                           // Right Three Dots Options
                           IconButton(
                             onPressed: () {
+                              Feedback.forTap(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Options menu tapped'),
@@ -119,13 +135,13 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                             Row(
                               children: [
                                 const Iconify(
-                                  PhIcons.bookOpenRegular,
-                                  color: Color(0xFF1B64D8),
+                                  PhIcons.booksRegular,
+                                  color: primaryBlue,
                                   size: 24,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Continue Reading',
+                                  'Bookshelf',
                                   style: GoogleFonts.inter(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w800,
@@ -137,23 +153,37 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Grid of Unfinished Books
-                            GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              clipBehavior: Clip.none,
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: isTablet ? 4 : 2,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.58,
-                              ),
-                              itemCount: unfinishedBooks.length,
-                              itemBuilder: (context, index) {
-                                final book = unfinishedBooks[index];
-                                return _buildBookCard(book);
-                              },
-                            ),
+                            // Grid of books
+                            filteredBooks.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 40.0),
+                                    child: Center(
+                                      child: Text(
+                                        'No books found',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF8E8E93),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : GridView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    clipBehavior: Clip.none,
+                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: isTablet ? 5 : 3,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 16,
+                                      childAspectRatio: 0.58,
+                                    ),
+                                    itemCount: filteredBooks.length,
+                                    itemBuilder: (context, index) {
+                                      final book = filteredBooks[index];
+                                      return _buildBookCard(book);
+                                    },
+                                  ),
                           ],
                         ),
                       ),
@@ -206,40 +236,37 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
     );
   }
 
-  Widget _buildBookCard(Map<String, dynamic> book) {
+  Widget _buildBookCard(Map<String, String> book) {
     return GestureDetector(
       onTap: () {
         Feedback.forTap(context);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => StoryPreviewPage(
-              bookTitle: book['title']!,
-              initialProgress: book['progress'] as double?,
-            ),
+            builder: (context) => StoryPreviewPage(bookTitle: book['title']!),
           ),
         );
       },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 16,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AspectRatio(
               aspectRatio: 3 / 4,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 child: Image.asset(
                   book['cover']!,
                   fit: BoxFit.cover,
@@ -247,36 +274,18 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    book['title']!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      height: 1.2,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: book['progress'] as double,
-                        backgroundColor: const Color(0xFFE4E2DC),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                        minHeight: 8,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Text(
+                book['title']!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                  height: 1.2,
+                ),
               ),
             ),
           ],
