@@ -14,6 +14,7 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -71,6 +72,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => const LibraryPage(),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActivitiesPage(),
               ),
             );
           } else if (index != 0) {
@@ -463,7 +471,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                       color: primaryBlue,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      decoration: TextDecoration.underline,
                                     ),
                                   ),
                                 ),
@@ -619,6 +626,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const LibraryPage(),
+                ),
+              );
+            } else if (label == 'Activities') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ActivitiesPage(),
                 ),
               );
             } else {

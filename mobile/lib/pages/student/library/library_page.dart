@@ -9,6 +9,7 @@ import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/bookshelf_page.dart';
 import 'package:salintinig/pages/student/library/side_quests_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -39,6 +40,13 @@ class _LibraryPageState extends State<LibraryPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => const PhilIriAssessmentPage(),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActivitiesPage(),
               ),
             );
           } else if (index != 2) {
@@ -214,7 +222,6 @@ class _LibraryPageState extends State<LibraryPage> {
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: const Color(0xFF1B64D8),
-              decoration: TextDecoration.underline,
             ),
           ),
         ),
