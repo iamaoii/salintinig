@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/pages/student/profile_page.dart';
+import 'package:salintinig/pages/student/settings_page.dart';
 
 class StudentSidebarDrawer extends StatelessWidget {
   final int currentIndex;
@@ -149,28 +151,46 @@ class StudentSidebarDrawer extends StatelessWidget {
                       iconWidget: Container(
                         width: 20,
                         height: 20,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
+                        decoration: BoxDecoration(
+                          color: currentIndex == 5 ? primaryBlue : Colors.white,
                           shape: BoxShape.circle,
                         ),
                       ),
                       label: 'My Profile',
+                      isSelected: currentIndex == 5,
                       onTap: () {
                         Navigator.of(context).pop();
+                        if (currentIndex != 5) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProfilePage(),
+                            ),
+                          );
+                        }
                       },
                     ),
                     const SizedBox(height: 6),
 
                     // 2. Settings
                     _buildBottomMenuItem(
-                      iconWidget: const Iconify(
+                      iconWidget: Iconify(
                         Ph.gear,
                         size: 22,
-                        color: Colors.white,
+                        color: currentIndex == 6 ? primaryBlue : Colors.white,
                       ),
                       label: 'Settings',
+                      isSelected: currentIndex == 6,
                       onTap: () {
                         Navigator.of(context).pop();
+                        if (currentIndex != 6) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsPage(),
+                            ),
+                          );
+                        }
                       },
                     ),
                     const SizedBox(height: 6),
@@ -203,15 +223,22 @@ class StudentSidebarDrawer extends StatelessWidget {
     required Widget iconWidget,
     required String label,
     required VoidCallback onTap,
+    bool isSelected = false,
   }) {
+    const primaryBlue = Color(0xFF1B64D8);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: Padding(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Row(
             children: [
               SizedBox(
@@ -224,8 +251,8 @@ class StudentSidebarDrawer extends StatelessWidget {
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? primaryBlue : Colors.white,
                 ),
               ),
             ],

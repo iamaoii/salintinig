@@ -13,6 +13,7 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
+import 'package:salintinig/pages/student/profile_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -249,15 +250,26 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           ),
                                         ),
                                         // User Avatar Profile Picture
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
-                                          ),
-                                          child: const CircleAvatar(
-                                            radius: 30,
-                                            backgroundImage: NetworkImage(
-                                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+                                        GestureDetector(
+                                          onTap: () {
+                                            Feedback.forTap(context);
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => const ProfilePage(),
+                                              ),
+                                            );
+                                          },
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white, width: 2),
+                                            ),
+                                            child: const CircleAvatar(
+                                              radius: 30,
+                                              backgroundImage: NetworkImage(
+                                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+                                              ),
                                             ),
                                           ),
                                         ),
