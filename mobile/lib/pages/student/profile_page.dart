@@ -22,7 +22,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final String _gradeLevel = "Grade 4";
   final String _section = "Malinis";
   final String _lrn = "1366 7010 0099";
-  final String _email = "doechii@edu.org.ph";
   String _parentAccessCode = "ABCD-1234";
   String _avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300";
   String _selectedFrame = "None";
@@ -293,17 +292,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                 children: [
                                   // Translucent background watermark design
                                   Positioned(
-                                    right: -10,
-                                    bottom: -20,
-                                    width: 140,
-                                    height: 140,
-                                    child: Opacity(
-                                      opacity: 0.1,
-                                      child: Image.asset(
-                                        'assets/logo/logo_v2.webp',
-                                        color: Colors.white,
-                                        fit: BoxFit.contain,
-                                      ),
+                                    right: 0,
+                                    top: -12,
+                                    bottom: -12,
+                                    width: 200,
+                                    child: Image.asset(
+                                      'assets/student page/logo_bg.webp',
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.centerRight,
                                     ),
                                   ),
                                   // Stats Content
@@ -356,7 +352,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         Row(
                                           children: [
                                             Iconify(
-                                              PhIcons.bookBold,
+                                              PhIcons.booksRegular,
                                               size: 32,
                                               color: Colors.white,
                                             ),
@@ -396,7 +392,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         Row(
                                           children: [
                                             Iconify(
-                                              PhIcons.shieldBold, // Medal icon representation
+                                              Ph.medal,
                                               size: 32,
                                               color: Colors.white,
                                             ),
@@ -477,7 +473,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 28),
 
                             // ── Parent Access Section ──────────────────────────────────
-                            _buildSectionHeader('Parent Access', Ph.shield_check),
+                            _buildSectionHeader('Parent Access', Ph.keyhole),
                             const SizedBox(height: 12),
                             Container(
                               decoration: BoxDecoration(
@@ -570,30 +566,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 28),
 
                             // ── Account Settings Section ───────────────────────────────
-                            _buildSectionHeader('Account Settings', Ph.gear),
-                            const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.all(20.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _buildInfoBlock('Email', _email),
-                                  const SizedBox(height: 18),
-                                  _buildInfoBlock('Current Password', '••••••••'),
-                                ],
-                              ),
-                            ),
+                            const SizedBox.shrink(),
                             const SizedBox(height: 32),
                           ],
                         ),
