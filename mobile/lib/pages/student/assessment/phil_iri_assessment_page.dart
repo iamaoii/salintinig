@@ -11,6 +11,7 @@ import 'package:salintinig/pages/student/assessment/listening/listening_result_p
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
@@ -61,6 +62,13 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => const LibraryPage(),
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActivitiesPage(),
               ),
             );
           } else if (index != 1) {
