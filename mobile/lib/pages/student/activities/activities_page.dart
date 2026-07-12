@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -9,6 +7,9 @@ import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/side_quests_page.dart';
+import 'package:salintinig/pages/student/activities/pronunciation_challenge_page.dart';
+import 'package:salintinig/pages/student/activities/vocabulary_matching_page.dart';
+import 'package:salintinig/pages/student/activities/sentence_arrangement_page.dart';
 
 class ActivitiesPage extends StatefulWidget {
   const ActivitiesPage({super.key});
@@ -20,276 +21,104 @@ class ActivitiesPage extends StatefulWidget {
 class _ActivitiesPageState extends State<ActivitiesPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Interactive state for games
-  final List<String> _practiceWords = [
-    "Adventure",
-    "Brilliant",
-    "Excited",
-    "Wonderful",
-    "Curious",
-    "Delicious",
-    "Generous",
-    "Celebrate"
-  ];
-  int _currentWordIndex = 0;
-  bool _isRecording = false;
-  bool _showResult = false;
-  int _simulatedScore = 0;
-  List<double> _gameWaveform = [0.1, 0.1, 0.1, 0.1, 0.1];
-  Timer? _gameMicTimer;
+  int _selectedTab = 0; // 0 = Practice Activities, 1 = Side Quests
 
-  void _nextWord() {
-    setState(() {
-      _currentWordIndex = (_currentWordIndex + 1) % _practiceWords.length;
-      _showResult = false;
-      _isRecording = false;
-    });
-  }
-
-  void _startListeningSim(StateSetter setModalState) {
-    setModalState(() {
-      _isRecording = true;
-      _showResult = false;
-    });
-
-    int count = 0;
-    final random = Random();
-    _gameMicTimer = Timer.periodic(const Duration(milliseconds: 120), (timer) {
-      if (!mounted || count > 20) {
-        timer.cancel();
-        setModalState(() {
-          _isRecording = false;
-          _showResult = true;
-          _simulatedScore = 85 + random.nextInt(15);
-        });
-        return;
-      }
-      count++;
-      setModalState(() {
-        _gameWaveform = List.generate(5, (_) => 0.15 + random.nextDouble() * 0.75);
-      });
-    });
-  }
-
-  // Word Arena / Pronunciation Game Bottom Sheet
-  void _openPronunciationGame() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final word = _practiceWords[_currentWordIndex];
-            const primaryBlue = Color(0xFF1B64D8);
-            const textGray = Color(0xFF71717A);
-
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Iconify(
-                            PhIcons.userSoundBold,
-                            color: primaryBlue,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Pronunciation Challenge',
-                            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          _gameMicTimer?.cancel();
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 20),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Text(
-                      'SAY THIS WORD ALOUD:',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: textGray,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      word,
-                      style: GoogleFonts.inter(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        color: primaryBlue,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Mic / Recording states
-                  if (!_showResult && !_isRecording) ...[
-                    Center(
-                      child: GestureDetector(
-                        onTap: () => _startListeningSim(setModalState),
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: primaryBlue,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: primaryBlue.withValues(alpha: 0.3),
-                                blurRadius: 16,
-                                spreadRadius: 2,
-                              )
-                            ],
-                          ),
-                          child: const Icon(Icons.mic, color: Colors.white, size: 36),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        'Tap to start speaking',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: textGray),
-                      ),
-                    ),
-                  ] else if (_isRecording) ...[
-                    Center(
-                      child: Container(
-                        height: 80,
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: _gameWaveform.map((heightVal) {
-                            return AnimatedContainer(
-                              duration: const Duration(milliseconds: 100),
-                              width: 6,
-                              height: 12 + (48 * heightVal),
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              decoration: BoxDecoration(
-                                color: primaryBlue,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        'Listening... Speak now!',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: primaryBlue),
-                      ),
-                    ),
-                  ] else if (_showResult) ...[
-                    Center(
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE8F5E9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.stars_rounded, color: Color(0xFF00A859), size: 48),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Great Job! 🎉',
-                            style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF00A859)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Accuracy Score: $_simulatedScore%',
-                            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'You earned +10 Stars!',
-                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: textGray),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              setModalState(() {
-                                _showResult = false;
-                              });
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text('Retry', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => setModalState(() => _nextWord()),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text('Next Word', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
+
+    // Determine diagnostics for Pronunciation Challenge
+    final bool oralDone = PhilIriAssessmentPage.isOralReadingDone;
+    final int oralScore = PhilIriAssessmentPage.oralReadingScore;
+    final String pronTag;
+    final Color pronTagBg;
+    final Color pronTagText;
+    final String pronReason;
+
+    if (oralDone) {
+      if (oralScore < 3) {
+        pronTag = 'Highly Recommended';
+        pronTagBg = const Color(0xFFFEE2E2);
+        pronTagText = const Color(0xFFEF4444);
+        pronReason = 'Struggles in Oral Reading ($oralScore/3)';
+      } else {
+        pronTag = 'General Practice';
+        pronTagBg = const Color(0xFFE2E8F0);
+        pronTagText = const Color(0xFF475569);
+        pronReason = 'Excellent Oral Score ($oralScore/3)';
+      }
+    } else {
+      pronTag = 'Diagnostic Pending';
+      pronTagBg = const Color(0xFFFEF3C7);
+      pronTagText = const Color(0xFFD97706);
+      pronReason = 'Pending Oral Assessment';
+    }
+
+    // Determine diagnostics for Vocabulary Matching
+    final bool silentDone = PhilIriAssessmentPage.isSilentReadingDone;
+    final int silentScore = PhilIriAssessmentPage.silentReadingScore;
+    final bool listeningDone = PhilIriAssessmentPage.isListeningDone;
+    final int listeningScore = PhilIriAssessmentPage.listeningScore;
+    
+    final String vocabTag;
+    final Color vocabTagBg;
+    final Color vocabTagText;
+    final String vocabReason;
+
+    if (silentDone || listeningDone) {
+      bool struggles = false;
+      String details = '';
+      if (silentDone && silentScore < 3) {
+        struggles = true;
+        details = 'Silent Reading ($silentScore/3)';
+      } else if (listeningDone && listeningScore < 4) {
+        struggles = true;
+        details = 'Listening Score ($listeningScore/5)';
+      }
+      
+      if (struggles) {
+        vocabTag = 'Highly Recommended';
+        vocabTagBg = const Color(0xFFFEE2E2);
+        vocabTagText = const Color(0xFFEF4444);
+        vocabReason = 'Struggles in $details';
+      } else {
+        vocabTag = 'General Practice';
+        vocabTagBg = const Color(0xFFE2E8F0);
+        vocabTagText = const Color(0xFF475569);
+        vocabReason = 'Comprehension scores are good';
+      }
+    } else {
+      vocabTag = 'Diagnostic Pending';
+      vocabTagBg = const Color(0xFFFEF3C7);
+      vocabTagText = const Color(0xFFD97706);
+      vocabReason = 'Pending Reading Assessment';
+    }
+
+    // Determine diagnostics for Sentence Arrangement
+    final String sentenceTag;
+    final Color sentenceTagBg;
+    final Color sentenceTagText;
+    final String sentenceReason;
+
+    if (silentDone) {
+      if (silentScore < 3) {
+        sentenceTag = 'Recommended';
+        sentenceTagBg = const Color(0xFFDBEAFE);
+        sentenceTagText = const Color(0xFF1B64D8);
+        sentenceReason = 'Improve sentence comprehension';
+      } else {
+        sentenceTag = 'General Practice';
+        sentenceTagBg = const Color(0xFFE2E8F0);
+        sentenceTagText = const Color(0xFF475569);
+        sentenceReason = 'Comprehension score is perfect';
+      }
+    } else {
+      sentenceTag = 'Diagnostic Pending';
+      sentenceTagBg = const Color(0xFFFEF3C7);
+      sentenceTagText = const Color(0xFFD97706);
+      sentenceReason = 'Pending Library Reading Quiz';
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -371,157 +200,237 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         ),
                       ),
 
-                      // ── Scrollable Body ─────────────────────────────────────
-                      Expanded(
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // ── Tab Toggle Buttons ──────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                        child: Container(
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9), // Light grey/slate background
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          child: Stack(
                             children: [
-                              const SizedBox(height: 8),
-
-                              // ── Section 1: Class Activities ─────────────────────
-                              _buildSectionHeader('Class Activities', PhIcons.flagPennantBold),
-                              const SizedBox(height: 12),
-
-                              // Card 1: Pronunciation Challenge
-                              _buildClassActivityCard(
-                                title: '[ACTIVITY 1] Pronunciation Challenge',
-                                isOptional: true,
-                                isDone: false,
-                                iconSvg: PhIcons.userSoundBold,
-                                circleColor: const Color(0xFFDBEAFE),
-                                iconColor: const Color(0xFF1B64D8),
-                                onTap: _openPronunciationGame,
+                              // Sliding background indicator
+                              AnimatedAlign(
+                                alignment: _selectedTab == 0
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeInOut,
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.5,
+                                  child: Container(
+                                    margin: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF1B64D8), // primaryBlue
+                                          Color(0xFF3B82F6), // lighter blue
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(21),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF1B64D8).withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
-
-                              // Card 2: Sentence Building
-                              _buildClassActivityCard(
-                                title: '[ACTIVITY 3] Sentence Building',
-                                isOptional: true,
-                                isDone: false,
-                                iconSvg: PhIcons.hammerBold,
-                                circleColor: const Color(0xFFD1FAE5),
-                                iconColor: const Color(0xFF10B981),
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Sentence Building game coming soon!')),
-                                  );
-                                },
-                              ),
-
-                              // Card 3: Vocabulary Challenge (Done / Active style)
-                              _buildClassActivityCard(
-                                title: '[ACTIVITY 2] Vocabulary Challenge',
-                                isOptional: false,
-                                isDone: true,
-                                iconSvg: PhIcons.equalsBold,
-                                circleColor: const Color(0xFFFEF3C7),
-                                iconColor: const Color(0xFFF59E0B),
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Vocabulary Challenge result: 92% Correct!')),
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 28),
-
-                              // ── Section 2: Try me! ──────────────────────────────
-                              _buildSectionHeader('Try me!', PhIcons.puzzlePieceRegular),
-                              const SizedBox(height: 12),
-
+                              // Interactive buttons
                               Row(
                                 children: [
                                   Expanded(
-                                    child: _buildTryMeCard(
-                                      title: 'Pronounciation\nChallenge',
-                                      iconSvg: PhIcons.userSoundBold,
-                                      circleColor: const Color(0xFFDBEAFE),
-                                      iconColor: const Color(0xFF1B64D8),
-                                      onTap: _openPronunciationGame,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _buildTryMeCard(
-                                      title: 'Vocabulary\nMatching',
-                                      iconSvg: PhIcons.equalsBold,
-                                      circleColor: const Color(0xFFFEF3C7),
-                                      iconColor: const Color(0xFFF59E0B),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
                                       onTap: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Starting Vocabulary Matching practice!')),
-                                        );
+                                        setState(() {
+                                          _selectedTab = 0;
+                                        });
                                       },
+                                      child: Center(
+                                        child: AnimatedDefaultTextStyle(
+                                          duration: const Duration(milliseconds: 200),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: _selectedTab == 0
+                                                ? Colors.white
+                                                : const Color(0xFF64748B),
+                                          ),
+                                          child: const Text('Practice Activities'),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   Expanded(
-                                    child: _buildTryMeCard(
-                                      title: 'Sentence\nArrangement',
-                                      iconSvg: PhIcons.hammerBold,
-                                      circleColor: const Color(0xFFD1FAE5),
-                                      iconColor: const Color(0xFF10B981),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
                                       onTap: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Starting Sentence Arrangement practice!')),
-                                        );
+                                        setState(() {
+                                          _selectedTab = 1;
+                                        });
                                       },
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 28),
-
-                              // ── Section 3: Side quests ──────────────────────────
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildSectionHeader('Side quests', PhIcons.hourglassBold),
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const SideQuestsPage()),
-                                      );
-                                    },
-                                    child: Text(
-                                      'See all',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF1B64D8),
+                                      child: Center(
+                                        child: AnimatedDefaultTextStyle(
+                                          duration: const Duration(milliseconds: 200),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: _selectedTab == 1
+                                                ? Colors.white
+                                                : const Color(0xFF64748B),
+                                          ),
+                                          child: const Text('Side Quests'),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-
-                              // Side quest items (Yellow layout)
-                              _buildQuestCard(
-                                title: 'Ganda at Talino Badge',
-                                desc: 'Read 3 books written by Female authors\nin 2 Days',
-                                badgePath: 'assets/badges/ganda_talino_badge.webp',
-                              ),
-                              _buildQuestCard(
-                                title: 'Early Badge',
-                                desc: 'Read 3 books written by Young authors\nin 2 Days',
-                                badgePath: 'assets/badges/early_bird_badge.webp',
-                              ),
-                              _buildQuestCard(
-                                title: '10x day Streak',
-                                desc: 'Read 3 books written by Female authors\nin 2 Days',
-                                badgePath: 'assets/badges/10_day_streak_badge.webp',
-                              ),
-
-                              const SizedBox(height: 32),
                             ],
                           ),
                         ),
+                      ),
+
+                      // ── Scrollable Body ─────────────────────────────────────
+                      Expanded(
+                        child: _selectedTab == 0
+                            ? SingleChildScrollView(
+                                key: const ValueKey('PracticeActivitiesScroll'),
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    _buildSectionHeader('Personalized Practice', PhIcons.puzzlePieceBold),
+                                    const SizedBox(height: 14),
+
+                                    _buildPersonalizedPracticeCard(
+                                      title: 'Pronunciation Challenge',
+                                      description: 'Speak words out loud with Sally!',
+                                      recommendationTag: pronTag,
+                                      tagBgColor: pronTagBg,
+                                      tagTextColor: pronTagText,
+                                      diagnosticReason: pronReason,
+                                      iconSvg: PhIcons.userSoundBold,
+                                      iconColor: const Color(0xFF2563EB),
+                                      iconBgColor: const Color(0xFFDBEAFE),
+                                      cardBgColor: const Color(0xFFEFF6FF),
+                                      borderShadowColor: const Color(0xFFBFDBFE),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => const PronunciationChallengePage()),
+                                        );
+                                      },
+                                    ),
+
+                                    _buildPersonalizedPracticeCard(
+                                      title: 'Vocabulary Matching',
+                                      description: 'Match words and learn translations!',
+                                      recommendationTag: vocabTag,
+                                      tagBgColor: vocabTagBg,
+                                      tagTextColor: vocabTagText,
+                                      diagnosticReason: vocabReason,
+                                      iconSvg: PhIcons.equalsBold,
+                                      iconColor: const Color(0xFFD97706),
+                                      iconBgColor: const Color(0xFFFEF3C7),
+                                      cardBgColor: const Color(0xFFFFFBEB),
+                                      borderShadowColor: const Color(0xFFFDE68A),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => const VocabularyMatchingPage()),
+                                        );
+                                      },
+                                    ),
+
+                                    _buildPersonalizedPracticeCard(
+                                      title: 'Sentence Arrangement',
+                                      description: 'Arrange words to build sentences!',
+                                      recommendationTag: sentenceTag,
+                                      tagBgColor: sentenceTagBg,
+                                      tagTextColor: sentenceTagText,
+                                      diagnosticReason: sentenceReason,
+                                      iconSvg: PhIcons.hammerBold,
+                                      iconColor: const Color(0xFF059669),
+                                      iconBgColor: const Color(0xFFD1FAE5),
+                                      cardBgColor: const Color(0xFFECFDF5),
+                                      borderShadowColor: const Color(0xFFA7F3D0),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (context) => const SentenceArrangementPage()),
+                                        );
+                                      },
+                                    ),
+
+                                    const SizedBox(height: 32),
+                                  ],
+                                ),
+                              )
+                            : SingleChildScrollView(
+                                key: const ValueKey('SideQuestsScroll'),
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 8),
+
+                                    // ── Section 3: Side quests ──────────────────────────
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _buildSectionHeader('Side quests', PhIcons.hourglassBold),
+                                        GestureDetector(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(builder: (context) => const SideQuestsPage()),
+                                            );
+                                          },
+                                          child: Text(
+                                            'See all',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF1B64D8),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // Side quest items (Yellow layout)
+                                    _buildQuestCard(
+                                      title: 'Ganda at Talino Badge',
+                                      desc: 'Read 3 books written by Female authors\nin 2 Days',
+                                      badgePath: 'assets/badges/ganda_talino_badge.webp',
+                                    ),
+                                    _buildQuestCard(
+                                      title: 'Early Badge',
+                                      desc: 'Read 3 books written by Young authors\nin 2 Days',
+                                      badgePath: 'assets/badges/early_bird_badge.webp',
+                                    ),
+                                    _buildQuestCard(
+                                      title: '10x day Streak',
+                                      desc: 'Read 3 books written by Female authors\nin 2 Days',
+                                      badgePath: 'assets/badges/10_day_streak_badge.webp',
+                                    ),
+                                    const SizedBox(height: 32),
+                                  ],
+                                ),
+                              ),
                       ),
                     ],
                   ),
@@ -558,167 +467,132 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     );
   }
 
-  Widget _buildClassActivityCard({
+  Widget _buildPersonalizedPracticeCard({
     required String title,
-    required bool isOptional,
-    required bool isDone,
+    required String description,
+    required String recommendationTag,
+    required Color tagBgColor,
+    required Color tagTextColor,
+    required String diagnosticReason,
     required String iconSvg,
-    required Color circleColor,
     required Color iconColor,
+    required Color iconBgColor,
+    required Color cardBgColor,
+    required Color borderShadowColor,
     required VoidCallback onTap,
   }) {
-    final cardBg = isDone ? const Color(0xFFECFDF5) : Colors.white;
-    final borderColor = isDone ? const Color(0xFFA7F3D0) : const Color(0xFFE5E7EB);
+    String simplifiedTag = recommendationTag;
+    if (recommendationTag == 'Diagnostic Pending') {
+      simplifiedTag = '⭐ Let\'s Try!';
+    } else if (recommendationTag == 'Highly Recommended') {
+      simplifiedTag = '🔥 Recommended';
+    } else if (recommendationTag == 'General Practice') {
+      simplifiedTag = '✨ Practice';
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 18),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: borderShadowColor,
+        borderRadius: BorderRadius.circular(24),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      child: Row(
-        children: [
-          // Circular Icon backing
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: circleColor,
-              shape: BoxShape.circle,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.5),
+        decoration: BoxDecoration(
+          color: cardBgColor,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderShadowColor, width: 2),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Icon circular badge
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(14),
+              child: Iconify(
+                iconSvg,
+                color: iconColor,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Iconify(
-              iconSvg,
-              color: iconColor,
-              size: 34,
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: isDone ? const Color(0xFFD1FAE5) : const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  child: Text(
-                    isDone ? 'Done' : (isOptional ? 'Optional' : 'Required'),
+            const SizedBox(width: 14),
+            // Text Area
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Title
+                  Text(
+                    title,
                     style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: isDone ? const Color(0xFF065F46) : const Color(0xFF4B5563),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: -0.4,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Status / Action Button
-          ElevatedButton(
-            onPressed: isDone ? onTap : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDone ? const Color(0xFF00A859) : const Color(0xFFE5E7EB),
-              disabledBackgroundColor: const Color(0xFFE5E7EB),
-              foregroundColor: Colors.white,
-              disabledForegroundColor: const Color(0xFF9CA3AF),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              minimumSize: const Size(90, 36),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(100),
+                  const SizedBox(height: 3),
+                  // Description
+                  Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Recommendation Tag
+                  Container(
+                    decoration: BoxDecoration(
+                      color: tagBgColor,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    child: Text(
+                      simplifiedTag,
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: tagTextColor,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Text(
-              isDone ? 'View Result' : 'Not Started',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+            const SizedBox(width: 16),
+            // Play Button
+            ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B64D8),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                minimumSize: const Size(64, 34),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'Play',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTryMeCard({
-    required String title,
-    required String iconSvg,
-    required Color circleColor,
-    required Color iconColor,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      height: 128,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Icon Circle
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    color: circleColor,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Iconify(
-                    iconSvg,
-                    color: iconColor,
-                    size: 34,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black,
-                    height: 1.25,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );
