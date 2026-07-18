@@ -178,22 +178,32 @@ class SilentReadingResultPage extends StatelessWidget {
                                       thickness: 1,
                                     ),
                                   ),
-                                  Text(
-                                    'Instructions:',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black,
-                                    ),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Instructions:',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                      Image.asset(
+                                        'assets/mascot/sally_reading.webp',
+                                        width: 70,
+                                        height: 70,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
-                                  _buildInstructionStep('1.', 'Read the passage silently and understand the story carefully.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('2.', 'Pay attention to important details and unfamiliar words.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('3.', 'Answer the comprehension questions after reading.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('4.', 'Complete all answers correctly to earn a higher score.'),
+                                  _buildStepCard(1, 'Read the passage silently and understand the story carefully.'),
+                                  _buildStepCard(2, 'Pay attention to important details and unfamiliar words.'),
+                                  _buildStepCard(3, 'Answer the comprehension questions after reading.'),
+                                  _buildStepCard(4, 'Complete all answers correctly to earn a higher score.'),
                                 ],
                               ),
                             ),
@@ -296,33 +306,77 @@ class SilentReadingResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInstructionStep(String number, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 18,
-          child: Text(
-            number,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E293B),
+  Widget _buildStepCard(int index, String text) {
+    Color circleBg;
+    Color circleTextColor;
+    switch (index) {
+      case 1:
+        circleBg = const Color(0xFFFEF3C7);
+        circleTextColor = const Color(0xFFD97706);
+        break;
+      case 2:
+        circleBg = const Color(0xFFDBEAFE);
+        circleTextColor = const Color(0xFF2563EB);
+        break;
+      case 3:
+        circleBg = const Color(0xFFD1FAE5);
+        circleTextColor = const Color(0xFF059669);
+        break;
+      case 4:
+        circleBg = const Color(0xFFFCE7F3);
+        circleTextColor = const Color(0xFFDB2777);
+        break;
+      default:
+        circleBg = const Color(0xFFF3E8FF);
+        circleTextColor = const Color(0xFF7C3AED);
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: circleBg,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              index.toString(),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: circleTextColor,
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF334155),
-              height: 1.35,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF3F3F46),
+                height: 1.4,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
