@@ -238,13 +238,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                         end: Alignment.bottomRight,
                                       ),
                                       borderRadius: BorderRadius.circular(21),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFF1B64D8).withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ),
