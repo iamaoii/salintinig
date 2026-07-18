@@ -10,6 +10,7 @@ import 'package:salintinig/pages/student/library/bookshelf_page.dart';
 import 'package:salintinig/pages/student/library/side_quests_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
+import 'package:salintinig/pages/student/progress_page.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -47,6 +48,13 @@ class _LibraryPageState extends State<LibraryPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => const ActivitiesPage(),
+              ),
+            );
+          } else if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ProgressPage(),
               ),
             );
           } else if (index != 2) {

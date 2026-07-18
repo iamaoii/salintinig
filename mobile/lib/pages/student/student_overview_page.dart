@@ -15,6 +15,7 @@ import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
+import 'package:salintinig/pages/student/progress_page.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -79,6 +80,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => const ActivitiesPage(),
+              ),
+            );
+          } else if (index == 4) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ProgressPage(),
               ),
             );
           } else if (index != 0) {
@@ -645,6 +653,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const ActivitiesPage(),
+                  ),
+                );
+              } else if (label == 'Progress') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProgressPage(),
                   ),
                 );
               } else {

@@ -10,6 +10,7 @@ import 'package:salintinig/pages/student/library/side_quests_page.dart';
 import 'package:salintinig/pages/student/activities/pronunciation_challenge_page.dart';
 import 'package:salintinig/pages/student/activities/vocabulary_matching_page.dart';
 import 'package:salintinig/pages/student/activities/sentence_arrangement_page.dart';
+import 'package:salintinig/pages/student/progress_page.dart';
 
 class ActivitiesPage extends StatefulWidget {
   const ActivitiesPage({super.key});
@@ -137,6 +138,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const LibraryPage()),
+            );
+          } else if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ProgressPage()),
             );
           } else if (index != 3) {
             ScaffoldMessenger.of(context).showSnackBar(
