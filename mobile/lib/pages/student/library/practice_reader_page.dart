@@ -462,11 +462,18 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
 
   Widget _buildFinishButton() {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      height: 48,
       decoration: BoxDecoration(
         color: const Color(0xFF1B64D8),
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1B64D8).withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Row(

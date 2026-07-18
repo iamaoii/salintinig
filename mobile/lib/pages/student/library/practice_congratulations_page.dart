@@ -174,25 +174,17 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
                                   const SizedBox(height: 16),
 
                                   Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF008244),
+                                      color: greenStars,
                                       borderRadius: BorderRadius.circular(30),
                                     ),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 4),
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      decoration: BoxDecoration(
-                                        color: greenStars,
-                                        borderRadius: BorderRadius.circular(30),
-                                        border: Border.all(color: const Color(0xFF008244), width: 2),
-                                      ),
-                                      child: Text(
-                                        '+ 3 Stars!',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white,
-                                        ),
+                                    child: Text(
+                                      '+ 3 Stars!',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
@@ -202,7 +194,7 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
                             ),
                           ),
 
-                           Padding(
+                          Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                             child: SizedBox(
                               width: double.infinity,
@@ -220,7 +212,7 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
                                   'Home',
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                   ),
                                 ),

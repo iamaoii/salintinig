@@ -272,159 +272,158 @@ class _ProfilePageState extends State<ProfilePage> {
 
                             // ── Blue Stats Card ───────────────────────────────────────
                             Container(
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF114297),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 5.5),
-                                clipBehavior: Clip.antiAlias,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: const Color(0xFF114297), width: 2),
-                                  gradient: const LinearGradient(
-                                    colors: [primaryBlue, darkBlueBg],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: const LinearGradient(
+                                  colors: [primaryBlue, darkBlueBg],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryBlue.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    // Translucent background watermark design
-                                    Positioned(
-                                      right: 0,
-                                      top: -12,
-                                      bottom: -12,
-                                      width: 200,
-                                      child: Image.asset(
-                                        'assets/student page/logo_bg.webp',
-                                        fit: BoxFit.contain,
-                                        alignment: Alignment.centerRight,
-                                      ),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Translucent background watermark design
+                                  Positioned(
+                                    right: 0,
+                                    top: -12,
+                                    bottom: -12,
+                                    width: 200,
+                                    child: Image.asset(
+                                      'assets/student page/logo_bg.webp',
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.centerRight,
                                     ),
-                                    // Stats Content
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 22.0, horizontal: 16.0),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                        children: [
-                                          // Streak Item
-                                          Row(
-                                            children: [
-                                              Iconify(
-                                                PhIcons.fireBold,
-                                                size: 32,
-                                                color: Colors.white,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '$_streak',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 22,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Colors.white,
-                                                    ),
+                                  ),
+                                  // Stats Content
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 22.0, horizontal: 16.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        // Streak Item
+                                        Row(
+                                          children: [
+                                            Iconify(
+                                              PhIcons.fireBold,
+                                              size: 32,
+                                              color: Colors.white,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '$_streak',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
                                                   ),
-                                                  Text(
-                                                    'Streak',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: Colors.white.withValues(alpha: 0.8),
-                                                    ),
+                                                ),
+                                                Text(
+                                                  'Streak',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white.withValues(alpha: 0.8),
                                                   ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
 
-                                          // Divider line
-                                          Container(
-                                            height: 32,
-                                            width: 1,
-                                            color: Colors.white.withValues(alpha: 0.2),
-                                          ),
+                                        // Divider line
+                                        Container(
+                                          height: 32,
+                                          width: 1,
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                        ),
 
-                                          // Stories Item
-                                          Row(
-                                            children: [
-                                              Iconify(
-                                                PhIcons.booksRegular,
-                                                size: 32,
-                                                color: Colors.white,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '$_stories',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 22,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Colors.white,
-                                                    ),
+                                        // Stories Item
+                                        Row(
+                                          children: [
+                                            Iconify(
+                                              PhIcons.booksRegular,
+                                              size: 32,
+                                              color: Colors.white,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '$_stories',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
                                                   ),
-                                                  Text(
-                                                    'Stories',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: Colors.white.withValues(alpha: 0.8),
-                                                    ),
+                                                ),
+                                                Text(
+                                                  'Stories',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white.withValues(alpha: 0.8),
                                                   ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
 
-                                          // Divider line
-                                          Container(
-                                            height: 32,
-                                            width: 1,
-                                            color: Colors.white.withValues(alpha: 0.2),
-                                          ),
+                                        // Divider line
+                                        Container(
+                                          height: 32,
+                                          width: 1,
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                        ),
 
-                                          // Badges Item
-                                          Row(
-                                            children: [
-                                              Iconify(
-                                                Ph.medal,
-                                                size: 32,
-                                                color: Colors.white,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '$_badges',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 22,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Colors.white,
-                                                    ),
+                                        // Badges Item
+                                        Row(
+                                          children: [
+                                            Iconify(
+                                              Ph.medal,
+                                              size: 32,
+                                              color: Colors.white,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '$_badges',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
                                                   ),
-                                                  Text(
-                                                    'Badges',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: Colors.white.withValues(alpha: 0.8),
-                                                    ),
+                                                ),
+                                                Text(
+                                                  'Badges',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white.withValues(alpha: 0.8),
                                                   ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 28),
@@ -434,42 +433,41 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 12),
                             Container(
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE2E8F0),
-                                borderRadius: BorderRadius.circular(24),
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 4.5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
-                                ),
-                                padding: const EdgeInsets.all(20.0),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildInfoBlock('Full name', _fullName),
-                                        ),
-                                        Expanded(
-                                          child: _buildInfoBlock('Grade Level', _gradeLevel),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 18),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildInfoBlock('LRN', _lrn),
-                                        ),
-                                        Expanded(
-                                          child: _buildInfoBlock('Section', _section),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                              padding: const EdgeInsets.all(20.0),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildInfoBlock('Full name', _fullName),
+                                      ),
+                                      Expanded(
+                                        child: _buildInfoBlock('Grade Level', _gradeLevel),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildInfoBlock('LRN', _lrn),
+                                      ),
+                                      Expanded(
+                                        child: _buildInfoBlock('Section', _section),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 28),
@@ -479,78 +477,77 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 12),
                             Container(
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE2E8F0),
-                                borderRadius: BorderRadius.circular(24),
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 4.5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
-                                ),
-                                padding: const EdgeInsets.all(20.0),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Parent Access Code',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: textGray,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              _parentAccessCode,
-                                              style: GoogleFonts.inter(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            IconButton(
-                                              onPressed: () => _copyToClipboard(_parentAccessCode),
-                                              icon: const Iconify(
-                                                Ph.copy,
-                                                size: 20,
-                                                color: textGray,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              constraints: const BoxConstraints(),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: _generateNewAccessCode,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryBlue,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(100),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                      child: Text(
-                                        'New Code',
+                              padding: const EdgeInsets.all(20.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Parent Access Code',
                                         style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: textGray,
                                         ),
                                       ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            _parentAccessCode,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            onPressed: () => _copyToClipboard(_parentAccessCode),
+                                            icon: const Iconify(
+                                              Ph.copy,
+                                              size: 20,
+                                              color: textGray,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: _generateNewAccessCode,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primaryBlue,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(100),
+                                      ),
+                                      elevation: 0,
                                     ),
-                                  ],
-                                ),
+                                    child: Text(
+                                      'New Code',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 8),

@@ -609,95 +609,93 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     required String desc,
     required String badgePath,
   }) {
-    const cardBgColor = Color(0xFFFFD13E);
-    const borderShadowColor = Color(0xFFD5A200);
+    const cardColor = Color(0xFFFFD13E);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: borderShadowColor,
-        borderRadius: BorderRadius.circular(24),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: cardBgColor,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: borderShadowColor, width: 2),
-        ),
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            // Badge Image
-            SizedBox(
-              width: 52,
-              height: 52,
-              child: Image.asset(
-                badgePath,
-                fit: BoxFit.contain,
-              ),
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          // Badge Image
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: Image.asset(
+              badgePath,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(width: 14),
+          ),
+          const SizedBox(width: 14),
 
-            // Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                    ),
+          // Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    desc,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF856404),
-                      height: 1.25,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF856404),
+                    height: 1.25,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 8),
 
-            // Finish Button
-            ElevatedButton(
-              onPressed: () {
-                Feedback.forTap(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Quest "$title" finished!'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B64D8),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                minimumSize: const Size(64, 34),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
+          // Finish Button
+          ElevatedButton(
+            onPressed: () {
+              Feedback.forTap(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Quest "$title" finished!'),
+                  duration: const Duration(seconds: 1),
                 ),
-              ),
-              child: Text(
-                'Finish',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B64D8),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              minimumSize: const Size(64, 34),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
               ),
             ),
-          ],
-        ),
+            child: Text(
+              'Finish',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

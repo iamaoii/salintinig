@@ -241,6 +241,7 @@ class _LibraryPageState extends State<LibraryPage> {
     const cardBg = Color(0xFFFEF8EC); // Creamy warm beige
     const tagBg = Color(0xFFE6F4EA);
     const tagTextColor = Color(0xFF137333);
+    const continueBtnColor = Color(0xFFFBBF24);
 
     return GestureDetector(
       onTap: () {
@@ -257,121 +258,118 @@ class _LibraryPageState extends State<LibraryPage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFE8D3A7),
+          color: cardBg,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFFDEEBE), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 5.5),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFE8D3A7), width: 2),
-          ),
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Large Book Cover
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: Image.asset(
-                    'assets/stories/sari_sari_summers.jpg',
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Large Book Cover
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AspectRatio(
+                aspectRatio: 3 / 4,
+                child: Image.asset(
+                  'assets/stories/sari_sari_summers.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Book Title
+            Text(
+              'SARI - SARI SUMMERS',
+              style: GoogleFonts.merriweather(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Book Description
+            Text(
+              'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: const Color(0xFF71717A),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: const LinearProgressIndicator(
+                value: 0.12, // approx progress value from mockup
+                backgroundColor: Color(0xFFE4E2DC),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Tag & Continue Button Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: tagBg,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  child: Text(
+                    'Filipino',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: tagTextColor,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Book Title
-              Text(
-                'SARI - SARI SUMMERS',
-                style: GoogleFonts.merriweather(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Book Description
-              Text(
-                'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: const Color(0xFF71717A),
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Progress Bar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: const LinearProgressIndicator(
-                  value: 0.12, // approx progress value from mockup
-                  backgroundColor: Color(0xFFE4E2DC),
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Tag & Continue Button Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: tagBg,
+                ElevatedButton(
+                  onPressed: () {
+                    Feedback.forTap(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const StoryPreviewPage(
+                          bookTitle: 'SARI - SARI SUMMERS',
+                          initialProgress: 0.12,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: continueBtnColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(100),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    child: Text(
-                      'Filipino',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: tagTextColor,
-                      ),
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
-                   SizedBox(
-                    height: 40,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Feedback.forTap(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const StoryPreviewPage(
-                              bookTitle: 'SARI - SARI SUMMERS',
-                              initialProgress: 0.12,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD97706),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: Text(
-                        'Continue',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -419,47 +417,46 @@ class _LibraryPageState extends State<LibraryPage> {
                 right: index == books.length - 1 ? 0.0 : 16.0,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 4.5),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
-                ),
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 3 / 4,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.asset(
-                          book['cover']!,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                        ),
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 3 / 4,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        book['cover']!,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: Text(
-                        book['title']!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
-                          height: 1.2,
-                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Text(
+                      book['title']!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                        height: 1.2,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
@@ -487,97 +484,89 @@ class _LibraryPageState extends State<LibraryPage> {
       },
     ];
 
-    const cardBgColor = Color(0xFFFFD13E);
-    const borderShadowColor = Color(0xFFD5A200);
+    const cardColor = Color(0xFFFFD13E); // Yellow matching reference (#FFD13E)
 
     return Column(
       children: quests.map((quest) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 14.0),
+          margin: const EdgeInsets.only(bottom: 12.0),
           decoration: BoxDecoration(
-            color: borderShadowColor,
-            borderRadius: BorderRadius.circular(24),
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 4.5),
-            decoration: BoxDecoration(
-              color: cardBgColor,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: borderShadowColor, width: 2),
-            ),
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                // Badge Image
-                SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: Image.asset(
-                    quest['badge']!,
-                    fit: BoxFit.contain,
-                  ),
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              // Badge Image
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: Image.asset(
+                  quest['badge']!,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(width: 16),
-                // Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        quest['title']!,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
-                        ),
+              ),
+              const SizedBox(width: 16),
+              // Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      quest['title']!,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        quest['subtitle']!,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF856404), // Readable golden-brown subtitle color
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Finish Button
-                ElevatedButton(
-                  onPressed: () {
-                    Feedback.forTap(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Quest "${quest['title']}" finished!'),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B64D8),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100),
                     ),
-                  ),
-                  child: Text(
-                    'Finish',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                    const SizedBox(height: 4),
+                    Text(
+                      quest['subtitle']!,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.black.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Finish Button
+              ElevatedButton(
+                onPressed: () {
+                  Feedback.forTap(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B64D8), // Vibrant blue
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100),
                   ),
                 ),
-              ],
-            ),
+                child: Text(
+                  'Finish',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }).toList(),
