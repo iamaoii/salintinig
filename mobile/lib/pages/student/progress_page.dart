@@ -264,66 +264,59 @@ class _ProgressPageState extends State<ProgressPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
-        color: shadowColor,
+        color: const Color(0xFFEEF4FF),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: shadowColor,
+          width: 1.0,
+        ),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEEF4FF),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: shadowColor,
-            width: 2.0,
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '67',
+            style: GoogleFonts.inter(
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF1B64D8),
+              height: 1.0,
+            ),
           ),
-        ),
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '67',
-              style: GoogleFonts.inter(
-                fontSize: 48,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF1B64D8),
-                height: 1.0,
-              ),
+          const SizedBox(height: 4),
+          Text(
+            'Streak Days',
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF1B64D8),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Streak Days',
-              style: GoogleFonts.inter(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF1B64D8),
-              ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "This is the longest Streak you've ever had!",
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF64748B),
             ),
-            const SizedBox(height: 12),
-            Text(
-              "This is the longest Streak you've ever had!",
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildWeeklyTracker(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildBadgeCard('Sipag at Talino', 'assets/badges/sipag_talino_badge.webp')),
-                const SizedBox(width: 8),
-                Expanded(child: _buildBadgeCard('Early Badge', 'assets/badges/early_bird_badge.webp')),
-                const SizedBox(width: 8),
-                Expanded(child: _buildBadgeCard('10th Day Streak', 'assets/badges/10_day_streak_badge.webp')),
-                const SizedBox(width: 8),
-                Expanded(child: _buildBadgeCard('Ganda at Talino', 'assets/badges/ganda_talino_badge.webp')),
-              ],
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          _buildWeeklyTracker(),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildBadgeCard('Sipag at Talino', 'assets/badges/sipag_talino_badge.webp')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBadgeCard('Early Badge', 'assets/badges/early_bird_badge.webp')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBadgeCard('10th Day Streak', 'assets/badges/10_day_streak_badge.webp')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBadgeCard('Ganda at Talino', 'assets/badges/ganda_talino_badge.webp')),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -551,135 +544,128 @@ class _ProgressPageState extends State<ProgressPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: borderCol,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: borderCol,
+          width: 1.0,
+        ),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: borderCol,
-            width: 2.0,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconBg,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Iconify(
+              iconSvg,
+              color: iconCol,
+              size: 24,
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBg,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Iconify(
-                iconSvg,
-                color: iconCol,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDone ? const Color(0xFFD1FAE5) : tagBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: Text(
+                    isDone ? 'Done' : tagText,
                     style: GoogleFonts.inter(
-                      fontSize: 14,
+                      fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      height: 1.2,
+                      color: isDone ? const Color(0xFF059669) : tagTextCol,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDone ? const Color(0xFFD1FAE5) : tagBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    child: Text(
-                      isDone ? 'Done' : tagText,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: isDone ? const Color(0xFF059669) : tagTextCol,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (isDone)
+            ElevatedButton(
+              onPressed: () {
+                Feedback.forTap(context);
+                onViewResult();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00A859),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'View Result',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            )
+          else if (isNotAvailable)
+            ElevatedButton(
+              onPressed: null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE4E4E7),
+                foregroundColor: const Color(0xFFA1A1AA),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'Not Available',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF9F9F9F)),
+              ),
+            )
+          else
+            ElevatedButton(
+              onPressed: () {
+                Feedback.forTap(context);
+                onStart();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'Start',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),
-            const SizedBox(width: 8),
-            if (isDone)
-              ElevatedButton(
-                onPressed: () {
-                  Feedback.forTap(context);
-                  onViewResult();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00A859),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                ),
-                child: Text(
-                  'View Result',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
-                ),
-              )
-            else if (isNotAvailable)
-              ElevatedButton(
-                onPressed: null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE4E4E7),
-                  foregroundColor: const Color(0xFFA1A1AA),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                ),
-                child: Text(
-                  'Not Available',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF9F9F9F)),
-                ),
-              )
-            else
-              ElevatedButton(
-                onPressed: () {
-                  Feedback.forTap(context);
-                  onStart();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryBlue,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                ),
-                child: Text(
-                  'Start',
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -720,56 +706,49 @@ class _ProgressPageState extends State<ProgressPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: shadowColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: shadowColor,
+          width: 1.0,
+        ),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: shadowColor,
-            width: 2.0,
+      padding: const EdgeInsets.all(10.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 0.75,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                imageAsset,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.all(10.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 0.75,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  imageAsset,
-                  fit: BoxFit.cover,
-                ),
-              ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
             ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: const Color(0xFFE2E8F0),
+              color: const Color(0xFF1B64D8),
+              minHeight: 6,
             ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(100),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: const Color(0xFFE2E8F0),
-                color: const Color(0xFF1B64D8),
-                minHeight: 6,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -831,51 +810,44 @@ class _ProgressPageState extends State<ProgressPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
-        color: shadowColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: shadowColor,
+          width: 1.0,
+        ),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: shadowColor,
-            width: 2.0,
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'model accuracy',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.black,
+            ),
           ),
-        ),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'model accuracy',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-              ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 180,
+            child: CustomPaint(
+              painter: AccuracyChartPainter(),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 180,
-              child: CustomPaint(
-                painter: AccuracyChartPainter(),
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Accuracy Trend',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF71717A),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Accuracy Trend',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF71717A),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -939,80 +911,73 @@ class _ProgressPageState extends State<ProgressPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
-        color: shadowColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: shadowColor,
-            width: 2.0,
-          ),
+        border: Border.all(
+          color: shadowColor,
+          width: 1.0,
         ),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      height: 1.0,
+                    ),
+                  ),
+                  if (unit != null) ...[
+                    const SizedBox(width: 2),
                     Text(
-                      value,
+                      unit,
                       style: GoogleFonts.inter(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                        height: 1.0,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF71717A),
                       ),
                     ),
-                    if (unit != null) ...[
-                      const SizedBox(width: 2),
-                      Text(
-                        unit,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF71717A),
-                        ),
-                      ),
-                    ],
                   ],
-                ),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Iconify(
-                    icon,
-                    color: iconCol,
-                    size: 20,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF52525B),
+                ],
               ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Iconify(
+                  icon,
+                  color: iconCol,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF52525B),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
