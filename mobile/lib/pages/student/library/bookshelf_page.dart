@@ -202,36 +202,44 @@ class _BookshelfPageState extends State<BookshelfPage> {
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: const Color(0xFFE4E4E7).withValues(alpha: 0.5), // Greyish search bar background
+        color: const Color(0xFFE2E8F0),
         borderRadius: BorderRadius.circular(100),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search',
-                hintStyle: GoogleFonts.inter(
-                  color: const Color(0xFF8E8E93),
-                  fontSize: 15,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 18.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search',
+                  hintStyle: GoogleFonts.inter(
+                    color: const Color(0xFF8E8E93),
+                    fontSize: 15,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
                 ),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                color: Colors.black,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Colors.black,
+                ),
               ),
             ),
-          ),
-          const Icon(
-            Icons.search_rounded,
-            color: Color(0xFF8E8E93),
-            size: 24,
-          ),
-        ],
+            const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF8E8E93),
+              size: 24,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -249,46 +257,47 @@ class _BookshelfPageState extends State<BookshelfPage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFE2E8F0),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 3 / 4,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  book['cover']!,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+          ),
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 3 / 4,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    book['cover']!,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Text(
-                book['title']!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                  height: 1.2,
+              const SizedBox(height: 12),
+              Expanded(
+                child: Text(
+                  book['title']!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                    height: 1.2,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

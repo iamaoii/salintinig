@@ -216,25 +216,13 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                           children: [
                             const SizedBox(height: 12),
                             // Large Book Cover Image
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                    blurRadius: 24,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: Image.asset(
-                                  cover,
-                                  width: isTablet ? 300 : double.infinity,
-                                  height: isTablet ? 400 : null,
-                                  fit: BoxFit.cover,
-                                ),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.asset(
+                                cover,
+                                width: isTablet ? 300 : double.infinity,
+                                height: isTablet ? 400 : null,
+                                fit: BoxFit.cover,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -307,40 +295,42 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                                 if (progress > 0) ...[
                                   // Start Again Button
                                   Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        Feedback.forTap(context);
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => PracticeReaderPage(
-                                              bookTitle: title,
-                                              storyText: storyText,
-                                              initialProgress: 0.0,
-                                              quizQuestions: quizQuestions,
+                                    child: SizedBox(
+                                      height: 46,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => PracticeReaderPage(
+                                                bookTitle: title,
+                                                storyText: storyText,
+                                                initialProgress: 0.0,
+                                                quizQuestions: quizQuestions,
+                                              ),
                                             ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: primaryBlue,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryBlue,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
                                         ),
-                                      ),
-                                      icon: const Iconify(
-                                        PhIcons.bookRegular,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      label: Text(
-                                        'Start again',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
+                                        icon: const Iconify(
+                                          PhIcons.bookRegular,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        label: Text(
+                                          'Start again',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -348,40 +338,42 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                                   const SizedBox(width: 12),
                                   // Resume Button
                                   Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        Feedback.forTap(context);
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => PracticeReaderPage(
-                                              bookTitle: title,
-                                              storyText: storyText,
-                                              initialProgress: progress,
-                                              quizQuestions: quizQuestions,
+                                    child: SizedBox(
+                                      height: 46,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => PracticeReaderPage(
+                                                bookTitle: title,
+                                                storyText: storyText,
+                                                initialProgress: progress,
+                                                quizQuestions: quizQuestions,
+                                              ),
                                             ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: yellowColor,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: yellowColor,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
                                         ),
-                                      ),
-                                      icon: const Iconify(
-                                        PhIcons.bookOpenRegular,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      label: Text(
-                                        'Resume',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
+                                        icon: const Iconify(
+                                          PhIcons.bookOpenRegular,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        label: Text(
+                                          'Resume',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -389,40 +381,42 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                                 ] else ...[
                                   // Read Button
                                   Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        Feedback.forTap(context);
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => PracticeReaderPage(
-                                              bookTitle: title,
-                                              storyText: storyText,
-                                              initialProgress: 0.0,
-                                              quizQuestions: quizQuestions,
+                                    child: SizedBox(
+                                      height: 46,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => PracticeReaderPage(
+                                                bookTitle: title,
+                                                storyText: storyText,
+                                                initialProgress: 0.0,
+                                                quizQuestions: quizQuestions,
+                                              ),
                                             ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: primaryBlue,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryBlue,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
                                         ),
-                                      ),
-                                      icon: const Iconify(
-                                        PhIcons.bookRegular,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      label: Text(
-                                        'Read',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
+                                        icon: const Iconify(
+                                          PhIcons.bookRegular,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        label: Text(
+                                          'Read',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -431,14 +425,14 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                                 const SizedBox(width: 12),
                                 // Bookmark Button
                                 Container(
-                                  height: 50,
-                                  width: 50,
+                                  height: 46,
+                                  width: 46,
                                   decoration: BoxDecoration(
                                     color: _isBookmarked ? const Color(0xFFFBBF24) : Colors.white,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: _isBookmarked ? const Color(0xFFFBBF24) : const Color(0xFFE2E8F0),
-                                      width: 1.5,
+                                      color: _isBookmarked ? const Color(0xFFCC9600) : const Color(0xFFE2E8F0),
+                                      width: 2,
                                     ),
                                   ),
                                   child: IconButton(
@@ -457,7 +451,7 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                                     icon: Iconify(
                                       PhIcons.bookmarksRegular,
                                       color: _isBookmarked ? Colors.white : const Color(0xFF475569),
-                                      size: 24,
+                                      size: 20,
                                     ),
                                   ),
                                 ),
@@ -558,65 +552,66 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFE2E8F0),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 3 / 4,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  book['cover']!,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+          ),
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 3 / 4,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    book['cover']!,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    book['title']!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      height: 1.2,
-                    ),
-                  ),
-                  if (progress > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: const Color(0xFFE4E2DC),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                          minHeight: 5,
-                        ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      book['title']!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                        height: 1.2,
                       ),
                     ),
-                ],
+                    if (progress > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: const Color(0xFFE4E2DC),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
+                            minHeight: 5,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

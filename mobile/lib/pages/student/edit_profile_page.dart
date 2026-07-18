@@ -409,54 +409,56 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             ),
                             const SizedBox(height: 48),
 
-                            // Save changes button (Yellow, with sync/refresh icon, matching Image 1)
-                            ElevatedButton(
-                              onPressed: () {
-                                final nick = _nicknameController.text.trim();
-                                if (nick.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Nickname cannot be empty!', style: GoogleFonts.inter()),
-                                      backgroundColor: const Color(0xFFEF4444),
-                                    ),
-                                  );
-                                  return;
-                                }
+                            SizedBox(
+                              height: 56,
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Feedback.forTap(context);
+                                  final nick = _nicknameController.text.trim();
+                                  if (nick.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Nickname cannot be empty!', style: GoogleFonts.inter()),
+                                        backgroundColor: const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                                Navigator.pop(context, {
-                                  'nickname': nick,
-                                  'avatarUrl': _avatarUrl,
-                                  'frame': _selectedFrame,
-                                });
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryYellow,
-                                foregroundColor: Colors.white,
-                                elevation: 2,
-                                shadowColor: primaryYellow.withValues(alpha: 0.3),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Iconify(
-                                    Ph.arrows_counter_clockwise, // Sync/refresh icon representation
-                                    size: 20,
-                                    color: Colors.white,
+                                  Navigator.pop(context, {
+                                    'nickname': nick,
+                                    'avatarUrl': _avatarUrl,
+                                    'frame': _selectedFrame,
+                                  });
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryYellow,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Save changes',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      Ph.arrows_counter_clockwise, // Sync/refresh icon representation
+                                      size: 20,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Save changes',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),

@@ -661,62 +661,63 @@ class _SettingsPageState extends State<SettingsPage> {
                             // ── Banner (Hello, Doechii!) ─────────────────────
                             Container(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [primaryBlue, Color(0xFF195ECB)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryBlue.withValues(alpha: 0.2),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFF114297),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              padding: const EdgeInsets.all(22.0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Hello, Doechii!',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                            letterSpacing: -0.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Grade 4 - Malinis',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white.withValues(alpha: 0.8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 5.5),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFF114297), width: 2),
+                                  gradient: const LinearGradient(
+                                    colors: [primaryBlue, Color(0xFF195ECB)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                  Container(
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white24,
-                                    ),
-                                    padding: const EdgeInsets.all(3),
-                                    child: const CircleAvatar(
-                                      radius: 26,
-                                      backgroundImage: NetworkImage(
-                                        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+                                ),
+                                padding: const EdgeInsets.all(22.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Hello, Doechii!',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Grade 4 - Malinis',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white.withValues(alpha: 0.8),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    Container(
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.white24,
+                                      ),
+                                      padding: const EdgeInsets.all(3),
+                                      child: const CircleAvatar(
+                                        radius: 26,
+                                        backgroundImage: NetworkImage(
+                                          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -734,18 +735,18 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(height: 12),
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              padding: const EdgeInsets.all(18.0),
-                              child: Column(
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4.5),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                                ),
+                                padding: const EdgeInsets.all(18.0),
+                                child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   // Story Preview
@@ -880,6 +881,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ],
                               ),
                             ),
+                          ),
                             const SizedBox(height: 24),
 
                             // ── Audio & Microphone settings (NEW DIRECT SECTION) ────────
@@ -895,18 +897,18 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(height: 12),
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              padding: const EdgeInsets.all(18.0),
-                              child: Column(
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4.5),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                                ),
+                                padding: const EdgeInsets.all(18.0),
+                                child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   // Voice assistant Volume
@@ -1025,6 +1027,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ],
                               ),
                             ),
+                          ),
                             const SizedBox(height: 28),
 
                             // ── "Other Settings" Title ───────────────────────
@@ -1042,25 +1045,26 @@ class _SettingsPageState extends State<SettingsPage> {
                             // ── Group 1 Card ─────────────────────────────────
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Column(
-                                children: [
-                                  _buildSettingItem(Ph.user, 'Profile details', _showProfileDetails),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.lock, 'Password', _showChangePassword),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.bell, 'Notifications', _showNotificationSettings),
-                                ],
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4.5),
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildSettingItem(Ph.user, 'Profile details', _showProfileDetails),
+                                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                    _buildSettingItem(Ph.lock, 'Password', _showChangePassword),
+                                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                    _buildSettingItem(Ph.bell, 'Notifications', _showNotificationSettings),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -1068,66 +1072,67 @@ class _SettingsPageState extends State<SettingsPage> {
                             // ── Group 2 Card ─────────────────────────────────
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Column(
-                                children: [
-                                  _buildSettingItem(Ph.info, 'About application', _showAboutApplication),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.chat_teardrop_text, 'Help / FAQ', _showHelpFAQ),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  // Clear Cache row directly in Group 2
-                                  ListTile(
-                                    onTap: _isClearingCache ? null : _clearCache,
-                                    leading: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF4F4F5),
-                                        borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4.5),
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildSettingItem(Ph.info, 'About application', _showAboutApplication),
+                                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                    _buildSettingItem(Ph.chat_teardrop_text, 'Help / FAQ', _showHelpFAQ),
+                                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                    // Clear Cache row directly in Group 2
+                                    ListTile(
+                                      onTap: _isClearingCache ? null : _clearCache,
+                                      leading: Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF4F4F5),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.all(8),
+                                        child: Iconify(
+                                          Ph.arrows_counter_clockwise,
+                                          color: const Color(0xFF71717A),
+                                          size: 20,
+                                        ),
                                       ),
-                                      padding: const EdgeInsets.all(8),
-                                      child: Iconify(
-                                        Ph.arrows_counter_clockwise,
-                                        color: const Color(0xFF71717A),
-                                        size: 20,
+                                      title: Text(
+                                        'Clear App Cache',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
                                       ),
-                                    ),
-                                    title: Text(
-                                      'Clear App Cache',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    trailing: _isClearingCache
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                                      trailing: _isClearingCache
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.keyboard_arrow_right,
+                                              color: Color(0xFFA1A1AA),
+                                              size: 20,
                                             ),
-                                          )
-                                        : const Icon(
-                                            Icons.keyboard_arrow_right,
-                                            color: Color(0xFFA1A1AA),
-                                            size: 20,
-                                          ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.trash, 'Deactivate my account', _showDeactivateAccount, isDestructive: true),
-                                ],
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                    _buildSettingItem(Ph.trash, 'Deactivate my account', _showDeactivateAccount, isDestructive: true),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -1135,29 +1140,35 @@ class _SettingsPageState extends State<SettingsPage> {
                             // ── Log Out Button ───────────────────────────────
                             Align(
                               alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: _showLogOut,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryBlue,
-                                  foregroundColor: Colors.white,
-                                  elevation: 2,
-                                  shadowColor: primaryBlue.withValues(alpha: 0.3),
-                                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                              child: SizedBox(
+                                height: 50,
+                                width: 140,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Feedback.forTap(context);
+                                    _showLogOut();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryBlue,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
                                   ),
-                                ),
-                                icon: const Iconify(
-                                  Ph.sign_out,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                label: Text(
-                                  'Log Out',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
+                                  icon: const Iconify(
+                                    Ph.sign_out,
+                                    size: 18,
                                     color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    'Log Out',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),

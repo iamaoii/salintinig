@@ -345,110 +345,114 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     Color cardBg = Colors.white,
     VoidCallback? onPressed,
   }) {
+    final borderShadowColor = cardBg == Colors.white
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFFB8D3BD);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: cardBg,
+        color: borderShadowColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Circular Icon backing
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.5),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderShadowColor, width: 2),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Circular Icon backing
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Iconify(
+                icon,
+                color: iconColor,
+                size: 26,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Iconify(
-              icon,
-              color: iconColor,
-              size: 26,
-            ),
-          ),
-          const SizedBox(width: 14),
-          // Assessment Title & Capsule tag
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF18181B),
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: tagBgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  child: Text(
-                    tag,
+            const SizedBox(width: 14),
+            // Assessment Title & Capsule tag
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: tagTextColor,
+                      color: const Color(0xFF18181B),
+                      height: 1.2,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: tagBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    child: Text(
+                      tag,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Action Button
+            ElevatedButton(
+              onPressed: buttonColor == const Color(0xFFE4E4E7)
+                  ? null
+                  : () {
+                      Feedback.forTap(context);
+                      if (onPressed != null) {
+                        onPressed();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Starting $title...')),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: buttonColor,
+                foregroundColor: buttonTextColor,
+                disabledBackgroundColor: buttonColor,
+                disabledForegroundColor: buttonTextColor,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Action Button
-          ElevatedButton(
-            onPressed: buttonColor == const Color(0xFFE4E4E7)
-                ? null
-                : () {
-                    Feedback.forTap(context);
-                    if (onPressed != null) {
-                      onPressed();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Starting $title...')),
-                      );
-                    }
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: buttonColor,
-              foregroundColor: buttonTextColor,
-              disabledBackgroundColor: buttonColor,
-              disabledForegroundColor: buttonTextColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                elevation: 0,
               ),
-              elevation: 0,
-            ),
-            child: Text(
-              buttonText,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+              child: Text(
+                buttonText,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

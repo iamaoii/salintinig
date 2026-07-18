@@ -299,7 +299,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
                               final isSelected = selectedAnswerIndex == index;
 
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 12.0),
+                                padding: const EdgeInsets.only(bottom: 14.0),
                                 child: Container(
                                   width: double.infinity,
                                   height: 64,
@@ -307,18 +307,9 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
                                     color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: isSelected ? primaryBlue : const Color(0xFFE2E8F0),
-                                      width: isSelected ? 2 : 1.5,
+                                      color: isSelected ? primaryBlue : const Color(0xFFCBD5E1),
+                                      width: 2,
                                     ),
-                                    boxShadow: isSelected
-                                        ? []
-                                        : [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.02),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
                                   ),
                                   child: ElevatedButton(
                                     onPressed: () => _onOptionSelected(index),
@@ -359,7 +350,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
                                             optionText,
                                             style: GoogleFonts.inter(
                                               fontSize: 16,
-                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                                               color: isSelected ? primaryBlue : const Color(0xFF1E293B),
                                             ),
                                           ),
@@ -377,19 +368,9 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
                       // 6. Next / Finish Button
                       Padding(
                         padding: const EdgeInsets.all(20.0),
-                        child: Container(
+                        child: SizedBox(
                           width: double.infinity,
                           height: 56,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primaryBlue.withValues(alpha: 0.15),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
                           child: ElevatedButton(
                             onPressed: _currentQuestionIndex == widget.questions.length - 1
                                 ? _finishQuiz
@@ -407,7 +388,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
                                   : 'Next',
                               style: GoogleFonts.inter(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.white,
                               ),
                             ),

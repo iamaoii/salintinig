@@ -197,94 +197,95 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                           children: [
                             // ── Hero Banner Card ──
                             Container(
-                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [primaryBlue, darkBlueBg],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryBlue.withValues(alpha: 0.25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                color: const Color(0xFF114297),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                              child: Stack(
-                                children: [
-                                  // Translucent watermark logo background
-                                  Positioned(
-                                    right: 0,
-                                    top: -12,
-                                    bottom: -12,
-                                    width: 200,
-                                    child: Image.asset(
-                                      'assets/student page/logo_bg.webp',
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.centerRight,
-                                    ),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 5.5),
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFF114297), width: 2),
+                                  gradient: const LinearGradient(
+                                    colors: [primaryBlue, darkBlueBg],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                  // Foreground content
-                                  Padding(
-                                    padding: const EdgeInsets.all(20.0),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Hello, Doechii!',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 26,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Colors.white,
-                                                  letterSpacing: -0.5,
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // Translucent watermark logo background
+                                    Positioned(
+                                      right: 0,
+                                      top: -12,
+                                      bottom: -12,
+                                      width: 200,
+                                      child: Image.asset(
+                                        'assets/student page/logo_bg.webp',
+                                        fit: BoxFit.contain,
+                                        alignment: Alignment.centerRight,
+                                      ),
+                                    ),
+                                    // Foreground content
+                                    Padding(
+                                      padding: const EdgeInsets.all(20.0),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Hello, Doechii!',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
+                                                    letterSpacing: -0.5,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Grade 4 - Fyang',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 15,
-                                                  color: Colors.white.withValues(alpha: 0.8),
-                                                  fontWeight: FontWeight.w500,
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Grade 4 - Fyang',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 15,
+                                                    color: Colors.white.withValues(alpha: 0.8),
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        // User Avatar Profile Picture
-                                        GestureDetector(
-                                          onTap: () {
-                                            Feedback.forTap(context);
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => const ProfilePage(),
-                                              ),
-                                            );
-                                          },
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 2),
-                                            ),
-                                            child: const CircleAvatar(
-                                              radius: 30,
-                                              backgroundImage: NetworkImage(
-                                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-                                              ),
+                                              ],
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                          // User Avatar Profile Picture
+                                          GestureDetector(
+                                            onTap: () {
+                                              Feedback.forTap(context);
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => const ProfilePage(),
+                                                ),
+                                              );
+                                            },
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.white, width: 2),
+                                              ),
+                                              child: const CircleAvatar(
+                                                radius: 30,
+                                                backgroundImage: NetworkImage(
+                                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -516,18 +517,18 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                             // Accuracy Chart Card
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: const Color(0xFFE2E8F0),
                                 borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
                               ),
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4.5),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                                ),
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Text(
@@ -560,7 +561,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 32),
+                          ),
+                          const SizedBox(height: 32),
                           ],
                         ),
                       ),
@@ -601,67 +603,78 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   }
 
   Widget _buildQuickNavCard(String label, String iconSvg, Color activeColor) {
+    const cardBgColor = Color(0xFFE8EEF9);
+    const borderShadowColor = Color(0xFFCAD4E9); // perfect soft lavender/blue shadow
+
     return Container(
       width: 80,
       height: 80,
       decoration: BoxDecoration(
-        color: const Color(0xFFE8EEF9),
-        borderRadius: BorderRadius.circular(16),
+        color: borderShadowColor,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Feedback.forTap(context);
-            if (label == 'Phil-IRI') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PhilIriAssessmentPage(),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.0),
+        decoration: BoxDecoration(
+          color: cardBgColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderShadowColor, width: 2.0),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              Feedback.forTap(context);
+              if (label == 'Phil-IRI') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PhilIriAssessmentPage(),
+                  ),
+                );
+              } else if (label == 'Library') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LibraryPage(),
+                  ),
+                );
+              } else if (label == 'Activities') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ActivitiesPage(),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$label navigation tapped.', style: GoogleFonts.inter()),
+                    duration: const Duration(milliseconds: 500),
+                  ),
+                );
+              }
+            },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Iconify(
+                  iconSvg,
+                  color: activeColor,
+                  size: 30,
                 ),
-              );
-            } else if (label == 'Library') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LibraryPage(),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF27272A),
+                  ),
                 ),
-              );
-            } else if (label == 'Activities') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ActivitiesPage(),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$label navigation tapped.', style: GoogleFonts.inter()),
-                  duration: const Duration(milliseconds: 500),
-                ),
-              );
-            }
-          },
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Iconify(
-                iconSvg,
-                color: activeColor,
-                size: 34,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF27272A),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -682,110 +695,115 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     Color cardBg = Colors.white,
     VoidCallback? onPressed,
   }) {
+    final borderShadowColor = cardBg == Colors.white
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFFBCE4CD);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: borderShadowColor,
+        borderRadius: BorderRadius.circular(24),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Circular Icon backing
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.5),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderShadowColor, width: 2),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Circular Icon backing
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Iconify(
+                icon,
+                color: iconColor,
+                size: 26,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Iconify(
-              icon,
-              color: iconColor,
-              size: 26,
-            ),
-          ),
-          const SizedBox(width: 14),
-          // Assessment Title & Capsule tag
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF18181B),
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: tagBgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  child: Text(
-                    tag,
+            const SizedBox(width: 14),
+            // Assessment Title & Capsule tag
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: tagTextColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF18181B),
+                      height: 1.2,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: tagBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    child: Text(
+                      tag,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: tagTextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Action Button
+            ElevatedButton(
+              onPressed: buttonColor == const Color(0xFFE4E4E7)
+                  ? null
+                  : () {
+                      Feedback.forTap(context);
+                      if (onPressed != null) {
+                        onPressed();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Starting $title...')),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: buttonColor,
+                foregroundColor: buttonTextColor,
+                disabledBackgroundColor: buttonColor,
+                disabledForegroundColor: buttonTextColor,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Action Button
-          ElevatedButton(
-            onPressed: buttonColor == const Color(0xFFE4E4E7)
-                ? null
-                : () {
-                    Feedback.forTap(context);
-                    if (onPressed != null) {
-                      onPressed();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Starting $title...')),
-                      );
-                    }
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: buttonColor,
-              foregroundColor: buttonTextColor,
-              disabledBackgroundColor: buttonColor,
-              disabledForegroundColor: buttonTextColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                elevation: 0,
               ),
-              elevation: 0,
-            ),
-            child: Text(
-              buttonText,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+              child: Text(
+                buttonText,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -793,141 +811,131 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   Widget _buildContinueReadingCard(BuildContext context) {
     const cardBg = Color(0xFFFEF8EC); // Warm cream/beige tint matching reference
+    const borderShadowColor = Color(0xFFF5E0A3); // Slightly darker warm border shadow
     const tagBg = Color(0xFFE6F4EA); // Soft green background
     const tagTextColor = Color(0xFF137333); // Dark green text
     const continueBtnColor = Color(0xFFFBBF24); // Vibrant golden yellow button
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFDEEBE), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: borderShadowColor,
+        borderRadius: BorderRadius.circular(24),
       ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Actual book cover image asset
-          Container(
-            width: 90,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 4,
-                  offset: const Offset(1, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.5),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderShadowColor, width: 2),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Actual book cover image asset
+            ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
                 'assets/stories/sari_sari_summers.jpg',
+                width: 90,
+                height: 120,
                 fit: BoxFit.cover,
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          // Book details & controls
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SARI - SARI SUMMERS',
-                  style: GoogleFonts.merriweather(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF18181B),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: const Color(0xFF71717A),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Progress Bar (stretching full width of column)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: const LinearProgressIndicator(
-                    value: 0.25, // Fill level matches reference indicator approx
-                    backgroundColor: Color(0xFFE4E2DC),
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Tag capsule
-                    Container(
-                      decoration: BoxDecoration(
-                        color: tagBg,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      child: Text(
-                        'Filipino',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: tagTextColor,
-                        ),
-                      ),
+            const SizedBox(width: 16),
+            // Book details & controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SARI - SARI SUMMERS',
+                    style: GoogleFonts.merriweather(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF18181B),
                     ),
-                    // Action button
-                    ElevatedButton(
-                      onPressed: () {
-                        Feedback.forTap(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LibraryPage(),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF71717A),
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Progress Bar (stretching full width of column)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: const LinearProgressIndicator(
+                      value: 0.25, // Fill level matches reference indicator approx
+                      backgroundColor: Color(0xFFE4E2DC),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
+                      minHeight: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Tag capsule
+                      Container(
+                        decoration: BoxDecoration(
+                          color: tagBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        child: Text(
+                          'Filipino',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: tagTextColor,
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: continueBtnColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        'Continue',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      // Action button
+                      ElevatedButton(
+                        onPressed: () {
+                          Feedback.forTap(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LibraryPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: continueBtnColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Continue',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -935,66 +943,83 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
 
   Widget _buildActivityCard(String label, String iconSvg, Color iconBg, Color iconColor) {
+    Color cardBgColor = Colors.white;
+    Color borderShadowColor = const Color(0xFFE2E8F0);
+
+    if (label.contains('Pronunciation')) {
+      cardBgColor = const Color(0xFFEFF6FF);
+      borderShadowColor = const Color(0xFFBFDBFE);
+    } else if (label.contains('Vocabulary')) {
+      cardBgColor = const Color(0xFFFFFBEB);
+      borderShadowColor = const Color(0xFFFDEE8A); // Warm amber border shadow
+    } else if (label.contains('Sentence')) {
+      cardBgColor = const Color(0xFFECFDF5);
+      borderShadowColor = const Color(0xFFA7F3D0);
+    }
+
     return Container(
       height: 156,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+        color: borderShadowColor,
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Feedback.forTap(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Launching ${label.replaceAll('\n', ' ')}...')),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 4),
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Iconify(
-                    iconSvg,
-                    color: iconColor,
-                    size: 38,
-                  ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.5),
+        decoration: BoxDecoration(
+          color: cardBgColor,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: borderShadowColor, width: 2),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () {
+              Feedback.forTap(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ActivitiesPage(),
                 ),
-                const Spacer(),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF18181B),
-                    height: 1.25,
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Iconify(
+                      iconSvg,
+                      color: iconColor,
+                      size: 34,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-              ],
+                  const Spacer(),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF18181B),
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
             ),
           ),
         ),
