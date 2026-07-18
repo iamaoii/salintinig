@@ -499,107 +499,106 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       decoration: BoxDecoration(
-        color: borderShadowColor,
+        color: cardBgColor,
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4.5),
-        decoration: BoxDecoration(
-          color: cardBgColor,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: borderShadowColor, width: 2),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // Icon circular badge
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(14),
-              child: Iconify(
-                iconSvg,
-                color: iconColor,
-              ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          // Icon circular badge
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 14),
-            // Text Area
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Title
-                  Text(
-                    title,
+            padding: const EdgeInsets.all(14),
+            child: Iconify(
+              iconSvg,
+              color: iconColor,
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Text Area
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Title
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                // Description
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF64748B),
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Recommendation Tag
+                Container(
+                  decoration: BoxDecoration(
+                    color: tagBgColor,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  child: Text(
+                    simplifiedTag,
                     style: GoogleFonts.inter(
-                      fontSize: 16,
+                      fontSize: 9,
                       fontWeight: FontWeight.w900,
-                      color: Colors.black,
-                      letterSpacing: -0.4,
+                      color: tagTextColor,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  // Description
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Recommendation Tag
-                  Container(
-                    decoration: BoxDecoration(
-                      color: tagBgColor,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    child: Text(
-                      simplifiedTag,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: tagTextColor,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Play Button
+          ElevatedButton(
+            onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B64D8),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              minimumSize: const Size(64, 34),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
               ),
             ),
-            const SizedBox(width: 16),
-            // Play Button
-            ElevatedButton(
-              onPressed: onTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B64D8),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                minimumSize: const Size(64, 34),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              child: Text(
-                'Play',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
+            child: Text(
+              'Play',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
