@@ -75,7 +75,7 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
                     // 2. Content Card Section
                     Expanded(
                       child: SingleChildScrollView(
-                        physics: const NeverScrollableScrollPhysics(),
+                        physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,40 +178,27 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 24),
                                   // Separator line
                                   Container(
                                     height: 1,
                                     color: const Color(0xFFF4F4F5),
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 24),
                                   // Instructions Section
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Instructions:',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ),
-                                      Image.asset(
-                                        'assets/mascot/sally_reading.webp',
-                                        width: 80,
-                                        height: 80,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ],
+                                  Text(
+                                    'Instructions:',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                    ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  _buildStepCard(1, 'Read the passage silently and understand the story carefully.'),
-                                  _buildStepCard(2, 'Pay attention to important details and unfamiliar words.'),
-                                  _buildStepCard(3, 'Answer the comprehension questions after reading.'),
-                                  _buildStepCard(4, 'Complete all answers correctly to earn a higher score.'),
+                                  const SizedBox(height: 12),
+                                  _buildInstructionRow('1.', 'Read the passage silently and understand the story carefully.'),
+                                  _buildInstructionRow('2.', 'Pay attention to important details and unfamiliar words.'),
+                                  _buildInstructionRow('3.', 'Answer the comprehension questions after reading.'),
+                                  _buildInstructionRow('4.', 'Complete all answers correctly to earn a higher score.'),
                                 ],
                               ),
                             ),
@@ -286,70 +273,29 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStepCard(int index, String text) {
-    Color circleBg;
-    Color circleTextColor;
-    switch (index) {
-      case 1:
-        circleBg = const Color(0xFFFEF3C7);
-        circleTextColor = const Color(0xFFD97706);
-        break;
-      case 2:
-        circleBg = const Color(0xFFDBEAFE);
-        circleTextColor = const Color(0xFF2563EB);
-        break;
-      case 3:
-        circleBg = const Color(0xFFD1FAE5);
-        circleTextColor = const Color(0xFF059669);
-        break;
-      case 4:
-        circleBg = const Color(0xFFFCE7F3);
-        circleTextColor = const Color(0xFFDB2777);
-        break;
-      default:
-        circleBg = const Color(0xFFF3E8FF);
-        circleTextColor = const Color(0xFF7C3AED);
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-          width: 1.5,
-        ),
-      ),
+  Widget _buildInstructionRow(String index, String instruction) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: circleBg,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
+          SizedBox(
+            width: 24,
             child: Text(
-              index.toString(),
+              index,
               style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: circleTextColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF3F3F46),
               ),
             ),
           ),
-          const SizedBox(width: 16),
           Expanded(
             child: Text(
-              text,
+              instruction,
               style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
                 color: const Color(0xFF3F3F46),
                 height: 1.4,
               ),

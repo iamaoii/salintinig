@@ -13,6 +13,7 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
+import 'package:salintinig/pages/student/badges_page.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -99,13 +100,13 @@ class _ProgressPageState extends State<ProgressPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // Left Back Caret Icon
+                            // Left Menu Drawer Icon (Hamburger)
                             IconButton(
                               onPressed: () {
-                                Navigator.pop(context);
+                                _scaffoldKey.currentState?.openDrawer();
                               },
                               icon: const Iconify(
-                                Ph.caret_left,
+                                Ph.list,
                                 size: 28,
                                 color: Colors.black,
                               ),
@@ -120,17 +121,8 @@ class _ProgressPageState extends State<ProgressPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Right Menu Drawer Icon (Hamburger)
-                            IconButton(
-                              onPressed: () {
-                                _scaffoldKey.currentState?.openDrawer();
-                              },
-                              icon: const Iconify(
-                                Ph.list,
-                                size: 28,
-                                color: Colors.black,
-                              ),
-                            ),
+                            // Right Spacer to keep title centered
+                            const SizedBox(width: 48),
                           ],
                         ),
                       ),
@@ -145,21 +137,35 @@ class _ProgressPageState extends State<ProgressPage> {
                             children: [
                               const SizedBox(height: 12),
 
-                              // ── Section: Streak & Badges ──
+                              _buildStreakCard(),
+                              const SizedBox(height: 36),
+
+                              // ── Section: Your Badges ──
                               _buildSectionHeader(
-                                icon: PhIcons.hourglassBold,
-                                title: 'Streak & Badges',
-                                rightWidget: Text(
-                                  'See all',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: primaryBlue,
+                                icon: PhIcons.shieldBold,
+                                title: 'Your Badges',
+                                rightWidget: GestureDetector(
+                                  onTap: () {
+                                    Feedback.forTap(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const BadgesPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'See all',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: primaryBlue,
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              _buildStreakAndBadgesCard(),
+                              _buildBadgesCard(),
                               const SizedBox(height: 28),
 
                               // ── Section: Phil-IRI Assessments History ──
@@ -258,64 +264,95 @@ class _ProgressPageState extends State<ProgressPage> {
     );
   }
 
-  // ── Streak & Badges Widget ──
-  Widget _buildStreakAndBadgesCard() {
-    const shadowColor = Color(0xFFD0E1F9);
+  // ── Streak Widget ──
+  Widget _buildStreakCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Left: Flame + Streak count, message, and Weekly Tracker
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Iconify(
+                      PhIcons.fireBold,
+                      color: Color(0xFFEA580C),
+                      size: 26,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '67 day streak',
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFEA580C),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "You're on fire!",
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildWeeklyTracker(),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Right: Large Sally mascot celebration
+          SizedBox(
+            width: 100,
+            height: 105,
+            child: Image.asset(
+              'assets/mascot/sally_celebration.webp',
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Badges Widget ──
+  Widget _buildBadgesCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF4FF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: shadowColor,
+          color: const Color(0xFFE2E8F0),
           width: 1.0,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            '67',
-            style: GoogleFonts.inter(
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFF1B64D8),
-              height: 1.0,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Streak Days',
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFF1B64D8),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "This is the longest Streak you've ever had!",
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildWeeklyTracker(),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildBadgeCard('Sipag at Talino', 'assets/badges/sipag_talino_badge.webp')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBadgeCard('Early Badge', 'assets/badges/early_bird_badge.webp')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBadgeCard('10th Day Streak', 'assets/badges/10_day_streak_badge.webp')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBadgeCard('Ganda at Talino', 'assets/badges/ganda_talino_badge.webp')),
-            ],
-          ),
+          Expanded(child: _buildBadgeCard('Sipag at Talino', 'assets/badges/sipag_talino_badge.webp')),
+          const SizedBox(width: 8),
+          Expanded(child: _buildBadgeCard('Early Badge', 'assets/badges/early_bird_badge.webp')),
+          const SizedBox(width: 8),
+          Expanded(child: _buildBadgeCard('10th Day Streak', 'assets/badges/10_day_streak_badge.webp')),
+          const SizedBox(width: 8),
+          Expanded(child: _buildBadgeCard('Ganda at Talino', 'assets/badges/ganda_talino_badge.webp')),
         ],
       ),
     );
@@ -342,14 +379,16 @@ class _ProgressPageState extends State<ProgressPage> {
     Widget circleChild = const SizedBox();
     Color circleBgColor = Colors.transparent;
     Border? circleBorder;
+    Color labelColor = const Color(0xFF64748B); // Default slate-500 for better visibility
 
     if (state == 'done') {
-      circleBgColor = const Color(0xFF22C55E); // Green
+      circleBgColor = const Color(0xFFF97316); // Orange like Duolingo
       circleChild = const Icon(
         Icons.check,
         color: Colors.white,
-        size: 14,
+        size: 10,
       );
+      labelColor = const Color(0xFFEA580C); // Darker orange label color
     } else if (state == 'missed') {
       circleBgColor = const Color(0xFFE2E8F0); // Solid light gray
     } else {
@@ -365,8 +404,8 @@ class _ProgressPageState extends State<ProgressPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 24,
+          height: 24,
           decoration: BoxDecoration(
             color: circleBgColor,
             shape: BoxShape.circle,
@@ -375,13 +414,13 @@ class _ProgressPageState extends State<ProgressPage> {
           alignment: Alignment.center,
           child: circleChild,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF94A3B8), // slate-400
+            fontSize: 10,
+            fontWeight: FontWeight.w800, // Slightly bolder for better legibility
+            color: labelColor,
           ),
         ),
       ],
