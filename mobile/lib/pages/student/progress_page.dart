@@ -14,6 +14,7 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -69,7 +70,7 @@ class _ProgressPageState extends State<ProgressPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const LibraryPage(), // Fallback or Activities page
+                builder: (context) => const ActivitiesPage(),
               ),
             );
           }
