@@ -15,6 +15,7 @@ import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -712,39 +713,66 @@ class _ProgressPageState extends State<ProgressPage> {
 
   // ── Continue Reading Row ──
   Widget _buildContinueReadingRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildContinueReadingItem(
-            'SARI-SARI SUMMERS',
-            'assets/stories/sari_sari_summers.jpg',
-            0.35,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildContinueReadingItem(
-            'A Song of Frutas',
-            'assets/stories/a_song_of_frutas.png',
-            0.70,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildContinueReadingItem(
-            'OLD CLOTHES FOR DINNER',
-            'assets/stories/old_clothes_for_dinner.png',
-            0.45,
-          ),
-        ),
-      ],
+    final continueReadingBooks = [
+      {
+        'title': 'SARI - SARI SUMMERS',
+        'cover': 'assets/stories/sari_sari_summers.jpg',
+        'progress': 0.35,
+      },
+      {
+        'title': 'A Song of Frutas',
+        'cover': 'assets/stories/a_song_of_frutas.png',
+        'progress': 0.70,
+      },
+      {
+        'title': 'OLD CLOTHES FOR DINNER',
+        'cover': 'assets/stories/old_clothes_for_dinner.png',
+        'progress': 0.45,
+      },
+    ];
+
+    return SizedBox(
+      height: 255, // Height matching library's bookshelf
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        clipBehavior: Clip.none,
+        itemCount: continueReadingBooks.length,
+        itemBuilder: (context, index) {
+          final book = continueReadingBooks[index];
+          return GestureDetector(
+            onTap: () {
+              Feedback.forTap(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StoryPreviewPage(
+                    bookTitle: book['title'] as String,
+                    initialProgress: book['progress'] as double?,
+                  ),
+                ),
+              );
+            },
+            child: _buildContinueReadingItem(
+              book['title'] as String,
+              book['cover'] as String,
+              book['progress'] as double,
+              isLast: index == continueReadingBooks.length - 1,
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildContinueReadingItem(String title, String imageAsset, double progress) {
+  Widget _buildContinueReadingItem(String title, String imageAsset, double progress, {bool isLast = false}) {
     const shadowColor = Color(0xFFE2E8F0);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12.0),
+      width: 140, // Fixed width matching library's bookshelf
+      margin: EdgeInsets.only(
+        right: isLast ? 0.0 : 16.0,
+        bottom: 12.0,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -753,39 +781,52 @@ class _ProgressPageState extends State<ProgressPage> {
           width: 1.0,
         ),
       ),
-      padding: const EdgeInsets.all(10.0),
+      padding: const EdgeInsets.all(12.0), // Padding matching library's bookshelf
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           AspectRatio(
-            aspectRatio: 0.75,
+            aspectRatio: 3 / 4, // Aspect ratio matching library's bookshelf
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
                 imageAsset,
                 fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(100),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: const Color(0xFFE2E8F0),
-              color: const Color(0xFF1B64D8),
-              minHeight: 6,
+          const SizedBox(height: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                    height: 1.2,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: const Color(0xFFE2E8F0),
+                      color: const Color(0xFF1B64D8),
+                      minHeight: 6,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
