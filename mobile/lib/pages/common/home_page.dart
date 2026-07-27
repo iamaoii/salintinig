@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/auth/student_login_page.dart';
 import 'package:salintinig/pages/auth/teacher_login_page.dart';
+import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'dart:ui' as ui;
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
@@ -144,7 +145,15 @@ class _HomePageState extends State<HomePage> {
                               label: 'Parent',
                               color: const Color(0xFF1B64D8),
                               isOutlined: true,
-                              onTap: () {},
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ParentOverviewPage(),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 32),
                           ],
