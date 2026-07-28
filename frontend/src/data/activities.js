@@ -1,0 +1,32 @@
+export const activities = [
+  {
+    id: 'phil-iri-1',
+    title: 'Oral Reading Assessment',
+    tag: 'Phil-IRI',
+    type: 'phil-iri',
+    status: 'default',
+    done: 0,
+    pending: 30,
+    action: 'Open',
+  },
+  {
+    id: 'practice-3',
+    title: 'ACTIVITY 3: Vocabulary Challenge',
+    tag: 'Practice',
+    type: 'practice',
+    status: 'pending',
+    done: 5,
+    pending: 30,
+    action: 'Open',
+  },
+  {
+    id: 'practice-1',
+    title: 'ACTIVITY 1: Vocabulary Challenge',
+    tag: 'Practice',
+    type: 'practice',
+    status: 'completed',
+    done: 30,
+    pending: 0,
+    action: 'View result',
+  },
+];
