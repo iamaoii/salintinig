@@ -1,7 +1,7 @@
-import sipagAtTalino from '../assets/badge-sipag-at-talino.png';
-import tenthDayStreak from '../assets/badge-10th-day-streak.png';
-import earlyBadge from '../assets/badge-early-badge.png';
-import gandaAtTalino from '../assets/badge-ganda-at-talino.png';
+import sipagAtTalino from '../assets/badges/sipag_talino_badge.webp';
+import tenthDayStreak from '../assets/badges/10_day_streak_badge.webp';
+import earlyBadge from '../assets/badges/early_bird_badge.webp';
+import gandaAtTalino from '../assets/badges/ganda_talino_badge.webp';
 
 export const badgesByLrn = {
   '136670100091': [

@@ -1,34 +1,34 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import Login from './pages/Login.jsx';
-import ForgotPasswordEmail from './pages/ForgotPasswordEmail.jsx';
-import EnterCode from './pages/EnterCode.jsx';
-import EnterNewPassword from './pages/EnterNewPassword.jsx';
-import PasswordChangedSuccess from './pages/PasswordChangedSuccess.jsx';
-import SignupEmail from './pages/SignupEmail.jsx';
-import RequestSent from './pages/RequestSent.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
+import Login from './pages/auth/Login.jsx';
+import ForgotPasswordEmail from './pages/auth/ForgotPasswordEmail.jsx';
+import EnterCode from './pages/auth/EnterCode.jsx';
+import EnterNewPassword from './pages/auth/EnterNewPassword.jsx';
+import PasswordChangedSuccess from './pages/auth/PasswordChangedSuccess.jsx';
+import SignupEmail from './pages/auth/SignupEmail.jsx';
+import RequestSent from './pages/auth/RequestSent.jsx';
+import ProtectedRoute from './components/common/ProtectedRoute.jsx';
 import { isLoggedIn } from './lib/auth.js';
 
 import DashboardLayout from './pages/dashboard/DashboardLayout.jsx';
-import OverviewLayout from './pages/dashboard/OverviewLayout.jsx';
-import OverviewActivities from './pages/dashboard/OverviewActivities.jsx';
-import OverviewForms from './pages/dashboard/OverviewForms.jsx';
-import OverviewPeople from './pages/dashboard/OverviewPeople.jsx';
-import AccountSettings from './pages/dashboard/AccountSettings.jsx';
-import EditAvatar from './pages/dashboard/EditAvatar.jsx';
-import StudentDashboardLayout from './pages/dashboard/StudentDashboardLayout.jsx';
-import StudentMasterlist from './pages/dashboard/StudentMasterlist.jsx';
-import StudentProfile from './pages/dashboard/StudentProfile.jsx';
-import ClassActivities from './pages/dashboard/ClassActivities.jsx';
-import ActivityFormPage from './pages/dashboard/ActivityFormPage.jsx';
-import ActivitySuccess from './pages/dashboard/ActivitySuccess.jsx';
-import PhilIriLayout from './pages/dashboard/PhilIriLayout.jsx';
-import PhilIriForm1 from './pages/dashboard/PhilIriForm1.jsx';
-import PhilIriForm2 from './pages/dashboard/PhilIriForm2.jsx';
-import PhilIriForm3List from './pages/dashboard/PhilIriForm3List.jsx';
-import PhilIriForm3Detail from './pages/dashboard/PhilIriForm3Detail.jsx';
-import PhilIriForm4Detail from './pages/dashboard/PhilIriForm4Detail.jsx';
-import PhilIriExportSuccess from './pages/dashboard/PhilIriExportSuccess.jsx';
+import OverviewLayout from './pages/dashboard/overview/OverviewLayout.jsx';
+import OverviewActivities from './pages/dashboard/overview/OverviewActivities.jsx';
+import OverviewForms from './pages/dashboard/overview/OverviewForms.jsx';
+import OverviewPeople from './pages/dashboard/overview/OverviewPeople.jsx';
+import AccountSettings from './pages/dashboard/settings/AccountSettings.jsx';
+import EditAvatar from './pages/dashboard/settings/EditAvatar.jsx';
+import StudentDashboardLayout from './pages/dashboard/student/StudentDashboardLayout.jsx';
+import StudentMasterlist from './pages/dashboard/student/StudentMasterlist.jsx';
+import StudentProfile from './pages/dashboard/student/StudentProfile.jsx';
+import ClassActivities from './pages/dashboard/activities/ClassActivities.jsx';
+import ActivityFormPage from './pages/dashboard/activities/ActivityFormPage.jsx';
+import ActivitySuccess from './pages/dashboard/activities/ActivitySuccess.jsx';
+import PhilIriLayout from './pages/dashboard/phil-iri/PhilIriLayout.jsx';
+import PhilIriForm1 from './pages/dashboard/phil-iri/PhilIriForm1.jsx';
+import PhilIriForm2 from './pages/dashboard/phil-iri/PhilIriForm2.jsx';
+import PhilIriForm3List from './pages/dashboard/phil-iri/PhilIriForm3List.jsx';
+import PhilIriForm3Detail from './pages/dashboard/phil-iri/PhilIriForm3Detail.jsx';
+import PhilIriForm4Detail from './pages/dashboard/phil-iri/PhilIriForm4Detail.jsx';
+import PhilIriExportSuccess from './pages/dashboard/phil-iri/PhilIriExportSuccess.jsx';
 
 export default function App() {
   return (
@@ -53,7 +53,7 @@ export default function App() {
         <Route index element={<Navigate to="overview" replace />} />
 
         <Route path="overview" element={<OverviewLayout />}>
-          <Route index element={<Navigate to="activities" replace />} />
+          <Route index element={<Navigate to="forms" replace />} />
           <Route path="activities" element={<OverviewActivities />} />
           <Route path="forms" element={<OverviewForms />} />
           <Route path="people" element={<OverviewPeople />} />
