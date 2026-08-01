@@ -114,26 +114,26 @@ export default function AdminProfile() {
           {/* User Details Overview */}
           <div className="grid flex-1 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-ink/50 font-medium">Administrator Name</p>
+              <p className="text-xs text-ink/50 font-medium">Institution Name</p>
               <p className="text-lg font-bold text-ink">
-                {currentUser?.name || 'Antoinette Jadaone'}, Ph.D.
+                {currentUser?.name || 'Mandaluyong Elementary School'}
               </p>
             </div>
 
             <div>
-              <p className="text-xs text-ink/50 font-medium">Designation / Title</p>
-              <p className="text-lg font-bold text-ink">Principal IV</p>
+              <p className="text-xs text-ink/50 font-medium">Designation / Role</p>
+              <p className="text-lg font-bold text-ink">Official School Admin Portal</p>
             </div>
 
             <div>
-              <p className="text-xs text-ink/50 font-medium">Employee ID</p>
+              <p className="text-xs text-ink/50 font-medium">DepEd School ID</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-lg font-bold text-ink font-mono">EMP-2024-000</p>
+                <p className="text-lg font-bold text-ink font-mono">109283</p>
                 <button
                   type="button"
                   onClick={handleCopyId}
                   className="text-ink/40 hover:text-ink transition-colors cursor-pointer"
-                  title="Copy Employee ID"
+                  title="Copy School ID"
                 >
                   <Copy size={18} />
                 </button>
@@ -142,16 +142,16 @@ export default function AdminProfile() {
             </div>
 
             <div>
-              <p className="text-xs text-ink/50 font-medium">DepEd Email</p>
+              <p className="text-xs text-ink/50 font-medium">Official DepEd Email</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-base font-bold text-ink truncate">
-                  {currentUser?.email || 'antoinette.j@deped.gov.ph'}
+                  {currentUser?.email || '109283@deped.gov.ph'}
                 </p>
                 <button
                   type="button"
                   onClick={handleCopyEmail}
                   className="text-ink/40 hover:text-ink transition-colors cursor-pointer shrink-0"
-                  title="Copy Email"
+                  title="Copy Official Email"
                 >
                   <Copy size={18} />
                 </button>
@@ -162,11 +162,11 @@ export default function AdminProfile() {
             <div className="sm:col-span-2 pt-3 border-t border-ink/10 flex flex-wrap items-center justify-between gap-4 text-xs">
               <div className="flex items-center gap-2 text-ink/70">
                 <Building size={16} className="text-brand-blue" />
-                <span>SalinTinig Elementary School • School ID: <strong>109283</strong></span>
+                <span>Division of City Schools • Region IV-A</span>
               </div>
               <div className="flex items-center gap-2 text-ink/70">
                 <CalendarBlank size={16} className="text-brand-red" />
-                <span>Administrator since: <strong>Aug 2021</strong></span>
+                <span>School Head: <strong>Dr. Maria Corazon Aquino</strong></span>
               </div>
             </div>
           </div>

@@ -43,7 +43,7 @@ export default function AdminDashboardHome() {
       value: adminStats.totalParentAccounts.toLocaleString(),
       subtitle: 'Registered portals',
       icon: Users,
-      link: '/admin/students',
+      link: '/admin/users',
       bgIcon: 'bg-green-100 text-green-700',
     },
     {

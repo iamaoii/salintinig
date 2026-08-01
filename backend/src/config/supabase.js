@@ -1,12 +1,16 @@
-const { createClient } = require('@supabase/supabase-js')
+const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables. Check your .env file.')
+let supabase = null;
+
+if (supabaseUrl && supabaseServiceKey && supabaseUrl.startsWith('http')) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+  } catch (e) {
+    console.warn('Supabase SDK initialization skipped.');
+  }
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-module.exports = supabase
+module.exports = supabase;

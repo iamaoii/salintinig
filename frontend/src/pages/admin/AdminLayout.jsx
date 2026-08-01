@@ -4,6 +4,7 @@ import {
   Student,
   ChalkboardTeacher,
   IdentificationCard,
+  UserGear,
   Bell,
   DotsThree,
 } from '@phosphor-icons/react';
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/admin/students', label: 'Student Records', icon: Student },
   { to: '/admin/teachers', label: 'Teacher Records', icon: ChalkboardTeacher },
   { to: '/admin/faculty-assignment', label: 'Sections & Faculty', icon: IdentificationCard },
+  { to: '/admin/users', label: 'User Accounts', icon: UserGear },
 ];
 
 const adminNotifications = [
@@ -109,15 +111,15 @@ export default function AdminLayout() {
                   className="pointer-events-none absolute right-0 top-0 h-full w-auto object-cover brightness-[3] mix-blend-screen"
                 />
 
-                <div className="relative z-10 flex flex-col items-start gap-2">
-                  <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold text-cream uppercase tracking-wider">
-                    Welcome, {currentUser?.name || 'Administrator'}!
+                <div className="relative z-10 flex flex-col items-start gap-2 max-w-[85%]">
+                  <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-bold text-cream uppercase tracking-wider">
+                    Welcome, Administrator!
                   </span>
-                  <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream">
-                    SalinTinig Elementary
+                  <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
+                    {currentUser?.name || 'Mandaluyong Elementary School'}
                   </h2>
                   <div className="flex flex-col gap-0.5 text-xs font-medium leading-tight text-cream/90">
-                    <p>School ID: 109283</p>
+                    <p>School ID: {currentUser?.schoolId || '109283'}</p>
                     <p>Division of City Schools • S.Y. 2026 - 2027</p>
                   </div>
                 </div>

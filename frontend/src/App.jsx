@@ -39,6 +39,7 @@ import TeacherProfile from './pages/admin/TeacherProfile.jsx';
 import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
 import AdminProfile from './pages/admin/AdminProfile.jsx';
+import AdminUserManagement from './pages/admin/AdminUserManagement.jsx';
 
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="faculty-assignment" element={<AdminFacultyAssignment />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="profile" element={<AdminProfile />} />
+        <Route path="users" element={<AdminUserManagement />} />
       </Route>
 
       <Route

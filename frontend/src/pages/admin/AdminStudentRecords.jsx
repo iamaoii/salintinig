@@ -303,6 +303,7 @@ export default function AdminStudentRecords() {
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Student Name</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Grade & Section</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Parent Access Code</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Email Address</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Status</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
@@ -311,7 +312,7 @@ export default function AdminStudentRecords() {
             <tbody>
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="border border-ink/10 p-6 text-center text-ink/40">
+                  <td colSpan={8} className="border border-ink/10 p-6 text-center text-ink/40">
                     No student records found matching your filters.
                   </td>
                 </tr>
@@ -324,6 +325,12 @@ export default function AdminStudentRecords() {
                       <span className="font-semibold">{std.grade}</span> - {std.section}
                     </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.gender}</td>
+                    <td className="border border-ink/10 p-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-2.5 py-0.5 font-mono text-xs font-bold text-brand-blue border border-brand-blue/20">
+                        <Key size={12} weight="bold" />
+                        <span>{std.parentAccessCode || `PAC-${std.lrn.slice(-5)}`}</span>
+                      </span>
+                    </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.personalEmail}</td>
                     <td className="border border-ink/10 p-2">
                       <div className="flex items-center gap-2">

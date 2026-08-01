@@ -13,12 +13,23 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // Routes
-// app.use('/api/auth', require('./routes/auth.routes'))
-// app.use('/api/recordings', require('./routes/recordings.routes'))
+app.use('/api/auth', require('./routes/auth.routes.js'))
+app.use('/api/admin', require('./routes/admin.routes.js'))
 
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'SalinTinig API is running 🎙️' })
+})
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'API route not found.' })
+})
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', err)
+  res.status(500).json({ success: false, error: 'Internal Server Error' })
 })
 
 app.listen(PORT, () => {

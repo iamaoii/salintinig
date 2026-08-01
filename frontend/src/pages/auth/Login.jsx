@@ -4,7 +4,7 @@ import { Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
 import TextField from '../../components/common/TextField.jsx';
 import PrimaryButton from '../../components/common/PrimaryButton.jsx';
-import { authenticate } from '../../lib/auth.js';
+import { authenticateAsync } from '../../lib/auth.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -13,16 +13,24 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setIsSubmitting(true);
 
-    const res = authenticate(username, password);
-    if (res.success) {
-      navigate(res.user.defaultPath);
-    } else {
-      setErrorMessage(res.error);
+    try {
+      const res = await authenticateAsync(username, password);
+      if (res.success) {
+        navigate(res.user.defaultPath);
+      } else {
+        setErrorMessage(res.error || 'Authentication failed.');
+      }
+    } catch (err) {
+      setErrorMessage('An unexpected error occurred during login.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -43,7 +51,7 @@ export default function Login() {
 
           <TextField
             type="text"
-            placeholder="Username / Teacher ID"
+            placeholder="Email / Teacher ID"
             required
             value={username}
             error={Boolean(errorMessage)}
@@ -92,7 +100,9 @@ export default function Login() {
           </div>
         </div>
 
-        <PrimaryButton type="submit">Log in</PrimaryButton>
+        <PrimaryButton type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Logging in...' : 'Log in'}
+        </PrimaryButton>
 
 
 
