@@ -7,7 +7,7 @@ import PasswordChangedSuccess from './pages/auth/PasswordChangedSuccess.jsx';
 import SignupEmail from './pages/auth/SignupEmail.jsx';
 import RequestSent from './pages/auth/RequestSent.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx';
-import { isLoggedIn } from './lib/auth.js';
+import { isLoggedIn, getUserRole } from './lib/auth.js';
 
 import DashboardLayout from './pages/dashboard/DashboardLayout.jsx';
 import OverviewLayout from './pages/dashboard/overview/OverviewLayout.jsx';
@@ -30,10 +30,26 @@ import PhilIriForm3Detail from './pages/dashboard/phil-iri/PhilIriForm3Detail.js
 import PhilIriForm4Detail from './pages/dashboard/phil-iri/PhilIriForm4Detail.jsx';
 import PhilIriExportSuccess from './pages/dashboard/phil-iri/PhilIriExportSuccess.jsx';
 
+import AdminLayout from './pages/admin/AdminLayout.jsx';
+import AdminDashboardHome from './pages/admin/AdminDashboardHome.jsx';
+import AdminStudentRecords from './pages/admin/AdminStudentRecords.jsx';
+import AdminStudentProfile from './pages/admin/AdminStudentProfile.jsx';
+import AdminTeacherRecords from './pages/admin/AdminTeacherRecords.jsx';
+import TeacherProfile from './pages/admin/TeacherProfile.jsx';
+import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
+import AdminSettings from './pages/admin/AdminSettings.jsx';
+import AdminProfile from './pages/admin/AdminProfile.jsx';
+
+function HomeRedirect() {
+  if (!isLoggedIn()) return <Navigate to="/login" replace />;
+  const role = getUserRole();
+  return <Navigate to={role === 'admin' ? '/admin/dashboard' : '/dashboard'} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={isLoggedIn() ? '/dashboard' : '/login'} replace />} />
+      <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPasswordEmail />} />
       <Route path="/forgot-password/code" element={<EnterCode />} />
@@ -41,6 +57,25 @@ export default function App() {
       <Route path="/forgot-password/success" element={<PasswordChangedSuccess />} />
       <Route path="/signup" element={<SignupEmail />} />
       <Route path="/signup/success" element={<RequestSent />} />
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRole="admin">
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<AdminDashboardHome />} />
+        <Route path="students" element={<AdminStudentRecords />} />
+        <Route path="students/:lrn" element={<AdminStudentProfile />} />
+        <Route path="teachers" element={<AdminTeacherRecords />} />
+        <Route path="teachers/:id" element={<TeacherProfile />} />
+        <Route path="faculty-assignment" element={<AdminFacultyAssignment />} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="profile" element={<AdminProfile />} />
+      </Route>
 
       <Route
         path="/dashboard"

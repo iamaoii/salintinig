@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import { House, PresentationChart, Article, FlagPennant, Gear } from '@phosphor-icons/react';
+import { House, PresentationChart, Article, FlagPennant } from '@phosphor-icons/react';
 import logo from '../../../assets/logo/logo.webp';
-import Avatar from '../student/Avatar.jsx';
+import ProfileDropdown from './ProfileDropdown.jsx';
 
 const NAV_ITEMS = [
   { to: '/dashboard/overview', label: 'Overview', icon: House },
@@ -49,17 +49,9 @@ export default function TopNav() {
           ))}
         </nav>
 
-        {/* Account Settings */}
+        {/* User Profile Dropdown */}
         <div className="flex shrink-0 items-center gap-3 sm:gap-4">
-          <NavLink
-            to="/dashboard/account"
-            className="flex size-9 items-center justify-center rounded-full text-ink/60 transition-colors hover:bg-ink/5 hover:text-ink"
-          >
-            <Gear size={21} weight="regular" />
-          </NavLink>
-          <NavLink to="/dashboard/account" className="transition-transform hover:scale-105">
-            <Avatar name="Ted Mosby" size={35} />
-          </NavLink>
+          <ProfileDropdown role="teacher" />
         </div>
       </div>
     </header>

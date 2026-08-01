@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { ChartLineUp } from '@phosphor-icons/react';
+import { ChartLineUp, Prohibit, UserSwitch } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../../components/dashboard/progress/StatCard.jsx';
@@ -45,14 +45,33 @@ function withPlaceholders(items) {
 
 export default function StudentProfile() {
   const { lrn } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Activities');
   const student = students.find((s) => s.lrn === lrn) ?? students[0];
-  const badges = withPlaceholders(badgesByLrn[student.lrn] ?? []);
-  const stories = storiesByLrn[student.lrn] ?? [];
+  const rawBadges = (badgesByLrn[student.lrn] && badgesByLrn[student.lrn].length > 0)
+    ? badgesByLrn[student.lrn]
+    : (badgesByLrn['136670100091'] || []);
+  const badges = withPlaceholders(rawBadges);
+
+  const stories = (storiesByLrn[student.lrn] && storiesByLrn[student.lrn].length > 0)
+    ? storiesByLrn[student.lrn]
+    : (storiesByLrn['136670100091'] || [
+        { id: 1, title: 'The Lost Kite', color: 'blue' },
+        { id: 2, title: 'Adventures in the Forest', color: 'green' },
+        { id: 3, title: 'The Brave Little Turtle', color: 'yellow' },
+      ]);
 
   return (
     <div>
-      <BackButton to="/dashboard/student-dashboard/all" size={20} />
+      {/* Top Back Navigation */}
+      <button
+        type="button"
+        onClick={() => navigate('/dashboard/student-dashboard/all')}
+        className="group inline-flex items-center gap-2.5 text-xs font-semibold text-ink/70 hover:text-ink transition-colors cursor-pointer"
+      >
+        <BackButton to="/dashboard/student-dashboard/all" size={20} />
+        <span className="group-hover:underline">Back to Students</span>
+      </button>
 
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4 py-2">
         <div className="flex items-center gap-5">

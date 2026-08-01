@@ -1,38 +1,69 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeSlash } from '@phosphor-icons/react';
+import { Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
 import TextField from '../../components/common/TextField.jsx';
 import PrimaryButton from '../../components/common/PrimaryButton.jsx';
-import { login } from '../../lib/auth.js';
+import { authenticate } from '../../lib/auth.js';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    login();
-    navigate('/dashboard');
+    setErrorMessage('');
+
+    const res = authenticate(username, password);
+    if (res.success) {
+      navigate(res.user.defaultPath);
+    } else {
+      setErrorMessage(res.error);
+    }
   };
 
   return (
     <AuthLayout photo="flag">
-      <form onSubmit={handleSubmit} className="flex w-full max-w-[420px] flex-col items-center gap-8">
-        <div className="flex flex-col items-center gap-2.5 text-center">
+      <form onSubmit={handleSubmit} className="flex w-full max-w-[420px] flex-col items-center gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-3xl font-bold text-ink">Welcome Back!</h1>
-          <p className="text-base text-ink/50">Login to continue</p>
+          <p className="text-base text-ink/50">Login to your account to continue</p>
         </div>
-
         <div className="flex w-full flex-col items-center gap-4">
-          <TextField type="text" placeholder="Username / Teacher ID" required />
+          {errorMessage && (
+            <div className="flex items-center gap-1.5 text-sm font-bold text-brand-red animate-in fade-in">
+              <WarningCircle size={18} weight="fill" className="shrink-0 text-brand-red" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <TextField
+            type="text"
+            placeholder="Username / Teacher ID"
+            required
+            value={username}
+            error={Boolean(errorMessage)}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (errorMessage) setErrorMessage('');
+            }}
+          />
 
           <div className="relative w-full">
             <TextField
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               required
+              value={password}
+              error={Boolean(errorMessage)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errorMessage) setErrorMessage('');
+              }}
               className="pr-12"
             />
             <button
@@ -62,6 +93,8 @@ export default function Login() {
         </div>
 
         <PrimaryButton type="submit">Log in</PrimaryButton>
+
+
 
         <p className="text-sm text-ink/50">
           Not registered yet?{' '}
