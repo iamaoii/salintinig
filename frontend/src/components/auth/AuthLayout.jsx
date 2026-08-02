@@ -8,7 +8,7 @@ import BackButton from '../common/BackButton.jsx';
 const BACKGROUNDS = [bgFlag, bgClassroom, bgClassroom2];
 let sharedIndex = 0;
 
-export default function AuthLayout({ showBack = false, backTo = '/login', children }) {
+export default function AuthLayout({ showBack = false, backTo = '/login', onBackClick, children }) {
   const [currentIndex, setCurrentIndex] = useState(sharedIndex);
 
   const setIndex = (val) => {
@@ -58,7 +58,7 @@ export default function AuthLayout({ showBack = false, backTo = '/login', childr
 
       <div className="flex-1 flex flex-col items-center justify-between px-6 py-8 sm:px-16 sm:py-10">
         <div className="w-full flex items-center justify-between">
-          {showBack ? <BackButton to={backTo} /> : <span className="hidden sm:block" />}
+          {showBack ? <BackButton to={backTo} onClick={onBackClick} /> : <span className="hidden sm:block" />}
           <div className={`flex items-center gap-2 ${showBack ? '' : 'mx-auto'}`}>
             <img
               src={logo}

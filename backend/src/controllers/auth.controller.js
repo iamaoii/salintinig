@@ -218,8 +218,30 @@ async function logout(req, res) {
   }
 }
 
+const { Resend } = require('resend');
+
+// In-memory store for active password reset verification codes
+const RESET_CODES = new Map();
+// In-memory store for IP-based global rate limiting (Protects Resend email tokens)
+const IP_REQUEST_LOG = new Map();
+
+// Periodic automatic cleanup of expired reset sessions every 60 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, record] of RESET_CODES.entries()) {
+    if (record.expiresAt && now > record.expiresAt + 3600000) {
+      RESET_CODES.delete(email);
+    }
+  }
+  for (const [ip, log] of IP_REQUEST_LOG.entries()) {
+    if (log.resetTime && now > log.resetTime) {
+      IP_REQUEST_LOG.delete(ip);
+    }
+  }
+}, 60000);
+
 /**
- * Forgot password request handler
+ * Forgot password request handler — Verifies email in database & sends email via Resend
  */
 async function forgotPassword(req, res) {
   try {
@@ -228,9 +250,208 @@ async function forgotPassword(req, res) {
       return res.status(400).json({ success: false, error: 'Email address is required.' });
     }
 
+    // Email format validation & length sanitization
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.length > 100 || !emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
+    }
+
+    // IP-Based Rate Limiting (Max 5 code requests per IP per 15 minutes to protect API tokens)
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const now = Date.now();
+    const ipData = IP_REQUEST_LOG.get(clientIp) || { count: 0, resetTime: now + 15 * 60 * 1000 };
+
+    if (now > ipData.resetTime) {
+      ipData.count = 0;
+      ipData.resetTime = now + 15 * 60 * 1000;
+    }
+
+    if (ipData.count >= 5) {
+      const minsRemaining = Math.ceil((ipData.resetTime - now) / 60000);
+      return res.status(429).json({
+        success: false,
+        error: `Too many password reset requests from this network. Please try again in ${minsRemaining} minute${minsRemaining > 1 ? 's' : ''}.`,
+      });
+    }
+
+    // Check database if user exists
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(
+          'SELECT user_id, email FROM users WHERE LOWER(email) = $1 LIMIT 1',
+          [cleanEmail]
+        );
+        if (!rows || rows.length === 0) {
+          return res.status(404).json({
+            success: false,
+            error: 'No account found matching that email address.',
+          });
+        }
+        dbUserFound = true;
+      } catch (dbErr) {
+        console.warn('Forgot password DB check notice:', dbErr.message);
+      }
+    }
+
+    // Rate Limiting: 60-second cooldown & Max 3 resends per hour check
+    const existingRecord = RESET_CODES.get(cleanEmail);
+    if (existingRecord) {
+      // Check max 3 resend attempts per hour first
+      const currentResends = existingRecord.resendCount || 1;
+      const hourlyElapsed = Date.now() - (existingRecord.firstSentAt || existingRecord.lastSentAt || Date.now());
+
+      if (currentResends >= 3 && hourlyElapsed < 3600000) {
+        const remainingMins = Math.ceil((3600000 - hourlyElapsed) / 60000);
+        return res.status(429).json({
+          success: false,
+          error: `Maximum resend limit (3) reached. Please wait ${remainingMins} minute${remainingMins > 1 ? 's' : ''} before requesting a new code.`,
+          maxResendsExceeded: true,
+          resendCount: currentResends,
+        });
+      }
+
+      if (existingRecord.lastSentAt) {
+        const elapsed = Date.now() - existingRecord.lastSentAt;
+        if (elapsed < 60000) {
+          const remainingSecs = Math.ceil((60000 - elapsed) / 1000);
+          return res.status(429).json({
+            success: false,
+            error: `Please wait ${remainingSecs} seconds before requesting a new code.`,
+            cooldownSeconds: remainingSecs,
+            resendCount: currentResends,
+          });
+        }
+      }
+    }
+
+    // Generate 6-digit verification code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const prevResendCount = existingRecord ? (existingRecord.resendCount || 0) : 0;
+    const firstSentAt = existingRecord && existingRecord.firstSentAt ? existingRecord.firstSentAt : Date.now();
+
+    // Update IP request count
+    ipData.count += 1;
+    IP_REQUEST_LOG.set(clientIp, ipData);
+
+    // Store in-memory with 10 minute expiration and 5 max verification attempts
+    RESET_CODES.set(cleanEmail, {
+      code: resetCode,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      lastSentAt: Date.now(),
+      firstSentAt: firstSentAt,
+      resendCount: prevResendCount + 1,
+      attempts: 0,
+      verified: false,
+    });
+
+    // Dispatch real email via Resend if actual API key is provided
+    if (
+      process.env.RESEND_API_KEY &&
+      process.env.RESEND_API_KEY.startsWith('re_') &&
+      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
+    ) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'SalinTinig <onboarding@resend.dev>',
+          to: cleanEmail,
+          subject: `${resetCode} is your SalinTinig Password Reset Code`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+              <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f7f5f0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f5f0; padding: 48px 16px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 18px; border: 1px solid #e5e0d8; box-shadow: 0 4px 14px rgba(26, 24, 22, 0.04); overflow: hidden;">
+                      
+                      <!-- Header Blue Accent Bar -->
+                      <tr>
+                        <td style="background-color: #165fd5; height: 5px;"></td>
+                      </tr>
+
+                      <!-- SalinTinig Brand Header (Matching Frontend Font & Colors) -->
+                      <tr>
+                        <td align="center" style="padding: 32px 36px 20px 36px;">
+                          <span style="font-size: 30px; font-weight: 800; color: #1a1816; letter-spacing: -0.6px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                            SalinTinig
+                          </span>
+                        </td>
+                      </tr>
+
+                      <!-- Decorative Divider -->
+                      <tr>
+                        <td style="padding: 0 36px;">
+                          <div style="border-bottom: 1px solid #f0ece1; width: 100%;"></div>
+                        </td>
+                      </tr>
+
+                      <!-- Main Email Content -->
+                      <tr>
+                        <td style="padding: 28px 36px 20px 36px; text-align: center;">
+                          <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #1a1816; line-height: 1.3; font-family: 'Inter', sans-serif;">
+                            Password Reset Verification
+                          </h1>
+                          <p style="margin: 0 0 24px 0; font-size: 15px; color: #6e6a63; line-height: 1.6; font-family: 'Inter', sans-serif;">
+                            We received a request to reset your account password for <strong style="color: #1a1816;">${cleanEmail}</strong>. Please enter the verification code below:
+                          </p>
+
+                          <!-- Solid Clean Verification Code Container -->
+                          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto 24px auto;">
+                            <tr>
+                              <td align="center" style="background-color: #f4f2ee; border: 1px solid #e0dad0; border-radius: 14px; padding: 22px 16px;">
+                                <span style="font-size: 38px; font-weight: 800; color: #165fd5; letter-spacing: 14px; font-family: 'Inter', 'Courier New', monospace; display: block; margin-left: 14px;">
+                                  ${resetCode}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <p style="margin: 0 0 18px 0; font-size: 13px; color: #88837a; line-height: 1.5; font-family: 'Inter', sans-serif;">
+                            This code is valid for <strong>10 minutes</strong>. Do not share this code with anyone.
+                          </p>
+                        </td>
+                      </tr>
+
+                      <!-- Footer Notice -->
+                      <tr>
+                        <td style="background-color: #faf8f4; padding: 20px 36px; border-top: 1px solid #f0ece1; text-align: center;">
+                          <p style="margin: 0 0 6px 0; font-size: 12px; color: #88837a; line-height: 1.5; font-family: 'Inter', sans-serif;">
+                            If you did not request a password reset, please ignore this email. Your account is completely safe.
+                          </p>
+                          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #b0aaa0; font-family: 'Inter', sans-serif;">
+                            &copy; 2026 SalinTinig. All rights reserved.
+                          </p>
+                        </td>
+                      </tr>
+
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+        });
+      } catch (resendErr) {
+        console.warn('Resend email error:', resendErr.message);
+      }
+    }
+
     return res.json({
       success: true,
+      email: cleanEmail,
       message: 'Password reset code sent to registered email address.',
+      cooldownSeconds: 60,
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to process forgot password.' });
@@ -238,13 +459,189 @@ async function forgotPassword(req, res) {
 }
 
 /**
- * Reset password handler
+ * Get active password reset status (cooldown, remaining attempts, resend count)
+ */
+async function getResetStatus(req, res) {
+  try {
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email parameter is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const record = RESET_CODES.get(cleanEmail);
+
+    if (!record) {
+      return res.json({
+        success: true,
+        active: false,
+        cooldownSeconds: 0,
+        resendCount: 0,
+        maxResendsExceeded: false,
+      });
+    }
+
+    const elapsed = record.lastSentAt ? (Date.now() - record.lastSentAt) : 60000;
+    const remainingSecs = elapsed < 60000 ? Math.ceil((60000 - elapsed) / 1000) : 0;
+
+    const resendCount = record.resendCount || 1;
+    const hourlyElapsed = Date.now() - (record.firstSentAt || record.lastSentAt || Date.now());
+    const maxResendsExceeded = resendCount >= 3 && hourlyElapsed < 3600000;
+
+    return res.json({
+      success: true,
+      active: true,
+      cooldownSeconds: remainingSecs,
+      resendCount: resendCount,
+      maxResendsExceeded: maxResendsExceeded,
+      remainingAttempts: 5 - (record.attempts || 0),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to fetch reset status.' });
+  }
+}
+
+/**
+ * Verify reset code handler — Validates entered 6-digit code with max 5 attempts
+ */
+async function verifyResetCode(req, res) {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and verification code are required.',
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    const record = RESET_CODES.get(cleanEmail);
+
+    if (!record || record.codeInvalidated) {
+      return res.status(400).json({
+        success: false,
+        error: 'No active verification code found for this email. Please request a new code.',
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      record.codeInvalidated = true;
+      RESET_CODES.set(cleanEmail, record);
+      return res.status(400).json({
+        success: false,
+        error: 'Verification code has expired. Please request a new code.',
+      });
+    }
+
+    // Increment failed attempts
+    if (record.code !== cleanCode) {
+      record.attempts = (record.attempts || 0) + 1;
+      
+      if (record.attempts >= 5) {
+        record.codeInvalidated = true;
+        RESET_CODES.set(cleanEmail, record);
+        return res.status(400).json({
+          success: false,
+          error: 'Maximum verification attempts (5) exceeded. Please request a new code.',
+          maxAttemptsExceeded: true,
+        });
+      }
+
+      const remainingAttempts = 5 - record.attempts;
+      RESET_CODES.set(cleanEmail, record);
+
+      return res.status(400).json({
+        success: false,
+        error: `Incorrect verification code. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`,
+        remainingAttempts,
+      });
+    }
+
+    // Mark code as verified
+    record.verified = true;
+    RESET_CODES.set(cleanEmail, record);
+
+    return res.json({
+      success: true,
+      message: 'Verification code confirmed.',
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to verify reset code.' });
+  }
+}
+
+/**
+ * Invalidate active reset session when user navigates back to /forgot-password
+ */
+async function invalidateResetSession(req, res) {
+  try {
+    const { email } = req.body;
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const record = RESET_CODES.get(cleanEmail);
+      if (record) {
+        record.codeInvalidated = true;
+        record.verified = false;
+        record.code = null;
+        RESET_CODES.set(cleanEmail, record);
+      }
+    }
+    return res.json({ success: true, message: 'Reset session invalidated.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to invalidate reset session.' });
+  }
+}
+
+/**
+ * Reset password handler — Updates password_hash in PostgreSQL database
  */
 async function resetPassword(req, res) {
   try {
-    const { newPassword } = req.body;
+    const { email, code, newPassword } = req.body;
     if (!newPassword) {
       return res.status(400).json({ success: false, error: 'New password is required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long.',
+      });
+    }
+
+    const cleanPass = newPassword.trim();
+    const cleanEmail = email ? email.trim().toLowerCase() : null;
+
+    if (cleanEmail) {
+      const record = RESET_CODES.get(cleanEmail);
+      if (!record || record.codeInvalidated || !record.verified || (record.code && record.code !== code)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Verification session expired or already used. Please request a new code.',
+        });
+      }
+      
+      // Permanently invalidate code session and reset resend count after successful password update
+      record.codeInvalidated = true;
+      record.verified = false;
+      record.code = null;
+      record.resendCount = 0;
+      record.firstSentAt = null;
+      RESET_CODES.set(cleanEmail, record);
+    }
+
+    // Update database password_hash if email is provided
+    if (cleanEmail && process.env.DATABASE_URL) {
+      try {
+        await db.query(
+          'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
+          [cleanPass, cleanEmail]
+        );
+      } catch (dbErr) {
+        console.warn('Reset password DB update notice:', dbErr.message);
+      }
     }
 
     return res.json({
@@ -298,6 +695,9 @@ module.exports = {
   getMe,
   logout,
   forgotPassword,
+  getResetStatus,
+  verifyResetCode,
+  invalidateResetSession,
   resetPassword,
   register,
 };
