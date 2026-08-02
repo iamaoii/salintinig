@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Student,
@@ -26,6 +26,7 @@ export default function AdminDashboardHome() {
   const [accountRequests, setAccountRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [requestFilter, setRequestFilter] = useState('all');
 
   // Fetch pending account activation requests
   const fetchRequests = async () => {
@@ -97,6 +98,17 @@ export default function AdminDashboardHome() {
       setProcessingId(null);
     }
   };
+
+  const filteredRequests = useMemo(() => {
+    if (requestFilter === 'pending') return accountRequests.filter((r) => r.status === 'pending');
+    if (requestFilter === 'approved') return accountRequests.filter((r) => r.status === 'approved');
+    if (requestFilter === 'rejected') return accountRequests.filter((r) => r.status === 'rejected');
+    return accountRequests;
+  }, [accountRequests, requestFilter]);
+
+  const pendingCount = useMemo(() => {
+    return accountRequests.filter((r) => r.status === 'pending').length;
+  }, [accountRequests]);
 
   const STAT_CARDS = [
     {
@@ -213,28 +225,43 @@ export default function AdminDashboardHome() {
         </div>
       </div>
 
-      {/* Pending Teacher Activation Requests Section */}
+      {/* Account Activation Requests Section */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div className="flex items-center gap-2">
-            <UserCheck size={20} className="text-brand-blue" />
+            <UserCheck size={20} className="text-brand-red" />
             <div>
-              <h2 className="text-sm font-bold text-ink">Account Activation Requests</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-ink">Account Activation Requests</h2>
+                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                  {pendingCount} Pending
+                </span>
+              </div>
               <p className="text-xs text-ink/50">Teachers requesting credentials via Contact Admin form</p>
             </div>
           </div>
-          <span className="rounded-full bg-brand-blue/10 px-2.5 py-1 text-[11px] font-bold text-brand-blue">
-            {accountRequests.filter((r) => r.status === 'pending').length} Pending
-          </span>
+
+          <button
+            type="button"
+            onClick={() => navigate('/admin/requests')}
+            className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer shrink-0"
+          >
+            <span>View All</span>
+            <ArrowRight size={12} />
+          </button>
         </div>
 
         {loadingRequests ? (
           <p className="text-xs text-ink/50 py-4 text-center">Loading requests...</p>
-        ) : accountRequests.length === 0 ? (
-          <p className="text-xs text-ink/50 py-4 text-center">No pending activation requests at this time.</p>
+        ) : filteredRequests.length === 0 ? (
+          <p className="text-xs text-ink/50 py-4 text-center">
+            {requestFilter === 'all'
+              ? 'No account activation requests recorded yet.'
+              : `No ${requestFilter} activation requests found.`}
+          </p>
         ) : (
           <div className="mt-3 divide-y divide-ink/10 overflow-x-auto">
-            {accountRequests.map((req) => (
+            {filteredRequests.map((req) => (
               <div key={req.request_id || req.email} className="flex items-center justify-between py-2.5 px-2 hover:bg-ink/[0.02] rounded-xl transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-sm">
@@ -256,7 +283,7 @@ export default function AdminDashboardHome() {
                   </div>
                 </div>
 
-                {req.status === 'pending' && (
+                {req.status === 'pending' ? (
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
@@ -277,6 +304,10 @@ export default function AdminDashboardHome() {
                       <span>Reject</span>
                     </button>
                   </div>
+                ) : (
+                  <span className="text-[11px] font-semibold text-ink/40">
+                    {req.status === 'approved' ? 'Credentials Sent' : 'Request Processed'}
+                  </span>
                 )}
               </div>
             ))}
@@ -288,12 +319,23 @@ export default function AdminDashboardHome() {
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div>
-            <h2 className="text-sm font-bold text-ink">Recent Activities</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-ink">Recent Activities</h2>
+              <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                Real-time Log
+              </span>
+            </div>
             <p className="text-xs text-ink/50">Audit log of record uploads and administrative actions</p>
           </div>
-          <span className="rounded-full bg-brand-blue/10 px-2.5 py-1 text-[11px] font-bold text-brand-blue">
-            Real-time Log
-          </span>
+
+          <button
+            type="button"
+            onClick={() => navigate('/admin/activities')}
+            className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer shrink-0"
+          >
+            <span>View All</span>
+            <ArrowRight size={12} />
+          </button>
         </div>
 
         <div className="mt-2 divide-y divide-ink/10">

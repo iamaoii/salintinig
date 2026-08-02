@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   House,
   Student,
@@ -6,6 +6,8 @@ import {
   IdentificationCard,
   Bell,
   DotsThree,
+  UserCheck,
+  ArrowRight,
 } from '@phosphor-icons/react';
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
@@ -41,6 +43,7 @@ const adminNotifications = [
 ];
 
 export default function AdminLayout() {
+  const navigate = useNavigate();
   const currentUser = getUser();
   const location = useLocation();
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
@@ -133,9 +136,19 @@ export default function AdminLayout() {
 
               {/* Notification Card */}
               <div className="rounded-2xl border border-ink/5 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
-                <div className="mb-4 flex items-center gap-2">
-                  <Bell size={20} />
-                  <h3 className="font-semibold text-ink">Notification</h3>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bell size={20} className="text-brand-red" />
+                    <h3 className="font-semibold text-ink">Notification</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin/notifications')}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer"
+                  >
+                    <span>View All</span>
+                    <ArrowRight size={12} />
+                  </button>
                 </div>
                 <div className="flex flex-col divide-y divide-ink/10">
                   {adminNotifications.map((n) => (
