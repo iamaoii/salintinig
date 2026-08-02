@@ -4,7 +4,6 @@ import {
   Student,
   ChalkboardTeacher,
   IdentificationCard,
-  UserGear,
   Bell,
   DotsThree,
 } from '@phosphor-icons/react';
@@ -18,7 +17,6 @@ const NAV_ITEMS = [
   { to: '/admin/students', label: 'Student Records', icon: Student },
   { to: '/admin/teachers', label: 'Teacher Records', icon: ChalkboardTeacher },
   { to: '/admin/faculty-assignment', label: 'Sections & Faculty', icon: IdentificationCard },
-  { to: '/admin/users', label: 'User Accounts', icon: UserGear },
 ];
 
 const adminNotifications = [
