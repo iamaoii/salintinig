@@ -18,6 +18,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../components/dashboard/progress/StatCard.jsx';
 import AccuracyTrendChart from '../../components/dashboard/progress/AccuracyTrendChart.jsx';
@@ -114,14 +115,9 @@ export default function AdminStudentProfile() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="space-y-6">
 
       {/* Top Back Navigation */}
       <button
@@ -323,5 +319,6 @@ export default function AdminStudentProfile() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import { initialAdminTeachers, sectionsByGrade } from '../../data/adminData.js';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminTeacherRecords() {
   const navigate = useNavigate();
@@ -108,7 +109,7 @@ export default function AdminTeacherRecords() {
   };
 
   const handleToggleStatus = (tch) => {
-    const newStatus = tch.status === 'Active' ? 'Inactive' : 'Active';
+    const newStatus = tch.status === 'Disabled' ? 'Active' : 'Disabled';
     setTeachers((prev) =>
       prev.map((t) => (t.id === tch.id ? { ...t, status: newStatus } : t))
     );
@@ -167,14 +168,9 @@ export default function AdminTeacherRecords() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="space-y-6">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -257,7 +253,7 @@ export default function AdminTeacherRecords() {
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">DepEd Email</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Assigned Class</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Role</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Account Status</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -295,30 +291,30 @@ export default function AdminTeacherRecords() {
                         </span>
                       )}
                     </td>
-                    <td className="border border-ink/10 p-2">
+                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(tch)}
                           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            tch.status === 'Active' ? 'bg-[#00a652]' : 'bg-ink/20'
+                            tch.status === 'Disabled' ? 'bg-ink/20' : 'bg-[#00a652]'
                           }`}
                           role="switch"
-                          aria-checked={tch.status === 'Active'}
-                          title={tch.status === 'Active' ? 'Click to Disable Account' : 'Click to Enable Account'}
+                          aria-checked={tch.status !== 'Disabled'}
+                          title={tch.status === 'Disabled' ? 'Click to Enable Account' : 'Click to Disable Account'}
                         >
                           <span
                             className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              tch.status === 'Active' ? 'translate-x-4' : 'translate-x-0'
+                              tch.status === 'Disabled' ? 'translate-x-0' : 'translate-x-4'
                             }`}
                           />
                         </button>
                         <span
-                          className={`text-xs font-bold ${
-                            tch.status === 'Active' ? 'text-[#00a652]' : 'text-brand-red'
+                          className={`text-xs font-bold inline-block min-w-[55px] ${
+                            tch.status === 'Disabled' ? 'text-brand-red' : 'text-[#00a652]'
                           }`}
                         >
-                          {tch.status}
+                          {tch.status === 'Disabled' ? 'Disabled' : 'Active'}
                         </span>
                       </div>
                     </td>
@@ -789,5 +785,6 @@ export default function AdminTeacherRecords() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -9,6 +9,7 @@ import {
   SignOut,
 } from '@phosphor-icons/react';
 import { logout } from '../../lib/auth.js';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
@@ -55,14 +56,9 @@ export default function AdminSettings() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="mx-auto max-w-4xl space-y-6">
 
       {/* Header */}
       <div>
@@ -243,5 +239,6 @@ export default function AdminSettings() {
         </button>
       </div>
     </div>
+    </>
   );
 }

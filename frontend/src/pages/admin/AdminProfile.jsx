@@ -18,6 +18,7 @@ import {
   House,
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 import BackButton from '../../components/common/BackButton.jsx';
 import { getUser, logout } from '../../lib/auth.js';
 
@@ -56,14 +57,9 @@ export default function AdminProfile() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="mx-auto max-w-4xl space-y-6">
 
       {/* Top Back Navigation */}
       <div className="flex items-center justify-between">
@@ -260,5 +256,6 @@ export default function AdminProfile() {
         </button>
       </div>
     </div>
+    </>
   );
 }

@@ -20,6 +20,7 @@ import {
   UserSwitch,
 } from '@phosphor-icons/react';
 import { initialAdminStudents } from '../../data/adminData.js';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -184,14 +185,9 @@ export default function AdminStudentRecords() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="space-y-6">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -305,7 +301,7 @@ export default function AdminStudentRecords() {
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Parent Access Code</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Email Address</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Status</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
                 <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -332,7 +328,7 @@ export default function AdminStudentRecords() {
                       </span>
                     </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.personalEmail}</td>
-                    <td className="border border-ink/10 p-2">
+                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -351,7 +347,7 @@ export default function AdminStudentRecords() {
                           />
                         </button>
                         <span
-                          className={`text-xs font-bold ${
+                          className={`text-xs font-bold inline-block min-w-[55px] ${
                             std.status === 'Disabled' ? 'text-brand-red' : 'text-[#00a652]'
                           }`}
                         >
@@ -718,5 +714,6 @@ export default function AdminStudentRecords() {
         </div>
       )}
     </div>
+    </>
   );
 }

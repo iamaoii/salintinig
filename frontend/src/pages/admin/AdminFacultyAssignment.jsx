@@ -11,6 +11,7 @@ import {
   IdentificationCard,
 } from '@phosphor-icons/react';
 import { initialFacultyAssignments, initialAdminTeachers, sectionsByGrade } from '../../data/adminData.js';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminFacultyAssignment() {
   const [assignments, setAssignments] = useState(initialFacultyAssignments);
@@ -191,14 +192,9 @@ export default function AdminFacultyAssignment() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl bg-[#00a652] px-4 py-3 text-xs font-semibold text-white shadow-lg animate-in fade-in">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <div className="space-y-6">
 
       {/* Standard Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -305,12 +301,12 @@ export default function AdminFacultyAssignment() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Grade Level</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Section Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Faculty-in-Charge</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Class Adviser</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Enrolled Students</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Actions</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[10%]">Grade Level</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[14%]">Section Name</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[20%]">Class Adviser</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[14%]">Enrolled Students</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[32%] whitespace-nowrap">Reading Level Profile</th>
+                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-right w-[10%]">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -323,16 +319,26 @@ export default function AdminFacultyAssignment() {
               ) : (
                 filteredSections.map((sec) => (
                   <tr key={sec.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-2.5 font-bold text-xs text-ink">{sec.gradeLevel}</td>
-                    <td className="border border-ink/10 p-2.5 font-semibold text-xs text-ink/90">{sec.sectionName}</td>
-                    <td className="border border-ink/10 p-2.5 text-xs text-ink/70">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
-                        <ChalkboardTeacher size={11} weight="bold" />
-                        <span>{sec.facultyInCharge}</span>
-                      </span>
+                    <td className="border border-ink/10 p-3 font-bold text-xs text-ink">{sec.gradeLevel}</td>
+                    <td className="border border-ink/10 p-3 font-semibold text-xs text-ink/90">{sec.sectionName}</td>
+                    <td className="border border-ink/10 p-3 text-xs text-ink/80">{sec.adviser}</td>
+                    <td className="border border-ink/10 p-3 text-xs text-ink/70">{sec.studentsCount} Students</td>
+                    <td className="border border-ink/10 p-3 text-xs whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span>12 Independent</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                          <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+                          <span>8 Instructional</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">
+                          <span className="size-2 rounded-full bg-red-500 shrink-0" />
+                          <span>5 Frustrational</span>
+                        </span>
+                      </div>
                     </td>
-                    <td className="border border-ink/10 p-2.5 text-xs text-ink/80">{sec.adviser}</td>
-                    <td className="border border-ink/10 p-2.5 text-xs text-ink/70">{sec.studentsCount} Students</td>
                     <td className="border border-ink/10 p-2.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -531,5 +537,6 @@ export default function AdminFacultyAssignment() {
         </div>
       )}
     </div>
+    </>
   );
 }
