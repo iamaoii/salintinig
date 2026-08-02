@@ -19,4 +19,9 @@ router.post('/students', adminController.createStudent);
 router.post('/import-csv', adminController.batchImportCSV);
 router.post('/faculty-assignment', adminController.assignFaculty);
 
+// Account Requests Management
+router.get('/account-requests', adminController.getAccountRequests);
+router.post('/account-requests/:id/approve', adminController.approveAccountRequest);
+router.post('/account-requests/:id/reject', adminController.rejectAccountRequest);
+
 module.exports = router;

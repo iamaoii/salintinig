@@ -391,3 +391,19 @@ CREATE TABLE IF NOT EXISTS teacher_feedback (
     recommendation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- -----------------------------------------------------------------------------
+-- 10. ACCOUNT REQUESTS (CONTACT ADMIN / TEACHER ACTIVATION)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS account_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    contact_number VARCHAR(50),
+    grade_subject VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

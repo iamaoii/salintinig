@@ -5,6 +5,7 @@ const { verifyToken, requireRole } = require('../middleware/auth.middleware.js')
 
 // Public routes
 router.post('/login', authController.login);
+router.post('/contact-admin', authController.contactAdmin);
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/reset-status', authController.getResetStatus);
 router.post('/verify-reset-code', authController.verifyResetCode);

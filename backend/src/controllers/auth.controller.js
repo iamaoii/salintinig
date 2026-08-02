@@ -690,10 +690,145 @@ async function register(req, res) {
   }
 }
 
+/**
+ * Contact Admin Request Handler — Saves activation request in DB & sends Resend notification to School Admin
+ */
+async function contactAdmin(req, res) {
+  try {
+    const { schoolId, fullName, email, contactNumber, gradeSubject } = req.body;
+
+    if (!schoolId || !fullName || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'School ID, Full Name, and Email are required.',
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanSchoolId = schoolId.trim();
+
+    // 1. Verify if user already has an active account
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows: existingUser } = await db.query(
+          'SELECT user_id FROM users WHERE LOWER(email) = $1 LIMIT 1',
+          [cleanEmail]
+        );
+        if (existingUser && existingUser.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'An account with this email address already exists. Please log in or reset your password.',
+          });
+        }
+
+        // Save request in account_requests table
+        await db.query(
+          `INSERT INTO account_requests (school_id, full_name, email, contact_number, grade_subject)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [cleanSchoolId, fullName.trim(), cleanEmail, contactNumber || null, gradeSubject || null]
+        );
+      } catch (dbErr) {
+        console.warn('Account request DB notice:', dbErr.message);
+      }
+    }
+
+    // 2. Fetch Admin Email for this school
+    let adminEmail = 'admin@gmail.com';
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows: schoolRows } = await db.query(
+          'SELECT official_email FROM schools WHERE school_id = $1 LIMIT 1',
+          [cleanSchoolId]
+        );
+        if (schoolRows && schoolRows.length > 0 && schoolRows[0].official_email) {
+          adminEmail = schoolRows[0].official_email;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Dispatch Resend notification email to School Admin
+    if (
+      process.env.RESEND_API_KEY &&
+      process.env.RESEND_API_KEY.startsWith('re_') &&
+      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
+    ) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'SalinTinig <onboarding@resend.dev>',
+          to: adminEmail,
+          subject: `New Teacher Activation Request from ${fullName}`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <link rel="preconnect" href="https://fonts.googleapis.com">
+              <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+              <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f7f5f0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f5f0; padding: 48px 16px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 18px; border: 1px solid #e5e0d8; box-shadow: 0 4px 14px rgba(26, 24, 22, 0.04); overflow: hidden;">
+                      <tr>
+                        <td style="background-color: #165fd5; height: 5px;"></td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding: 32px 36px 20px 36px;">
+                          <span style="font-size: 30px; font-weight: 800; color: #1a1816; letter-spacing: -0.6px;">SalinTinig</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 0 36px;"><div style="border-bottom: 1px solid #f0ece1; width: 100%;"></div></td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 28px 36px 20px 36px;">
+                          <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #1a1816;">New Teacher Account Request</h1>
+                          <p style="margin: 0 0 20px 0; font-size: 15px; color: #6e6a63; line-height: 1.6;">A teacher has submitted an account activation request for School ID <strong>${cleanSchoolId}</strong>:</p>
+                          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f2ee; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Full Name:</strong> ${fullName}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Email:</strong> ${cleanEmail}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Contact Number:</strong> ${contactNumber || 'N/A'}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Grade / Subject:</strong> ${gradeSubject || 'N/A'}</td></tr>
+                          </table>
+                          <p style="margin: 0 0 18px 0; font-size: 14px; color: #6e6a63;">Log in to your Admin Dashboard to review and approve this request.</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="background-color: #faf8f4; padding: 20px 36px; border-top: 1px solid #f0ece1; text-align: center;">
+                          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #b0aaa0;">&copy; 2026 SalinTinig. All rights reserved.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `,
+        });
+      } catch (resendErr) {
+        console.warn('Contact Admin email notice:', resendErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Account request submitted successfully. The school admin will review your request.',
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to submit account request.' });
+  }
+}
+
 module.exports = {
   login,
   getMe,
   logout,
+  contactAdmin,
   forgotPassword,
   getResetStatus,
   verifyResetCode,

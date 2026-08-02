@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Student,
@@ -14,12 +14,89 @@ import {
   CheckCircle,
   FileCsv,
   SquaresFour,
+  Check,
+  X,
+  UserCheck,
 } from '@phosphor-icons/react';
 import { adminStats, recentActivities } from '../../data/adminData.js';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
   const [activities] = useState(recentActivities);
+  const [accountRequests, setAccountRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [processingId, setProcessingId] = useState(null);
+
+  // Fetch pending account activation requests
+  const fetchRequests = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/account-requests', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAccountRequests(data.requests || []);
+      }
+    } catch (err) {
+      console.warn('Could not fetch account requests:', err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const handleApprove = async (id, name) => {
+    if (processingId) return;
+    setProcessingId(id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`Account for ${name} approved successfully! Credentials sent via email.`);
+        fetchRequests();
+      } else {
+        alert(data.error || 'Failed to approve request.');
+      }
+    } catch (err) {
+      alert('Network error while approving request.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (processingId) return;
+    setProcessingId(id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchRequests();
+      }
+    } catch (err) {
+      alert('Error rejecting request.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const STAT_CARDS = [
     {
@@ -98,7 +175,7 @@ export default function AdminDashboardHome() {
         </div>
       </div>
 
-      {/* Summary Stat Cards - Single Horizontal Line (grid-cols-5) without badges */}
+      {/* Summary Stat Cards */}
       <div>
         <h2 className="text-sm font-bold text-ink mb-2.5">System Summary</h2>
         <div className="grid grid-cols-5 gap-2.5 w-full overflow-x-auto">
@@ -136,7 +213,78 @@ export default function AdminDashboardHome() {
         </div>
       </div>
 
-      {/* Recent Activities Section matching Teacher side card container */}
+      {/* Pending Teacher Activation Requests Section */}
+      <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+        <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+          <div className="flex items-center gap-2">
+            <UserCheck size={20} className="text-brand-blue" />
+            <div>
+              <h2 className="text-sm font-bold text-ink">Account Activation Requests</h2>
+              <p className="text-xs text-ink/50">Teachers requesting credentials via Contact Admin form</p>
+            </div>
+          </div>
+          <span className="rounded-full bg-brand-blue/10 px-2.5 py-1 text-[11px] font-bold text-brand-blue">
+            {accountRequests.filter((r) => r.status === 'pending').length} Pending
+          </span>
+        </div>
+
+        {loadingRequests ? (
+          <p className="text-xs text-ink/50 py-4 text-center">Loading requests...</p>
+        ) : accountRequests.length === 0 ? (
+          <p className="text-xs text-ink/50 py-4 text-center">No pending activation requests at this time.</p>
+        ) : (
+          <div className="mt-3 divide-y divide-ink/10 overflow-x-auto">
+            {accountRequests.map((req) => (
+              <div key={req.request_id || req.email} className="flex items-center justify-between py-2.5 px-2 hover:bg-ink/[0.02] rounded-xl transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-sm">
+                    {(req.full_name || 'T')[0]}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-ink">{req.full_name}</h4>
+                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                        req.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        req.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {req.status ? req.status.toUpperCase() : 'PENDING'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-ink/60">{req.email} &bull; School ID: {req.school_id}</p>
+                    {req.grade_subject && <span className="text-[10px] text-ink/40">Grade/Subject: {req.grade_subject}</span>}
+                  </div>
+                </div>
+
+                {req.status === 'pending' && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={processingId === (req.request_id || req.email)}
+                      onClick={() => handleApprove(req.request_id || req.email, req.full_name)}
+                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Check size={14} weight="bold" />
+                      <span>Approve</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={processingId === (req.request_id || req.email)}
+                      onClick={() => handleReject(req.request_id || req.email)}
+                      className="flex items-center gap-1 rounded-lg border border-ink/10 bg-cream px-2.5 py-1.5 text-xs font-semibold text-ink/70 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <X size={14} weight="bold" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recent Activities Section */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div>
