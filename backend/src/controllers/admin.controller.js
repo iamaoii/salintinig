@@ -9,6 +9,77 @@ function generateParentAccessCode() {
   return `PAC-${randomNum}`;
 }
 
+/**
+ * Helper to generate a random 8-character temporary password
+ */
+function generateTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let tempPass = 'St-';
+  for (let i = 0; i < 6; i++) {
+    tempPass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return tempPass;
+}
+
+/**
+ * Helper to send Welcome email with temporary credentials via Resend API
+ */
+async function sendWelcomeEmailWithTempPassword({ toEmail, fullName, role, tempPassword, identifier }) {
+  if (!toEmail) return;
+  try {
+    if (
+      process.env.RESEND_API_KEY &&
+      process.env.RESEND_API_KEY.startsWith('re_') &&
+      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
+    ) {
+      const { Resend } = require('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: 'SalinTinig <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: `Welcome to SalinTinig — Your Temporary Account Credentials`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;">
+              <h1 style="color: #1e3a8a; margin: 0; font-size: 24px;">SalinTinig 🎙️</h1>
+              <p style="color: #64748b; font-size: 14px; margin-top: 4px;">DepEd Phil-IRI Educational Portal</p>
+            </div>
+            
+            <div style="padding: 20px 0;">
+              <p style="font-size: 15px; color: #1e293b;">Hello <strong>${fullName}</strong>,</p>
+              <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+                An official <strong>${role.toUpperCase()}</strong> account has been registered for you on the SalinTinig portal. Here are your temporary login credentials:
+              </p>
+              
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0;">
+                <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b;">
+                  <strong>Portal ID / Email:</strong> <code style="background: #e2e8f0; padding: 3px 8px; border-radius: 6px; color: #0f172a; font-size: 14px;">${identifier || toEmail}</code>
+                </p>
+                <p style="margin: 0; font-size: 13px; color: #64748b;">
+                  <strong>Temporary Password:</strong> <code style="background: #fee2e2; padding: 3px 8px; border-radius: 6px; color: #dc2626; font-size: 15px; font-weight: bold;">${tempPassword}</code>
+                </p>
+              </div>
+
+              <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+                ⚠️ <strong>Important Security Notice:</strong> Please log in to your portal and update your temporary password upon your first login.
+              </p>
+            </div>
+
+            <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
+              <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+                This is an automated notification from the SalinTinig Educational Portal System.
+              </p>
+            </div>
+          </div>
+        `,
+      });
+      console.log(`✅ Welcome email with temporary password sent to ${toEmail}`);
+    }
+  } catch (err) {
+    console.warn(`⚠️ Failed to send welcome email to ${toEmail}:`, err.message);
+  }
+}
+
 // In-Memory Database Store for backend REST endpoints
 let teachersStore = [];
 let studentsStore = [];
@@ -36,6 +107,24 @@ function parseNameString(rawName = '') {
   };
 }
 
+async function getAdminSchoolId(req) {
+  if (req.user && (req.user.schoolId || req.user.school_id)) {
+    return req.user.schoolId || req.user.school_id;
+  }
+  if (req.user && req.user.email && process.env.DATABASE_URL) {
+    try {
+      const { rows } = await db.query(
+        `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+        [req.user.email]
+      );
+      if (rows && rows[0] && rows[0].school_id) {
+        return rows[0].school_id;
+      }
+    } catch (e) {}
+  }
+  return '109283';
+}
+
 /**
  * GET /api/admin/teachers — List all teachers
  */
@@ -43,6 +132,7 @@ async function getTeachers(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(`
           SELECT 
             t.teacher_id AS id,
@@ -51,9 +141,9 @@ async function getTeachers(req, res) {
             t.middle_name AS "middleName",
             t.last_name AS "lastName",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
-            'Female' AS gender,
+            COALESCE(t.sex, 'Male') AS gender,
             COALESCE(u.email, '') AS email,
-            COALESCE(c.grade_level, 'Grade 4') AS "gradeAssigned",
+            COALESCE(c.grade_level, 'Unassigned') AS "gradeAssigned",
             COALESCE(c.section_name, 'Unassigned') AS "sectionAssigned",
             CASE WHEN fic.teacher_id IS NOT NULL THEN true ELSE false END AS "isFacultyInCharge",
             CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
@@ -62,8 +152,9 @@ async function getTeachers(req, res) {
           LEFT JOIN users u ON t.user_id = u.user_id
           LEFT JOIN classes c ON c.advisor_teacher_id = t.teacher_id
           LEFT JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
+          WHERE (t.school_id = $1 OR u.school_id = $1 OR t.school_id IS NULL)
           ORDER BY t.created_at DESC
-        `);
+        `, [schoolId]);
 
         return res.json({ success: true, teachers: rows || [] });
       } catch (dbErr) {
@@ -109,6 +200,8 @@ async function createTeacher(req, res) {
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
     const cleanEmail = email?.trim() || `${cleanEmpId.toLowerCase()}@salintinig.edu.ph`;
 
+    const tempPassword = generateTempPassword();
+
     const newTeacherObj = {
       id: `TCH-${Date.now().toString().slice(-4)}`,
       employeeId: cleanEmpId,
@@ -127,23 +220,25 @@ async function createTeacher(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
+
         const { rows: userRows } = await db.query(
-          `INSERT INTO users (email, password_hash, role, status)
-           VALUES ($1, $2, 'teacher', 'active')
-           ON CONFLICT (email) DO UPDATE SET status = 'active'
+          `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
+           VALUES ($1, $2, $3, 'teacher', 'active', true)
+           ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [cleanEmail, 'TeacherPassword123!']
+          [schoolId, cleanEmail, tempPassword]
         );
 
         if (userRows && userRows[0]) {
           const userId = userRows[0].user_id;
 
           const { rows: tchRows } = await db.query(
-            `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5
+            `INSERT INTO teachers (user_id, school_id, teacher_no, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (teacher_no) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7
              RETURNING teacher_id`,
-            [userId, cleanEmpId, firstName, middleName || null, lastName]
+            [userId, schoolId, cleanEmpId, firstName, middleName || null, lastName, gender || 'Male']
           );
 
           if (tchRows && tchRows[0]) {
@@ -160,13 +255,22 @@ async function createTeacher(req, res) {
             // Assign as Lead Faculty-in-Charge if checked
             if (isFacultyInCharge) {
               await db.query(
-                `INSERT INTO faculty_in_charge (teacher_id, grade_level)
-                 VALUES ($1, $2)
+                `INSERT INTO faculty_in_charge (school_id, teacher_id, grade_level)
+                 VALUES ($1, $2, $3)
                  ON CONFLICT DO NOTHING`,
-                [teacherId, gradeAssigned || 'Grade 4']
+                [schoolId, teacherId, gradeAssigned || 'Grade 4']
               );
             }
           }
+
+          // Send welcome email with temporary credentials asynchronously
+          sendWelcomeEmailWithTempPassword({
+            toEmail: cleanEmail,
+            fullName,
+            role: 'Teacher',
+            tempPassword,
+            identifier: cleanEmpId || cleanEmail,
+          });
         }
       } catch (dbErr) {
         console.warn('DB create teacher notice:', dbErr.message);
@@ -177,7 +281,8 @@ async function createTeacher(req, res) {
 
     return res.status(201).json({
       success: true,
-      message: 'Teacher account created successfully.',
+      message: `Teacher account for ${fullName} created. Temporary password sent to ${cleanEmail}.`,
+      tempPassword,
       teacher: newTeacherObj,
     });
   } catch (error) {
@@ -193,6 +298,7 @@ async function getStudents(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(`
           SELECT DISTINCT ON (s.student_id)
             s.student_id AS id,
@@ -214,8 +320,9 @@ async function getStudents(req, res) {
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
           LEFT JOIN student_parents sp ON sp.student_id = s.student_id
+          WHERE (s.school_id = $1 OR u.school_id = $1 OR s.school_id IS NULL)
           ORDER BY s.student_id, s.created_at DESC
-        `);
+        `, [schoolId]);
 
         return res.json({ success: true, students: rows || [] });
       } catch (dbErr) {
@@ -259,27 +366,30 @@ async function createStudent(req, res) {
     lastName = (lastName || 'Learner').trim();
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
     const cleanEmail = personalEmail?.trim() || `${cleanLrn}@student.salintinig.edu.ph`;
+    const tempPassword = generateTempPassword();
     const parentAccessCode = generateParentAccessCode();
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
+
         const { rows: uRows } = await db.query(
-          `INSERT INTO users (email, password_hash, role, status)
-           VALUES ($1, $2, 'student', 'active')
-           ON CONFLICT (email) DO UPDATE SET status = 'active'
+          `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
+           VALUES ($1, $2, $3, 'student', 'active', true)
+           ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [cleanEmail, 'StudentPassword123!']
+          [schoolId, cleanEmail, tempPassword]
         );
 
         if (uRows && uRows[0]) {
           const userId = uRows[0].user_id;
 
           const { rows: sRows } = await db.query(
-            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+            `INSERT INTO students (user_id, school_id, lrn, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (lrn) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7
              RETURNING student_id`,
-            [userId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
+            [userId, schoolId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
           );
 
           if (sRows && sRows[0]) {
@@ -308,6 +418,15 @@ async function createStudent(req, res) {
                ON CONFLICT DO NOTHING`,
               [studentId, parentAccessCode]
             );
+
+            // Send welcome email with temporary credentials asynchronously
+            sendWelcomeEmailWithTempPassword({
+              toEmail: cleanEmail,
+              fullName,
+              role: 'Student',
+              tempPassword,
+              identifier: cleanLrn,
+            });
           }
         }
       } catch (dbErr) {
@@ -333,7 +452,9 @@ async function createStudent(req, res) {
 
     return res.status(201).json({
       success: true,
-      message: 'Student account created and Parent Access Code generated successfully.',
+      message: `Student record created. Temporary password sent to ${cleanEmail}.`,
+      tempPassword,
+      parentAccessCode,
       student: newStudent,
     });
   } catch (error) {
@@ -752,19 +873,24 @@ async function updateTeacher(req, res) {
            SET first_name = COALESCE($1, first_name),
                middle_name = COALESCE($2, middle_name),
                last_name = COALESCE($3, last_name),
+               sex = COALESCE($4, sex),
                updated_at = CURRENT_TIMESTAMP
-           WHERE teacher_id::text = $4 OR teacher_no = $4`,
-          [firstName || null, middleName || null, lastName || null, id]
+           WHERE teacher_id::text = $5 OR teacher_no = $5`,
+          [firstName || null, middleName || null, lastName || null, gender || null, id]
         );
 
-        if (gender) {
-          await db.query(
-            `UPDATE users SET sex = $1 WHERE user_id IN (SELECT user_id FROM teachers WHERE teacher_id::text = $2 OR teacher_no = $2)`,
-            [gender, id]
-          );
-        }
 
-        if (sectionAssigned) {
+
+        if (sectionAssigned === 'Unassigned' || gradeAssigned === 'Unassigned') {
+          await db.query(
+            `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1)`,
+            [id]
+          );
+        } else if (sectionAssigned) {
+          await db.query(
+            `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1)`,
+            [id]
+          );
           await db.query(
             `UPDATE classes SET advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1) WHERE grade_level = $2 AND section_name = $3`,
             [id, gradeAssigned || 'Grade 4', sectionAssigned]
@@ -791,13 +917,37 @@ async function deleteTeacher(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        await db.query(`DELETE FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1`, [id]);
+        const { rows } = await db.query(
+          `SELECT teacher_id, user_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1`,
+          [id]
+        );
+
+        if (rows && rows[0]) {
+          const teacherId = rows[0].teacher_id;
+          const userId = rows[0].user_id;
+
+          // 1. Unassign from class sections
+          await db.query(`UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`, [teacherId]);
+
+          // 2. Remove from faculty_in_charge
+          await db.query(`DELETE FROM faculty_in_charge WHERE teacher_id = $1`, [teacherId]);
+
+          // 3. Delete teacher profile record
+          await db.query(`DELETE FROM teachers WHERE teacher_id = $1`, [teacherId]);
+
+          // 4. Delete corresponding user account from users table
+          if (userId) {
+            await db.query(`DELETE FROM users WHERE user_id = $1`, [userId]);
+          }
+        }
       } catch (dbErr) {
         console.warn('DB delete teacher notice:', dbErr.message);
       }
     }
 
-    return res.json({ success: true, message: 'Teacher record deleted successfully.' });
+    teachersStore = teachersStore.filter((t) => t.id !== id && t.employeeId !== id);
+
+    return res.json({ success: true, message: 'Teacher record & login account removed. Historical student test scores preserved.' });
   } catch (error) {
     console.error('Error deleting teacher:', error);
     return res.status(500).json({ success: false, error: 'Failed to delete teacher record.' });
@@ -811,6 +961,7 @@ async function getSections(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(`
           SELECT 
             c.class_id AS id,
@@ -826,9 +977,10 @@ async function getSections(req, res) {
           LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
           LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = sgh.student_id
+          WHERE (c.school_id = $1 OR c.school_id IS NULL)
           GROUP BY c.class_id, c.grade_level, c.section_name, c.advisor_teacher_id, t.first_name, t.middle_name, t.last_name
           ORDER BY c.grade_level ASC, c.section_name ASC
-        `);
+        `, [schoolId]);
 
         const sectionsByGrade = {
           'Grade 4': [],
@@ -880,8 +1032,7 @@ async function createSection(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        const schoolRes = await db.query('SELECT school_id FROM schools LIMIT 1');
-        const schoolId = schoolRes.rows[0]?.school_id || '109283';
+        const schoolId = await getAdminSchoolId(req);
         const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
         const syId = syRes.rows[0]?.school_year_id || null;
 

@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase.js');
 
 /**
@@ -7,44 +8,33 @@ async function verifyToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // Allow demo/dev admin access if no token is provided in local dev mode
-      req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator' };
+      req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator', schoolId: '109283' };
       return next();
     }
 
     const token = authHeader.split(' ')[1];
 
-    // Attempt Supabase token verification if configured
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (!error && user) {
-          req.user = {
-            id: user.id,
-            email: user.email,
-            role: user.user_metadata?.role || 'admin',
-            name: user.user_metadata?.name || 'User',
-          };
-          return next();
-        }
-      } catch (err) {
-        console.warn('Supabase token verification fallback:', err.message);
+    // 1. Attempt standard JWT verification
+    const secret = process.env.JWT_SECRET || 'salintinig_super_secret_jwt_key_2026';
+    try {
+      const decoded = jwt.verify(token, secret);
+      if (decoded) {
+        req.user = decoded;
+        return next();
       }
-    }
+    } catch (jwtErr) {}
 
-    // Mock / Demo Fallback token parser
+    // 2. Attempt Base64 token parser
     try {
       const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
       if (decoded && (decoded.username || decoded.email)) {
         req.user = decoded;
         return next();
       }
-    } catch (e) {
-      // Invalid token format
-    }
+    } catch (bErr) {}
 
     // Fallback demo user
-    req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator' };
+    req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator', schoolId: '109283' };
     return next();
   } catch (error) {
     return res.status(500).json({

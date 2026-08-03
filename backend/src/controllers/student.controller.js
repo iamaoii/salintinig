@@ -330,13 +330,33 @@ async function deleteStudent(req, res) {
 
     if (isDbConfigured()) {
       try {
-        await db.query('DELETE FROM students WHERE lrn = $1', [lrn]);
+        const { rows } = await db.query(
+          `SELECT student_id, user_id FROM students WHERE lrn = $1 OR student_id::text = $1 LIMIT 1`,
+          [lrn]
+        );
+
+        if (rows && rows[0]) {
+          const studentId = rows[0].student_id;
+          const userId = rows[0].user_id;
+
+          // 1. Remove grade history & parent access link
+          await db.query(`DELETE FROM student_parents WHERE student_id = $1`, [studentId]);
+          await db.query(`DELETE FROM student_grade_history WHERE student_id = $1`, [studentId]);
+
+          // 2. Delete student profile record
+          await db.query(`DELETE FROM students WHERE student_id = $1`, [studentId]);
+
+          // 3. Delete corresponding user account from users table
+          if (userId) {
+            await db.query(`DELETE FROM users WHERE user_id = $1`, [userId]);
+          }
+        }
       } catch (dbErr) {
         console.warn('DB student delete notice:', dbErr.message);
       }
     }
 
-    return res.json({ success: true, message: `Student ${lrn} deleted successfully.` });
+    return res.json({ success: true, message: `Student record & user account deleted successfully.` });
   } catch (err) {
     console.error('Error deleting student:', err);
     return res.status(500).json({ success: false, error: 'Failed to delete student record.' });

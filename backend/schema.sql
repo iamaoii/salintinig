@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS teachers (
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
+    sex VARCHAR(20) DEFAULT 'Male',
     contact_number VARCHAR(50),
     profile_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -82,13 +83,14 @@ CREATE TABLE IF NOT EXISTS classes (
 
 CREATE TABLE IF NOT EXISTS faculty_in_charge (
     faculty_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
     teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE CASCADE,
     school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
     grade_level VARCHAR(50) NOT NULL, -- Lead Faculty for Grade 4, 5, or 6
     status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_faculty_grade UNIQUE (school_year_id, grade_level)
+    CONSTRAINT unique_faculty_grade UNIQUE (school_id, school_year_id, grade_level)
 );
 
 -- -----------------------------------------------------------------------------
@@ -372,11 +374,22 @@ CREATE TABLE IF NOT EXISTS reading_profiles (
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     notification_type VARCHAR(50),
     is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    action_type VARCHAR(100) NOT NULL,
+    details TEXT,
+    ip_address VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

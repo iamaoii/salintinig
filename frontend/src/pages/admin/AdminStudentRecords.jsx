@@ -178,7 +178,8 @@ export default function AdminStudentRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`Student ${studentName} added & account created!`);
+          const passMsg = data.tempPassword ? ` (Temp Pass: ${data.tempPassword})` : '';
+          showToast(`Student ${studentName} registered! Credentials sent to email${passMsg}.`);
           fetchStudents();
           setShowAddModal(false);
         } else {

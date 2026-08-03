@@ -41,6 +41,9 @@ async function initDatabase() {
     if (fs.existsSync(schemaPath)) {
       const sql = fs.readFileSync(schemaPath, 'utf8');
       await db.query(sql);
+      await db.query("ALTER TABLE teachers ADD COLUMN IF NOT EXISTS sex VARCHAR(20) DEFAULT 'Male';");
+      await db.query("ALTER TABLE faculty_in_charge ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
+      await db.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
       console.log('✅ Database schema verified & ready.');
     }
   } catch (err) {

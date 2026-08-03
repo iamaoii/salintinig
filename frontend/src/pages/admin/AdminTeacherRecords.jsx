@@ -43,10 +43,10 @@ export default function AdminTeacherRecords() {
     firstName: '',
     middleName: '',
     lastName: '',
-    gender: 'Female',
+    gender: 'Male',
     email: '',
-    gradeAssigned: 'Grade 4',
-    sectionAssigned: 'Fyang',
+    gradeAssigned: 'Unassigned',
+    sectionAssigned: 'Unassigned',
     isFacultyInCharge: false,
   });
 
@@ -155,6 +155,7 @@ export default function AdminTeacherRecords() {
           showToast(`Teacher record for ${teacherName} updated.`);
           fetchTeachers();
           setEditingTeacher(null);
+          setShowAddModal(false);
         } else {
           showToast(data.error || 'Failed to update teacher.');
         }
@@ -169,7 +170,8 @@ export default function AdminTeacherRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`Teacher ${teacherName} added & account created!`);
+          const passMsg = data.tempPassword ? ` (Temp Pass: ${data.tempPassword})` : '';
+          showToast(`Teacher ${teacherName} created! Credentials sent to email${passMsg}.`);
           fetchTeachers();
           setShowAddModal(false);
         } else {
@@ -298,11 +300,14 @@ export default function AdminTeacherRecords() {
             onClick={() => {
               setFormData({
                 employeeId: '',
-                name: '',
-                gender: 'Female',
+                firstName: '',
+                middleName: '',
+                lastName: '',
+                gender: 'Male',
                 email: '',
-                gradeAssigned: 'Grade 4',
-                sectionAssigned: 'Fyang',
+                gradeAssigned: 'Unassigned',
+                sectionAssigned: 'Unassigned',
+                isFacultyInCharge: false,
               });
               setEditingTeacher(null);
               setShowAddModal(true);
@@ -381,8 +386,12 @@ export default function AdminTeacherRecords() {
                       {tch.name}
                     </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{tch.email}</td>
-                    <td className="border border-ink/10 p-2 text-ink/80">
-                      <span className="font-semibold">{tch.gradeAssigned}</span> - {tch.sectionAssigned}
+                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">
+                      {(!tch.gradeAssigned || tch.gradeAssigned === 'Unassigned' || tch.sectionAssigned === 'Unassigned') ? (
+                        'Unassigned'
+                      ) : (
+                        <span><strong className="font-semibold text-ink">{tch.gradeAssigned}</strong> - {tch.sectionAssigned}</span>
+                      )}
                     </td>
                     <td className="border border-ink/10 p-2 text-xs">
                       {tch.isFacultyInCharge ? (
@@ -390,10 +399,14 @@ export default function AdminTeacherRecords() {
                           <ChalkboardTeacher size={13} weight="bold" />
                           <span>Faculty-in-Charge</span>
                         </span>
-                      ) : (
+                      ) : (tch.gradeAssigned && tch.gradeAssigned !== 'Unassigned' && tch.sectionAssigned !== 'Unassigned') ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-0.5 text-[11px] font-bold text-ink/80 border border-ink/15">
                           <UserSwitch size={13} weight="bold" />
                           <span>Class Adviser</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-0.5 text-[11px] font-medium text-ink/60 border border-ink/10">
+                          <span>Faculty Member</span>
                         </span>
                       )}
                     </td>
@@ -437,14 +450,27 @@ export default function AdminTeacherRecords() {
                           type="button"
                           onClick={() => {
                             setEditingTeacher(tch);
+                            let fn = tch.firstName || '';
+                            let mn = tch.middleName || '';
+                            let ln = tch.lastName || '';
+                            if (!fn && tch.name) {
+                              const parts = tch.name.trim().split(' ');
+                              fn = parts[0] || '';
+                              ln = parts.length > 1 ? parts[parts.length - 1] : '';
+                              mn = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+                            }
                             setFormData({
-                              employeeId: tch.employeeId,
-                              name: tch.name,
-                              gender: tch.gender,
-                              email: tch.email,
-                              gradeAssigned: tch.gradeAssigned,
-                              sectionAssigned: tch.sectionAssigned,
+                              employeeId: tch.employeeId || '',
+                              firstName: fn,
+                              middleName: mn,
+                              lastName: ln,
+                              gender: tch.gender || 'Female',
+                              email: tch.email || '',
+                              gradeAssigned: tch.gradeAssigned || 'Unassigned',
+                              sectionAssigned: tch.sectionAssigned || 'Unassigned',
+                              isFacultyInCharge: tch.isFacultyInCharge || false,
                             });
+                            setShowAddModal(true);
                           }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                           title="Edit Teacher"
@@ -651,99 +677,97 @@ export default function AdminTeacherRecords() {
             </div>
 
             <form onSubmit={handleSaveTeacher} className="mt-4 space-y-4 text-xs">
-              {/* Employee ID & Email */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-ink">
-                    DepEd Employee ID <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    placeholder="EMP-2024-XXX"
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue font-mono shadow-xs"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-ink">
-                    DepEd Email Address <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="teacher.name@deped.gov.ph"
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
-                  />
-                </div>
+              {/* DepEd Employee ID */}
+              <div>
+                <label className="font-semibold text-ink">
+                  DepEd Employee ID <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  placeholder="EMP-2024-XXX"
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue font-mono shadow-xs"
+                />
               </div>
 
-              {/* First Name & Middle Name */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-ink">
-                    First Name <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    placeholder="e.g. Maria"
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-ink">
-                    Middle Name <span className="text-ink/40 font-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.middleName}
-                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
-                    placeholder="e.g. Santos"
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
-                  />
-                </div>
+              {/* First Name */}
+              <div>
+                <label className="font-semibold text-ink">
+                  First Name <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="e.g. Maria"
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                />
               </div>
 
-              {/* Last Name & Sex/Gender */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-ink">
-                    Last Name <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    placeholder="e.g. Dela Cruz"
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
-                  />
-                </div>
+              {/* Middle Name */}
+              <div>
+                <label className="font-semibold text-ink">
+                  Middle Name <span className="text-ink/40 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.middleName}
+                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  placeholder="e.g. Santos"
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                />
+              </div>
 
-                <div>
-                  <label className="font-semibold text-ink">
-                    Sex / Gender <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
-                  >
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                  </select>
-                </div>
+              {/* Last Name */}
+              <div>
+                <label className="font-semibold text-ink">
+                  Last Name <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="e.g. Dela Cruz"
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                />
+              </div>
+
+              {/* Sex / Gender */}
+              <div>
+                <label className="font-semibold text-ink">
+                  Sex / Gender <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <select
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+
+              {/* DepEd Email Address */}
+              <div>
+                <label className="font-semibold text-ink">
+                  DepEd Email Address <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="teacher.name@deped.gov.ph"
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                />
               </div>
 
               {/* Assigned Grade & Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 ${formData.gradeAssigned !== 'Unassigned' ? 'sm:grid-cols-2' : ''} gap-4`}>
                 <div>
                   <label className="font-semibold text-ink">
                     Assigned Grade <span className="text-brand-red ml-0.5">*</span>
@@ -752,36 +776,45 @@ export default function AdminTeacherRecords() {
                     value={formData.gradeAssigned}
                     onChange={(e) => {
                       const newGrade = e.target.value;
-                      const availableSections = sectionsByGrade[newGrade] || [];
                       setFormData({
                         ...formData,
                         gradeAssigned: newGrade,
-                        sectionAssigned: availableSections[0] || 'Unassigned',
+                        sectionAssigned: newGrade === 'Unassigned' ? 'Unassigned' : formData.sectionAssigned,
                       });
                     }}
                     className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
                   >
+                    <option value="Unassigned">Unassigned (No Class)</option>
                     <option value="Grade 4">Grade 4</option>
                     <option value="Grade 5">Grade 5</option>
                     <option value="Grade 6">Grade 6</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-ink">Assigned Section</label>
-                  <select
-                    value={formData.sectionAssigned}
-                    onChange={(e) => setFormData({ ...formData, sectionAssigned: e.target.value })}
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
-                  >
-                    <option value="Unassigned">Unassigned</option>
-                    {teacherSectionsForSelectedGrade.map((sec) => (
-                      <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
-                        {sec.sectionName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {formData.gradeAssigned !== 'Unassigned' && (
+                  <div>
+                    <label className="font-semibold text-ink">
+                      Assigned Section <span className="text-brand-red ml-0.5">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.sectionAssigned === 'Unassigned' ? '' : formData.sectionAssigned}
+                      onChange={(e) => setFormData({ ...formData, sectionAssigned: e.target.value })}
+                      className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
+                    >
+                      <option value="" disabled hidden>Select Section</option>
+                      {teacherSectionsForSelectedGrade.length === 0 ? (
+                        <option value="" disabled>No sections available</option>
+                      ) : (
+                        teacherSectionsForSelectedGrade.map((sec) => (
+                          <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
+                            {sec.sectionName}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">

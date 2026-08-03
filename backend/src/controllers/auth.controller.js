@@ -12,6 +12,7 @@ function createToken(user) {
     name: user.name,
     email: user.email,
     role: user.role,
+    schoolId: user.schoolId || user.school_id || '109283',
     defaultPath: user.defaultPath,
   };
 
