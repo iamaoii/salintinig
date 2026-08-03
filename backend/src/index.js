@@ -44,6 +44,27 @@ async function initDatabase() {
       await db.query("ALTER TABLE teachers ADD COLUMN IF NOT EXISTS sex VARCHAR(20) DEFAULT 'Male';");
       await db.query("ALTER TABLE faculty_in_charge ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
       await db.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
+
+      // Auto-hash any existing plain-text passwords in database with bcrypt salt rounds 10
+      try {
+        const bcrypt = require('bcryptjs');
+        const { rows: plainUsers } = await db.query(
+          "SELECT user_id, password_hash FROM users WHERE password_hash NOT LIKE '$2a$%' AND password_hash NOT LIKE '$2b$%' AND password_hash NOT LIKE '$2y$%';"
+        );
+        if (plainUsers && plainUsers.length > 0) {
+          for (const u of plainUsers) {
+            if (u.password_hash) {
+              const salt = bcrypt.genSaltSync(10);
+              const hashed = bcrypt.hashSync(u.password_hash, salt);
+              await db.query("UPDATE users SET password_hash = $1 WHERE user_id = $2", [hashed, u.user_id]);
+            }
+          }
+          console.log(`🔒 Encrypted & hashed ${plainUsers.length} plain-text passwords in database using bcrypt.`);
+        }
+      } catch (hashErr) {
+        console.warn('Password hash migration notice:', hashErr.message);
+      }
+
       console.log('✅ Database schema verified & ready.');
     }
   } catch (err) {

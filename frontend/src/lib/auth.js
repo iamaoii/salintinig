@@ -20,12 +20,21 @@ export async function authenticateAsync(identifier, password) {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      localStorage.setItem(AUTH_KEY, 'true');
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      const mustChange = Boolean(data.mustChangePassword || data.user?.mustChangePassword);
+      if (!mustChange) {
+        localStorage.setItem(AUTH_KEY, 'true');
+      } else {
+        localStorage.removeItem(AUTH_KEY);
+      }
+      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, mustChangePassword: mustChange }));
       if (data.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
       }
-      return { success: true, user: data.user };
+      return {
+        success: true,
+        user: data.user,
+        mustChangePassword: mustChange,
+      };
     }
 
     if (data && data.error) {
@@ -42,6 +51,37 @@ export async function authenticateAsync(identifier, password) {
     success: false,
     error: 'Incorrect username/email or password.',
   };
+}
+
+/**
+ * Async API function to update initial temporary password
+ */
+export async function changePasswordAsync(newPassword) {
+  try {
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ newPassword }),
+    });
+
+    const data = await response.json();
+    if (response.ok && data.success) {
+      localStorage.setItem(AUTH_KEY, 'true');
+      const user = getUser();
+      if (user) {
+        user.mustChangePassword = false;
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+      }
+      return { success: true, message: data.message };
+    }
+    return { success: false, error: data.error || 'Failed to update password.' };
+  } catch (err) {
+    return { success: false, error: 'Network error updating password.' };
+  }
 }
 
 export function logout() {

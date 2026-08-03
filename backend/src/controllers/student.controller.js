@@ -191,12 +191,16 @@ async function createStudent(req, res) {
 
     if (isDbConfigured()) {
       try {
+        const bcrypt = require('bcryptjs');
+        const salt = bcrypt.genSaltSync(10);
+        const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
+
         const { rows: userRows } = await db.query(
           `INSERT INTO users (email, password_hash, role, status)
            VALUES ($1, $2, 'student', 'active')
-           ON CONFLICT (email) DO UPDATE SET status = 'active'
+           ON CONFLICT (email) DO UPDATE SET password_hash = $2, status = 'active'
            RETURNING user_id`,
-          [newStudentObj.personalEmail, 'StudentPassword123!']
+          [newStudentObj.personalEmail, hashedPass]
         );
 
         if (userRows && userRows[0]) {

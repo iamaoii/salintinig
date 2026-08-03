@@ -22,6 +22,20 @@ function generateTempPassword() {
 }
 
 /**
+ * Helper to hash password using bcrypt
+ */
+function hashPassword(plainPassword) {
+  if (!plainPassword) return '';
+  try {
+    const bcrypt = require('bcryptjs');
+    const salt = bcrypt.genSaltSync(10);
+    return bcrypt.hashSync(plainPassword, salt);
+  } catch (e) {
+    return plainPassword;
+  }
+}
+
+/**
  * Helper to send Welcome email with temporary credentials via Resend API
  */
 async function sendWelcomeEmailWithTempPassword({ toEmail, fullName, role, tempPassword, identifier }) {
@@ -221,13 +235,14 @@ async function createTeacher(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
+        const hashedPassword = hashPassword(tempPassword);
 
         const { rows: userRows } = await db.query(
           `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
            VALUES ($1, $2, $3, 'teacher', 'active', true)
            ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [schoolId, cleanEmail, tempPassword]
+          [schoolId, cleanEmail, hashedPassword]
         );
 
         if (userRows && userRows[0]) {
@@ -372,13 +387,14 @@ async function createStudent(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
+        const hashedPassword = hashPassword(tempPassword);
 
         const { rows: uRows } = await db.query(
           `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
            VALUES ($1, $2, $3, 'student', 'active', true)
            ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [schoolId, cleanEmail, tempPassword]
+          [schoolId, cleanEmail, hashedPassword]
         );
 
         if (uRows && uRows[0]) {

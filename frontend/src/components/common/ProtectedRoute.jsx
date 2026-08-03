@@ -1,8 +1,10 @@
 import { Navigate } from 'react-router-dom';
-import { isLoggedIn, getUserRole } from '../../lib/auth.js';
+import { isLoggedIn, getUserRole, getUser } from '../../lib/auth.js';
 
 export default function ProtectedRoute({ children, allowedRole }) {
-  if (!isLoggedIn()) {
+  const user = getUser();
+
+  if (!isLoggedIn() || (user && user.mustChangePassword)) {
     return <Navigate to="/login" replace />;
   }
 

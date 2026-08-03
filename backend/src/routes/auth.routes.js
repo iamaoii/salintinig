@@ -15,6 +15,7 @@ router.post('/reset-password', authController.resetPassword);
 // Protected routes
 router.get('/me', verifyToken, authController.getMe);
 router.post('/logout', verifyToken, authController.logout);
+router.post('/change-password', verifyToken, authController.changePassword);
 
 // Admin-only route
 router.post('/register', verifyToken, requireRole('admin'), authController.register);

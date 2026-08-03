@@ -28,6 +28,17 @@ try {
   bcrypt = require('bcryptjs');
 } catch (e) {}
 
+function hashPassword(plainPassword) {
+  if (!plainPassword) return '';
+  try {
+    if (bcrypt) {
+      const salt = bcrypt.genSaltSync(10);
+      return bcrypt.hashSync(plainPassword, salt);
+    }
+  } catch (e) {}
+  return plainPassword;
+}
+
 function checkPasswordMatch(inputPassword, storedHash) {
   if (!storedHash || !inputPassword) return false;
   // 1. Direct plaintext match (if stored in plain text in DB)
@@ -67,7 +78,7 @@ async function login(req, res) {
       try {
         // A. Match strictly by Email
         const userQuery = `
-          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, s.school_name
+          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, s.school_name
           FROM users u
           LEFT JOIN schools s ON u.school_id = s.school_id
           WHERE LOWER(u.email) = $1
@@ -85,7 +96,7 @@ async function login(req, res) {
         // B. Match strictly by Teacher ID (Employee ID)
         if (!matchedUser) {
           const teacherQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, t.first_name, t.last_name, t.teacher_no
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, t.first_name, t.last_name, t.teacher_no
             FROM teachers t
             JOIN users u ON t.user_id = u.user_id
             WHERE LOWER(t.teacher_no) = $1
@@ -166,6 +177,7 @@ async function login(req, res) {
         role: matchedUser.role,
         schoolId,
         employeeId: empId,
+        mustChangePassword: Boolean(matchedUser.must_change_password),
         defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/dashboard',
         source: 'database',
       };
@@ -175,6 +187,7 @@ async function login(req, res) {
       return res.json({
         success: true,
         token,
+        mustChangePassword: Boolean(matchedUser.must_change_password),
         user: formattedUser,
         message: `Authenticated via PostgreSQL database (${matchedUser.role.toUpperCase()} role)`,
       });
@@ -636,9 +649,10 @@ async function resetPassword(req, res) {
     // Update database password_hash if email is provided
     if (cleanEmail && process.env.DATABASE_URL) {
       try {
+        const hashedPassword = hashPassword(cleanPass);
         await db.query(
           'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
-          [cleanPass, cleanEmail]
+          [hashedPassword, cleanEmail]
         );
       } catch (dbErr) {
         console.warn('Reset password DB update notice:', dbErr.message);
@@ -825,6 +839,50 @@ async function contactAdmin(req, res) {
   }
 }
 
+/**
+ * POST /api/auth/change-password — Update password for mandatory initial reset
+ */
+async function changePassword(req, res) {
+  try {
+    const { newPassword } = req.body;
+    const userId = req.user?.id || req.user?.user_id;
+    const userEmail = req.user?.email || req.user?.username;
+
+    if (!newPassword || newPassword.trim().length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password must be at least 6 characters long.',
+      });
+    }
+
+    const cleanNewPass = newPassword.trim();
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const hashedPassword = hashPassword(cleanNewPass);
+        await db.query(
+          `UPDATE users 
+           SET password_hash = $1, 
+               must_change_password = false, 
+               updated_at = CURRENT_TIMESTAMP 
+           WHERE user_id::text = $2 OR LOWER(email) = LOWER($3)`,
+          [hashedPassword, userId || '', userEmail || '']
+        );
+      } catch (dbErr) {
+        console.warn('DB change password notice:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Password updated successfully! You may now access your portal.',
+    });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update password.' });
+  }
+}
+
 module.exports = {
   login,
   getMe,
@@ -835,5 +893,6 @@ module.exports = {
   verifyResetCode,
   invalidateResetSession,
   resetPassword,
+  changePassword,
   register,
 };
