@@ -1,13 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import Pagination from '../../../components/dashboard/records/Pagination.jsx';
-import { students, totalStudents } from '../../../data/students.js';
 
 const PAGE_SIZE = 10;
 
 export default function OverviewPeople() {
   const [page, setPage] = useState(1);
+  const [students, setStudents] = useState([]);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/admin/students', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.students)) {
+          setStudents(data.students);
+        }
+      } catch (err) {
+        console.warn('Could not fetch students for overview:', err);
+      }
+    };
+    fetchStudents();
+  }, []);
+
+  const totalStudents = students.length;
   const pageCount = Math.max(1, Math.ceil(students.length / PAGE_SIZE));
   const pageStudents = students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -76,6 +96,13 @@ export default function OverviewPeople() {
                   </td>
                 </tr>
               ))}
+              {pageStudents.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center font-medium text-ink/50">
+                    No student records found in database.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

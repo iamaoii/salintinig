@@ -1,3 +1,4 @@
+const db = require('../config/db.js');
 const supabase = require('../config/supabase.js');
 
 /**
@@ -549,6 +550,54 @@ async function rejectAccountRequest(req, res) {
   }
 }
 
+/**
+ * GET /api/admin/stats — Get live system counts from DB
+ */
+async function getSystemStats(req, res) {
+  try {
+    let totalStudents = 0;
+    let totalTeachers = 0;
+    let totalParentAccounts = 0;
+    let totalSections = 0;
+    let totalGradeLevels = 3;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const studentRes = await db.query('SELECT COUNT(*) FROM students');
+        totalStudents = parseInt(studentRes.rows[0].count, 10) || 0;
+
+        const teacherRes = await db.query('SELECT COUNT(*) FROM teachers');
+        totalTeachers = parseInt(teacherRes.rows[0].count, 10) || 0;
+
+        const parentRes = await db.query('SELECT COUNT(*) FROM student_parents');
+        totalParentAccounts = parseInt(parentRes.rows[0].count, 10) || 0;
+
+        const sectionRes = await db.query('SELECT COUNT(*) FROM classes');
+        totalSections = parseInt(sectionRes.rows[0].count, 10) || 0;
+
+        const gradeRes = await db.query('SELECT COUNT(DISTINCT grade_level) FROM classes');
+        totalGradeLevels = parseInt(gradeRes.rows[0].count, 10) || 3;
+      } catch (dbErr) {
+        console.warn('Stats DB query notice:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      stats: {
+        totalStudents,
+        totalTeachers,
+        totalParentAccounts,
+        totalSections,
+        totalGradeLevels: totalGradeLevels || 3,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching system stats:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch system stats.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   createTeacher,
@@ -560,4 +609,5 @@ module.exports = {
   getAccountRequests,
   approveAccountRequest,
   rejectAccountRequest,
+  getSystemStats,
 };

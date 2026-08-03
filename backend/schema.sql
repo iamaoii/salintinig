@@ -103,7 +103,6 @@ CREATE TABLE IF NOT EXISTS students (
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
     sex VARCHAR(20),
-    birth_date DATE,
     profile_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

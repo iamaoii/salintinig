@@ -46,8 +46,33 @@ export default function AdminDashboardHome() {
     }
   };
 
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalParentAccounts: 0,
+    totalSections: 0,
+    totalGradeLevels: 3,
+  });
+
+  // Fetch live system metrics
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.stats) {
+        setStats(data.stats);
+      }
+    } catch (err) {
+      console.warn('Could not fetch admin stats:', err);
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
+    fetchStats();
   }, []);
 
   const handleApprove = async (id, name) => {
@@ -113,7 +138,7 @@ export default function AdminDashboardHome() {
   const STAT_CARDS = [
     {
       title: 'Total Students',
-      value: adminStats.totalStudents.toLocaleString(),
+      value: (stats.totalStudents || 0).toLocaleString(),
       subtitle: 'Grades 4 - 6',
       icon: Student,
       link: '/admin/students',
@@ -121,7 +146,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Total Teachers',
-      value: adminStats.totalTeachers.toLocaleString(),
+      value: (stats.totalTeachers || 0).toLocaleString(),
       subtitle: 'Faculty members',
       icon: ChalkboardTeacher,
       link: '/admin/teachers',
@@ -129,7 +154,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Parent Accounts',
-      value: adminStats.totalParentAccounts.toLocaleString(),
+      value: (stats.totalParentAccounts || 0).toLocaleString(),
       subtitle: 'Registered portals',
       icon: Users,
       link: '/admin/students',
@@ -137,7 +162,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Total Sections',
-      value: adminStats.totalSections.toLocaleString(),
+      value: (stats.totalSections || 0).toLocaleString(),
       subtitle: 'S.Y. 2026-2027',
       icon: GridFour,
       link: '/admin/faculty-assignment',
@@ -145,7 +170,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Grade Levels',
-      value: adminStats.totalGradeLevels,
+      value: stats.totalGradeLevels || 3,
       subtitle: 'Grade 4 - Grade 6',
       icon: GraduationCap,
       link: '/admin/faculty-assignment',

@@ -26,8 +26,6 @@ import AchievementActivityRow from '../../components/dashboard/activity/Achievem
 import BadgeCard from '../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../components/dashboard/student/StoryRow.jsx';
 
-import { students } from '../../data/students.js';
-import { initialAdminStudents } from '../../data/adminData.js';
 import { badgesByLrn, storiesByLrn } from '../../data/studentAchievements.js';
 
 const LEVEL_BADGE = {
@@ -65,36 +63,46 @@ function withPlaceholders(items) {
 export default function AdminStudentProfile() {
   const { lrn } = useParams();
   const navigate = useNavigate();
-  const [adminStudents, setAdminStudents] = useState(initialAdminStudents);
+  const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [achievementTab, setAchievementTab] = useState('Phil-IRI Records');
   const [toastMessage, setToastMessage] = useState(null);
 
-  const std = adminStudents.find((s) => s.lrn === lrn || s.id === lrn) ?? {
-    id: 'STD-1001',
-    lrn: lrn || '10928374801',
-    name: 'Adrian Matthew Cruz',
-    gender: 'Male',
-    grade: 'Grade 4',
-    section: 'Fyang',
+  useEffect(() => {
+    const fetchStudentDetail = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:5000/api/admin/students/${lrn}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.student) {
+          setStudent(data.student);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch student details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStudentDetail();
+  }, [lrn]);
+
+  const std = student || {
+    id: lrn || '',
+    lrn: lrn || '',
+    name: loading ? 'Loading student profile...' : 'Student Record Not Found',
+    gender: 'N/A',
+    grade: 'N/A',
+    section: 'N/A',
     level: 'Instructional',
-    personalEmail: 'adrian.cruz@gmail.com',
-    status: 'Account Created',
-    generatedPassword: 'ST-x8k9a2',
+    personalEmail: 'N/A',
+    status: 'N/A',
   };
 
-  const studentObj = students.find((s) => s.lrn === std.lrn) ?? students[0];
-  const rawBadges = (badgesByLrn[std.lrn] && badgesByLrn[std.lrn].length > 0)
-    ? badgesByLrn[std.lrn]
-    : (badgesByLrn['136670100091'] || []);
+  const rawBadges = badgesByLrn[std.lrn] || [];
   const badges = withPlaceholders(rawBadges);
-
-  const stories = (storiesByLrn[std.lrn] && storiesByLrn[std.lrn].length > 0)
-    ? storiesByLrn[std.lrn]
-    : (storiesByLrn['136670100091'] || [
-        { id: 1, title: 'The Lost Kite', color: 'blue' },
-        { id: 2, title: 'Adventures in the Forest', color: 'green' },
-        { id: 3, title: 'The Brave Little Turtle', color: 'yellow' },
-      ]);
+  const stories = storiesByLrn[std.lrn] || [];
 
   const showToast = (msg) => {
     setToastMessage(msg);

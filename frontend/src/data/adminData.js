@@ -56,19 +56,7 @@ export const recentActivities = [
   },
 ];
 
-export const initialAdminStudents = students.map((s, idx) => ({
-  id: `STD-${1000 + idx}`,
-  lrn: s.lrn,
-  name: s.name,
-  gender: s.gender,
-  grade: idx % 3 === 0 ? 'Grade 4' : idx % 3 === 1 ? 'Grade 5' : 'Grade 6',
-  section: s.section.replace('Grade 4 - ', ''),
-  level: s.level,
-  personalEmail: `${s.name.toLowerCase().replace(/[^a-z]/g, '.')}@gmail.com`,
-  status: idx % 9 === 0 ? 'Pending Account' : 'Account Created',
-  parentAccessCode: `PAC-${88490 + idx}`,
-  generatedPassword: `ST-${Math.random().toString(36).slice(-6)}`,
-}));
+export const initialAdminStudents = [];
 
 export const initialAdminTeachers = [
   {

@@ -1,6 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
-import { students } from '../../../data/students.js';
 
 const TABS = [
   { to: '/dashboard/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
@@ -12,6 +12,26 @@ const TABS = [
 const COL = 'border-r border-ink/10 last:border-r-0';
 
 export default function StudentMasterlist({ level }) {
+  const [students, setStudents] = useState([]);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/admin/students', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.students)) {
+          setStudents(data.students);
+        }
+      } catch (err) {
+        console.warn('Error fetching students:', err);
+      }
+    };
+    fetchStudents();
+  }, []);
+
   const filtered = level === 'All' ? students : students.filter((s) => s.level === level);
   const headerColor = TABS.find((tab) => tab.level === level)?.activeColor ?? '#165fd5';
 
@@ -80,8 +100,10 @@ export default function StudentMasterlist({ level }) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center font-medium text-ink/50">
-                  No students at this reading level.
+                <td colSpan={6} className="px-4 py-10 text-center font-medium text-ink/50">
+                  {students.length === 0
+                    ? 'No student records found in database.'
+                    : 'No students found at this reading level.'}
                 </td>
               </tr>
             )}

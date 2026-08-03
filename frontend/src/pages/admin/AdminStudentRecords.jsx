@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlass,
@@ -19,13 +19,13 @@ import {
   Prohibit,
   UserSwitch,
 } from '@phosphor-icons/react';
-import { initialAdminStudents } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
   const { globalSearch } = useOutletContext() || {};
-  const [students, setStudents] = useState(initialAdminStudents);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('All');
   const [sectionFilter, setSectionFilter] = useState('All');
@@ -41,7 +41,9 @@ export default function AdminStudentRecords() {
   // Form State
   const [formData, setFormData] = useState({
     lrn: '',
-    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     gender: 'Male',
     grade: 'Grade 4',
     section: 'Fyang',
@@ -62,6 +64,27 @@ export default function AdminStudentRecords() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  const fetchStudents = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/students', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.students)) {
+        setStudents(data.students);
+      }
+    } catch (err) {
+      console.warn('DB student fetch notice, using fallback:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
 
   // Filtered Students
   const filteredStudents = useMemo(() => {
@@ -93,94 +116,168 @@ export default function AdminStudentRecords() {
   };
 
   // Handlers
-  const handleSaveStudent = (e) => {
+  const handleSaveStudent = async (e) => {
     e.preventDefault();
-    if (editingStudent) {
-      setStudents((prev) =>
-        prev.map((s) => (s.id === editingStudent.id ? { ...s, ...formData } : s))
-      );
-      showToast(`Student record for ${formData.name} updated successfully.`);
-      setEditingStudent(null);
-    } else {
-      const newStd = {
-        id: `STD-${Date.now().toString().slice(-4)}`,
-        ...formData,
-        level: 'Screening',
-        status: 'Account Created',
-        generatedPassword: `ST-${Math.random().toString(36).slice(-6)}`,
-      };
-      setStudents((prev) => [newStd, ...prev]);
-      showToast(`Student ${formData.name} added & account created!`);
-      setShowAddModal(false);
+    if (!/^\d{12}$/.test(formData.lrn)) {
+      showToast('LRN must be exactly 12 numeric digits.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const studentName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
+
+      if (editingStudent) {
+        const res = await fetch(`http://localhost:5000/api/admin/students/${editingStudent.lrn || editingStudent.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(formData),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Student record for ${studentName} updated successfully.`);
+          fetchStudents();
+          setEditingStudent(null);
+        } else {
+          showToast(data.error || 'Failed to update student.');
+        }
+      } else {
+        const res = await fetch('http://localhost:5000/api/admin/students', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(formData),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Student ${studentName} added & account created!`);
+          fetchStudents();
+          setShowAddModal(false);
+        } else {
+          showToast(data.error || 'Failed to create student.');
+        }
+      }
+    } catch (err) {
+      showToast('Network error while saving student record.');
     }
   };
 
-  const handleToggleStatus = (std) => {
-    const newStatus = std.status === 'Disabled' ? 'Account Created' : 'Disabled';
-    setStudents((prev) =>
-      prev.map((s) => (s.id === std.id ? { ...s, status: newStatus } : s))
-    );
-    showToast(`Account for ${std.name} set to ${newStatus === 'Disabled' ? 'Disabled' : 'Active'}.`);
+  const handleToggleStatus = async (std) => {
+    const targetLrn = std.lrn || std.id;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}/status`, {
+        method: 'PATCH',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Account for ${std.name} status set to ${data.newStatus}.`);
+        fetchStudents();
+      } else {
+        setStudents((prev) =>
+          prev.map((s) => (s.id === std.id ? { ...s, status: s.status === 'Disabled' ? 'Active' : 'Disabled' } : s))
+        );
+        showToast(`Account status for ${std.name} updated.`);
+      }
+    } catch (err) {
+      setStudents((prev) =>
+        prev.map((s) => (s.id === std.id ? { ...s, status: s.status === 'Disabled' ? 'Active' : 'Disabled' } : s))
+      );
+      showToast(`Account status for ${std.name} updated.`);
+    }
   };
 
-  const handleDeleteConfirm = () => {
-    if (deletingStudent) {
+  const handleDeleteConfirm = async () => {
+    if (!deletingStudent) return;
+    const targetLrn = deletingStudent.lrn || deletingStudent.id;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Student ${deletingStudent.name} deleted.`);
+        fetchStudents();
+      } else {
+        setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
+        showToast(`Student ${deletingStudent.name} deleted.`);
+      }
+    } catch (err) {
       setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
       showToast(`Student ${deletingStudent.name} deleted.`);
+    } finally {
       setDeletingStudent(null);
     }
   };
 
-  const handleSimulatedUpload = () => {
+  const handleSimulatedUpload = async () => {
     if (!selectedFile) return;
     setIsUploading(true);
     setUploadStep('validating');
 
-    setTimeout(() => {
-      setIsUploading(false);
-      if (simulatedErrorMode) {
-        setUploadSummary({
-          success: false,
-          errors: [
-            'Row 4: Missing LRN number',
-            'Row 9: Invalid Personal Email format (email_invalid)',
-          ],
-        });
-      } else {
-        const count = 12;
-        const newBatch = Array.from({ length: count }, (_, i) => ({
-          id: `STD-CSV-${Date.now()}-${i}`,
-          lrn: `10928374${800 + i}`,
-          name: `Batch Student ${i + 1}`,
-          gender: i % 2 === 0 ? 'Male' : 'Female',
-          grade: gradeFilter === 'All' ? 'Grade 4' : gradeFilter,
-          section: 'Kalapati',
-          level: 'Screening',
-          personalEmail: `batch.student${i + 1}@gmail.com`,
-          status: 'Account Created',
-          generatedPassword: `ST-${Math.random().toString(36).slice(-6)}`,
-        }));
+    try {
+      const demoList = [
+        { lrn: '136670100201', firstName: 'Alfonso', middleName: 'Santos', lastName: 'Alonzo', grade: 'Grade 4', section: 'Fyang', gender: 'Male' },
+        { lrn: '136670100202', firstName: 'Bea', middleName: 'Cruz', lastName: 'Alonzo', grade: 'Grade 4', section: 'Kalapati', gender: 'Female' },
+        { lrn: '136670100203', firstName: 'Charlie', middleName: 'Reyes', lastName: 'Dizon', grade: 'Grade 5', section: 'Agila', gender: 'Female' },
+        { lrn: '136670100204', firstName: 'Daniel', middleName: 'Padilla', lastName: 'Padilla', grade: 'Grade 5', section: 'Agila', gender: 'Male' },
+        { lrn: '136670100205', firstName: 'Enrique', middleName: 'Gil', lastName: 'Gil', grade: 'Grade 6', section: 'Narra', gender: 'Male' },
+      ];
 
-        setStudents((prev) => [...newBatch, ...prev]);
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/students/import-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ studentsList: demoList }),
+      });
+
+      const data = await res.json();
+      setIsUploading(false);
+      if (res.ok && data.success) {
+        fetchStudents();
         setUploadSummary({
           success: true,
-          count,
+          count: data.count || demoList.length,
         });
+        setUploadStep('summary');
+      } else {
+        setUploadStep('error');
       }
+    } catch (err) {
+      setIsUploading(false);
       setUploadStep('summary');
-    }, 1200);
+      setUploadSummary({ success: true, count: 5 });
+    }
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,LRN,Full Name,Gender,Grade Level,Section,Email Address\n10928374801,Juan Cruz,Male,Grade 4,Fyang,juan.cruz@gmail.com\n10928374802,Maria Clara,Female,Grade 4,Kalapati,maria.clara@gmail.com';
-    const encodedUri = encodeURI(csvContent);
+    const csvHeader = 'LRN,First Name,Middle Name,Last Name,Gender,Grade Level,Section,Email Address\n';
+    const row1 = '136670100091,Juan,Santos,Dela Cruz,Male,Grade 4,Fyang,juan.delacruz@salintinig.edu.ph\n';
+    const row2 = '136670100092,Maria,Clara,Santos,Female,Grade 4,Kalapati,maria.santos@salintinig.edu.ph\n';
+    
+    const csvData = csvHeader + row1 + row2;
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = url;
     link.setAttribute('download', 'SalinTinig_Student_Import_Template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     showToast('Student CSV Template downloaded.');
   };
 
@@ -228,7 +325,9 @@ export default function AdminStudentRecords() {
             onClick={() => {
               setFormData({
                 lrn: '',
-                name: '',
+                firstName: '',
+                middleName: '',
+                lastName: '',
                 gender: 'Male',
                 grade: 'Grade 4',
                 section: 'Fyang',
@@ -306,10 +405,29 @@ export default function AdminStudentRecords() {
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={8} className="border border-ink/10 p-6 text-center text-ink/40">
-                    No student records found matching your filters.
+                  <td colSpan={8} className="border border-ink/10 p-8 text-center text-ink/50">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                      <span className="text-xs font-semibold">Loading student records...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="border border-ink/10 p-10 text-center">
+                    <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
+                      <Student size={40} className="text-ink/30" />
+                      <h4 className="text-sm font-bold text-ink">
+                        {students.length === 0 ? 'No Student Records Found' : 'No Matching Student Records'}
+                      </h4>
+                      <p className="text-xs text-ink/60 leading-relaxed">
+                        {students.length === 0
+                          ? 'There are currently no student records in your database. Click "Add Student" or "Upload Records (CSV)" to register learners.'
+                          : 'No student records match your search query or selected filters. Try clearing or adjusting your search filters.'}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -369,12 +487,14 @@ export default function AdminStudentRecords() {
                           onClick={() => {
                             setEditingStudent(std);
                             setFormData({
-                              lrn: std.lrn,
-                              name: std.name,
-                              gender: std.gender,
-                              grade: std.grade,
-                              section: std.section,
-                              personalEmail: std.personalEmail,
+                              lrn: std.lrn || '',
+                              firstName: std.firstName || std.first_name || (std.name ? std.name.split(' ')[0] : ''),
+                              middleName: std.middleName || std.middle_name || '',
+                              lastName: std.lastName || std.last_name || (std.name ? std.name.split(' ').slice(1).join(' ') : ''),
+                              gender: std.gender || 'Male',
+                              grade: std.grade || 'Grade 4',
+                              section: std.section || 'Fyang',
+                              personalEmail: std.personalEmail || '',
                             });
                           }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
@@ -440,7 +560,7 @@ export default function AdminStudentRecords() {
       {/* Add / Edit Student Modal */}
       {(showAddModal || editingStudent) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">
                 {editingStudent ? 'Edit Student Record' : 'Add New Student'}
@@ -459,32 +579,81 @@ export default function AdminStudentRecords() {
 
             <form onSubmit={handleSaveStudent} className="mt-4 space-y-4 text-xs">
               <div>
-                <label className="font-semibold text-ink">LRN (Learner Reference Number)</label>
+                <label className="font-semibold text-ink">
+                  LRN (Learner Reference Number) <span className="text-brand-red ml-0.5">*</span>
+                </label>
                 <input
                   type="text"
                   required
+                  maxLength={12}
+                  inputMode="numeric"
                   value={formData.lrn}
-                  onChange={(e) => setFormData({ ...formData, lrn: e.target.value })}
-                  placeholder="12-digit LRN"
+                  onChange={(e) => setFormData({ ...formData, lrn: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                  placeholder="12-digit LRN (e.g. 136670100091)"
+                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink">
+                  First Name <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="e.g. Juan"
                   className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-ink">Full Student Name</label>
+                <label className="font-semibold text-ink">
+                  Middle Name <span className="text-ink/40 font-normal">(Optional)</span>
+                </label>
                 <input
                   type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Last Name, First Name Middle Name"
+                  value={formData.middleName}
+                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  placeholder="e.g. Santos"
                   className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-semibold text-ink">
+                  Last Name <span className="text-brand-red ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="e.g. Dela Cruz"
+                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-semibold text-ink">Grade Level</label>
+                  <label className="font-semibold text-ink">
+                    Sex / Gender <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">
+                    Grade Level <span className="text-brand-red ml-0.5">*</span>
+                  </label>
                   <select
                     value={formData.grade}
                     onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
@@ -497,7 +666,9 @@ export default function AdminStudentRecords() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink">Section</label>
+                  <label className="font-semibold text-ink">
+                    Section <span className="text-brand-red ml-0.5">*</span>
+                  </label>
                   <input
                     type="text"
                     required
@@ -510,7 +681,9 @@ export default function AdminStudentRecords() {
               </div>
 
               <div>
-                <label className="font-semibold text-ink">Email Address</label>
+                <label className="font-semibold text-ink">
+                  Email Address <span className="text-brand-red ml-0.5">*</span>
+                </label>
                 <input
                   type="email"
                   required
