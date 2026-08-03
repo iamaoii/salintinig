@@ -277,13 +277,20 @@ export default function AdminDashboardHome() {
         </div>
 
         {loadingRequests ? (
-          <p className="text-xs text-ink/50 py-4 text-center">Loading requests...</p>
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-ink/50">
+            <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+            <span className="text-xs font-semibold">Loading account activation requests...</span>
+          </div>
         ) : filteredRequests.length === 0 ? (
-          <p className="text-xs text-ink/50 py-4 text-center">
-            {requestFilter === 'all'
-              ? 'No account activation requests recorded yet.'
-              : `No ${requestFilter} activation requests found.`}
-          </p>
+          <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2 py-8 text-center">
+            <UserCheck size={36} className="text-ink/30" />
+            <h4 className="text-sm font-bold text-ink">No Account Activation Requests</h4>
+            <p className="text-xs text-ink/60 leading-relaxed">
+              {requestFilter === 'all'
+                ? 'There are currently no account activation requests submitted by teachers.'
+                : `No ${requestFilter} account activation requests found.`}
+            </p>
+          </div>
         ) : (
           <div className="mt-3 divide-y divide-ink/10 overflow-x-auto">
             {filteredRequests.map((req) => (

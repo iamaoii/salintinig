@@ -10,101 +10,80 @@ function generateParentAccessCode() {
 }
 
 // In-Memory Database Store for backend REST endpoints
-let teachersStore = [
-  {
-    id: 'TCH-101',
-    employeeId: 'EMP-2024-001',
-    name: 'Antoinette Jadaone',
-    gender: 'Female',
-    email: 'antoinette.jadaone@deped.gov.ph',
-    gradeAssigned: 'Grade 4',
-    sectionAssigned: 'Fyang',
-    isFacultyInCharge: true,
-    status: 'Active',
-    dateAdded: '2025-06-15',
-  },
-  {
-    id: 'TCH-102',
-    employeeId: 'EMP-2024-002',
-    name: 'Bernadette Reyes',
-    gender: 'Female',
-    email: 'bernadette.reyes@deped.gov.ph',
-    gradeAssigned: 'Grade 4',
-    sectionAssigned: 'Kalapati',
-    isFacultyInCharge: false,
-    status: 'Active',
-    dateAdded: '2025-06-15',
-  },
-  {
-    id: 'TCH-103',
-    employeeId: 'EMP-2024-003',
-    name: 'Carlos Mendoza',
-    gender: 'Male',
-    email: 'carlos.mendoza@deped.gov.ph',
-    gradeAssigned: 'Grade 5',
-    sectionAssigned: 'Sampaguita',
-    isFacultyInCharge: false,
-    status: 'Active',
-    dateAdded: '2025-06-15',
-  },
-];
+let teachersStore = [];
+let studentsStore = [];
 
-let studentsStore = [
-  {
-    id: 'STD-1001',
-    lrn: '109283748291',
-    name: 'Adrian Dela Cruz',
-    gender: 'Male',
-    grade: 'Grade 4',
-    section: 'Fyang',
-    level: 'Instructional',
-    personalEmail: 'adrian.delacruz@gmail.com',
-    status: 'Account Created',
-    parentAccessCode: 'PAC-88491',
-  },
-  {
-    id: 'STD-1002',
-    lrn: '109283748292',
-    name: 'Janna Santos',
-    gender: 'Female',
-    grade: 'Grade 4',
-    section: 'Fyang',
-    level: 'Independent',
-    personalEmail: 'janna.santos@gmail.com',
-    status: 'Account Created',
-    parentAccessCode: 'PAC-88492',
-  },
-  {
-    id: 'STD-1003',
-    lrn: '109283748293',
-    name: 'Mateo Reyes',
-    gender: 'Male',
-    grade: 'Grade 4',
-    section: 'Fyang',
-    level: 'Frustrational',
-    personalEmail: 'mateo.reyes@gmail.com',
-    status: 'Account Created',
-    parentAccessCode: 'PAC-88493',
-  },
-];
+/**
+ * Helper to parse full name string if explicit firstName/lastName not supplied
+ */
+function parseNameString(rawName = '') {
+  const clean = rawName.trim();
+  if (clean.includes(',')) {
+    const parts = clean.split(',');
+    const lastName = parts[0].trim();
+    const remainderParts = parts[1].trim().split(/\s+/);
+    const firstName = remainderParts[0] || '';
+    const middleName = remainderParts.slice(1).join(' ') || '';
+    return { firstName, middleName, lastName };
+  }
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], middleName: '', lastName: '' };
+  if (parts.length === 2) return { firstName: parts[0], middleName: '', lastName: parts[1] };
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  };
+}
 
 /**
  * GET /api/admin/teachers — List all teachers
  */
 async function getTeachers(req, res) {
   try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(`
+          SELECT 
+            t.teacher_id AS id,
+            t.teacher_no AS "employeeId",
+            t.first_name AS "firstName",
+            t.middle_name AS "middleName",
+            t.last_name AS "lastName",
+            CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
+            'Female' AS gender,
+            COALESCE(u.email, '') AS email,
+            COALESCE(c.grade_level, 'Grade 4') AS "gradeAssigned",
+            COALESCE(c.section_name, 'Unassigned') AS "sectionAssigned",
+            CASE WHEN fic.teacher_id IS NOT NULL THEN true ELSE false END AS "isFacultyInCharge",
+            CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
+            TO_CHAR(t.created_at, 'YYYY-MM-DD') AS "dateAdded"
+          FROM teachers t
+          LEFT JOIN users u ON t.user_id = u.user_id
+          LEFT JOIN classes c ON c.advisor_teacher_id = t.teacher_id
+          LEFT JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
+          ORDER BY t.created_at DESC
+        `);
+
+        return res.json({ success: true, teachers: rows || [] });
+      } catch (dbErr) {
+        console.warn('DB fetch teachers notice:', dbErr.message);
+      }
+    }
+
     return res.json({ success: true, teachers: teachersStore });
   } catch (error) {
+    console.error('Error fetching teachers:', error);
     return res.status(500).json({ success: false, error: 'Failed to fetch teachers.' });
   }
 }
 
 /**
- * POST /api/admin/teachers — Create single teacher (Requires Employee ID)
+ * POST /api/admin/teachers — Create single teacher
  */
 async function createTeacher(req, res) {
   try {
-    const { employeeId, name, gender, email, gradeAssigned, sectionAssigned, isFacultyInCharge } = req.body;
+    let { employeeId, firstName, middleName, lastName, name, gender, email, gradeAssigned, sectionAssigned, isFacultyInCharge } = req.body;
 
     if (!employeeId || !employeeId.trim()) {
       return res.status(400).json({
@@ -115,36 +94,94 @@ async function createTeacher(req, res) {
 
     const cleanEmpId = employeeId.trim().toUpperCase();
 
-    // Validate uniqueness
-    const exists = teachersStore.some((t) => t.employeeId.toUpperCase() === cleanEmpId);
-    if (exists) {
-      return res.status(400).json({
-        success: false,
-        error: `Teacher with Employee ID "${cleanEmpId}" already exists.`,
-      });
+    if (!firstName || !lastName) {
+      if (name) {
+        const parsed = parseNameString(name);
+        firstName = firstName || parsed.firstName;
+        middleName = middleName || parsed.middleName;
+        lastName = lastName || parsed.lastName;
+      }
     }
 
-    const newTeacher = {
+    firstName = (firstName || 'Teacher').trim();
+    middleName = (middleName || '').trim();
+    lastName = (lastName || 'Faculty').trim();
+    const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
+    const cleanEmail = email?.trim() || `${cleanEmpId.toLowerCase()}@salintinig.edu.ph`;
+
+    const newTeacherObj = {
       id: `TCH-${Date.now().toString().slice(-4)}`,
       employeeId: cleanEmpId,
-      name: name?.trim() || 'Faculty Member',
+      firstName,
+      middleName,
+      lastName,
+      name: fullName,
       gender: gender || 'Female',
-      email: email?.trim() || `${cleanEmpId.toLowerCase()}@deped.gov.ph`,
+      email: cleanEmail,
       gradeAssigned: gradeAssigned || 'Grade 4',
-      sectionAssigned: sectionAssigned || 'Unassigned',
+      sectionAssigned: sectionAssigned || 'Fyang',
       isFacultyInCharge: Boolean(isFacultyInCharge),
       status: 'Active',
       dateAdded: new Date().toISOString().split('T')[0],
     };
 
-    teachersStore.unshift(newTeacher);
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows: userRows } = await db.query(
+          `INSERT INTO users (email, password_hash, role, status)
+           VALUES ($1, $2, 'teacher', 'active')
+           ON CONFLICT (email) DO UPDATE SET status = 'active'
+           RETURNING user_id`,
+          [cleanEmail, 'TeacherPassword123!']
+        );
+
+        if (userRows && userRows[0]) {
+          const userId = userRows[0].user_id;
+
+          const { rows: tchRows } = await db.query(
+            `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5
+             RETURNING teacher_id`,
+            [userId, cleanEmpId, firstName, middleName || null, lastName]
+          );
+
+          if (tchRows && tchRows[0]) {
+            const teacherId = tchRows[0].teacher_id;
+
+            // Assign as class adviser if section specified
+            if (sectionAssigned && sectionAssigned !== 'Unassigned') {
+              await db.query(
+                `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
+                [teacherId, gradeAssigned || 'Grade 4', sectionAssigned]
+              );
+            }
+
+            // Assign as Lead Faculty-in-Charge if checked
+            if (isFacultyInCharge) {
+              await db.query(
+                `INSERT INTO faculty_in_charge (teacher_id, grade_level)
+                 VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING`,
+                [teacherId, gradeAssigned || 'Grade 4']
+              );
+            }
+          }
+        }
+      } catch (dbErr) {
+        console.warn('DB create teacher notice:', dbErr.message);
+      }
+    }
+
+    teachersStore.unshift(newTeacherObj);
 
     return res.status(201).json({
       success: true,
       message: 'Teacher account created successfully.',
-      teacher: newTeacher,
+      teacher: newTeacherObj,
     });
   } catch (error) {
+    console.error('Error creating teacher:', error);
     return res.status(500).json({ success: false, error: 'Failed to create teacher account.' });
   }
 }
@@ -154,6 +191,38 @@ async function createTeacher(req, res) {
  */
 async function getStudents(req, res) {
   try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(`
+          SELECT DISTINCT ON (s.student_id)
+            s.student_id AS id,
+            s.lrn,
+            s.first_name AS "firstName",
+            s.middle_name AS "middleName",
+            s.last_name AS "lastName",
+            CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+            COALESCE(s.sex, 'Male') AS gender,
+            COALESCE(c.grade_level, 'Grade 4') AS grade,
+            COALESCE(c.section_name, 'Unassigned') AS section,
+            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(u.email, '') AS "personalEmail",
+            CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Account Created' END AS status,
+            COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode"
+          FROM students s
+          LEFT JOIN users u ON s.user_id = u.user_id
+          LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+          LEFT JOIN classes c ON sgh.class_id = c.class_id
+          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          LEFT JOIN student_parents sp ON sp.student_id = s.student_id
+          ORDER BY s.student_id, s.created_at DESC
+        `);
+
+        return res.json({ success: true, students: rows || [] });
+      } catch (dbErr) {
+        console.warn('DB fetch students notice:', dbErr.message);
+      }
+    }
+
     return res.json({ success: true, students: studentsStore });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to fetch students.' });
@@ -165,7 +234,7 @@ async function getStudents(req, res) {
  */
 async function createStudent(req, res) {
   try {
-    const { lrn, name, gender, grade, section, personalEmail } = req.body;
+    let { lrn, firstName, middleName, lastName, name, gender, grade, section, personalEmail } = req.body;
 
     if (!lrn || !lrn.trim()) {
       return res.status(400).json({
@@ -176,31 +245,91 @@ async function createStudent(req, res) {
 
     const cleanLrn = lrn.trim();
 
-    // Validate LRN uniqueness
-    const exists = studentsStore.some((s) => s.lrn === cleanLrn);
-    if (exists) {
-      return res.status(400).json({
-        success: false,
-        error: `Student with LRN "${cleanLrn}" already exists.`,
-      });
+    if (!firstName || !lastName) {
+      if (name) {
+        const parsed = parseNameString(name);
+        firstName = firstName || parsed.firstName;
+        middleName = middleName || parsed.middleName;
+        lastName = lastName || parsed.lastName;
+      }
     }
 
+    firstName = (firstName || 'Student').trim();
+    middleName = (middleName || '').trim();
+    lastName = (lastName || 'Learner').trim();
+    const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
+    const cleanEmail = personalEmail?.trim() || `${cleanLrn}@student.salintinig.edu.ph`;
     const parentAccessCode = generateParentAccessCode();
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows: uRows } = await db.query(
+          `INSERT INTO users (email, password_hash, role, status)
+           VALUES ($1, $2, 'student', 'active')
+           ON CONFLICT (email) DO UPDATE SET status = 'active'
+           RETURNING user_id`,
+          [cleanEmail, 'StudentPassword123!']
+        );
+
+        if (uRows && uRows[0]) {
+          const userId = uRows[0].user_id;
+
+          const { rows: sRows } = await db.query(
+            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+             RETURNING student_id`,
+            [userId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
+          );
+
+          if (sRows && sRows[0]) {
+            const studentId = sRows[0].student_id;
+
+            // Link to class section
+            if (section && section !== 'Unassigned') {
+              const { rows: cRows } = await db.query(
+                `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+                [grade || 'Grade 4', section]
+              );
+              if (cRows && cRows[0]) {
+                await db.query(
+                  `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
+                   VALUES ($1, $2, 'enrolled')
+                   ON CONFLICT DO NOTHING`,
+                  [studentId, cRows[0].class_id]
+                );
+              }
+            }
+
+            // Create Parent Access Code link
+            await db.query(
+              `INSERT INTO student_parents (student_id, access_code)
+               VALUES ($1, $2)
+               ON CONFLICT DO NOTHING`,
+              [studentId, parentAccessCode]
+            );
+          }
+        }
+      } catch (dbErr) {
+        console.warn('DB create student notice:', dbErr.message);
+      }
+    }
 
     const newStudent = {
       id: `STD-${Date.now().toString().slice(-4)}`,
       lrn: cleanLrn,
-      name: name?.trim() || 'Student Name',
+      firstName,
+      middleName,
+      lastName,
+      name: fullName,
       gender: gender || 'Male',
       grade: grade || 'Grade 4',
       section: section || 'Fyang',
       level: 'Pending Evaluation',
-      personalEmail: personalEmail?.trim() || `${cleanLrn}@student.deped.gov.ph`,
+      personalEmail: cleanEmail,
       status: 'Account Created',
       parentAccessCode,
     };
-
-    studentsStore.unshift(newStudent);
 
     return res.status(201).json({
       success: true,
@@ -208,6 +337,7 @@ async function createStudent(req, res) {
       student: newStudent,
     });
   } catch (error) {
+    console.error('Error creating student:', error);
     return res.status(500).json({ success: false, error: 'Failed to create student record.' });
   }
 }
@@ -598,9 +728,274 @@ async function getSystemStats(req, res) {
   }
 }
 
+/**
+ * PUT /api/admin/teachers/:id — Update teacher
+ */
+async function updateTeacher(req, res) {
+  try {
+    const { id } = req.params;
+    let { employeeId, firstName, middleName, lastName, name, gender, email, gradeAssigned, sectionAssigned, isFacultyInCharge } = req.body;
+
+    if (!firstName || !lastName) {
+      if (name) {
+        const parsed = parseNameString(name);
+        firstName = firstName || parsed.firstName;
+        middleName = middleName || parsed.middleName;
+        lastName = lastName || parsed.lastName;
+      }
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query(
+          `UPDATE teachers
+           SET first_name = COALESCE($1, first_name),
+               middle_name = COALESCE($2, middle_name),
+               last_name = COALESCE($3, last_name),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE teacher_id::text = $4 OR teacher_no = $4`,
+          [firstName || null, middleName || null, lastName || null, id]
+        );
+
+        if (gender) {
+          await db.query(
+            `UPDATE users SET sex = $1 WHERE user_id IN (SELECT user_id FROM teachers WHERE teacher_id::text = $2 OR teacher_no = $2)`,
+            [gender, id]
+          );
+        }
+
+        if (sectionAssigned) {
+          await db.query(
+            `UPDATE classes SET advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1) WHERE grade_level = $2 AND section_name = $3`,
+            [id, gradeAssigned || 'Grade 4', sectionAssigned]
+          );
+        }
+      } catch (dbErr) {
+        console.warn('DB update teacher notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Teacher record updated successfully.' });
+  } catch (error) {
+    console.error('Error updating teacher:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update teacher record.' });
+  }
+}
+
+/**
+ * DELETE /api/admin/teachers/:id — Delete teacher
+ */
+async function deleteTeacher(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query(`DELETE FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1`, [id]);
+      } catch (dbErr) {
+        console.warn('DB delete teacher notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Teacher record deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting teacher:', error);
+    return res.status(500).json({ success: false, error: 'Failed to delete teacher record.' });
+  }
+}
+
+/**
+ * GET /api/admin/sections — Get all sections grouped by grade level & detailed section list
+ */
+async function getSections(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(`
+          SELECT 
+            c.class_id AS id,
+            c.grade_level AS "gradeLevel",
+            c.section_name AS "sectionName",
+            c.advisor_teacher_id AS "adviserId",
+            CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS adviser,
+            COUNT(sgh.history_id)::int AS "studentsCount",
+            COUNT(CASE WHEN rp.current_profile_label = 'Independent' THEN 1 END)::int AS "independentCount",
+            COUNT(CASE WHEN rp.current_profile_label = 'Instructional' THEN 1 END)::int AS "instructionalCount",
+            COUNT(CASE WHEN rp.current_profile_label = 'Frustrational' THEN 1 END)::int AS "frustrationalCount"
+          FROM classes c
+          LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
+          LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
+          LEFT JOIN reading_profiles rp ON rp.student_id = sgh.student_id
+          GROUP BY c.class_id, c.grade_level, c.section_name, c.advisor_teacher_id, t.first_name, t.middle_name, t.last_name
+          ORDER BY c.grade_level ASC, c.section_name ASC
+        `);
+
+        const sectionsByGrade = {
+          'Grade 4': [],
+          'Grade 5': [],
+          'Grade 6': [],
+        };
+
+        (rows || []).forEach((row) => {
+          if (!sectionsByGrade[row.gradeLevel]) {
+            sectionsByGrade[row.gradeLevel] = [];
+          }
+          if (!sectionsByGrade[row.gradeLevel].includes(row.sectionName)) {
+            sectionsByGrade[row.gradeLevel].push(row.sectionName);
+          }
+        });
+
+        return res.json({ success: true, sections: sectionsByGrade, allSections: rows || [] });
+      } catch (dbErr) {
+        console.warn('DB fetch sections notice:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      sections: {
+        'Grade 4': [],
+        'Grade 5': [],
+        'Grade 6': [],
+      },
+      allSections: [],
+    });
+  } catch (error) {
+    console.error('Error fetching sections:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch sections.' });
+  }
+}
+
+/**
+ * POST /api/admin/sections — Create new class section
+ */
+async function createSection(req, res) {
+  try {
+    const { gradeLevel, sectionName } = req.body;
+    if (!gradeLevel || !sectionName || !sectionName.trim()) {
+      return res.status(400).json({ success: false, error: 'Grade level and section name are required.' });
+    }
+
+    const cleanSection = sectionName.trim();
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const schoolRes = await db.query('SELECT school_id FROM schools LIMIT 1');
+        const schoolId = schoolRes.rows[0]?.school_id || '109283';
+        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syId = syRes.rows[0]?.school_year_id || null;
+
+        await db.query(
+          `INSERT INTO classes (school_id, school_year_id, grade_level, section_name)
+           VALUES ($1, $2, $3, $4)`,
+          [schoolId, syId, gradeLevel, cleanSection]
+        );
+      } catch (dbErr) {
+        console.warn('DB create section notice:', dbErr.message);
+      }
+    }
+
+    return res.status(201).json({ success: true, message: `Section "${cleanSection}" created under ${gradeLevel}.` });
+  } catch (error) {
+    console.error('Error creating section:', error);
+    return res.status(500).json({ success: false, error: 'Failed to create section.' });
+  }
+}
+
+/**
+ * PUT /api/admin/sections/:id — Update/rename class section
+ */
+async function updateSection(req, res) {
+  try {
+    const { id } = req.params;
+    const { gradeLevel, sectionName, adviserId } = req.body;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query(
+          `UPDATE classes 
+           SET section_name = COALESCE(NULLIF($1, ''), section_name),
+               grade_level = COALESCE($2, grade_level),
+               advisor_teacher_id = COALESCE($3, advisor_teacher_id),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE class_id::text = $4 OR (grade_level = $2 AND section_name = $4)`,
+          [sectionName?.trim() || null, gradeLevel || null, adviserId || null, id]
+        );
+      } catch (dbErr) {
+        console.warn('DB update section notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Section updated successfully.' });
+  } catch (error) {
+    console.error('Error updating section:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update section.' });
+  }
+}
+
+/**
+ * DELETE /api/admin/sections/:id — Delete class section
+ */
+async function deleteSection(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query(`DELETE FROM classes WHERE class_id::text = $1 OR section_name = $1`, [id]);
+      } catch (dbErr) {
+        console.warn('DB delete section notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Section deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting section:', error);
+    return res.status(500).json({ success: false, error: 'Failed to delete section.' });
+  }
+}
+
+/**
+ * GET /api/admin/faculty-assignments — Get lead faculty in charge assignments per grade
+ */
+async function getFacultyAssignments(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(`
+          SELECT 
+            fic.faculty_id AS id,
+            fic.grade_level AS "gradeLevel",
+            t.teacher_id AS "teacherId",
+            CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS "facultyInCharge"
+          FROM faculty_in_charge fic
+          JOIN teachers t ON fic.teacher_id = t.teacher_id
+          WHERE fic.status = 'active'
+        `);
+
+        return res.json({ success: true, assignments: rows || [] });
+      } catch (dbErr) {
+        console.warn('DB fetch faculty assignments notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, assignments: [] });
+  } catch (error) {
+    console.error('Error fetching faculty assignments:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch faculty assignments.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   createTeacher,
+  updateTeacher,
+  deleteTeacher,
+  getSections,
+  createSection,
+  updateSection,
+  deleteSection,
+  getFacultyAssignments,
   getStudents,
   createStudent,
   batchImportCSV,

@@ -14,6 +14,17 @@ router.use(requireRole('admin'));
 
 router.get('/teachers', adminController.getTeachers);
 router.post('/teachers', adminController.createTeacher);
+router.put('/teachers/:id', adminController.updateTeacher);
+router.delete('/teachers/:id', adminController.deleteTeacher);
+
+// Section & Faculty Assignment endpoints
+router.get('/sections', adminController.getSections);
+router.post('/sections', adminController.createSection);
+router.put('/sections/:id', adminController.updateSection);
+router.delete('/sections/:id', adminController.deleteSection);
+
+router.get('/faculty-assignments', adminController.getFacultyAssignments);
+router.post('/faculty-assignments', adminController.assignFaculty);
 
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
@@ -24,7 +35,6 @@ router.delete('/students/:lrn', studentController.deleteStudent);
 router.post('/students/import-csv', studentController.importStudentsCSV);
 
 router.post('/import-csv', adminController.batchImportCSV);
-router.post('/faculty-assignment', adminController.assignFaculty);
 
 // Account Requests Management
 router.get('/account-requests', adminController.getAccountRequests);

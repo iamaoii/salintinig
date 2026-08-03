@@ -65,6 +65,8 @@ export default function AdminStudentRecords() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const [availableSections, setAvailableSections] = useState([]);
+
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -82,9 +84,30 @@ export default function AdminStudentRecords() {
     }
   };
 
+  const fetchSections = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/sections', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.allSections) {
+        setAvailableSections(data.allSections);
+      }
+    } catch (err) {
+      console.warn('Could not fetch sections:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStudents();
+    fetchSections();
   }, []);
+
+  const sectionsForSelectedGrade = useMemo(() => {
+    if (!availableSections || availableSections.length === 0) return [];
+    return availableSections.filter((sec) => sec.gradeLevel === formData.grade);
+  }, [availableSections, formData.grade]);
 
   // Filtered Students
   const filteredStudents = useMemo(() => {
@@ -380,10 +403,11 @@ export default function AdminStudentRecords() {
             className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none focus:border-brand-blue"
           >
             <option value="All">All Sections</option>
-            <option value="Fyang">Fyang</option>
-            <option value="Kalapati">Kalapati</option>
-            <option value="Sampaguita">Sampaguita</option>
-            <option value="Aguinaldo">Aguinaldo</option>
+            {availableSections.map((sec) => (
+              <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
+                {sec.sectionName} ({sec.gradeLevel})
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -669,14 +693,19 @@ export default function AdminStudentRecords() {
                   <label className="font-semibold text-ink">
                     Section <span className="text-brand-red ml-0.5">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={formData.section}
                     onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                    placeholder="e.g. Fyang"
-                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
-                  />
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
+                  >
+                    <option value="">Select Section</option>
+                    {sectionsForSelectedGrade.map((sec) => (
+                      <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
+                        {sec.sectionName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

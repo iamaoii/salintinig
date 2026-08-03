@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlass,
@@ -24,7 +24,8 @@ import ToastNotification from '../../components/common/ToastNotification.jsx';
 export default function AdminTeacherRecords() {
   const navigate = useNavigate();
   const { globalSearch } = useOutletContext() || {};
-  const [teachers, setTeachers] = useState(initialAdminTeachers);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -39,11 +40,14 @@ export default function AdminTeacherRecords() {
   // Form State
   const [formData, setFormData] = useState({
     employeeId: '',
-    name: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     gender: 'Female',
     email: '',
     gradeAssigned: 'Grade 4',
     sectionAssigned: 'Fyang',
+    isFacultyInCharge: false,
   });
 
   // CSV Upload State
@@ -60,16 +64,61 @@ export default function AdminTeacherRecords() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const [availableSections, setAvailableSections] = useState([]);
+
+  const fetchTeachers = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/teachers', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTeachers(data.teachers || []);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch teachers:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSections = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/admin/sections', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.allSections) {
+        setAvailableSections(data.allSections);
+      }
+    } catch (err) {
+      console.warn('Could not fetch sections:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeachers();
+    fetchSections();
+  }, []);
+
+  const teacherSectionsForSelectedGrade = useMemo(() => {
+    if (!availableSections || availableSections.length === 0) return [];
+    return availableSections.filter((sec) => sec.gradeLevel === formData.gradeAssigned);
+  }, [availableSections, formData.gradeAssigned]);
+
   // Filtered Teachers
   const filteredTeachers = useMemo(() => {
     const query = (globalSearch || searchQuery).toLowerCase().trim();
     return teachers.filter(
       (t) =>
         !query ||
-        t.name.toLowerCase().includes(query) ||
-        t.employeeId.toLowerCase().includes(query) ||
-        t.email.toLowerCase().includes(query) ||
-        t.sectionAssigned.toLowerCase().includes(query)
+        (t.name && t.name.toLowerCase().includes(query)) ||
+        (t.employeeId && t.employeeId.toLowerCase().includes(query)) ||
+        (t.email && t.email.toLowerCase().includes(query)) ||
+        (t.sectionAssigned && t.sectionAssigned.toLowerCase().includes(query))
     );
   }, [teachers, globalSearch, searchQuery]);
 
@@ -86,25 +135,49 @@ export default function AdminTeacherRecords() {
   };
 
   // Handlers
-  const handleSaveTeacher = (e) => {
+  const handleSaveTeacher = async (e) => {
     e.preventDefault();
-    if (editingTeacher) {
-      setTeachers((prev) =>
-        prev.map((t) => (t.id === editingTeacher.id ? { ...t, ...formData } : t))
-      );
-      showToast(`Teacher record for ${formData.name} updated.`);
-      setEditingTeacher(null);
-    } else {
-      const newTch = {
-        id: `TCH-${Date.now().toString().slice(-3)}`,
-        ...formData,
-        isFacultyInCharge: false,
-        status: 'Active',
-        dateAdded: new Date().toISOString().split('T')[0],
-      };
-      setTeachers((prev) => [newTch, ...prev]);
-      showToast(`Teacher ${formData.name} added & account created!`);
-      setShowAddModal(false);
+    try {
+      const token = localStorage.getItem('token');
+      const teacherName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
+
+      if (editingTeacher) {
+        const res = await fetch(`http://localhost:5000/api/admin/teachers/${editingTeacher.id || editingTeacher.employeeId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(formData),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Teacher record for ${teacherName} updated.`);
+          fetchTeachers();
+          setEditingTeacher(null);
+        } else {
+          showToast(data.error || 'Failed to update teacher.');
+        }
+      } else {
+        const res = await fetch('http://localhost:5000/api/admin/teachers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(formData),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Teacher ${teacherName} added & account created!`);
+          fetchTeachers();
+          setShowAddModal(false);
+        } else {
+          showToast(data.error || 'Failed to create teacher account.');
+        }
+      }
+    } catch (err) {
+      showToast('Error saving teacher record.');
     }
   };
 
@@ -116,10 +189,24 @@ export default function AdminTeacherRecords() {
     showToast(`Account status for ${tch.name} set to ${newStatus}.`);
   };
 
-  const handleDeleteConfirm = () => {
-    if (deletingTeacher) {
-      setTeachers((prev) => prev.filter((t) => t.id !== deletingTeacher.id));
-      showToast(`Teacher record for ${deletingTeacher.name} removed.`);
+  const handleDeleteConfirm = async () => {
+    if (!deletingTeacher) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/teachers/${deletingTeacher.id || deletingTeacher.employeeId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Teacher record for ${deletingTeacher.name} removed.`);
+        fetchTeachers();
+      } else {
+        showToast(data.error || 'Failed to delete teacher.');
+      }
+    } catch (err) {
+      showToast('Error removing teacher record.');
+    } finally {
       setDeletingTeacher(null);
     }
   };
@@ -258,10 +345,29 @@ export default function AdminTeacherRecords() {
               </tr>
             </thead>
             <tbody>
-              {filteredTeachers.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={7} className="border border-ink/10 p-6 text-center text-ink/40">
-                    No teacher records found matching your search.
+                  <td colSpan={7} className="border border-ink/10 p-8 text-center text-ink/50">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                      <span className="text-xs font-semibold">Loading teacher records...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredTeachers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="border border-ink/10 p-10 text-center">
+                    <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
+                      <ChalkboardTeacher size={40} className="text-ink/30" />
+                      <h4 className="text-sm font-bold text-ink">
+                        {teachers.length === 0 ? 'No Teacher Records Found' : 'No Matching Teacher Records'}
+                      </h4>
+                      <p className="text-xs text-ink/60 leading-relaxed">
+                        {teachers.length === 0
+                          ? 'There are currently no teacher records in your database. Click "Add Teacher" or "Upload Teacher CSV" to register faculty.'
+                          : 'No teacher records found matching your search.'}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -527,7 +633,7 @@ export default function AdminTeacherRecords() {
       {/* Add / Edit Teacher Modal */}
       {(showAddModal || editingTeacher) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">
                 {editingTeacher ? 'Edit Teacher Record' : 'Add New Teacher'}
@@ -545,45 +651,103 @@ export default function AdminTeacherRecords() {
             </div>
 
             <form onSubmit={handleSaveTeacher} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-ink">DepEd Employee ID</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.employeeId}
-                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                  placeholder="EMP-2024-XXX"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-ink">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Last Name, First Name"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-ink">DepEd Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="teacher.name@deped.gov.ph"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              {/* Employee ID & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-semibold text-ink">Assigned Grade</label>
+                  <label className="font-semibold text-ink">
+                    DepEd Employee ID <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    placeholder="EMP-2024-XXX"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue font-mono shadow-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-ink">
+                    DepEd Email Address <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="teacher.name@deped.gov.ph"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                  />
+                </div>
+              </div>
+
+              {/* First Name & Middle Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-ink">
+                    First Name <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    placeholder="e.g. Maria"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">
+                    Middle Name <span className="text-ink/40 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.middleName}
+                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                    placeholder="e.g. Santos"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Last Name & Sex/Gender */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-ink">
+                    Last Name <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    placeholder="e.g. Dela Cruz"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">
+                    Sex / Gender <span className="text-brand-red ml-0.5">*</span>
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
+                  >
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Assigned Grade & Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-ink">
+                    Assigned Grade <span className="text-brand-red ml-0.5">*</span>
+                  </label>
                   <select
                     value={formData.gradeAssigned}
                     onChange={(e) => {
@@ -592,10 +756,10 @@ export default function AdminTeacherRecords() {
                       setFormData({
                         ...formData,
                         gradeAssigned: newGrade,
-                        sectionAssigned: availableSections[0] || '',
+                        sectionAssigned: availableSections[0] || 'Unassigned',
                       });
                     }}
-                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
                   >
                     <option value="Grade 4">Grade 4</option>
                     <option value="Grade 5">Grade 5</option>
@@ -608,11 +772,12 @@ export default function AdminTeacherRecords() {
                   <select
                     value={formData.sectionAssigned}
                     onChange={(e) => setFormData({ ...formData, sectionAssigned: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
+                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
                   >
-                    {(sectionsByGrade[formData.gradeAssigned] || []).map((sec) => (
-                      <option key={sec} value={sec}>
-                        {sec}
+                    <option value="Unassigned">Unassigned</option>
+                    {teacherSectionsForSelectedGrade.map((sec) => (
+                      <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
+                        {sec.sectionName}
                       </option>
                     ))}
                   </select>

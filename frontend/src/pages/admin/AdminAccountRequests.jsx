@@ -190,14 +190,27 @@ export default function AdminAccountRequests() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="border border-ink/10 p-6 text-center text-ink/40 text-xs">
-                      Loading account activation requests...
+                    <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                        <span className="text-xs font-semibold">Loading account activation requests...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="border border-ink/10 p-6 text-center text-ink/40 text-xs">
-                      No account requests found.
+                    <td colSpan={6} className="border border-ink/10 p-10 text-center">
+                      <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
+                        <UserCheck size={40} className="text-ink/30" />
+                        <h4 className="text-sm font-bold text-ink">
+                          {requests.length === 0 ? 'No Account Activation Requests' : 'No Matching Account Requests'}
+                        </h4>
+                        <p className="text-xs text-ink/60 leading-relaxed">
+                          {requests.length === 0
+                            ? 'There are currently no account activation requests submitted by teachers.'
+                            : 'No account activation requests match your search or status filter.'}
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 ) : (

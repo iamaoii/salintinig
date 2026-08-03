@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Pencil,
@@ -10,13 +10,21 @@ import {
   UserSwitch,
   IdentificationCard,
 } from '@phosphor-icons/react';
-import { initialFacultyAssignments, initialAdminTeachers, sectionsByGrade } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminFacultyAssignment() {
-  const [assignments, setAssignments] = useState(initialFacultyAssignments);
-  const [teachers] = useState(initialAdminTeachers);
-  const [sections, setSections] = useState(sectionsByGrade);
+  const [assignments, setAssignments] = useState([
+    { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+    { id: '2', gradeLevel: 'Grade 5', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+    { id: '3', gradeLevel: 'Grade 6', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+  ]);
+  const [teachers, setTeachers] = useState([]);
+  const [sections, setSections] = useState({
+    'Grade 4': [],
+    'Grade 5': [],
+    'Grade 6': [],
+  });
+  const [loading, setLoading] = useState(true);
 
   // Filters & Search
   const [selectedGradeTab, setSelectedGradeTab] = useState('All');
@@ -43,14 +51,73 @@ export default function AdminFacultyAssignment() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const [dbSectionsList, setDbSectionsList] = useState([]);
+
+  const fetchAssignmentData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // 1. Fetch Teachers
+      const tchRes = await fetch('http://localhost:5000/api/admin/teachers', { headers: authHeaders });
+      const tchData = await tchRes.json();
+      if (tchRes.ok && tchData.success) {
+        setTeachers(tchData.teachers || []);
+      }
+
+      // 2. Fetch Sections
+      const secRes = await fetch('http://localhost:5000/api/admin/sections', { headers: authHeaders });
+      const secData = await secRes.json();
+      if (secRes.ok && secData.success) {
+        if (secData.sections) {
+          setSections(secData.sections);
+        }
+        if (secData.allSections) {
+          setDbSectionsList(secData.allSections);
+        }
+      }
+
+      // 3. Fetch Faculty Assignments
+      const asgRes = await fetch('http://localhost:5000/api/admin/faculty-assignments', { headers: authHeaders });
+      const asgData = await asgRes.json();
+      if (asgRes.ok && asgData.success && asgData.assignments && asgData.assignments.length > 0) {
+        setAssignments((prev) =>
+          prev.map((g) => {
+            const found = asgData.assignments.find((a) => a.gradeLevel === g.gradeLevel);
+            return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
+          })
+        );
+      }
+    } catch (err) {
+      console.warn('Failed to fetch faculty assignments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAssignmentData();
+  }, []);
+
   // Flat list of sections for the data table
   const allSectionsList = useMemo(() => {
+    if (dbSectionsList && dbSectionsList.length > 0) {
+      return dbSectionsList.map((item) => {
+        const gradeAssignment = assignments.find((a) => a.gradeLevel === item.gradeLevel);
+        return {
+          ...item,
+          id: item.id || `${item.gradeLevel}-${item.sectionName}`,
+          facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : 'Unassigned',
+          adviser: item.adviser || 'Unassigned Adviser',
+        };
+      });
+    }
+
     const list = [];
     Object.entries(sections).forEach(([gradeLevel, sectionArr]) => {
       sectionArr.forEach((sectionName) => {
-        // Find assigned lead faculty
         const gradeAssignment = assignments.find((a) => a.gradeLevel === gradeLevel);
-        // Find adviser assigned to this section
         const adviser = teachers.find(
           (t) => t.gradeAssigned === gradeLevel && t.sectionAssigned === sectionName
         );
@@ -61,12 +128,15 @@ export default function AdminFacultyAssignment() {
           sectionName,
           facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : 'Unassigned',
           adviser: adviser ? adviser.name : 'Unassigned Adviser',
-          studentsCount: Math.floor(Math.abs(sectionName.length * 7 + 38)), // realistic dummy count
+          studentsCount: 0,
+          independentCount: 0,
+          instructionalCount: 0,
+          frustrationalCount: 0,
         });
       });
     });
     return list;
-  }, [sections, assignments, teachers]);
+  }, [dbSectionsList, sections, assignments, teachers]);
 
   // Filtered sections
   const filteredSections = useMemo(() => {
@@ -85,110 +155,116 @@ export default function AdminFacultyAssignment() {
   }, [allSectionsList, selectedGradeTab, searchQuery]);
 
   // Handlers
-  const handleSaveSection = (e) => {
+  const handleSaveSection = async (e) => {
     e.preventDefault();
     const { gradeLevel, sectionName } = sectionFormData;
     const trimmed = sectionName.trim();
     if (!trimmed) return;
 
-    if (editingSectionData) {
-      // Renaming section
-      const oldGrade = editingSectionData.grade;
-      const oldName = editingSectionData.name;
+    try {
+      const token = localStorage.getItem('token');
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
 
-      if (
-        trimmed.toLowerCase() !== oldName.toLowerCase() &&
-        sections[oldGrade]?.some((s) => s.toLowerCase() === trimmed.toLowerCase())
-      ) {
-        showToast(`Section "${trimmed}" already exists in ${oldGrade}!`);
-        return;
+      if (editingSectionData) {
+        // Renaming section
+        const oldName = editingSectionData.name;
+        const res = await fetch(`http://localhost:5000/api/admin/sections/${oldName}`, {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({ gradeLevel: editingSectionData.grade, sectionName: trimmed }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Section "${oldName}" renamed to "${trimmed}".`);
+          fetchAssignmentData();
+          setEditingSectionData(null);
+        } else {
+          showToast(data.error || 'Failed to rename section.');
+        }
+      } else {
+        // Adding new section
+        const res = await fetch('http://localhost:5000/api/admin/sections', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ gradeLevel, sectionName: trimmed }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Section "${trimmed}" added to ${gradeLevel}.`);
+          fetchAssignmentData();
+          setShowAddSectionModal(false);
+        } else {
+          showToast(data.error || 'Failed to create section.');
+        }
       }
-
-      setSections((prev) => ({
-        ...prev,
-        [oldGrade]: prev[oldGrade].map((s) => (s === oldName ? trimmed : s)),
-      }));
-
-      showToast(`Section "${oldName}" renamed to "${trimmed}".`);
-      setEditingSectionData(null);
-    } else {
-      // Adding new section
-      if (sections[gradeLevel]?.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
-        showToast(`Section "${trimmed}" already exists in ${gradeLevel}!`);
-        return;
-      }
-
-      setSections((prev) => {
-        const updated = {
-          ...prev,
-          [gradeLevel]: [...(prev[gradeLevel] || []), trimmed],
-        };
-
-        setAssignments((prevAsg) =>
-          prevAsg.map((a) =>
-            a.gradeLevel === gradeLevel
-              ? { ...a, sectionsCount: updated[gradeLevel].length }
-              : a
-          )
-        );
-
-        return updated;
-      });
-
-      showToast(`Section "${trimmed}" added to ${gradeLevel}.`);
-      setShowAddSectionModal(false);
+    } catch (err) {
+      showToast('Error saving class section.');
     }
 
     setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '' });
   };
 
-  const handleDeleteSection = () => {
+  const handleDeleteSection = async () => {
     if (!deletingSectionData) return;
     const { grade, name } = deletingSectionData;
 
-    setSections((prev) => {
-      const updated = {
-        ...prev,
-        [grade]: prev[grade].filter((s) => s !== name),
-      };
-
-      setAssignments((prevAsg) =>
-        prevAsg.map((a) =>
-          a.gradeLevel === grade
-            ? { ...a, sectionsCount: updated[grade].length }
-            : a
-        )
-      );
-
-      return updated;
-    });
-
-    showToast(`Section "${name}" removed from ${grade}.`);
-    setDeletingSectionData(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/admin/sections/${name}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Section "${name}" removed from ${grade}.`);
+        fetchAssignmentData();
+      } else {
+        showToast(data.error || 'Failed to delete section.');
+      }
+    } catch (err) {
+      showToast('Error deleting section.');
+    } finally {
+      setDeletingSectionData(null);
+    }
   };
 
-  const handleAssignFaculty = (e) => {
+  const handleAssignFaculty = async (e) => {
     e.preventDefault();
     if (!assigningFacultyGrade || !selectedTeacherForGrade) return;
 
-    const teacherObj = teachers.find((t) => t.name === selectedTeacherForGrade);
+    try {
+      const token = localStorage.getItem('token');
+      const teacherObj = teachers.find((t) => t.name === selectedTeacherForGrade);
 
-    setAssignments((prev) =>
-      prev.map((item) =>
-        item.gradeLevel === assigningFacultyGrade
-          ? {
-              ...item,
-              facultyInCharge: selectedTeacherForGrade,
-              email: teacherObj ? teacherObj.email : item.email,
-              status: 'Assigned',
-            }
-          : item
-      )
-    );
+      const res = await fetch('http://localhost:5000/api/admin/faculty-assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          gradeLevel: assigningFacultyGrade,
+          teacherId: teacherObj ? teacherObj.id : null,
+          teacherName: selectedTeacherForGrade,
+        }),
+      });
 
-    showToast(`${selectedTeacherForGrade} assigned as Faculty-in-Charge for ${assigningFacultyGrade}.`);
-    setAssigningFacultyGrade(null);
-    setSelectedTeacherForGrade('');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`${selectedTeacherForGrade} assigned as Faculty-in-Charge for ${assigningFacultyGrade}.`);
+        fetchAssignmentData();
+      } else {
+        showToast(data.error || 'Failed to assign faculty in charge.');
+      }
+    } catch (err) {
+      showToast('Error assigning faculty in charge.');
+    } finally {
+      setAssigningFacultyGrade(null);
+      setSelectedTeacherForGrade('');
+    }
   };
 
   return (
@@ -310,10 +386,29 @@ export default function AdminFacultyAssignment() {
               </tr>
             </thead>
             <tbody>
-              {filteredSections.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={6} className="border border-ink/10 p-6 text-center text-ink/40 text-xs">
-                    No sections found matching your search.
+                  <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                      <span className="text-xs font-semibold">Loading class sections...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredSections.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="border border-ink/10 p-10 text-center">
+                    <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
+                      <ChalkboardTeacher size={40} className="text-ink/30" />
+                      <h4 className="text-sm font-bold text-ink">
+                        {allSectionsList.length === 0 ? 'No Class Sections Found' : 'No Matching Class Sections'}
+                      </h4>
+                      <p className="text-xs text-ink/60 leading-relaxed">
+                        {allSectionsList.length === 0
+                          ? 'There are currently no class sections in your database. Click "Add New Section" to create a section.'
+                          : 'No class sections found matching your search.'}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -322,20 +417,20 @@ export default function AdminFacultyAssignment() {
                     <td className="border border-ink/10 p-3 font-bold text-xs text-ink">{sec.gradeLevel}</td>
                     <td className="border border-ink/10 p-3 font-semibold text-xs text-ink/90">{sec.sectionName}</td>
                     <td className="border border-ink/10 p-3 text-xs text-ink/80">{sec.adviser}</td>
-                    <td className="border border-ink/10 p-3 text-xs text-ink/70">{sec.studentsCount} Students</td>
+                    <td className="border border-ink/10 p-3 text-xs text-ink/70">{sec.studentsCount || 0} Students</td>
                     <td className="border border-ink/10 p-3 text-xs whitespace-nowrap">
                       <div className="flex items-center gap-2.5 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                           <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
-                          <span>12 Independent</span>
+                          <span>{sec.independentCount || 0} Independent</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
                           <span className="size-2 rounded-full bg-amber-500 shrink-0" />
-                          <span>8 Instructional</span>
+                          <span>{sec.instructionalCount || 0} Instructional</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">
                           <span className="size-2 rounded-full bg-red-500 shrink-0" />
-                          <span>5 Frustrational</span>
+                          <span>{sec.frustrationalCount || 0} Frustrational</span>
                         </span>
                       </div>
                     </td>

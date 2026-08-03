@@ -22,6 +22,26 @@ function createToken(user) {
   }
 }
 
+let bcrypt = null;
+try {
+  bcrypt = require('bcryptjs');
+} catch (e) {}
+
+function checkPasswordMatch(inputPassword, storedHash) {
+  if (!storedHash || !inputPassword) return false;
+  // 1. Direct plaintext match (if stored in plain text in DB)
+  if (storedHash === inputPassword) return true;
+  // 2. Bcrypt comparison (if stored as bcrypt hash in DB)
+  if (bcrypt && (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$'))) {
+    try {
+      return bcrypt.compareSync(inputPassword, storedHash);
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
+}
+
 /**
  * Login handler — Authenticates via direct PostgreSQL (DATABASE_URL) or Supabase SDK
  */
@@ -46,7 +66,7 @@ async function login(req, res) {
       try {
         // A. Match strictly by Email
         const userQuery = `
-          SELECT u.*, s.school_name, s.school_id
+          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, s.school_name
           FROM users u
           LEFT JOIN schools s ON u.school_id = s.school_id
           WHERE LOWER(u.email) = $1
@@ -56,12 +76,7 @@ async function login(req, res) {
 
         if (rows && rows.length > 0) {
           const u = rows[0];
-          if (
-            u.password_hash === cleanPass ||
-            u.password_hash === 'password' ||
-            u.password_hash === 'admin123' ||
-            u.password_hash === 'teacher123'
-          ) {
+          if (checkPasswordMatch(cleanPass, u.password_hash)) {
             matchedUser = u;
           }
         }
@@ -69,7 +84,7 @@ async function login(req, res) {
         // B. Match strictly by Teacher ID (Employee ID)
         if (!matchedUser) {
           const teacherQuery = `
-            SELECT u.*, t.first_name, t.last_name, t.teacher_no
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, t.first_name, t.last_name, t.teacher_no
             FROM teachers t
             JOIN users u ON t.user_id = u.user_id
             WHERE LOWER(t.teacher_no) = $1
@@ -78,17 +93,13 @@ async function login(req, res) {
           const { rows: teacherRows } = await db.query(teacherQuery, [cleanId]);
           if (teacherRows && teacherRows.length > 0) {
             const u = teacherRows[0];
-            if (
-              u.password_hash === cleanPass ||
-              u.password_hash === 'password' ||
-              u.password_hash === 'teacher123'
-            ) {
+            if (checkPasswordMatch(cleanPass, u.password_hash)) {
               matchedUser = u;
             }
           }
         }
       } catch (dbErr) {
-        console.warn('Direct Postgres login query notice:', dbErr.message);
+        console.warn('Direct Postgres login query notice:', dbErr.message || dbErr);
       }
     }
 
@@ -102,13 +113,7 @@ async function login(req, res) {
           .ilike('email', cleanId);
 
         if (usersByEmail && usersByEmail.length > 0) {
-          matchedUser = usersByEmail.find(
-            (u) =>
-              u.password_hash === cleanPass ||
-              u.password_hash === 'password' ||
-              u.password_hash === 'admin123' ||
-              u.password_hash === 'teacher123'
-          );
+          matchedUser = usersByEmail.find((u) => checkPasswordMatch(cleanPass, u.password_hash));
         }
 
         // B. Match strictly by Teacher ID (Employee ID)
@@ -126,12 +131,7 @@ async function login(req, res) {
               .eq('user_id', teacherRec.user_id)
               .maybeSingle();
 
-            if (
-              userRec &&
-              (userRec.password_hash === cleanPass ||
-                userRec.password_hash === 'password' ||
-                userRec.password_hash === 'teacher123')
-            ) {
+            if (userRec && checkPasswordMatch(cleanPass, userRec.password_hash)) {
               matchedUser = userRec;
             }
           }

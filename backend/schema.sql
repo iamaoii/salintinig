@@ -1,26 +1,25 @@
 -- =============================================================================
--- SalinTinig Database Schema (PostgreSQL / Supabase)
+-- SalinTinig Complete Database Schema (PostgreSQL / Supabase)
 -- =============================================================================
 
--- Enable UUID extension if required
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- -----------------------------------------------------------------------------
 -- 1. SCHOOLS & INSTITUTIONAL PROFILES
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS schools (
-    school_id VARCHAR(50) PRIMARY KEY, -- Official DepEd School ID e.g. '109283'
-    school_name VARCHAR(255) NOT NULL, -- e.g. 'Mandaluyong Elementary School'
+    school_id VARCHAR(50) PRIMARY KEY, -- DepEd School ID e.g. '109283'
+    school_name VARCHAR(255) NOT NULL,
     division VARCHAR(150),
     region VARCHAR(150),
-    official_email VARCHAR(255) UNIQUE NOT NULL, -- e.g. '109283@deped.gov.ph'
+    official_email VARCHAR(255) UNIQUE NOT NULL,
     principal_name VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
--- 2. USERS & CORE AUTHENTICATION
+-- 2. USERS & AUTHENTICATION
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -34,19 +33,27 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------------------------------
--- 2. SCHOOL YEARS & CLASSES
--- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS school_years (
-    school_year_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    school_year VARCHAR(20) NOT NULL, -- e.g. "2026-2027"
-    is_active BOOLEAN DEFAULT TRUE,
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    reset_token VARCHAR(255) NOT NULL,
+    purpose VARCHAR(50) DEFAULT 'password_reset',
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE,
+    is_used BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
--- 3. TEACHERS & FACULTY
+-- 3. SCHOOL YEARS, TEACHERS & CLASSES
 -- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS school_years (
+    school_year_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_year VARCHAR(20) NOT NULL UNIQUE, -- e.g. '2026-2027'
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS teachers (
     teacher_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
@@ -61,48 +68,40 @@ CREATE TABLE IF NOT EXISTS teachers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS faculty_in_charge (
-    faculty_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE CASCADE,
-    school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
-    grade_level VARCHAR(50) NOT NULL,
-    status VARCHAR(50) DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS classes (
     class_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
     school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
     advisor_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
-    grade_level VARCHAR(50) NOT NULL,
-    section_name VARCHAR(100) NOT NULL,
+    grade_level VARCHAR(50) NOT NULL, -- e.g. 'Grade 4'
+    section_name VARCHAR(100) NOT NULL, -- e.g. 'Fyang'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_grade_section UNIQUE (school_id, school_year_id, grade_level, section_name)
 );
 
-CREATE TABLE IF NOT EXISTS section_teacher_assignments (
-    assignment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS faculty_in_charge (
+    faculty_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE CASCADE,
-    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
+    grade_level VARCHAR(50) NOT NULL, -- Lead Faculty for Grade 4, 5, or 6
     status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_faculty_grade UNIQUE (school_year_id, grade_level)
 );
 
 -- -----------------------------------------------------------------------------
--- 4. STUDENTS, PARENTS & STUDENT-PARENT LINKING
+-- 4. STUDENTS, PARENTS & ENROLLMENT
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS students (
     student_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    lrn VARCHAR(20) UNIQUE NOT NULL, -- Learner Reference Number
+    lrn VARCHAR(20) UNIQUE NOT NULL, -- 12-digit Learner Reference Number
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
-    sex VARCHAR(20),
+    sex VARCHAR(20) CHECK (sex IN ('Male', 'Female')),
     profile_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -124,7 +123,7 @@ CREATE TABLE IF NOT EXISTS student_parents (
     student_parent_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     parent_id UUID REFERENCES parents(parent_id) ON DELETE SET NULL,
-    access_code VARCHAR(50) NOT NULL, -- Generated Parent Access Code (e.g. PAC-88491)
+    access_code VARCHAR(50) NOT NULL UNIQUE, -- e.g. 'PAC-88491'
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
@@ -137,7 +136,8 @@ CREATE TABLE IF NOT EXISTS student_grade_history (
     class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
     promotion_status VARCHAR(50) DEFAULT 'enrolled',
     promoted_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_student_class UNIQUE (student_id, class_id)
 );
 
 -- -----------------------------------------------------------------------------
@@ -248,6 +248,16 @@ CREATE TABLE IF NOT EXISTS assessment_answers (
     answered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS teacher_feedback (
+    feedback_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+    assessment_id UUID REFERENCES assessments(assessment_id) ON DELETE CASCADE,
+    feedback_text TEXT NOT NULL,
+    recommendation TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- -----------------------------------------------------------------------------
 -- 7. CLASS ACTIVITIES & GAMIFICATION
 -- -----------------------------------------------------------------------------
@@ -352,13 +362,13 @@ CREATE TABLE IF NOT EXISTS reading_profiles (
     fluency_level VARCHAR(50),
     pronunciation_level VARCHAR(50),
     miscue_pattern TEXT,
-    current_profile_label VARCHAR(100),
+    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustrational'
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
--- 9. NOTIFICATIONS, TOKENS & TEACHER FEEDBACK
+-- 9. NOTIFICATIONS & ACCOUNT REQUESTS
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -370,30 +380,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    token_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    reset_token VARCHAR(255) NOT NULL,
-    purpose VARCHAR(50) DEFAULT 'password_reset',
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    used_at TIMESTAMP WITH TIME ZONE,
-    is_used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS teacher_feedback (
-    feedback_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE CASCADE,
-    assessment_id UUID REFERENCES assessments(assessment_id) ON DELETE CASCADE,
-    feedback_text TEXT NOT NULL,
-    recommendation TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- -----------------------------------------------------------------------------
--- 10. ACCOUNT REQUESTS (CONTACT ADMIN / TEACHER ACTIVATION)
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS account_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
@@ -406,3 +392,14 @@ CREATE TABLE IF NOT EXISTS account_requests (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
+-- 10. INDEXES FOR HIGH-PERFORMANCE LOOKUPS
+-- -----------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_teachers_no ON teachers(teacher_no);
+CREATE INDEX IF NOT EXISTS idx_students_lrn ON students(lrn);
+CREATE INDEX IF NOT EXISTS idx_classes_advisor ON classes(advisor_teacher_id);
+CREATE INDEX IF NOT EXISTS idx_classes_grade_section ON classes(grade_level, section_name);
+CREATE INDEX IF NOT EXISTS idx_student_grade_history_class ON student_grade_history(class_id);
+CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id);
+CREATE INDEX IF NOT EXISTS idx_reading_profiles_student ON reading_profiles(student_id);
