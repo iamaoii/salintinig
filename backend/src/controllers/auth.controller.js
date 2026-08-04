@@ -710,17 +710,23 @@ async function register(req, res) {
  */
 async function contactAdmin(req, res) {
   try {
-    const { schoolId, fullName, email, contactNumber, gradeSubject } = req.body;
+    const { schoolId, teacherNo, firstName, middleName, lastName, sex, email, contactNumber, gradeSubject } = req.body;
 
-    if (!schoolId || !fullName || !email) {
+    if (!schoolId || !firstName || !lastName || !email) {
       return res.status(400).json({
         success: false,
-        error: 'School ID, Full Name, and Email are required.',
+        error: 'School ID, First Name, Last Name, and Email are required.',
       });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanSchoolId = schoolId.trim();
+    const cleanTeacherNo = teacherNo ? teacherNo.trim() : null;
+    const cleanFirstName = firstName.trim();
+    const cleanMiddleName = middleName ? middleName.trim() : null;
+    const cleanLastName = lastName.trim();
+    const cleanSex = sex || 'Male';
+    const computedFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(' ');
 
     // 1. Verify if user already has an active account
     if (process.env.DATABASE_URL) {
@@ -738,27 +744,64 @@ async function contactAdmin(req, res) {
 
         // Save request in account_requests table
         await db.query(
-          `INSERT INTO account_requests (school_id, full_name, email, contact_number, grade_subject)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [cleanSchoolId, fullName.trim(), cleanEmail, contactNumber || null, gradeSubject || null]
+          `INSERT INTO account_requests (school_id, teacher_no, first_name, middle_name, last_name, sex, email)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            cleanSchoolId,
+            cleanTeacherNo,
+            cleanFirstName,
+            cleanMiddleName,
+            cleanLastName,
+            cleanSex,
+            cleanEmail,
+          ]
         );
       } catch (dbErr) {
         console.warn('Account request DB notice:', dbErr.message);
       }
     }
 
-    // 2. Fetch Admin Email for this school
+    // 2. Fetch Admin Email & User ID for this school
     let adminEmail = 'admin@gmail.com';
+    let adminUserId = null;
+
     if (process.env.DATABASE_URL) {
       try {
-        const { rows: schoolRows } = await db.query(
-          'SELECT official_email FROM schools WHERE school_id = $1 LIMIT 1',
+        const { rows: adminUserRows } = await db.query(
+          `SELECT user_id, email FROM users WHERE school_id = $1 AND role = 'admin' LIMIT 1`,
           [cleanSchoolId]
         );
-        if (schoolRows && schoolRows.length > 0 && schoolRows[0].official_email) {
-          adminEmail = schoolRows[0].official_email;
+        if (adminUserRows && adminUserRows.length > 0) {
+          adminUserId = adminUserRows[0].user_id;
+          if (adminUserRows[0].email) {
+            adminEmail = adminUserRows[0].email;
+          }
         }
-      } catch (e) {}
+
+        if (adminEmail === 'admin@gmail.com') {
+          const { rows: schoolRows } = await db.query(
+            'SELECT official_email FROM schools WHERE school_id = $1 LIMIT 1',
+            [cleanSchoolId]
+          );
+          if (schoolRows && schoolRows.length > 0 && schoolRows[0].official_email) {
+            adminEmail = schoolRows[0].official_email;
+          }
+        }
+
+        // Create in-app notification record for Admin
+        await db.query(
+          `INSERT INTO notifications (school_id, user_id, title, message, notification_type)
+           VALUES ($1, $2, $3, $4, 'account_request')`,
+          [
+            cleanSchoolId,
+            adminUserId,
+            `New Account Request from ${computedFullName}`,
+            `${computedFullName} (${cleanEmail}) requested teacher account activation for School ID ${cleanSchoolId}.`
+          ]
+        );
+      } catch (e) {
+        console.warn('Admin email resolution notice:', e.message);
+      }
     }
 
     // 3. Dispatch Resend notification email to School Admin
@@ -768,11 +811,12 @@ async function contactAdmin(req, res) {
       process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
     ) {
       try {
+        const { Resend } = require('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: 'SalinTinig <onboarding@resend.dev>',
           to: adminEmail,
-          subject: `New Teacher Activation Request from ${fullName}`,
+          subject: `New Teacher Activation Request from ${computedFullName}`,
           html: `
             <!DOCTYPE html>
             <html>
@@ -804,10 +848,10 @@ async function contactAdmin(req, res) {
                           <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #1a1816;">New Teacher Account Request</h1>
                           <p style="margin: 0 0 20px 0; font-size: 15px; color: #6e6a63; line-height: 1.6;">A teacher has submitted an account activation request for School ID <strong>${cleanSchoolId}</strong>:</p>
                           <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f2ee; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Full Name:</strong> ${fullName}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Full Name:</strong> ${computedFullName}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Teacher ID:</strong> ${cleanTeacherNo || 'N/A'}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Sex / Gender:</strong> ${cleanSex}</td></tr>
                             <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Email:</strong> ${cleanEmail}</td></tr>
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Contact Number:</strong> ${contactNumber || 'N/A'}</td></tr>
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Grade / Subject:</strong> ${gradeSubject || 'N/A'}</td></tr>
                           </table>
                           <p style="margin: 0 0 18px 0; font-size: 14px; color: #6e6a63;">Log in to your Admin Dashboard to review and approve this request.</p>
                         </td>

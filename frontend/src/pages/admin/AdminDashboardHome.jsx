@@ -19,6 +19,7 @@ import {
   UserCheck,
 } from '@phosphor-icons/react';
 import { adminStats, recentActivities } from '../../data/adminData.js';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function AdminDashboardHome() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [requestFilter, setRequestFilter] = useState('all');
+  const [toast, setToast] = useState(null);
 
   // Fetch pending account activation requests
   const fetchRequests = async () => {
@@ -89,13 +91,13 @@ export default function AdminDashboardHome() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`Account for ${name} approved successfully! Credentials sent via email.`);
+        setToast({ message: `Account for ${name} approved successfully! Credentials sent via email.`, type: 'success' });
         fetchRequests();
       } else {
-        alert(data.error || 'Failed to approve request.');
+        setToast({ message: data.error || 'Failed to approve request.', type: 'error' });
       }
     } catch (err) {
-      alert('Network error while approving request.');
+      setToast({ message: 'Network error while approving request.', type: 'error' });
     } finally {
       setProcessingId(null);
     }
@@ -115,10 +117,13 @@ export default function AdminDashboardHome() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setToast({ message: 'Account request rejected.', type: 'info' });
         fetchRequests();
+      } else {
+        setToast({ message: data.error || 'Failed to reject request.', type: 'error' });
       }
     } catch (err) {
-      alert('Error rejecting request.');
+      setToast({ message: 'Error rejecting request.', type: 'error' });
     } finally {
       setProcessingId(null);
     }
@@ -180,7 +185,11 @@ export default function AdminDashboardHome() {
 
   return (
     <div className="space-y-4">
-      {/* Top Header Actions */}
+      <ToastNotification
+        message={toast?.message || null}
+        type={toast?.type || 'success'}
+        onClose={() => setToast(null)}
+      />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -293,56 +302,58 @@ export default function AdminDashboardHome() {
           </div>
         ) : (
           <div className="mt-3 divide-y divide-ink/10 overflow-x-auto">
-            {filteredRequests.map((req) => (
-              <div key={req.request_id || req.email} className="flex items-center justify-between py-2.5 px-2 hover:bg-ink/[0.02] rounded-xl transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-sm">
-                    {(req.full_name || 'T')[0]}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-ink">{req.full_name}</h4>
-                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                        req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                        req.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-amber-100 text-amber-700'
-                      }`}>
-                        {req.status ? req.status.toUpperCase() : 'PENDING'}
-                      </span>
+            {filteredRequests.map((req) => {
+              const tName = req.full_name || [req.first_name, req.middle_name, req.last_name].filter(Boolean).join(' ') || 'Teacher';
+              return (
+                <div key={req.request_id || req.email} className="flex items-center justify-between py-2.5 px-2 hover:bg-ink/[0.02] rounded-xl transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-sm">
+                      {(tName || 'T')[0]}
                     </div>
-                    <p className="text-[11px] text-ink/60">{req.email} &bull; School ID: {req.school_id}</p>
-                    {req.grade_subject && <span className="text-[10px] text-ink/40">Grade/Subject: {req.grade_subject}</span>}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-bold text-ink">{tName}</h4>
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                          req.status === 'approved' ? 'bg-green-100 text-green-700' :
+                          req.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {req.status ? req.status.toUpperCase() : 'PENDING'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-ink/60">{req.email} &bull; ID: {req.teacher_no || 'N/A'} &bull; School ID: {req.school_id}</p>
+                    </div>
                   </div>
-                </div>
 
-                {req.status === 'pending' ? (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={processingId === (req.request_id || req.email)}
-                      onClick={() => handleApprove(req.request_id || req.email, req.full_name)}
-                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <Check size={14} weight="bold" />
-                      <span>Approve</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={processingId === (req.request_id || req.email)}
-                      onClick={() => handleReject(req.request_id || req.email)}
-                      className="flex items-center gap-1 rounded-lg border border-ink/10 bg-cream px-2.5 py-1.5 text-xs font-semibold text-ink/70 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <X size={14} weight="bold" />
-                      <span>Reject</span>
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-[11px] font-semibold text-ink/40">
-                    {req.status === 'approved' ? 'Credentials Sent' : 'Request Processed'}
-                  </span>
-                )}
-              </div>
-            ))}
+                  {req.status === 'pending' ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={processingId === (req.request_id || req.email)}
+                        onClick={() => handleApprove(req.request_id || req.email, tName)}
+                        className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Check size={14} weight="bold" />
+                        <span>Approve</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={processingId === (req.request_id || req.email)}
+                        onClick={() => handleReject(req.request_id || req.email, tName)}
+                        className="flex items-center gap-1 rounded-lg border border-ink/10 bg-cream px-2.5 py-1.5 text-xs font-semibold text-ink/70 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <X size={14} weight="bold" />
+                        <span>Reject</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-ink/40">
+                      {req.status === 'approved' ? 'Credentials Sent' : 'Request Processed'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

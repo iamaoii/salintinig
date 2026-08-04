@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, WarningCircle, Info, X } from '@phosphor-icons/react';
 
 export default function ToastNotification({ message, type = 'success', onClose }) {
@@ -9,6 +10,16 @@ export default function ToastNotification({ message, type = 'success', onClose }
     if (message) {
       setVisibleMessage(message);
       setIsFading(false);
+
+      // Auto-dismiss after 4 seconds
+      const dismissTimer = setTimeout(() => {
+        setIsFading(true);
+        setTimeout(() => {
+          if (onClose) onClose();
+        }, 400);
+      }, 4000);
+
+      return () => clearTimeout(dismissTimer);
     } else if (visibleMessage) {
       setIsFading(true);
       const timer = setTimeout(() => {
@@ -17,7 +28,7 @@ export default function ToastNotification({ message, type = 'success', onClose }
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [message, visibleMessage]);
+  }, [message]);
 
   const handleClose = () => {
     setIsFading(true);
@@ -35,14 +46,24 @@ export default function ToastNotification({ message, type = 'success', onClose }
       ? 'bg-brand-blue text-white'
       : 'bg-[#00a652] text-white';
 
-  return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-[9999] flex items-center justify-end">
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        zIndex: 9999,
+        pointerEvents: 'none',
+      }}
+    >
       <div
-        className={`pointer-events-auto flex items-center gap-3 rounded-2xl ${bgStyle} px-4 py-3 text-xs font-bold shadow-[0_10px_30px_-5px_rgba(0,0,0,0.25)] border border-white/20 transition-all duration-400 ease-out ${
-          isFading
-            ? 'opacity-0 translate-y-3 scale-95'
-            : 'opacity-100 translate-y-0 scale-100 animate-in fade-in slide-in-from-bottom-5 duration-300'
-        } backdrop-blur-xs`}
+        style={{
+          pointerEvents: 'auto',
+          transition: 'opacity 0.35s ease, transform 0.35s ease',
+          opacity: isFading ? 0 : 1,
+          transform: isFading ? 'translateY(8px) scale(0.96)' : 'translateY(0) scale(1)',
+        }}
+        className={`flex items-center gap-3 rounded-2xl ${bgStyle} px-4 py-3 text-xs font-bold shadow-[0_10px_30px_-5px_rgba(0,0,0,0.25)] border border-white/20`}
       >
         {type === 'error' && <WarningCircle size={18} weight="fill" className="shrink-0" />}
         {type === 'info' && <Info size={18} weight="fill" className="shrink-0" />}
@@ -58,6 +79,7 @@ export default function ToastNotification({ message, type = 'success', onClose }
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -650,9 +650,13 @@ async function getAccountRequests(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(
-          `SELECT request_id, school_id, full_name, email, contact_number, grade_subject, status, created_at
-           FROM account_requests ORDER BY created_at DESC`
+          `SELECT request_id, school_id, teacher_no, first_name, middle_name, last_name, sex, email, status, created_at
+           FROM account_requests
+           WHERE (school_id = $1 OR school_id IS NULL)
+           ORDER BY created_at DESC`,
+          [schoolId]
         );
         return res.json({ success: true, requests: rows });
       } catch (dbErr) {
@@ -688,7 +692,8 @@ async function approveAccountRequest(req, res) {
       return res.status(404).json({ success: false, error: 'Account request not found.' });
     }
 
-    const defaultPassword = 'Password123!';
+    const tempPassword = generateTempPassword();
+    const hashedPassword = hashPassword(tempPassword);
     const generatedTeacherNo = `EMP-2026-${Math.floor(100 + Math.random() * 900)}`;
 
     if (process.env.DATABASE_URL) {
@@ -696,28 +701,38 @@ async function approveAccountRequest(req, res) {
         const { rows: userRows } = await db.query(
           `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
            VALUES ($1, $2, $3, 'teacher', 'active', true)
-           ON CONFLICT (email) DO UPDATE SET status = 'active'
+           ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [targetRequest.school_id, targetRequest.email, defaultPassword]
+          [targetRequest.school_id, targetRequest.email, hashedPassword]
         );
 
         if (userRows && userRows.length > 0) {
           const userId = userRows[0].user_id;
-          const nameParts = (targetRequest.full_name || '').trim().split(' ');
-          const firstName = nameParts[0] || 'Teacher';
-          const lastName = nameParts.slice(1).join(' ') || 'Faculty';
+          const firstName = targetRequest.first_name || 'Teacher';
+          const middleName = targetRequest.middle_name || null;
+          const lastName = targetRequest.last_name || 'Faculty';
+          const teacherNo = targetRequest.teacher_no || generatedTeacherNo;
+          const sex = targetRequest.sex || 'Male';
 
           await db.query(
-            `INSERT INTO teachers (user_id, school_id, teacher_no, first_name, last_name, contact_number)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (teacher_no) DO NOTHING`,
-            [userId, targetRequest.school_id, generatedTeacherNo, firstName, lastName, targetRequest.contact_number || null]
+            `INSERT INTO teachers (user_id, school_id, teacher_no, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (teacher_no) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7`,
+            [userId, targetRequest.school_id, teacherNo, firstName, middleName, lastName, sex]
           );
 
           await db.query(
             "UPDATE account_requests SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE request_id = $1",
             [requestId]
           );
+
+          sendWelcomeEmailWithTempPassword({
+            toEmail: targetRequest.email,
+            fullName: targetRequest.full_name,
+            role: 'Teacher',
+            tempPassword,
+            identifier: generatedTeacherNo,
+          });
         }
       } catch (dbErr) {
         console.warn('Approve account request DB notice:', dbErr.message);

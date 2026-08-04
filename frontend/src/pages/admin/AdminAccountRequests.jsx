@@ -103,12 +103,13 @@ export default function AdminAccountRequests() {
   const filteredRequests = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return requests.filter((r) => {
+      const name = r.full_name || [r.first_name, r.middle_name, r.last_name].filter(Boolean).join(' ');
       const matchesSearch =
         !query ||
-        r.full_name.toLowerCase().includes(query) ||
-        r.email.toLowerCase().includes(query) ||
-        (r.school_id && r.school_id.includes(query)) ||
-        (r.grade_subject && r.grade_subject.toLowerCase().includes(query));
+        name.toLowerCase().includes(query) ||
+        (r.email && r.email.toLowerCase().includes(query)) ||
+        (r.teacher_no && r.teacher_no.toLowerCase().includes(query)) ||
+        (r.school_id && r.school_id.includes(query));
 
       const matchesStatus =
         statusFilter === 'All' ||
@@ -180,9 +181,10 @@ export default function AdminAccountRequests() {
               <thead>
                 <tr className="text-xs text-ink/70">
                   <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Teacher Name</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Teacher ID</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Sex / Gender</th>
                   <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">DepEd Email</th>
                   <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">DepEd School ID</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Grade / Subject</th>
                   <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left min-w-[130px] whitespace-nowrap">Request Status</th>
                   <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Actions</th>
                 </tr>
@@ -190,7 +192,7 @@ export default function AdminAccountRequests() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
+                    <td colSpan={7} className="border border-ink/10 p-8 text-center text-ink/50">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
                         <span className="text-xs font-semibold">Loading account activation requests...</span>
@@ -199,7 +201,7 @@ export default function AdminAccountRequests() {
                   </tr>
                 ) : filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="border border-ink/10 p-10 text-center">
+                    <td colSpan={7} className="border border-ink/10 p-10 text-center">
                       <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                         <UserCheck size={40} className="text-ink/30" />
                         <h4 className="text-sm font-bold text-ink">
@@ -214,63 +216,67 @@ export default function AdminAccountRequests() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRequests.map((req) => (
-                    <tr key={req.request_id || req.email} className="hover:bg-ink/[0.02] transition-colors">
-                      <td className="border border-ink/10 p-2.5 font-bold text-xs text-ink">
-                        <div className="flex items-center gap-2">
-                          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-xs">
-                            {(req.full_name || 'T')[0]}
+                  filteredRequests.map((req) => {
+                    const tName = req.full_name || [req.first_name, req.middle_name, req.last_name].filter(Boolean).join(' ') || 'Teacher';
+                    return (
+                      <tr key={req.request_id || req.email} className="hover:bg-ink/[0.02] transition-colors">
+                        <td className="border border-ink/10 p-2.5 font-bold text-xs text-ink">
+                          <div className="flex items-center gap-2">
+                            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-xs">
+                              {(tName || 'T')[0]}
+                            </div>
+                            <span>{tName}</span>
                           </div>
-                          <span>{req.full_name}</span>
-                        </div>
-                      </td>
-                      <td className="border border-ink/10 p-2.5 text-xs text-ink/70">{req.email}</td>
-                      <td className="border border-ink/10 p-2.5 font-mono text-xs text-ink/80">{req.school_id}</td>
-                      <td className="border border-ink/10 p-2.5 text-xs text-ink/70">{req.grade_subject || 'N/A'}</td>
-                      <td className="border border-ink/10 p-2.5 text-xs whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
-                          req.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' :
-                          req.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
-                          'bg-amber-100 text-amber-700 border-amber-200'
-                        }`}>
-                          <span className={`size-1.5 rounded-full ${
-                            req.status === 'approved' ? 'bg-green-600' :
-                            req.status === 'rejected' ? 'bg-red-600' :
-                            'bg-amber-600'
-                          }`} />
-                          <span>{(req.status || 'PENDING').toUpperCase()}</span>
-                        </span>
-                      </td>
-                      <td className="border border-ink/10 p-2.5 text-right">
-                        {req.status === 'pending' ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              disabled={processingId === (req.request_id || req.email)}
-                              onClick={() => handleApprove(req.request_id || req.email, req.full_name)}
-                              className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              <Check size={14} weight="bold" />
-                              <span>Approve</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={processingId === (req.request_id || req.email)}
-                              onClick={() => handleReject(req.request_id || req.email, req.full_name)}
-                              className="flex items-center gap-1 rounded-lg border border-ink/10 bg-cream px-2.5 py-1 text-xs font-semibold text-ink/70 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              <X size={14} weight="bold" />
-                              <span>Reject</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-semibold text-ink/40">
-                            {req.status === 'approved' ? 'Credentials Emailed' : 'Rejected'}
+                        </td>
+                        <td className="border border-ink/10 p-2.5 font-mono text-xs text-ink/80">{req.teacher_no || 'N/A'}</td>
+                        <td className="border border-ink/10 p-2.5 text-xs text-ink/70">{req.sex || 'Male'}</td>
+                        <td className="border border-ink/10 p-2.5 text-xs text-ink/70">{req.email}</td>
+                        <td className="border border-ink/10 p-2.5 font-mono text-xs text-ink/80">{req.school_id}</td>
+                        <td className="border border-ink/10 p-2.5 text-xs whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                            req.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' :
+                            req.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
+                            'bg-amber-100 text-amber-700 border-amber-200'
+                          }`}>
+                            <span className={`size-1.5 rounded-full ${
+                              req.status === 'approved' ? 'bg-green-600' :
+                              req.status === 'rejected' ? 'bg-red-600' :
+                              'bg-amber-600'
+                            }`} />
+                            <span>{(req.status || 'PENDING').toUpperCase()}</span>
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="border border-ink/10 p-2.5 text-right">
+                          {req.status === 'pending' ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={processingId === (req.request_id || req.email)}
+                                onClick={() => handleApprove(req.request_id || req.email, tName)}
+                                className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <Check size={14} weight="bold" />
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={processingId === (req.request_id || req.email)}
+                                onClick={() => handleReject(req.request_id || req.email, tName)}
+                                className="flex items-center gap-1 rounded-lg border border-ink/10 bg-cream px-2.5 py-1 text-xs font-semibold text-ink/70 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <X size={14} weight="bold" />
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-semibold text-ink/40">
+                              {req.status === 'approved' ? 'Approved' : 'Rejected'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
