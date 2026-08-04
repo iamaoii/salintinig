@@ -44,6 +44,11 @@ async function initDatabase() {
       await db.query("ALTER TABLE teachers ADD COLUMN IF NOT EXISTS sex VARCHAR(20) DEFAULT 'Male';");
       await db.query("ALTER TABLE faculty_in_charge ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
       await db.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS school_id VARCHAR(50) REFERENCES schools(school_id);");
+      await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS teacher_no VARCHAR(100);");
+      await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);");
+      await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS middle_name VARCHAR(100);");
+      await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);");
+      await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS sex VARCHAR(20) DEFAULT 'Male';");
 
       // Auto-hash any existing plain-text passwords in database with bcrypt salt rounds 10
       try {

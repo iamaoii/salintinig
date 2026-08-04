@@ -396,10 +396,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS account_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
-    full_name VARCHAR(255) NOT NULL,
+    teacher_no VARCHAR(100),
+    first_name VARCHAR(100),
+    middle_name VARCHAR(100),
+    last_name VARCHAR(100),
+    sex VARCHAR(20) DEFAULT 'Male',
     email VARCHAR(255) NOT NULL,
-    contact_number VARCHAR(50),
-    grade_subject VARCHAR(100),
     status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
