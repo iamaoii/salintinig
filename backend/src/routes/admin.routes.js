@@ -26,6 +26,11 @@ router.delete('/sections/:id', adminController.deleteSection);
 router.get('/faculty-assignments', adminController.getFacultyAssignments);
 router.post('/faculty-assignments', adminController.assignFaculty);
 
+// School Year endpoints
+router.get('/school-years', adminController.getSchoolYears);
+router.post('/school-years', adminController.createSchoolYear);
+router.put('/school-years/:id/activate', adminController.activateSchoolYear);
+
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
 router.post('/students', studentController.createStudent);

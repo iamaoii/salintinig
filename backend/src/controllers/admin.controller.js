@@ -157,15 +157,21 @@ async function getTeachers(req, res) {
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
             COALESCE(t.sex, 'Male') AS gender,
             COALESCE(u.email, '') AS email,
-            COALESCE(c.grade_level, 'Unassigned') AS "gradeAssigned",
-            COALESCE(c.section_name, 'Unassigned') AS "sectionAssigned",
-            CASE WHEN fic.teacher_id IS NOT NULL THEN true ELSE false END AS "isFacultyInCharge",
+            COALESCE(
+              (SELECT c.grade_level FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+              'Unassigned'
+            ) AS "gradeAssigned",
+            COALESCE(
+              (SELECT c.section_name FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+              'Unassigned'
+            ) AS "sectionAssigned",
+            EXISTS(
+              SELECT 1 FROM faculty_in_charge fic JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
+            ) AS "isFacultyInCharge",
             CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
             TO_CHAR(t.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM teachers t
           LEFT JOIN users u ON t.user_id = u.user_id
-          LEFT JOIN classes c ON c.advisor_teacher_id = t.teacher_id
-          LEFT JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
           WHERE (t.school_id = $1 OR u.school_id = $1 OR t.school_id IS NULL)
           ORDER BY t.created_at DESC
         `, [schoolId]);
@@ -618,18 +624,77 @@ async function verifyParentAccessCode(req, res) {
 }
 
 /**
- * POST /api/admin/faculty-assignment — Update faculty assignment
+ * POST /api/admin/faculty-assignments — Update faculty assignment
  */
 async function assignFaculty(req, res) {
   try {
-    const { teacherId, gradeAssigned, sectionAssigned, isFacultyInCharge } = req.body;
+    const { teacherId, gradeAssigned, sectionAssigned, isFacultyInCharge, gradeLevel, teacherName } = req.body;
+    const targetGrade = gradeLevel || gradeAssigned;
 
-    const teacher = teachersStore.find((t) => t.id === teacherId || t.employeeId === teacherId);
+    if (process.env.DATABASE_URL) {
+      try {
+        const schoolId = await getAdminSchoolId(req);
+        let teacherIdToUse = teacherId;
+        let foundTeacherName = teacherName || '';
+
+        // Search for teacher by ID, teacher_no, or full name in database
+        if (teacherIdToUse || teacherName) {
+          const { rows: tRows } = await db.query(
+            `SELECT teacher_id, CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) AS name
+             FROM teachers
+             WHERE teacher_id::text = $1 OR teacher_no = $1 OR CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) = $2 OR CONCAT(first_name, ' ', last_name) = $2
+             LIMIT 1`,
+            [teacherIdToUse || '', teacherName || '']
+          );
+          if (tRows && tRows.length > 0) {
+            teacherIdToUse = tRows[0].teacher_id;
+            foundTeacherName = tRows[0].name;
+          }
+        }
+
+        if (teacherIdToUse) {
+          // Assign lead Faculty-in-Charge for the specified grade level
+          if (targetGrade) {
+            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const syId = syRes.rows[0]?.school_year_id || null;
+
+            await db.query(
+              `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND (school_id = $2 OR school_id IS NULL) AND (school_year_id = $3 OR school_year_id IS NULL)`,
+              [targetGrade, schoolId, syId]
+            );
+
+            await db.query(
+              `INSERT INTO faculty_in_charge (school_id, school_year_id, teacher_id, grade_level, status)
+               VALUES ($1, $2, $3, $4, 'active')`,
+              [schoolId, syId, teacherIdToUse, targetGrade]
+            );
+          }
+
+          // Assign class adviser if sectionAssigned is provided
+          if (sectionAssigned && sectionAssigned !== 'Unassigned') {
+            await db.query(
+              `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
+              [teacherIdToUse, targetGrade || 'Grade 4', sectionAssigned]
+            );
+          }
+
+          return res.json({
+            success: true,
+            message: `Faculty assignment updated for ${foundTeacherName || 'teacher'}.`,
+          });
+        }
+      } catch (dbErr) {
+        console.warn('DB assign faculty notice:', dbErr.message);
+      }
+    }
+
+    // Fallback to in-memory store if DB not available or teacher not found in DB
+    const teacher = teachersStore.find((t) => t.id === teacherId || t.employeeId === teacherId || t.name === teacherName);
     if (!teacher) {
       return res.status(404).json({ success: false, error: 'Teacher record not found.' });
     }
 
-    if (gradeAssigned) teacher.gradeAssigned = gradeAssigned;
+    if (targetGrade) teacher.gradeAssigned = targetGrade;
     if (sectionAssigned) teacher.sectionAssigned = sectionAssigned;
     if (typeof isFacultyInCharge === 'boolean') teacher.isFacultyInCharge = isFacultyInCharge;
 
@@ -639,6 +704,7 @@ async function assignFaculty(req, res) {
       teacher,
     });
   } catch (error) {
+    console.error('Error updating faculty assignment:', error);
     return res.status(500).json({ success: false, error: 'Failed to update faculty assignment.' });
   }
 }
@@ -1045,6 +1111,7 @@ async function getSections(req, res) {
             COUNT(CASE WHEN rp.current_profile_label = 'Instructional' THEN 1 END)::int AS "instructionalCount",
             COUNT(CASE WHEN rp.current_profile_label = 'Frustrational' THEN 1 END)::int AS "frustrationalCount"
           FROM classes c
+          JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
           LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
           LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = sgh.student_id
@@ -1191,6 +1258,7 @@ async function getFacultyAssignments(req, res) {
             t.teacher_id AS "teacherId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS "facultyInCharge"
           FROM faculty_in_charge fic
+          JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
           JOIN teachers t ON fic.teacher_id = t.teacher_id
           WHERE fic.status = 'active'
         `);
@@ -1205,6 +1273,125 @@ async function getFacultyAssignments(req, res) {
   } catch (error) {
     console.error('Error fetching faculty assignments:', error);
     return res.status(500).json({ success: false, error: 'Failed to fetch faculty assignments.' });
+  }
+}
+
+/**
+ * GET /api/admin/school-years — List all school years
+ */
+async function getSchoolYears(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(`
+          SELECT 
+            school_year_id AS id,
+            school_year AS "schoolYear",
+            is_active AS "isActive",
+            TO_CHAR(created_at, 'YYYY-MM-DD') AS "createdAt"
+          FROM school_years
+          ORDER BY created_at DESC
+        `);
+
+        return res.json({ success: true, schoolYears: rows || [] });
+      } catch (dbErr) {
+        console.warn('DB fetch school years notice:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      schoolYears: [
+        { id: 'default-sy', schoolYear: '2026-2027', isActive: true, createdAt: '2026-08-01' }
+      ]
+    });
+  } catch (error) {
+    console.error('Error fetching school years:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch school years.' });
+  }
+}
+
+/**
+ * POST /api/admin/school-years — Create new school year
+ */
+async function createSchoolYear(req, res) {
+  try {
+    const { schoolYear, setAsActive } = req.body;
+    if (!schoolYear || !schoolYear.trim()) {
+      return res.status(400).json({ success: false, error: 'School year is required (e.g. 2027-2028).' });
+    }
+
+    const cleanSy = schoolYear.trim();
+
+    // Strict format validation: YYYY-YYYY (e.g. 2027-2028)
+    const syRegex = /^\d{4}-\d{4}$/;
+    if (!syRegex.test(cleanSy)) {
+      return res.status(400).json({ success: false, error: 'School year must follow the YYYY-YYYY format (e.g. 2027-2028).' });
+    }
+
+    const [startYear, endYear] = cleanSy.split('-').map(Number);
+    if (endYear !== startYear + 1) {
+      return res.status(400).json({ success: false, error: 'School year end year must be the consecutive year (e.g. 2027-2028).' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        if (setAsActive !== false) {
+          await db.query('UPDATE school_years SET is_active = false');
+        }
+
+        const { rows } = await db.query(
+          `INSERT INTO school_years (school_year, is_active)
+           VALUES ($1, $2)
+           ON CONFLICT (school_year) DO UPDATE SET is_active = $2
+           RETURNING school_year_id AS id, school_year AS "schoolYear", is_active AS "isActive"`,
+          [cleanSy, setAsActive !== false]
+        );
+
+        return res.status(201).json({
+          success: true,
+          message: `School Year S.Y. ${cleanSy} created successfully.`,
+          schoolYear: rows[0],
+        });
+      } catch (dbErr) {
+        console.warn('DB create school year notice:', dbErr.message);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `School Year S.Y. ${cleanSy} created successfully.`,
+      schoolYear: { id: `sy-${Date.now()}`, schoolYear: cleanSy, isActive: setAsActive !== false },
+    });
+  } catch (error) {
+    console.error('Error creating school year:', error);
+    return res.status(500).json({ success: false, error: 'Failed to create school year.' });
+  }
+}
+
+/**
+ * PUT /api/admin/school-years/:id/activate — Set active school year
+ */
+async function activateSchoolYear(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query('UPDATE school_years SET is_active = false');
+        await db.query(
+          'UPDATE school_years SET is_active = true WHERE school_year_id::text = $1 OR school_year = $1',
+          [id]
+        );
+      } catch (dbErr) {
+        console.warn('DB activate school year notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Active school year updated.' });
+  } catch (error) {
+    console.error('Error setting active school year:', error);
+    return res.status(500).json({ success: false, error: 'Failed to activate school year.' });
   }
 }
 
@@ -1227,4 +1414,7 @@ module.exports = {
   approveAccountRequest,
   rejectAccountRequest,
   getSystemStats,
+  getSchoolYears,
+  createSchoolYear,
+  activateSchoolYear,
 };

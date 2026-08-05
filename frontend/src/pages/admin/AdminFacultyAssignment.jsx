@@ -9,8 +9,10 @@ import {
   ChalkboardTeacher,
   UserSwitch,
   IdentificationCard,
+  Calendar,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
 
 export default function AdminFacultyAssignment() {
   const [assignments, setAssignments] = useState([
@@ -25,6 +27,10 @@ export default function AdminFacultyAssignment() {
     'Grade 6': [],
   });
   const [loading, setLoading] = useState(true);
+
+  // School Year State
+  const [activeSchoolYear, setActiveSchoolYear] = useState(null);
+  const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
 
   // Filters & Search
   const [selectedGradeTab, setSelectedGradeTab] = useState('All');
@@ -81,13 +87,25 @@ export default function AdminFacultyAssignment() {
       // 3. Fetch Faculty Assignments
       const asgRes = await fetch('http://localhost:5000/api/admin/faculty-assignments', { headers: authHeaders });
       const asgData = await asgRes.json();
-      if (asgRes.ok && asgData.success && asgData.assignments && asgData.assignments.length > 0) {
-        setAssignments((prev) =>
-          prev.map((g) => {
-            const found = asgData.assignments.find((a) => a.gradeLevel === g.gradeLevel);
-            return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
-          })
-        );
+      const fetchedAssignments = (asgRes.ok && asgData.success && asgData.assignments) ? asgData.assignments : [];
+
+      setAssignments([
+        { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+        { id: '2', gradeLevel: 'Grade 5', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+        { id: '3', gradeLevel: 'Grade 6', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+      ].map((g) => {
+        const found = fetchedAssignments.find((a) => a.gradeLevel === g.gradeLevel);
+        return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
+      }));
+
+      // 4. Fetch School Years
+      const syRes = await fetch('http://localhost:5000/api/admin/school-years', { headers: authHeaders });
+      const syData = await syRes.json();
+      if (syRes.ok && syData.success && syData.schoolYears) {
+        const active = syData.schoolYears.find((s) => s.isActive);
+        if (active) {
+          setActiveSchoolYear(active.schoolYear);
+        }
       }
     } catch (err) {
       console.warn('Failed to fetch faculty assignments:', err);
@@ -99,6 +117,15 @@ export default function AdminFacultyAssignment() {
   useEffect(() => {
     fetchAssignmentData();
   }, []);
+
+  const uniqueTeachers = useMemo(() => {
+    const map = new Map();
+    (teachers || []).forEach((t) => {
+      const key = t.id || t.employeeId || t.name;
+      if (!map.has(key)) map.set(key, t);
+    });
+    return Array.from(map.values());
+  }, [teachers]);
 
   // Flat list of sections for the data table
   const allSectionsList = useMemo(() => {
@@ -287,6 +314,23 @@ export default function AdminFacultyAssignment() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setShowSchoolYearModal(true)}
+            className="flex items-center gap-1.5 rounded-full border border-ink/20 bg-white px-3.5 py-2 text-xs font-semibold text-ink hover:bg-ink/5 transition-colors cursor-pointer shadow-xs"
+            title="Manage Academic School Years"
+          >
+            <Calendar size={16} className="text-brand-blue" weight="bold" />
+            {loading || !activeSchoolYear ? (
+              <div className="h-3.5 w-20 animate-pulse rounded bg-ink/10 my-0.5" />
+            ) : (
+              <>
+                <span>S.Y. {activeSchoolYear}</span>
+                <span className="rounded-full bg-[#00a652]/15 px-1.5 py-0.2 text-[9px] font-bold text-[#00a652] uppercase">Active</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setEditingSectionData(null);
               setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '' });
@@ -317,8 +361,11 @@ export default function AdminFacultyAssignment() {
 
               <div className="mt-3 space-y-1">
                 <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
-                <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
-                <p className="text-[10px] text-ink/50 truncate">{item.email}</p>
+                {loading ? (
+                  <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10 my-0.5" />
+                ) : (
+                  <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
+                )}
               </div>
             </div>
 
@@ -575,8 +622,8 @@ export default function AdminFacultyAssignment() {
                   className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 >
                   <option value="">Select Faculty Member...</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.name}>
+                  {uniqueTeachers.map((t) => (
+                    <option key={t.id || t.employeeId || t.name} value={t.name}>
                       {t.name} ({t.employeeId})
                     </option>
                   ))}
@@ -631,6 +678,13 @@ export default function AdminFacultyAssignment() {
           </div>
         </div>
       )}
+
+      {/* School Year Manager Modal */}
+      <AdminSchoolYearModal
+        isOpen={showSchoolYearModal}
+        onClose={() => setShowSchoolYearModal(false)}
+        onSchoolYearChanged={fetchAssignmentData}
+      />
     </div>
     </>
   );
