@@ -681,6 +681,9 @@ export default function AdminTeacherRecords() {
               <div>
                 <label className="font-semibold text-ink">
                   DepEd Employee ID <span className="text-brand-red ml-0.5">*</span>
+                  {editingTeacher && (
+                    <span className="ml-2 text-[10px] font-normal text-ink/40">(Cannot be changed)</span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -688,7 +691,10 @@ export default function AdminTeacherRecords() {
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                   placeholder="EMP-2024-XXX"
-                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue font-mono shadow-xs"
+                  disabled={Boolean(editingTeacher)}
+                  className={`mt-1.5 w-full rounded-xl border border-ink/20 px-3.5 py-2.5 text-xs font-mono shadow-xs outline-none focus:border-brand-blue ${
+                    editingTeacher ? 'bg-ink/5 text-ink/50 cursor-not-allowed' : 'bg-white text-ink'
+                  }`}
                 />
               </div>
 

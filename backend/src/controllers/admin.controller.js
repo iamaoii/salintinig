@@ -899,37 +899,77 @@ async function updateTeacher(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        await db.query(
-          `UPDATE teachers
-           SET first_name = COALESCE($1, first_name),
-               middle_name = COALESCE($2, middle_name),
-               last_name = COALESCE($3, last_name),
-               sex = COALESCE($4, sex),
-               updated_at = CURRENT_TIMESTAMP
-           WHERE teacher_id::text = $5 OR teacher_no = $5`,
-          [firstName || null, middleName || null, lastName || null, gender || null, id]
+        const tchRes = await db.query(
+          `SELECT teacher_id, user_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1`,
+          [id]
         );
 
+        if (tchRes.rows && tchRes.rows.length > 0) {
+          const teacherId = tchRes.rows[0].teacher_id;
+          const userId = tchRes.rows[0].user_id;
 
+          if (email && userId) {
+            const cleanEmail = email.toLowerCase().trim();
+            const conflict = await db.query(
+              `SELECT user_id FROM users WHERE LOWER(email) = $1 AND user_id != $2 LIMIT 1`,
+              [cleanEmail, userId]
+            );
+            if (conflict.rows && conflict.rows.length > 0) {
+              return res.status(400).json({ success: false, error: 'Email is already in use by another user.' });
+            }
+            await db.query(
+              `UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+              [cleanEmail, userId]
+            );
+          }
 
-        if (sectionAssigned === 'Unassigned' || gradeAssigned === 'Unassigned') {
           await db.query(
-            `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1)`,
-            [id]
+            `UPDATE teachers
+             SET first_name = COALESCE($1, first_name),
+                 middle_name = COALESCE($2, middle_name),
+                 last_name = COALESCE($3, last_name),
+                 sex = COALESCE($4, sex),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE teacher_id = $5`,
+            [firstName || null, middleName || null, lastName || null, gender || null, teacherId]
           );
-        } else if (sectionAssigned) {
-          await db.query(
-            `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1)`,
-            [id]
-          );
-          await db.query(
-            `UPDATE classes SET advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1) WHERE grade_level = $2 AND section_name = $3`,
-            [id, gradeAssigned || 'Grade 4', sectionAssigned]
-          );
+
+          if (sectionAssigned === 'Unassigned' || gradeAssigned === 'Unassigned') {
+            await db.query(
+              `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`,
+              [teacherId]
+            );
+          } else if (sectionAssigned) {
+            await db.query(
+              `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`,
+              [teacherId]
+            );
+            await db.query(
+              `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
+              [teacherId, gradeAssigned || 'Grade 4', sectionAssigned]
+            );
+          }
         }
       } catch (dbErr) {
         console.warn('DB update teacher notice:', dbErr.message);
       }
+    }
+
+    const storeIdx = teachersStore.findIndex((t) => t.id === id || t.employeeId === id);
+    if (storeIdx !== -1) {
+      const prev = teachersStore[storeIdx];
+      teachersStore[storeIdx] = {
+        ...prev,
+        firstName: firstName || prev.firstName,
+        middleName: middleName !== undefined ? middleName : prev.middleName,
+        lastName: lastName || prev.lastName,
+        name: `${firstName || prev.firstName} ${middleName ? middleName + ' ' : ''}${lastName || prev.lastName}`.trim(),
+        gender: gender || prev.gender,
+        email: email || prev.email,
+        gradeAssigned: gradeAssigned || prev.gradeAssigned,
+        sectionAssigned: sectionAssigned || prev.sectionAssigned,
+        isFacultyInCharge: isFacultyInCharge !== undefined ? isFacultyInCharge : prev.isFacultyInCharge,
+      };
     }
 
     return res.json({ success: true, message: 'Teacher record updated successfully.' });
