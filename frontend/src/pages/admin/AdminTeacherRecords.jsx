@@ -256,8 +256,7 @@ export default function AdminTeacherRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          const passMsg = data.tempPassword ? ` (Temp Pass: ${data.tempPassword})` : '';
-          showToast(`Teacher ${teacherName} created! Credentials sent to email${passMsg}.`);
+          showToast(`Teacher ${teacherName} created! Login credentials sent to email.`);
           fetchTeachers();
           setShowAddModal(false);
         } else {

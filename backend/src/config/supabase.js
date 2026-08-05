@@ -3,20 +3,16 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-console.log('[Supabase Init] URL:', supabaseUrl ? supabaseUrl.slice(0, 30) + '...' : 'MISSING');
-console.log('[Supabase Init] KEY:', supabaseServiceKey ? supabaseServiceKey.slice(0, 20) + '...' : 'MISSING');
-
 let supabase = null;
 
 if (supabaseUrl && supabaseServiceKey && supabaseUrl.startsWith('http')) {
   try {
     supabase = createClient(supabaseUrl, supabaseServiceKey);
-    console.log('[Supabase Init] ✅ Client initialized successfully');
   } catch (e) {
-    console.warn('[Supabase Init] ❌ SDK initialization failed:', e.message);
+    console.warn('Supabase SDK initialization failed:', e.message);
   }
 } else {
-  console.warn('[Supabase Init] ❌ Missing or invalid env vars. URL starts with http?', supabaseUrl?.startsWith('http'));
+  console.warn('⚠️ Supabase Storage disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing in .env');
 }
 
 /**
