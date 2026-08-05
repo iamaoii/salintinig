@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   House,
@@ -47,6 +48,30 @@ export default function AdminLayout() {
   const currentUser = getUser();
   const location = useLocation();
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
+
+  const [adminInfo, setAdminInfo] = useState(null);
+
+  useEffect(() => {
+    const fetchAdminInfo = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/admin/info', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setAdminInfo(data);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch admin info:', err);
+      }
+    };
+    fetchAdminInfo();
+
+    const handleSYChange = () => fetchAdminInfo();
+    window.addEventListener('schoolYearChanged', handleSYChange);
+    return () => window.removeEventListener('schoolYearChanged', handleSYChange);
+  }, []);
 
   return (
     <div className="min-h-screen w-full bg-cream text-ink font-sans">
@@ -112,17 +137,29 @@ export default function AdminLayout() {
                   className="pointer-events-none absolute right-0 top-0 h-full w-auto object-cover brightness-[3] mix-blend-screen"
                 />
 
-                <div className="relative z-10 flex flex-col items-start gap-2 max-w-[85%]">
+                <div className="relative z-10 flex flex-col items-start gap-2 max-w-[85%] w-full">
                   <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-bold text-cream uppercase tracking-wider">
                     Welcome, Administrator!
                   </span>
-                  <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
-                    {currentUser?.name || 'Mandaluyong Elementary School'}
-                  </h2>
-                  <div className="flex flex-col gap-0.5 text-xs font-medium leading-tight text-cream/90">
-                    <p>School ID: {currentUser?.schoolId || '109283'}</p>
-                    <p>Division of City Schools • S.Y. 2026 - 2027</p>
-                  </div>
+                  {!adminInfo ? (
+                    <div className="space-y-2 w-full py-1">
+                      <div className="h-6 w-3/4 animate-pulse rounded bg-white/20" />
+                      <div className="h-3 w-1/2 animate-pulse rounded bg-white/20" />
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-white/20" />
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
+                        {adminInfo.schoolInfo?.schoolName || currentUser?.name || ''}
+                      </h2>
+                      <div className="flex flex-col gap-0.5 text-xs font-medium leading-tight text-cream/90">
+                        <p>School ID: {adminInfo.schoolInfo?.schoolId || currentUser?.schoolId || ''}</p>
+                        <p>
+                          {adminInfo.schoolInfo?.division || ''} • S.Y. {adminInfo.activeSchoolYear || ''}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <button
