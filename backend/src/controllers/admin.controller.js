@@ -924,7 +924,13 @@ async function getSystemStats(req, res) {
         // Count students enrolled in active school year (or total if no history)
         let studentRes;
         if (activeSyId) {
-          studentRes = await db.query('SELECT COUNT(DISTINCT student_id) FROM student_grade_history WHERE school_year_id = $1', [activeSyId]);
+          studentRes = await db.query(
+            `SELECT COUNT(DISTINCT sgh.student_id) 
+             FROM student_grade_history sgh
+             JOIN classes c ON sgh.class_id = c.class_id
+             WHERE c.school_year_id = $1`,
+            [activeSyId]
+          );
         } else {
           studentRes = await db.query('SELECT COUNT(*) FROM students');
         }
@@ -1428,6 +1434,8 @@ async function getAdminInfo(req, res) {
       schoolName: 'Mandaluyong Elementary School',
       division: 'Division of City Schools',
       region: 'NCR',
+      officialEmail: 'admin@deped.gov.ph',
+      principalName: 'Dr. Maria Corazon Aquino',
     };
     let activeSchoolYear = '2026-2027';
 
@@ -1437,7 +1445,7 @@ async function getAdminInfo(req, res) {
 
         // 1. Fetch School Details
         const sRes = await db.query(
-          `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region FROM schools WHERE school_id = $1 LIMIT 1`,
+          `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region, official_email AS "officialEmail", principal_name AS "principalName" FROM schools WHERE school_id = $1 LIMIT 1`,
           [schoolId]
         );
         if (sRes.rows && sRes.rows[0]) {
@@ -1470,6 +1478,43 @@ async function getAdminInfo(req, res) {
   }
 }
 
+/**
+ * PUT /api/admin/info — Update school profile details in PostgreSQL
+ */
+async function updateAdminInfo(req, res) {
+  try {
+    const { schoolName, schoolId, division, region, principalName, officialEmail } = req.body;
+    const currentSchoolId = await getAdminSchoolId(req);
+
+    if (process.env.DATABASE_URL) {
+      await db.query(
+        `INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+         ON CONFLICT (school_id) DO UPDATE SET
+           school_name = EXCLUDED.school_name,
+           division = EXCLUDED.division,
+           region = EXCLUDED.region,
+           official_email = EXCLUDED.official_email,
+           principal_name = EXCLUDED.principal_name,
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          schoolId || currentSchoolId || '109283',
+          schoolName || 'Mandaluyong Elementary School',
+          division || 'Division of City Schools',
+          region || 'NCR',
+          officialEmail || 'admin@deped.gov.ph',
+          principalName || 'Dr. Maria Corazon Aquino',
+        ]
+      );
+    }
+
+    return res.json({ success: true, message: 'School profile saved successfully.' });
+  } catch (error) {
+    console.error('Error updating admin info:', error);
+    return res.status(500).json({ success: false, error: 'Failed to save school profile.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   createTeacher,
@@ -1493,4 +1538,5 @@ module.exports = {
   createSchoolYear,
   activateSchoolYear,
   getAdminInfo,
+  updateAdminInfo,
 };

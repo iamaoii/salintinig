@@ -13,6 +13,7 @@ router.use(verifyToken);
 router.use(requireRole('admin'));
 
 router.get('/info', adminController.getAdminInfo);
+router.put('/info', adminController.updateAdminInfo);
 router.get('/teachers', adminController.getTeachers);
 router.post('/teachers', adminController.createTeacher);
 router.put('/teachers/:id', adminController.updateTeacher);

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlass,
@@ -64,6 +65,30 @@ export default function AdminStudentRecords() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const isModalOpen = Boolean(showAddModal || editingStudent || deletingStudent || showUploadModal);
+    if (isModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    }
+    return () => {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    };
+  }, [showAddModal, editingStudent, deletingStudent, showUploadModal]);
 
   const [availableSections, setAvailableSections] = useState([]);
 
@@ -583,8 +608,8 @@ export default function AdminStudentRecords() {
       </div>
 
       {/* Add / Edit Student Modal */}
-      {(showAddModal || editingStudent) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {(showAddModal || editingStudent) && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">
@@ -744,12 +769,13 @@ export default function AdminStudentRecords() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}
-      {deletingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {deletingStudent && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl text-center animate-in fade-in">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-brand-red/10 text-brand-red mb-3">
               <WarningCircle size={28} weight="fill" />
@@ -776,12 +802,13 @@ export default function AdminStudentRecords() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Upload CSV Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {showUploadModal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <div className="flex items-center gap-2">
@@ -914,7 +941,8 @@ export default function AdminStudentRecords() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
     </>

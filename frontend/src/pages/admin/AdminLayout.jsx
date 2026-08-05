@@ -76,7 +76,7 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen w-full bg-cream text-ink font-sans">
       {/* Top Header Navigation matching Teacher side TopNav */}
-      <header className="sticky top-0 z-50 border-b border-ink/10 bg-cream/95 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-ink/10 bg-cream/95 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] backdrop-blur-md">
         <div className="mx-auto flex h-14 sm:h-16 max-w-[1480px] items-center justify-between px-6 sm:px-8 lg:px-10">
           {/* Logo Branding */}
           <div className="flex shrink-0 items-center gap-2.5">
