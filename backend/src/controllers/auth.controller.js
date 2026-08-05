@@ -12,7 +12,7 @@ function createToken(user) {
     name: user.name,
     email: user.email,
     role: user.role,
-    schoolId: user.schoolId || user.school_id || '109283',
+    schoolId: user.schoolId || user.school_id || null,
     defaultPath: user.defaultPath,
   };
 
@@ -156,7 +156,7 @@ async function login(req, res) {
     // Authenticated user formatting
     if (matchedUser) {
       let displayName = matchedUser.email.split('@')[0];
-      let schoolId = matchedUser.school_id || '136660';
+      let schoolId = matchedUser.school_id || null;
       let empId = matchedUser.teacher_no || null;
 
       if (matchedUser.role === 'admin') {

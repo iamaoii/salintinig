@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Plus, Check, X, WarningCircle } from '@phosphor-icons/react';
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChanged }) {
   const [schoolYears, setSchoolYears] = useState([]);
@@ -37,7 +38,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
   const fetchSchoolYears = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/school-years', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -92,7 +93,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
       setErrorMsg('');
       setSuccessMsg('');
 
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/school-years', {
         method: 'POST',
         headers: {
@@ -126,7 +127,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
     try {
       setErrorMsg('');
       setSuccessMsg('');
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/school-years/${sy.id}/activate`, {
         method: 'PUT',
         headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-const supabase = require('../config/supabase.js');
+const { supabase, uploadImageToSupabase } = require('../config/supabase.js');
 
 /**
  * Helper to generate a unique Parent Access Code (e.g. PAC-48219)
@@ -122,21 +122,38 @@ function parseNameString(rawName = '') {
 }
 
 async function getAdminSchoolId(req) {
-  if (req.user && (req.user.schoolId || req.user.school_id)) {
-    return req.user.schoolId || req.user.school_id;
-  }
-  if (req.user && req.user.email && process.env.DATABASE_URL) {
+  if (process.env.DATABASE_URL) {
     try {
-      const { rows } = await db.query(
-        `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-        [req.user.email]
-      );
-      if (rows && rows[0] && rows[0].school_id) {
-        return rows[0].school_id;
+      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
+      if (tokenSchoolId) {
+        const schoolRes = await db.query(
+          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
+          [tokenSchoolId]
+        );
+        if (schoolRes.rows && schoolRes.rows[0] && schoolRes.rows[0].school_id) {
+          return schoolRes.rows[0].school_id;
+        }
+      }
+
+      if (req.user && req.user.email) {
+        const { rows } = await db.query(
+          `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [req.user.email]
+        );
+        if (rows && rows[0] && rows[0].school_id) {
+          return rows[0].school_id;
+        }
+      }
+      const sRes = await db.query(`SELECT school_id FROM schools LIMIT 1`);
+      if (sRes.rows && sRes.rows[0] && sRes.rows[0].school_id) {
+        return sRes.rows[0].school_id;
       }
     } catch (e) {}
   }
-  return '109283';
+  if (req.user && (req.user.schoolId || req.user.school_id)) {
+    return req.user.schoolId || req.user.school_id;
+  }
+  return null;
 }
 
 /**
@@ -219,23 +236,29 @@ async function createTeacher(req, res) {
     lastName = (lastName || 'Faculty').trim();
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
     const cleanEmail = email?.trim() || `${cleanEmpId.toLowerCase()}@salintinig.edu.ph`;
+    const cleanGender = gender?.trim() || 'Male';
+    const cleanGradeAssigned = gradeAssigned?.trim() || 'Unassigned';
+    const cleanSectionAssigned = sectionAssigned?.trim() || 'Unassigned';
+    const hasSectionAssignment = cleanGradeAssigned !== 'Unassigned' && cleanSectionAssigned !== 'Unassigned';
+    const hasFacultyAssignment = Boolean(isFacultyInCharge) && cleanGradeAssigned !== 'Unassigned';
+    const dateAdded = new Date().toISOString().split('T')[0];
 
     const tempPassword = generateTempPassword();
 
     const newTeacherObj = {
-      id: `TCH-${Date.now().toString().slice(-4)}`,
+      id: cleanEmpId,
       employeeId: cleanEmpId,
       firstName,
       middleName,
       lastName,
       name: fullName,
-      gender: gender || 'Female',
+      gender: cleanGender,
       email: cleanEmail,
-      gradeAssigned: gradeAssigned || 'Grade 4',
-      sectionAssigned: sectionAssigned || 'Fyang',
-      isFacultyInCharge: Boolean(isFacultyInCharge),
+      gradeAssigned: cleanGradeAssigned,
+      sectionAssigned: cleanSectionAssigned,
+      isFacultyInCharge: hasFacultyAssignment,
       status: 'Active',
-      dateAdded: new Date().toISOString().split('T')[0],
+      dateAdded,
     };
 
     if (process.env.DATABASE_URL) {
@@ -259,27 +282,27 @@ async function createTeacher(req, res) {
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (teacher_no) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7
              RETURNING teacher_id`,
-            [userId, schoolId, cleanEmpId, firstName, middleName || null, lastName, gender || 'Male']
+            [userId, schoolId, cleanEmpId, firstName, middleName || null, lastName, cleanGender]
           );
 
           if (tchRows && tchRows[0]) {
             const teacherId = tchRows[0].teacher_id;
 
             // Assign as class adviser if section specified
-            if (sectionAssigned && sectionAssigned !== 'Unassigned') {
+            if (hasSectionAssignment) {
               await db.query(
                 `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-                [teacherId, gradeAssigned || 'Grade 4', sectionAssigned]
+                [teacherId, cleanGradeAssigned, cleanSectionAssigned]
               );
             }
 
             // Assign as Lead Faculty-in-Charge if checked
-            if (isFacultyInCharge) {
+            if (hasFacultyAssignment) {
               await db.query(
                 `INSERT INTO faculty_in_charge (school_id, teacher_id, grade_level)
                  VALUES ($1, $2, $3)
                  ON CONFLICT DO NOTHING`,
-                [schoolId, teacherId, gradeAssigned || 'Grade 4']
+                [schoolId, teacherId, cleanGradeAssigned]
               );
             }
           }
@@ -501,14 +524,20 @@ async function batchImportCSV(req, res) {
 
     if (type === 'teacher') {
       records.forEach((row, i) => {
-        const empId = (row.employeeId || row.employee_id || row['Employee ID'] || '').trim().toUpperCase();
+        const empId = String(row.employeeId || row.employee_id || row['Employee ID'] || '').trim().toUpperCase();
         if (!empId) {
           errors.push(`Row ${i + 1}: Missing Employee ID`);
           return;
         }
 
-        const name = (row.name || row.Name || row['Full Name'] || 'Teacher').trim();
-        const email = (row.email || row.Email || `${empId.toLowerCase()}@deped.gov.ph`).trim();
+        const name = String(row.name || row.Name || row['Full Name'] || 'Teacher').trim();
+        const email = String(row.email || row.Email || row['DepEd Email'] || `${empId.toLowerCase()}@deped.gov.ph`).trim();
+        const cleanGender = String(row.gender || row.Gender || row.Sex || 'Male').trim();
+        const cleanGradeAssigned = String(row.gradeAssigned || row.grade || row['Assigned Grade'] || 'Unassigned').trim();
+        const cleanSectionAssigned = String(row.sectionAssigned || row.section || row['Assigned Section'] || 'Unassigned').trim();
+        const isFacultyInCharge = ['true', 'yes', '1'].includes(
+          String(row.isFacultyInCharge || row.facultyInCharge || row['Faculty In Charge'] || '').trim().toLowerCase()
+        );
 
         const exists = teachersStore.some((t) => t.employeeId.toUpperCase() === empId);
         if (exists) {
@@ -517,14 +546,14 @@ async function batchImportCSV(req, res) {
         }
 
         const newTeacher = {
-          id: `TCH-${Date.now().toString().slice(-4)}-${i}`,
+          id: empId,
           employeeId: empId,
           name,
-          gender: row.gender || 'Female',
+          gender: cleanGender,
           email,
-          gradeAssigned: row.gradeAssigned || row.grade || 'Grade 4',
-          sectionAssigned: row.sectionAssigned || row.section || 'General',
-          isFacultyInCharge: Boolean(row.isFacultyInCharge),
+          gradeAssigned: cleanGradeAssigned,
+          sectionAssigned: cleanSectionAssigned,
+          isFacultyInCharge,
           status: 'Active',
           dateAdded: new Date().toISOString().split('T')[0],
         };
@@ -675,7 +704,7 @@ async function assignFaculty(req, res) {
           if (teacherIdToUse && sectionAssigned && sectionAssigned !== 'Unassigned') {
             await db.query(
               `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-              [teacherIdToUse, targetGrade || 'Grade 4', sectionAssigned]
+              [teacherIdToUse, targetGrade, sectionAssigned]
             );
           }
 
@@ -1034,14 +1063,14 @@ async function updateTeacher(req, res) {
               `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`,
               [teacherId]
             );
-          } else if (sectionAssigned) {
+          } else if (gradeAssigned && sectionAssigned) {
             await db.query(
               `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`,
               [teacherId]
             );
             await db.query(
               `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-              [teacherId, gradeAssigned || 'Grade 4', sectionAssigned]
+              [teacherId, gradeAssigned, sectionAssigned]
             );
           }
         }
@@ -1135,15 +1164,21 @@ async function getSections(req, res) {
             c.section_name AS "sectionName",
             c.advisor_teacher_id AS "adviserId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS adviser,
-            COUNT(sgh.history_id)::int AS "studentsCount",
-            COUNT(CASE WHEN rp.current_profile_label = 'Independent' THEN 1 END)::int AS "independentCount",
-            COUNT(CASE WHEN rp.current_profile_label = 'Instructional' THEN 1 END)::int AS "instructionalCount",
-            COUNT(CASE WHEN rp.current_profile_label = 'Frustrational' THEN 1 END)::int AS "frustrationalCount"
+            COUNT(DISTINCT sgh.student_id)::int AS "studentsCount",
+            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
+            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
+            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
           FROM classes c
           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
           LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
           LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = sgh.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            WHERE reading_level_result IS NOT NULL
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = sgh.student_id
           WHERE (c.school_id = $1 OR c.school_id IS NULL)
           GROUP BY c.class_id, c.grade_level, c.section_name, c.advisor_teacher_id, t.first_name, t.middle_name, t.last_name
           ORDER BY c.grade_level ASC, c.section_name ASC
@@ -1429,30 +1464,28 @@ async function activateSchoolYear(req, res) {
  */
 async function getAdminInfo(req, res) {
   try {
-    let schoolInfo = {
-      schoolId: '109283',
-      schoolName: 'Mandaluyong Elementary School',
-      division: 'Division of City Schools',
-      region: 'NCR',
-      officialEmail: 'admin@deped.gov.ph',
-      principalName: 'Dr. Maria Corazon Aquino',
-    };
-    let activeSchoolYear = '2026-2027';
+    let schoolInfo = null;
+    let activeSchoolYear = null;
+    let profileImage = null;
 
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
 
         // 1. Fetch School Details
-        const sRes = await db.query(
-          `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region, official_email AS "officialEmail", principal_name AS "principalName" FROM schools WHERE school_id = $1 LIMIT 1`,
-          [schoolId]
-        );
+        let sRes;
+        if (schoolId) {
+          sRes = await db.query(
+            `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region, official_email AS "officialEmail", principal_name AS "principalName" FROM schools WHERE school_id = $1 LIMIT 1`,
+            [schoolId]
+          );
+        } else {
+          sRes = await db.query(
+            `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region, official_email AS "officialEmail", principal_name AS "principalName" FROM schools LIMIT 1`
+          );
+        }
         if (sRes.rows && sRes.rows[0]) {
-          schoolInfo = {
-            ...schoolInfo,
-            ...sRes.rows[0],
-          };
+          schoolInfo = sRes.rows[0];
         }
 
         // 2. Fetch Active School Year
@@ -1462,6 +1495,18 @@ async function getAdminInfo(req, res) {
         if (syRes.rows && syRes.rows[0]) {
           activeSchoolYear = syRes.rows[0].schoolYear;
         }
+
+        // 3. Fetch Admin User Profile Image
+        const userId = req.user?.user_id || req.user?.userId || req.user?.id;
+        let uRes;
+        if (userId) {
+          uRes = await db.query(`SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`, [userId]);
+        } else {
+          uRes = await db.query(`SELECT profile_image FROM users WHERE role = 'admin' AND profile_image IS NOT NULL ORDER BY updated_at DESC LIMIT 1`);
+        }
+        if (uRes.rows && uRes.rows[0]) {
+          profileImage = uRes.rows[0].profile_image;
+        }
       } catch (dbErr) {
         console.warn('DB get admin info notice:', dbErr.message);
       }
@@ -1469,8 +1514,16 @@ async function getAdminInfo(req, res) {
 
     return res.json({
       success: true,
-      schoolInfo,
-      activeSchoolYear,
+      schoolInfo: schoolInfo || {
+        schoolId: '',
+        schoolName: '',
+        division: '',
+        region: '',
+        officialEmail: '',
+        principalName: '',
+      },
+      activeSchoolYear: activeSchoolYear || '',
+      profileImage,
     });
   } catch (error) {
     console.error('Error fetching admin info:', error);
@@ -1479,39 +1532,71 @@ async function getAdminInfo(req, res) {
 }
 
 /**
- * PUT /api/admin/info — Update school profile details in PostgreSQL
+ * PUT /api/admin/info — Update school profile details & admin avatar in PostgreSQL
  */
 async function updateAdminInfo(req, res) {
   try {
-    const { schoolName, schoolId, division, region, principalName, officialEmail } = req.body;
+    const { schoolName, schoolId, division, region, principalName, officialEmail, profileImage, avatarUrl } = req.body;
     const currentSchoolId = await getAdminSchoolId(req);
+    const targetSchoolId = schoolId || currentSchoolId || '109283';
 
     if (process.env.DATABASE_URL) {
-      await db.query(
-        `INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-         ON CONFLICT (school_id) DO UPDATE SET
-           school_name = EXCLUDED.school_name,
-           division = EXCLUDED.division,
-           region = EXCLUDED.region,
-           official_email = EXCLUDED.official_email,
-           principal_name = EXCLUDED.principal_name,
-           updated_at = CURRENT_TIMESTAMP`,
-        [
-          schoolId || currentSchoolId || '109283',
-          schoolName || 'Mandaluyong Elementary School',
-          division || 'Division of City Schools',
-          region || 'NCR',
-          officialEmail || 'admin@deped.gov.ph',
-          principalName || 'Dr. Maria Corazon Aquino',
-        ]
-      );
+      // 1. Update School Profile details if school attributes are supplied
+      if (schoolName || division || region || officialEmail || principalName) {
+        const existingRes = await db.query(`SELECT * FROM schools WHERE school_id = $1 LIMIT 1`, [targetSchoolId]);
+        const existing = existingRes.rows?.[0] || {};
+
+        await db.query(
+          `INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+           ON CONFLICT (school_id) DO UPDATE SET
+             school_name = EXCLUDED.school_name,
+             division = EXCLUDED.division,
+             region = EXCLUDED.region,
+             official_email = EXCLUDED.official_email,
+             principal_name = EXCLUDED.principal_name,
+             updated_at = CURRENT_TIMESTAMP`,
+          [
+            targetSchoolId,
+            schoolName || existing.school_name || 'Mandaluyong Elementary School',
+            division || existing.division || 'Division of City Schools',
+            region || existing.region || 'NCR',
+            officialEmail || existing.official_email || 'admin@deped.gov.ph',
+            principalName || existing.principal_name || 'Dr. Maria Corazon Aquino',
+          ]
+        );
+      }
+
+      // 2. Update Admin Profile Image if present
+      const imgUrl = profileImage || avatarUrl;
+      if (imgUrl) {
+        let finalImageUrl = imgUrl;
+        const userId = req.user?.user_id || req.user?.userId || req.user?.id;
+
+        if (imgUrl.startsWith('data:image')) {
+          try {
+            const fileName = `admin-avatar-${userId || 'admin'}.webp`;
+            const supabaseUrl = await uploadImageToSupabase(imgUrl, fileName, 'avatars');
+            if (supabaseUrl) {
+              finalImageUrl = supabaseUrl;
+            }
+          } catch (imgErr) {
+            console.warn('Avatar image upload notice:', imgErr.message);
+          }
+        }
+
+        if (userId) {
+          await db.query(`UPDATE users SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`, [finalImageUrl, userId]);
+        } else {
+          await db.query(`UPDATE users SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE role = 'admin'`, [finalImageUrl]);
+        }
+      }
     }
 
-    return res.json({ success: true, message: 'School profile saved successfully.' });
+    return res.json({ success: true, message: 'Admin details updated successfully.' });
   } catch (error) {
     console.error('Error updating admin info:', error);
-    return res.status(500).json({ success: false, error: 'Failed to save school profile.' });
+    return res.status(500).json({ success: false, error: 'Failed to update admin details.' });
   }
 }
 

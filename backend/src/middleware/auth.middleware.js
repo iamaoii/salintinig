@@ -8,8 +8,7 @@ async function verifyToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator', schoolId: '109283' };
-      return next();
+      return res.status(401).json({ success: false, error: 'Access denied. No token provided.' });
     }
 
     const token = authHeader.split(' ')[1];
@@ -24,7 +23,7 @@ async function verifyToken(req, res, next) {
       }
     } catch (jwtErr) {}
 
-    // 2. Attempt Base64 token parser
+    // 2. Attempt Base64 token parser fallback
     try {
       const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
       if (decoded && (decoded.username || decoded.email)) {
@@ -33,9 +32,7 @@ async function verifyToken(req, res, next) {
       }
     } catch (bErr) {}
 
-    // Fallback demo user
-    req.user = { id: 'admin-001', role: 'admin', email: 'admin@gmail.com', name: 'Administrator', schoolId: '109283' };
-    return next();
+    return res.status(401).json({ success: false, error: 'Invalid or expired token.' });
   } catch (error) {
     return res.status(500).json({
       success: false,
