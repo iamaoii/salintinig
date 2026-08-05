@@ -772,56 +772,7 @@ export default function AdminTeacherRecords() {
                 />
               </div>
 
-              {/* Assigned Grade & Section */}
-              <div className={`grid grid-cols-1 ${formData.gradeAssigned !== 'Unassigned' ? 'sm:grid-cols-2' : ''} gap-4`}>
-                <div>
-                  <label className="font-semibold text-ink">
-                    Assigned Grade <span className="text-brand-red ml-0.5">*</span>
-                  </label>
-                  <select
-                    value={formData.gradeAssigned}
-                    onChange={(e) => {
-                      const newGrade = e.target.value;
-                      setFormData({
-                        ...formData,
-                        gradeAssigned: newGrade,
-                        sectionAssigned: newGrade === 'Unassigned' ? 'Unassigned' : formData.sectionAssigned,
-                      });
-                    }}
-                    className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
-                  >
-                    <option value="Unassigned">Unassigned (No Class)</option>
-                    <option value="Grade 4">Grade 4</option>
-                    <option value="Grade 5">Grade 5</option>
-                    <option value="Grade 6">Grade 6</option>
-                  </select>
-                </div>
 
-                {formData.gradeAssigned !== 'Unassigned' && (
-                  <div>
-                    <label className="font-semibold text-ink">
-                      Assigned Section <span className="text-brand-red ml-0.5">*</span>
-                    </label>
-                    <select
-                      required
-                      value={formData.sectionAssigned === 'Unassigned' ? '' : formData.sectionAssigned}
-                      onChange={(e) => setFormData({ ...formData, sectionAssigned: e.target.value })}
-                      className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
-                    >
-                      <option value="" disabled hidden>Select Section</option>
-                      {teacherSectionsForSelectedGrade.length === 0 ? (
-                        <option value="" disabled>No sections available</option>
-                      ) : (
-                        teacherSectionsForSelectedGrade.map((sec) => (
-                          <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
-                            {sec.sectionName}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-                )}
-              </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
                 <button

@@ -75,6 +75,10 @@ export default function AdminDashboardHome() {
   useEffect(() => {
     fetchRequests();
     fetchStats();
+
+    const handleSYChange = () => fetchStats();
+    window.addEventListener('schoolYearChanged', handleSYChange);
+    return () => window.removeEventListener('schoolYearChanged', handleSYChange);
   }, []);
 
   const handleApprove = async (id, name) => {
@@ -168,7 +172,7 @@ export default function AdminDashboardHome() {
     {
       title: 'Total Sections',
       value: (stats.totalSections || 0).toLocaleString(),
-      subtitle: 'S.Y. 2026-2027',
+      subtitle: `S.Y. ${stats.activeSchoolYear || '2026-2027'}`,
       icon: GridFour,
       link: '/admin/faculty-assignment',
       bgIcon: 'bg-amber-100 text-amber-700',

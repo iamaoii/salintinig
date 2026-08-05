@@ -12,6 +12,7 @@ router.post('/verify-parent-code', adminController.verifyParentAccessCode);
 router.use(verifyToken);
 router.use(requireRole('admin'));
 
+router.get('/info', adminController.getAdminInfo);
 router.get('/teachers', adminController.getTeachers);
 router.post('/teachers', adminController.createTeacher);
 router.put('/teachers/:id', adminController.updateTeacher);

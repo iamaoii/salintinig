@@ -652,17 +652,18 @@ async function assignFaculty(req, res) {
           }
         }
 
-        if (teacherIdToUse) {
-          // Assign lead Faculty-in-Charge for the specified grade level
-          if (targetGrade) {
-            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
-            const syId = syRes.rows[0]?.school_year_id || null;
+        if (targetGrade) {
+          const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+          const syId = syRes.rows[0]?.school_year_id || null;
 
-            await db.query(
-              `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND (school_id = $2 OR school_id IS NULL) AND (school_year_id = $3 OR school_year_id IS NULL)`,
-              [targetGrade, schoolId, syId]
-            );
+          // Always delete existing Faculty-in-Charge for this grade level
+          await db.query(
+            `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND (school_id = $2 OR school_id IS NULL) AND (school_year_id = $3 OR school_year_id IS NULL)`,
+            [targetGrade, schoolId, syId]
+          );
 
+          // If a teacher was selected, insert new Faculty-in-Charge assignment
+          if (teacherIdToUse) {
             await db.query(
               `INSERT INTO faculty_in_charge (school_id, school_year_id, teacher_id, grade_level, status)
                VALUES ($1, $2, $3, $4, 'active')`,
@@ -671,7 +672,7 @@ async function assignFaculty(req, res) {
           }
 
           // Assign class adviser if sectionAssigned is provided
-          if (sectionAssigned && sectionAssigned !== 'Unassigned') {
+          if (teacherIdToUse && sectionAssigned && sectionAssigned !== 'Unassigned') {
             await db.query(
               `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
               [teacherIdToUse, targetGrade || 'Grade 4', sectionAssigned]
@@ -680,7 +681,9 @@ async function assignFaculty(req, res) {
 
           return res.json({
             success: true,
-            message: `Faculty assignment updated for ${foundTeacherName || 'teacher'}.`,
+            message: teacherIdToUse
+              ? `Faculty assignment updated for ${foundTeacherName || 'teacher'}.`
+              : `Faculty-in-Charge for ${targetGrade} set to Unassigned.`,
           });
         }
       } catch (dbErr) {
@@ -908,10 +911,23 @@ async function getSystemStats(req, res) {
     let totalParentAccounts = 0;
     let totalSections = 0;
     let totalGradeLevels = 3;
+    let activeSchoolYear = '2026-2027';
 
     if (process.env.DATABASE_URL) {
       try {
-        const studentRes = await db.query('SELECT COUNT(*) FROM students');
+        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true LIMIT 1');
+        const activeSyId = syRes.rows[0]?.school_year_id || null;
+        if (syRes.rows[0]?.school_year) {
+          activeSchoolYear = syRes.rows[0].school_year;
+        }
+
+        // Count students enrolled in active school year (or total if no history)
+        let studentRes;
+        if (activeSyId) {
+          studentRes = await db.query('SELECT COUNT(DISTINCT student_id) FROM student_grade_history WHERE school_year_id = $1', [activeSyId]);
+        } else {
+          studentRes = await db.query('SELECT COUNT(*) FROM students');
+        }
         totalStudents = parseInt(studentRes.rows[0].count, 10) || 0;
 
         const teacherRes = await db.query('SELECT COUNT(*) FROM teachers');
@@ -920,7 +936,13 @@ async function getSystemStats(req, res) {
         const parentRes = await db.query('SELECT COUNT(*) FROM student_parents');
         totalParentAccounts = parseInt(parentRes.rows[0].count, 10) || 0;
 
-        const sectionRes = await db.query('SELECT COUNT(*) FROM classes');
+        // Count sections created under active school year
+        let sectionRes;
+        if (activeSyId) {
+          sectionRes = await db.query('SELECT COUNT(*) FROM classes WHERE school_year_id = $1', [activeSyId]);
+        } else {
+          sectionRes = await db.query('SELECT COUNT(*) FROM classes');
+        }
         totalSections = parseInt(sectionRes.rows[0].count, 10) || 0;
 
         const gradeRes = await db.query('SELECT COUNT(DISTINCT grade_level) FROM classes');
@@ -938,6 +960,7 @@ async function getSystemStats(req, res) {
         totalParentAccounts,
         totalSections,
         totalGradeLevels: totalGradeLevels || 3,
+        activeSchoolYear,
       },
     });
   } catch (error) {
@@ -1161,7 +1184,7 @@ async function getSections(req, res) {
  */
 async function createSection(req, res) {
   try {
-    const { gradeLevel, sectionName } = req.body;
+    const { gradeLevel, sectionName, adviserId } = req.body;
     if (!gradeLevel || !sectionName || !sectionName.trim()) {
       return res.status(400).json({ success: false, error: 'Grade level and section name are required.' });
     }
@@ -1175,9 +1198,9 @@ async function createSection(req, res) {
         const syId = syRes.rows[0]?.school_year_id || null;
 
         await db.query(
-          `INSERT INTO classes (school_id, school_year_id, grade_level, section_name)
-           VALUES ($1, $2, $3, $4)`,
-          [schoolId, syId, gradeLevel, cleanSection]
+          `INSERT INTO classes (school_id, school_year_id, grade_level, section_name, advisor_teacher_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [schoolId, syId, gradeLevel, cleanSection, adviserId || null]
         );
       } catch (dbErr) {
         console.warn('DB create section notice:', dbErr.message);
@@ -1395,6 +1418,58 @@ async function activateSchoolYear(req, res) {
   }
 }
 
+/**
+ * GET /api/admin/info — Get school details & active school year for admin dashboard banner
+ */
+async function getAdminInfo(req, res) {
+  try {
+    let schoolInfo = {
+      schoolId: '109283',
+      schoolName: 'Mandaluyong Elementary School',
+      division: 'Division of City Schools',
+      region: 'NCR',
+    };
+    let activeSchoolYear = '2026-2027';
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const schoolId = await getAdminSchoolId(req);
+
+        // 1. Fetch School Details
+        const sRes = await db.query(
+          `SELECT school_id AS "schoolId", school_name AS "schoolName", division, region FROM schools WHERE school_id = $1 LIMIT 1`,
+          [schoolId]
+        );
+        if (sRes.rows && sRes.rows[0]) {
+          schoolInfo = {
+            ...schoolInfo,
+            ...sRes.rows[0],
+          };
+        }
+
+        // 2. Fetch Active School Year
+        const syRes = await db.query(
+          `SELECT school_year AS "schoolYear" FROM school_years WHERE is_active = true LIMIT 1`
+        );
+        if (syRes.rows && syRes.rows[0]) {
+          activeSchoolYear = syRes.rows[0].schoolYear;
+        }
+      } catch (dbErr) {
+        console.warn('DB get admin info notice:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      schoolInfo,
+      activeSchoolYear,
+    });
+  } catch (error) {
+    console.error('Error fetching admin info:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch admin info.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   createTeacher,
@@ -1417,4 +1492,5 @@ module.exports = {
   getSchoolYears,
   createSchoolYear,
   activateSchoolYear,
+  getAdminInfo,
 };

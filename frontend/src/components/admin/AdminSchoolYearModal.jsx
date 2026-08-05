@@ -86,6 +86,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
         setSuccessMsg(`School Year S.Y. ${cleanSy} created!`);
         setNewSchoolYear('');
         fetchSchoolYears();
+        window.dispatchEvent(new Event('schoolYearChanged'));
         if (onSchoolYearChanged) onSchoolYearChanged();
       } else {
         setErrorMsg(data.error || 'Failed to create school year.');
@@ -110,6 +111,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
       if (res.ok && data.success) {
         setSuccessMsg(`S.Y. ${sy.schoolYear} set as Active Academic Year.`);
         fetchSchoolYears();
+        window.dispatchEvent(new Event('schoolYearChanged'));
         if (onSchoolYearChanged) onSchoolYearChanged();
       } else {
         setErrorMsg(data.error || 'Failed to activate school year.');

@@ -46,6 +46,7 @@ export default function AdminFacultyAssignment() {
   const [sectionFormData, setSectionFormData] = useState({
     gradeLevel: 'Grade 4',
     sectionName: '',
+    adviserId: '',
   });
   const [selectedTeacherForGrade, setSelectedTeacherForGrade] = useState('');
 
@@ -116,6 +117,10 @@ export default function AdminFacultyAssignment() {
 
   useEffect(() => {
     fetchAssignmentData();
+
+    const handleSYChange = () => fetchAssignmentData();
+    window.addEventListener('schoolYearChanged', handleSYChange);
+    return () => window.removeEventListener('schoolYearChanged', handleSYChange);
   }, []);
 
   const uniqueTeachers = useMemo(() => {
@@ -165,18 +170,16 @@ export default function AdminFacultyAssignment() {
     return list;
   }, [dbSectionsList, sections, assignments, teachers]);
 
-  // Filtered sections
+  // Filtered list based on tabs and search
   const filteredSections = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    return allSectionsList.filter((item) => {
-      const matchesGrade = selectedGradeTab === 'All' || item.gradeLevel === selectedGradeTab;
+    return allSectionsList.filter((sec) => {
+      const matchesGrade = selectedGradeTab === 'All' || sec.gradeLevel === selectedGradeTab;
+      const search = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        !query ||
-        item.sectionName.toLowerCase().includes(query) ||
-        item.gradeLevel.toLowerCase().includes(query) ||
-        item.facultyInCharge.toLowerCase().includes(query) ||
-        item.adviser.toLowerCase().includes(query);
-
+        !search ||
+        sec.sectionName.toLowerCase().includes(search) ||
+        (sec.adviser && sec.adviser.toLowerCase().includes(search)) ||
+        sec.gradeLevel.toLowerCase().includes(search);
       return matchesGrade && matchesSearch;
     });
   }, [allSectionsList, selectedGradeTab, searchQuery]);
@@ -184,7 +187,7 @@ export default function AdminFacultyAssignment() {
   // Handlers
   const handleSaveSection = async (e) => {
     e.preventDefault();
-    const { gradeLevel, sectionName } = sectionFormData;
+    const { gradeLevel, sectionName, adviserId } = sectionFormData;
     const trimmed = sectionName.trim();
     if (!trimmed) return;
 
@@ -196,27 +199,36 @@ export default function AdminFacultyAssignment() {
       };
 
       if (editingSectionData) {
-        // Renaming section
-        const oldName = editingSectionData.name;
-        const res = await fetch(`http://localhost:5000/api/admin/sections/${oldName}`, {
+        // Renaming section or updating adviser
+        const targetId = editingSectionData.id || editingSectionData.name;
+        const res = await fetch(`http://localhost:5000/api/admin/sections/${targetId}`, {
           method: 'PUT',
           headers: authHeaders,
-          body: JSON.stringify({ gradeLevel: editingSectionData.grade, sectionName: trimmed }),
+          body: JSON.stringify({
+            gradeLevel: editingSectionData.grade,
+            sectionName: trimmed,
+            adviserId: adviserId || null,
+          }),
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`Section "${oldName}" renamed to "${trimmed}".`);
+          showToast(`Section "${trimmed}" updated successfully.`);
           fetchAssignmentData();
           setEditingSectionData(null);
+          setShowAddSectionModal(false);
         } else {
-          showToast(data.error || 'Failed to rename section.');
+          showToast(data.error || 'Failed to update section.');
         }
       } else {
         // Adding new section
         const res = await fetch('http://localhost:5000/api/admin/sections', {
           method: 'POST',
           headers: authHeaders,
-          body: JSON.stringify({ gradeLevel, sectionName: trimmed }),
+          body: JSON.stringify({
+            gradeLevel,
+            sectionName: trimmed,
+            adviserId: adviserId || null,
+          }),
         });
         const data = await res.json();
         if (res.ok && data.success) {
@@ -228,10 +240,9 @@ export default function AdminFacultyAssignment() {
         }
       }
     } catch (err) {
-      showToast('Error saving class section.');
+      showToast('Error saving section.');
     }
-
-    setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '' });
+    setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '', adviserId: '' });
   };
 
   const handleDeleteSection = async () => {
@@ -260,11 +271,13 @@ export default function AdminFacultyAssignment() {
 
   const handleAssignFaculty = async (e) => {
     e.preventDefault();
-    if (!assigningFacultyGrade || !selectedTeacherForGrade) return;
+    if (!assigningFacultyGrade) return;
 
     try {
       const token = localStorage.getItem('token');
-      const teacherObj = teachers.find((t) => t.name === selectedTeacherForGrade);
+      const teacherObj = selectedTeacherForGrade
+        ? teachers.find((t) => t.name === selectedTeacherForGrade || t.id === selectedTeacherForGrade)
+        : null;
 
       const res = await fetch('http://localhost:5000/api/admin/faculty-assignments', {
         method: 'POST',
@@ -275,19 +288,24 @@ export default function AdminFacultyAssignment() {
         body: JSON.stringify({
           gradeLevel: assigningFacultyGrade,
           teacherId: teacherObj ? teacherObj.id : null,
-          teacherName: selectedTeacherForGrade,
+          teacherName: selectedTeacherForGrade || '',
         }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`${selectedTeacherForGrade} assigned as Faculty-in-Charge for ${assigningFacultyGrade}.`);
+        showToast(
+          selectedTeacherForGrade
+            ? `Faculty-in-Charge for ${assigningFacultyGrade} updated to ${selectedTeacherForGrade}.`
+            : `Faculty-in-Charge for ${assigningFacultyGrade} set to Unassigned.`
+        );
         fetchAssignmentData();
+        setAssigningFacultyGrade(null);
       } else {
-        showToast(data.error || 'Failed to assign faculty in charge.');
+        showToast(data.error || 'Failed to update faculty assignment.');
       }
     } catch (err) {
-      showToast('Error assigning faculty in charge.');
+      showToast('Error updating faculty assignment.');
     } finally {
       setAssigningFacultyGrade(null);
       setSelectedTeacherForGrade('');
@@ -373,7 +391,7 @@ export default function AdminFacultyAssignment() {
               type="button"
               onClick={() => {
                 setAssigningFacultyGrade(item.gradeLevel);
-                setSelectedTeacherForGrade(item.facultyInCharge || '');
+                setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
               }}
               className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
             >
@@ -486,12 +504,12 @@ export default function AdminFacultyAssignment() {
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingSectionData({ grade: sec.gradeLevel, name: sec.sectionName });
-                            setSectionFormData({ gradeLevel: sec.gradeLevel, sectionName: sec.sectionName });
+                            setEditingSectionData({ id: sec.id, grade: sec.gradeLevel, name: sec.sectionName });
+                            setSectionFormData({ gradeLevel: sec.gradeLevel, sectionName: sec.sectionName, adviserId: sec.adviserId || '' });
                             setShowAddSectionModal(true);
                           }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
-                          title="Edit Section Name"
+                          title="Edit Section & Adviser"
                         >
                           <Pencil size={15} />
                         </button>
@@ -523,7 +541,7 @@ export default function AdminFacultyAssignment() {
           <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">
-                {editingSectionData ? 'Edit Section Name' : 'Add New Section'}
+                {editingSectionData ? 'Edit Section Details' : 'Add New Section'}
               </h3>
               <button
                 type="button"
@@ -562,6 +580,22 @@ export default function AdminFacultyAssignment() {
                   onChange={(e) => setSectionFormData({ ...sectionFormData, sectionName: e.target.value })}
                   className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
+              </div>
+
+              <div>
+                <label className="font-semibold text-ink/80 block mb-1">Class Adviser (Optional)</label>
+                <select
+                  value={sectionFormData.adviserId || ''}
+                  onChange={(e) => setSectionFormData({ ...sectionFormData, adviserId: e.target.value })}
+                  className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
+                >
+                  <option value="">Unassigned (No Adviser)</option>
+                  {uniqueTeachers.map((t) => (
+                    <option key={t.id || t.employeeId || t.name} value={t.id}>
+                      {t.name} ({t.employeeId})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink/10">
@@ -616,12 +650,11 @@ export default function AdminFacultyAssignment() {
               <div>
                 <label className="font-semibold text-ink/80 block mb-1">Select Faculty Member</label>
                 <select
-                  required
                   value={selectedTeacherForGrade}
                   onChange={(e) => setSelectedTeacherForGrade(e.target.value)}
-                  className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
                 >
-                  <option value="">Select Faculty Member...</option>
+                  <option value="">Unassigned (No Faculty-in-Charge)</option>
                   {uniqueTeachers.map((t) => (
                     <option key={t.id || t.employeeId || t.name} value={t.name}>
                       {t.name} ({t.employeeId})
@@ -640,8 +673,7 @@ export default function AdminFacultyAssignment() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!selectedTeacherForGrade}
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
                 >
                   Save Assignment
                 </button>
