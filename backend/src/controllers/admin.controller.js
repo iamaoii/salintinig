@@ -1538,33 +1538,37 @@ async function updateAdminInfo(req, res) {
   try {
     const { schoolName, schoolId, division, region, principalName, officialEmail, profileImage, avatarUrl } = req.body;
     const currentSchoolId = await getAdminSchoolId(req);
-    const targetSchoolId = schoolId || currentSchoolId || '109283';
+    const targetSchoolId = schoolId || currentSchoolId;
 
     if (process.env.DATABASE_URL) {
       // 1. Update School Profile details if school attributes are supplied
       if (schoolName || division || region || officialEmail || principalName) {
-        const existingRes = await db.query(`SELECT * FROM schools WHERE school_id = $1 LIMIT 1`, [targetSchoolId]);
-        const existing = existingRes.rows?.[0] || {};
+        if (!targetSchoolId) {
+          console.warn('Cannot update school: no school_id found for admin.');
+        } else {
+          const existingRes = await db.query(`SELECT * FROM schools WHERE school_id = $1 LIMIT 1`, [targetSchoolId]);
+          const existing = existingRes.rows?.[0] || {};
 
-        await db.query(
-          `INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-           ON CONFLICT (school_id) DO UPDATE SET
-             school_name = EXCLUDED.school_name,
-             division = EXCLUDED.division,
-             region = EXCLUDED.region,
-             official_email = EXCLUDED.official_email,
-             principal_name = EXCLUDED.principal_name,
-             updated_at = CURRENT_TIMESTAMP`,
-          [
-            targetSchoolId,
-            schoolName || existing.school_name || 'Mandaluyong Elementary School',
-            division || existing.division || 'Division of City Schools',
-            region || existing.region || 'NCR',
-            officialEmail || existing.official_email || 'admin@deped.gov.ph',
-            principalName || existing.principal_name || 'Dr. Maria Corazon Aquino',
-          ]
-        );
+          await db.query(
+            `INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+             ON CONFLICT (school_id) DO UPDATE SET
+               school_name = EXCLUDED.school_name,
+               division = EXCLUDED.division,
+               region = EXCLUDED.region,
+               official_email = EXCLUDED.official_email,
+               principal_name = EXCLUDED.principal_name,
+               updated_at = CURRENT_TIMESTAMP`,
+            [
+              targetSchoolId,
+              schoolName || existing.school_name || '',
+              division || existing.division || '',
+              region || existing.region || '',
+              officialEmail || existing.official_email || '',
+              principalName || existing.principal_name || '',
+            ]
+          );
+        }
       }
 
       // 2. Update Admin Profile Image if present
@@ -1575,13 +1579,38 @@ async function updateAdminInfo(req, res) {
 
         if (imgUrl.startsWith('data:image')) {
           try {
-            const fileName = `admin-avatar-${userId || 'admin'}.webp`;
-            const supabaseUrl = await uploadImageToSupabase(imgUrl, fileName, 'avatars');
-            if (supabaseUrl) {
-              finalImageUrl = supabaseUrl;
+            // Use unique timestamp filename to bypass Supabase CDN cache
+            const fileName = `admin-avatar-${userId || 'admin'}-${Date.now()}.webp`;
+
+            // Delete old avatar from Supabase Storage using old filename from DB
+            if (supabase) {
+              const oldUrlRes = userId
+                ? await db.query(`SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`, [userId])
+                : await db.query(`SELECT profile_image FROM users WHERE role = 'admin' AND profile_image IS NOT NULL LIMIT 1`);
+              const oldUrl = oldUrlRes.rows?.[0]?.profile_image;
+              if (oldUrl && oldUrl.includes('supabase')) {
+                // Extract just the filename from the URL path
+                const urlPath = oldUrl.split('/avatars/')[1]?.split('?')[0];
+                if (urlPath) {
+                  const { error: removeError } = await supabase.storage.from('avatars').remove([urlPath]);
+                  if (removeError) {
+                    console.warn('Could not delete old avatar:', removeError.message);
+                  } else {
+                    console.log('🗑️ Old avatar deleted:', urlPath);
+                  }
+                }
+              }
+            }
+
+            const supabaseImageUrl = await uploadImageToSupabase(imgUrl, fileName, 'avatars');
+            if (supabaseImageUrl) {
+              finalImageUrl = supabaseImageUrl;
+              console.log('✅ New avatar uploaded to Supabase Storage:', finalImageUrl);
+            } else {
+              console.warn('⚠️ Supabase upload returned null — storing base64 in DB as fallback.');
             }
           } catch (imgErr) {
-            console.warn('Avatar image upload notice:', imgErr.message);
+            console.warn('Avatar image upload error:', imgErr.message);
           }
         }
 

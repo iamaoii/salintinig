@@ -203,8 +203,7 @@ export default function AdminStudentRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          const passMsg = data.tempPassword ? ` (Temp Pass: ${data.tempPassword})` : '';
-          showToast(`Student ${studentName} registered! Credentials sent to email${passMsg}.`);
+          showToast(`Student ${studentName} registered! Login credentials sent to email.`);
           fetchStudents();
           setShowAddModal(false);
         } else {

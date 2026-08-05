@@ -26,6 +26,7 @@ import logo from '../../assets/logo/logo.webp';
 import { getUser, logout } from '../../lib/auth.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
+import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function AdminSettings() {
   const [adminInfo, setAdminInfo] = useState(null);
 
   const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
+  const [cropSrc, setCropSrc] = useState(null); // holds raw image data URL for crop modal
 
   const [schoolProfile, setSchoolProfile] = useState({
     schoolName: '',
@@ -62,7 +64,7 @@ export default function AdminSettings() {
 
   // Lock body scroll when any modal is open (using position:fixed to avoid breaking sticky navbar)
   useEffect(() => {
-    const anyOpen = isPasswordModalOpen || isAboutModalOpen || isHelpModalOpen || isDeactivateModalOpen;
+    const anyOpen = isPasswordModalOpen || isAboutModalOpen || isHelpModalOpen || isDeactivateModalOpen || Boolean(cropSrc);
     if (anyOpen) {
       const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
@@ -73,7 +75,7 @@ export default function AdminSettings() {
       document.body.style.position = '';
       document.body.style.top = '';
       document.body.style.width = '';
-      window.scrollTo(0, scrollY);
+      if (scrollY) window.scrollTo(0, scrollY);
     }
     return () => {
       const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
@@ -82,7 +84,7 @@ export default function AdminSettings() {
       document.body.style.width = '';
       if (scrollY) window.scrollTo(0, scrollY);
     };
-  }, [isPasswordModalOpen, isAboutModalOpen, isHelpModalOpen, isDeactivateModalOpen]);
+  }, [isPasswordModalOpen, isAboutModalOpen, isHelpModalOpen, isDeactivateModalOpen, cropSrc]);
 
   // Password form state
   const [passwordForm, setPasswordForm] = useState({
@@ -125,32 +127,57 @@ export default function AdminSettings() {
     });
   };
 
-  const handleAvatarChange = async (e) => {
+  // Open crop modal instead of uploading immediately
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        // Compress to WebP (256x256 square avatar, ~15-25KB size)
-        const compressedWebP = await compressImageToWebP(file, 256, 0.8);
-        setAvatarUrl(compressedWebP);
-        localStorage.setItem('adminAvatarCache', compressedWebP);
-        window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: compressedWebP }));
-        showToast('Profile picture updated & compressed (WebP)!');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setCropSrc(ev.target.result);
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
 
-        // Sync to backend PostgreSQL database
-        const token = localStorage.getItem('token');
-        await fetch('http://localhost:5000/api/admin/info', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ profileImage: compressedWebP }),
-        });
-      } catch (err) {
-        console.warn('Failed to process or sync avatar:', err);
+  // Called when user confirms crop — receives cropped WebP data URL
+  const handleCropConfirm = async (croppedWebP) => {
+    setCropSrc(null);
+    try {
+      // Show local preview instantly while upload is in progress
+      setAvatarUrl(croppedWebP);
+      window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: croppedWebP }));
+
+      // Sync to backend — backend uploads to Supabase Storage and returns the CDN URL
+      const token = localStorage.getItem('token');
+      await fetch('http://localhost:5000/api/admin/info', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ profileImage: croppedWebP }),
+      });
+
+      // Fetch the actual Supabase CDN URL back from the DB and sync cache
+      const infoRes = await fetch('http://localhost:5000/api/admin/info', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const infoData = await infoRes.json();
+      if (infoRes.ok && infoData.success && infoData.profileImage) {
+        const supabaseUrl = infoData.profileImage;
+        setAvatarUrl(supabaseUrl);
+        localStorage.setItem('adminAvatarCache', supabaseUrl);
+        window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: supabaseUrl }));
+      } else {
+        localStorage.setItem('adminAvatarCache', croppedWebP);
       }
+
+      showToast('Profile picture updated!');
+    } catch (err) {
+      console.warn('Failed to process or sync avatar:', err);
     }
   };
+
+  const handleCropCancel = () => setCropSrc(null);
 
   const fetchAdminInfo = async () => {
     try {
@@ -282,6 +309,13 @@ export default function AdminSettings() {
   return (
     <>
       <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      {cropSrc && (
+        <AvatarCropModal
+          imageSrc={cropSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
       <input
         ref={fileInputRef}
         type="file"
