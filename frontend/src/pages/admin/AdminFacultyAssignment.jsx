@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Plus,
   Pencil,
@@ -57,6 +58,30 @@ export default function AdminFacultyAssignment() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const isModalOpen = Boolean(showAddSectionModal || assigningFacultyGrade || deletingSectionData || showSchoolYearModal);
+    if (isModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    }
+    return () => {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    };
+  }, [showAddSectionModal, assigningFacultyGrade, deletingSectionData, showSchoolYearModal]);
 
   const [dbSectionsList, setDbSectionsList] = useState([]);
 
@@ -536,8 +561,8 @@ export default function AdminFacultyAssignment() {
       </div>
 
       {/* Add / Edit Section Modal */}
-      {showAddSectionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {showAddSectionModal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">
@@ -618,12 +643,13 @@ export default function AdminFacultyAssignment() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Assign Faculty Modal */}
-      {assigningFacultyGrade && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {assigningFacultyGrade && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <h3 className="text-base font-bold text-ink">Assign Faculty-in-Charge</h3>
@@ -680,12 +706,13 @@ export default function AdminFacultyAssignment() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirm Delete Section Modal */}
-      {deletingSectionData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+      {deletingSectionData && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in text-xs">
             <h3 className="text-base font-bold text-ink">Delete Section?</h3>
             <p className="mt-2 text-ink/70">
@@ -708,7 +735,8 @@ export default function AdminFacultyAssignment() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* School Year Manager Modal */}

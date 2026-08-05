@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Plus, Check, X, WarningCircle } from '@phosphor-icons/react';
 
 export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChanged }) {
@@ -9,6 +10,29 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    }
+    return () => {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
 
   const fetchSchoolYears = async () => {
     try {
@@ -123,8 +147,8 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-xs p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in text-xs text-ink">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div className="flex items-center gap-2">
@@ -240,6 +264,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

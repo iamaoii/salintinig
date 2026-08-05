@@ -11,7 +11,18 @@ function initialsFor(name) {
   return ((parts[0]?.[0] || '') + (parts[parts.length - 1]?.[0] || '')).toUpperCase();
 }
 
-export default function Avatar({ name, size = 32, className = '' }) {
+export default function Avatar({ name = '', src, size = 32, className = '' }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={`shrink-0 rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   return (
     <div
       className={`flex shrink-0 items-center justify-center rounded-full font-medium text-cream ${className}`}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
@@ -22,7 +23,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
   const name = customName || user?.name || (currentRole === 'admin' ? 'Antoinette Jadaone' : 'Ted Mosby');
   const email = user?.email || (currentRole === 'admin' ? 'antoinette.j@deped.gov.ph' : 'mosbyTed@edu.org.ph');
 
-  const profilePath = currentRole === 'admin' ? '/admin/profile' : '/dashboard/account';
+  const profilePath = currentRole === 'admin' ? '/admin/settings' : '/dashboard/account';
   const settingsPath = currentRole === 'admin' ? '/admin/settings' : '/dashboard/account';
 
   // Close dropdown on outside click
@@ -48,6 +49,29 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Lock body scroll when help modal is open (using position:fixed to avoid breaking sticky navbar)
+  useEffect(() => {
+    if (isHelpOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    }
+    return () => {
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      if (scrollY) window.scrollTo(0, scrollY);
+    };
+  }, [isHelpOpen]);
+
   const handleLogout = () => {
     setIsOpen(false);
     logout();
@@ -69,6 +93,8 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     setIsHelpOpen(true);
   };
 
+  const adminAvatar = currentRole === 'admin' ? localStorage.getItem('admin_avatar_url') : undefined;
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Dropdown Trigger matching picture 3 (Avatar + Caret Down) */}
@@ -79,7 +105,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Avatar name={name} size={36} />
+        <Avatar name={name} src={adminAvatar} size={36} />
         <CaretDown
           size={14}
           weight="bold"
@@ -98,14 +124,16 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
           {/* Menu Items */}
           <div className="flex flex-col text-sm font-medium text-ink">
-            <button
-              type="button"
-              onClick={handleProfileClick}
-              className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-ink transition-colors hover:bg-ink/5 cursor-pointer"
-            >
-              <User size={20} className="text-ink shrink-0" />
-              <span>Profile</span>
-            </button>
+            {currentRole !== 'admin' && (
+              <button
+                type="button"
+                onClick={handleProfileClick}
+                className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-ink transition-colors hover:bg-ink/5 cursor-pointer"
+              >
+                <User size={20} className="text-ink shrink-0" />
+                <span>Profile</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -113,7 +141,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
               className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-ink transition-colors hover:bg-ink/5 cursor-pointer"
             >
               <Gear size={20} className="text-ink shrink-0" />
-              <span>Account Settings</span>
+              <span>{currentRole === 'admin' ? 'Account Settings' : 'Account Settings'}</span>
             </button>
 
             <button
@@ -139,9 +167,9 @@ export default function ProfileDropdown({ customName, role: propRole }) {
         </div>
       )}
 
-      {/* Help / FAQ Modal */}
-      {isHelpOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+      {/* Help / FAQ Modal — rendered via portal to escape dropdown stacking context */}
+      {isHelpOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
           <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl sm:p-8">
             <div className="flex items-center justify-between border-b border-ink/10 pb-4">
               <div className="flex items-center gap-3">
@@ -202,7 +230,8 @@ export default function ProfileDropdown({ customName, role: propRole }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

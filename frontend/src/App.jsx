@@ -41,7 +41,6 @@ import AdminAccountRequests from './pages/admin/AdminAccountRequests.jsx';
 import AdminActivities from './pages/admin/AdminActivities.jsx';
 import AdminNotifications from './pages/admin/AdminNotifications.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
-import AdminProfile from './pages/admin/AdminProfile.jsx';
 
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -80,7 +79,7 @@ export default function App() {
         <Route path="activities" element={<AdminActivities />} />
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="settings" element={<AdminSettings />} />
-        <Route path="profile" element={<AdminProfile />} />
+        <Route path="profile" element={<Navigate to="/admin/settings" replace />} />
       </Route>
 
       <Route
