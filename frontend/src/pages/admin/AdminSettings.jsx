@@ -36,7 +36,7 @@ export default function AdminSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [adminInfo, setAdminInfo] = useState(null);
 
-  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('admin_avatar_url') || null);
+  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
 
   const [schoolProfile, setSchoolProfile] = useState({
     schoolName: '',
@@ -100,19 +100,55 @@ export default function AdminSettings() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const compressImageToWebP = (file, size = 256, quality = 0.8) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const dataUrl = event.target?.result;
-        if (dataUrl) {
-          setAvatarUrl(dataUrl);
-          localStorage.setItem('admin_avatar_url', dataUrl);
-          showToast('Profile picture updated successfully!');
-        }
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const cropSize = Math.min(img.width, img.height);
+          const startX = (img.width - cropSize) / 2;
+          const startY = (img.height - cropSize) / 2;
+
+          canvas.width = size;
+          canvas.height = size;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, startX, startY, cropSize, cropSize, 0, 0, size, size);
+          const webpDataUrl = canvas.toDataURL('image/webp', quality);
+          resolve(webpDataUrl);
+        };
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        // Compress to WebP (256x256 square avatar, ~15-25KB size)
+        const compressedWebP = await compressImageToWebP(file, 256, 0.8);
+        setAvatarUrl(compressedWebP);
+        localStorage.setItem('adminAvatarCache', compressedWebP);
+        window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: compressedWebP }));
+        showToast('Profile picture updated & compressed (WebP)!');
+
+        // Sync to backend PostgreSQL database
+        const token = localStorage.getItem('token');
+        await fetch('http://localhost:5000/api/admin/info', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ profileImage: compressedWebP }),
+        });
+      } catch (err) {
+        console.warn('Failed to process or sync avatar:', err);
+      }
     }
   };
 
@@ -126,6 +162,13 @@ export default function AdminSettings() {
       const data = await res.json();
       if (res.ok && data.success) {
         setAdminInfo(data);
+        if (data.profileImage) {
+          setAvatarUrl(data.profileImage);
+          localStorage.setItem('adminAvatarCache', data.profileImage);
+          window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: data.profileImage }));
+        } else {
+          localStorage.removeItem('adminAvatarCache');
+        }
         if (data.schoolInfo) {
           setSchoolProfile({
             schoolName: data.schoolInfo.schoolName || '',

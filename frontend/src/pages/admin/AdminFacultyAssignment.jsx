@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminFacultyAssignment() {
   const [assignments, setAssignments] = useState([
@@ -88,7 +89,7 @@ export default function AdminFacultyAssignment() {
   const fetchAssignmentData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch Teachers
@@ -167,6 +168,10 @@ export default function AdminFacultyAssignment() {
           id: item.id || `${item.gradeLevel}-${item.sectionName}`,
           facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : 'Unassigned',
           adviser: item.adviser || 'Unassigned Adviser',
+          studentsCount: Number(item.studentsCount || 0),
+          independentCount: Number(item.independentCount || 0),
+          instructionalCount: Number(item.instructionalCount || 0),
+          frustrationalCount: Number(item.frustrationalCount || 0),
         };
       });
     }
@@ -217,7 +222,7 @@ export default function AdminFacultyAssignment() {
     if (!trimmed) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const authHeaders = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -275,7 +280,7 @@ export default function AdminFacultyAssignment() {
     const { grade, name } = deletingSectionData;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/sections/${name}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -299,7 +304,7 @@ export default function AdminFacultyAssignment() {
     if (!assigningFacultyGrade) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const teacherObj = selectedTeacherForGrade
         ? teachers.find((t) => t.name === selectedTeacherForGrade || t.id === selectedTeacherForGrade)
         : null;

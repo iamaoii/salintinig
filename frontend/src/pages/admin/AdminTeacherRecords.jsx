@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
@@ -19,12 +19,73 @@ import {
   UserSwitch,
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
-import { initialAdminTeachers, sectionsByGrade } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { getToken } from '../../lib/auth.js';
+
+function parseCsvRows(csvText) {
+  const rows = [];
+  let currentCell = '';
+  let currentRow = [];
+  let isInsideQuotes = false;
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const currentChar = csvText[index];
+    const nextChar = csvText[index + 1];
+
+    if (currentChar === '"' && isInsideQuotes && nextChar === '"') {
+      currentCell += '"';
+      index += 1;
+      continue;
+    }
+
+    if (currentChar === '"') {
+      isInsideQuotes = !isInsideQuotes;
+      continue;
+    }
+
+    if (currentChar === ',' && !isInsideQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+      continue;
+    }
+
+    if ((currentChar === '\n' || currentChar === '\r') && !isInsideQuotes) {
+      if (currentChar === '\r' && nextChar === '\n') index += 1;
+      currentRow.push(currentCell.trim());
+      if (currentRow.some(Boolean)) rows.push(currentRow);
+      currentCell = '';
+      currentRow = [];
+      continue;
+    }
+
+    currentCell += currentChar;
+  }
+
+  currentRow.push(currentCell.trim());
+  if (currentRow.some(Boolean)) rows.push(currentRow);
+  if (rows.length < 2) return [];
+
+  const [rawHeaders, ...dataRows] = rows;
+  const headers = rawHeaders.map((header) => header.replace(/^\uFEFF/, '').trim());
+  return dataRows.map((dataRow) =>
+    headers.reduce((record, header, columnIndex) => {
+      record[header] = dataRow[columnIndex] || '';
+      return record;
+    }, {})
+  );
+}
+
+function formatFileSize(size) {
+  if (!Number.isFinite(size)) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function AdminTeacherRecords() {
   const navigate = useNavigate();
   const { globalSearch } = useOutletContext() || {};
+  const fileInputRef = useRef(null);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,7 +155,7 @@ export default function AdminTeacherRecords() {
   const fetchTeachers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/teachers', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -111,7 +172,7 @@ export default function AdminTeacherRecords() {
 
   const fetchSections = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/sections', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -163,7 +224,7 @@ export default function AdminTeacherRecords() {
   const handleSaveTeacher = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const teacherName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
 
       if (editingTeacher) {
@@ -219,7 +280,7 @@ export default function AdminTeacherRecords() {
   const handleDeleteConfirm = async () => {
     if (!deletingTeacher) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/teachers/${deletingTeacher.id || deletingTeacher.employeeId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -238,39 +299,63 @@ export default function AdminTeacherRecords() {
     }
   };
 
-  const handleSimulatedUpload = () => {
+  const handleCsvFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setUploadSummary(null);
+  };
+
+  const handleImportTeacherCsv = async () => {
     if (!selectedFile) return;
     setIsUploading(true);
     setUploadStep('validating');
 
-    setTimeout(() => {
-      setIsUploading(false);
-      const count = 5;
-      const newBatch = Array.from({ length: count }, (_, i) => ({
-        id: `TCH-CSV-${Date.now()}-${i}`,
-        employeeId: `EMP-2024-05${i}`,
-        name: `Faculty Member ${i + 1}`,
-        gender: i % 2 === 0 ? 'Female' : 'Male',
-        email: `faculty.member${i + 1}@deped.gov.ph`,
-        gradeAssigned: 'Grade 4',
-        sectionAssigned: 'Kalapati',
-        isFacultyInCharge: false,
-        status: 'Active',
-        dateAdded: new Date().toISOString().split('T')[0],
-      }));
+    try {
+      const csvText = await selectedFile.text();
+      const records = parseCsvRows(csvText);
 
-      setTeachers((prev) => [...newBatch, ...prev]);
+      if (records.length === 0) {
+        showToast('CSV file has no teacher records.');
+        setUploadStep('select');
+        return;
+      }
+
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/import-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type: 'teacher', records }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showToast(data.error || 'Failed to import teacher CSV.');
+        setUploadStep('select');
+        return;
+      }
+
+      fetchTeachers();
       setUploadSummary({
         success: true,
-        count,
+        count: data.count || 0,
+        errors: data.errors || [],
       });
       setUploadStep('summary');
-    }, 1200);
+    } catch (error) {
+      showToast('Error importing teacher CSV.');
+      setUploadStep('select');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDownloadTemplate = () => {
     const csvContent =
-      'data:text/csv;charset=utf-8,Employee ID,Full Name,Gender,DepEd Email,Assigned Grade,Assigned Section\nEMP-2024-099,Maria Santos,Female,maria.santos@deped.gov.ph,Grade 4,Fyang';
+      'data:text/csv;charset=utf-8,Employee ID,Full Name,Gender,DepEd Email,Assigned Grade,Assigned Section,Faculty In Charge\nEMP-2024-099,Maria Santos,Female,maria.santos@deped.gov.ph,Unassigned,Unassigned,No';
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -311,6 +396,7 @@ export default function AdminTeacherRecords() {
             type="button"
             onClick={() => {
               setSelectedFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
               setUploadStep('select');
               setUploadSummary(null);
               setShowUploadModal(true);
@@ -489,7 +575,7 @@ export default function AdminTeacherRecords() {
                               firstName: fn,
                               middleName: mn,
                               lastName: ln,
-                              gender: tch.gender || 'Female',
+                              gender: tch.gender || 'Male',
                               email: tch.email || '',
                               gradeAssigned: tch.gradeAssigned || 'Unassigned',
                               sectionAssigned: tch.sectionAssigned || 'Unassigned',
@@ -877,8 +963,15 @@ export default function AdminTeacherRecords() {
 
             {uploadStep === 'select' && (
               <div className="mt-4 space-y-4 text-xs">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleCsvFileChange}
+                  className="hidden"
+                />
                 <div
-                  onClick={() => setSelectedFile({ name: 'Faculty_DepEd_Masterlist2026.csv', size: '18 KB' })}
+                  onClick={() => fileInputRef.current?.click()}
                   className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
                     selectedFile
                       ? 'border-brand-blue bg-brand-blue/5'
@@ -889,7 +982,7 @@ export default function AdminTeacherRecords() {
                   {selectedFile ? (
                     <div>
                       <p className="font-bold text-brand-blue">{selectedFile.name}</p>
-                      <p className="text-[11px] text-ink/50">{selectedFile.size} - Ready for import</p>
+                      <p className="text-[11px] text-ink/50">{formatFileSize(selectedFile.size)} - Ready for import</p>
                     </div>
                   ) : (
                     <div>
@@ -909,8 +1002,8 @@ export default function AdminTeacherRecords() {
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedFile}
-                    onClick={handleSimulatedUpload}
+                    disabled={!selectedFile || isUploading}
+                    onClick={handleImportTeacherCsv}
                     className="rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                   >
                     Import Teacher Records
@@ -932,11 +1025,16 @@ export default function AdminTeacherRecords() {
                 <div className="rounded-xl bg-[#00a652]/15 border border-[#00a652]/30 p-4 text-[#00a652]">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle size={20} weight="fill" />
-                    <h4 className="font-bold text-sm">Faculty Import Successful!</h4>
+                    <h4 className="font-bold text-sm">Faculty Import Complete</h4>
                   </div>
                   <p className="text-xs text-ink/80">
                     Created accounts for <span className="font-bold">{uploadSummary.count} new teachers</span>.
                   </p>
+                  {uploadSummary.errors?.length > 0 && (
+                    <p className="mt-1 text-xs text-ink/70">
+                      Skipped <span className="font-bold">{uploadSummary.errors.length} rows</span> with missing or duplicate data.
+                    </p>
+                  )}
 
                   <div className="mt-3 rounded-lg bg-white p-3 border border-ink/10 space-y-1 text-[11px] text-ink/80">
                     <div className="flex items-center gap-1.5 font-semibold text-brand-blue">

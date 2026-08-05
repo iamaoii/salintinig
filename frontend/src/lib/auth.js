@@ -1,8 +1,18 @@
 const AUTH_KEY = 'salintinig_auth';
 const USER_KEY = 'salintinig_user';
 const TOKEN_KEY = 'salintinig_token';
+const LEGACY_TOKEN_KEY = 'token';
 
 const API_BASE_URL = 'http://localhost:5000/api/auth';
+
+function syncLegacyTokenKey() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token && !localStorage.getItem(LEGACY_TOKEN_KEY)) {
+    localStorage.setItem(LEGACY_TOKEN_KEY, token);
+  }
+}
+
+syncLegacyTokenKey();
 
 /**
  * Async API login connecting directly to live Supabase backend
@@ -29,6 +39,7 @@ export async function authenticateAsync(identifier, password) {
       localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, mustChangePassword: mustChange }));
       if (data.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(LEGACY_TOKEN_KEY, data.token);
       }
       return {
         success: true,
@@ -97,6 +108,7 @@ export function logout() {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
 export function isLoggedIn() {
@@ -104,7 +116,7 @@ export function isLoggedIn() {
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
 }
 
 export function getUser() {

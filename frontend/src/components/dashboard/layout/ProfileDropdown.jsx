@@ -93,7 +93,41 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     setIsHelpOpen(true);
   };
 
-  const adminAvatar = currentRole === 'admin' ? localStorage.getItem('admin_avatar_url') : undefined;
+  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
+
+  useEffect(() => {
+    if (currentRole === 'admin') {
+      const fetchAdminAvatar = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch('http://localhost:5000/api/admin/info', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          const data = await res.json();
+          if (res.ok && data.success && data.profileImage) {
+            setAvatarUrl(data.profileImage);
+            localStorage.setItem('adminAvatarCache', data.profileImage);
+          } else {
+            localStorage.removeItem('adminAvatarCache');
+          }
+        } catch (err) {
+          console.warn('Failed to fetch admin avatar:', err);
+        }
+      };
+      fetchAdminAvatar();
+    }
+
+    const handleAvatarUpdate = (e) => {
+      if (currentRole === 'admin' && e?.detail) {
+        setAvatarUrl(e.detail);
+        localStorage.setItem('adminAvatarCache', e.detail);
+      }
+    };
+    window.addEventListener('adminAvatarChanged', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('adminAvatarChanged', handleAvatarUpdate);
+    };
+  }, [currentRole]);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -105,7 +139,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Avatar name={name} src={adminAvatar} size={36} />
+        <Avatar name={name} src={avatarUrl} size={36} />
         <CaretDown
           size={14}
           weight="bold"
