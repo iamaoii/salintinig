@@ -155,6 +155,13 @@ async function login(req, res) {
 
     // Authenticated user formatting
     if (matchedUser) {
+      if (matchedUser.role === 'student') {
+        return res.status(403).json({
+          success: false,
+          error: 'Student login is available on the Salintinig mobile app.',
+        });
+      }
+
       let displayName = matchedUser.email.split('@')[0];
       let schoolId = matchedUser.school_id || null;
       let empId = matchedUser.teacher_no || null;
