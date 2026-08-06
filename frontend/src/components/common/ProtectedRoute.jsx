@@ -10,6 +10,11 @@ export default function ProtectedRoute({ children, allowedRole }) {
 
   const role = getUserRole();
 
+  // Web portal is restricted exclusively to Admin and Teacher roles
+  if (role === 'student' || (role !== 'admin' && role !== 'teacher')) {
+    return <Navigate to="/login" replace />;
+  }
+
   // If role is required and user's role does not match:
   if (allowedRole && role !== allowedRole) {
     if (allowedRole === 'admin' && role !== 'admin') {

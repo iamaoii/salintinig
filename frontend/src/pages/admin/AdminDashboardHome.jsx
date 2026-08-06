@@ -49,13 +49,8 @@ export default function AdminDashboardHome() {
     }
   };
 
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalTeachers: 0,
-    totalParentAccounts: 0,
-    totalSections: 0,
-    totalGradeLevels: 3,
-  });
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   // Fetch live system metrics
   const fetchStats = async () => {
@@ -70,6 +65,8 @@ export default function AdminDashboardHome() {
       }
     } catch (err) {
       console.warn('Could not fetch admin stats:', err);
+    } finally {
+      setLoadingStats(false);
     }
   };
 
@@ -148,7 +145,7 @@ export default function AdminDashboardHome() {
   const STAT_CARDS = [
     {
       title: 'Total Students',
-      value: (stats.totalStudents || 0).toLocaleString(),
+      value: (stats?.totalStudents ?? 0).toLocaleString(),
       subtitle: 'Grades 4 - 6',
       icon: Student,
       link: '/admin/students',
@@ -156,7 +153,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Total Teachers',
-      value: (stats.totalTeachers || 0).toLocaleString(),
+      value: (stats?.totalTeachers ?? 0).toLocaleString(),
       subtitle: 'Faculty members',
       icon: ChalkboardTeacher,
       link: '/admin/teachers',
@@ -164,7 +161,7 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Parent Accounts',
-      value: (stats.totalParentAccounts || 0).toLocaleString(),
+      value: (stats?.totalParentAccounts ?? 0).toLocaleString(),
       subtitle: 'Registered portals',
       icon: Users,
       link: '/admin/students',
@@ -172,15 +169,15 @@ export default function AdminDashboardHome() {
     },
     {
       title: 'Total Sections',
-      value: (stats.totalSections || 0).toLocaleString(),
-      subtitle: `S.Y. ${stats.activeSchoolYear || '2026-2027'}`,
+      value: (stats?.totalSections ?? 0).toLocaleString(),
+      subtitle: `S.Y. ${stats?.activeSchoolYear || '2026-2027'}`,
       icon: GridFour,
       link: '/admin/faculty-assignment',
       bgIcon: 'bg-amber-100 text-amber-700',
     },
     {
       title: 'Grade Levels',
-      value: stats.totalGradeLevels || 3,
+      value: stats?.totalGradeLevels ?? 3,
       subtitle: 'Grade 4 - Grade 6',
       icon: GraduationCap,
       link: '/admin/faculty-assignment',
@@ -239,9 +236,13 @@ export default function AdminDashboardHome() {
                 className="group relative flex flex-col justify-between rounded-2xl border border-ink/10 bg-cream p-3 shadow-[0px_4px_8px_0px_rgba(26,24,22,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer min-w-0"
               >
                 <div className="flex items-start justify-between gap-1">
-                  <p className="text-xl font-black text-ink leading-none tracking-tight">
-                    {card.value}
-                  </p>
+                  {loadingStats ? (
+                    <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
+                  ) : (
+                    <p className="text-xl font-black text-ink leading-none tracking-tight">
+                      {card.value}
+                    </p>
+                  )}
                   <div className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${card.bgIcon}`}>
                     <Icon size={14} weight="bold" />
                   </div>

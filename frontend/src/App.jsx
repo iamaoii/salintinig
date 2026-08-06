@@ -85,7 +85,7 @@ export default function App() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRole="teacher">
             <DashboardLayout />
           </ProtectedRoute>
         }
