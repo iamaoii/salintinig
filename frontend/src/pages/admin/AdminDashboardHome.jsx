@@ -20,6 +20,7 @@ import {
 } from '@phosphor-icons/react';
 import { adminStats, recentActivities } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function AdminDashboardHome() {
   // Fetch pending account activation requests
   const fetchRequests = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/account-requests', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -59,7 +60,7 @@ export default function AdminDashboardHome() {
   // Fetch live system metrics
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/stats', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -85,7 +86,7 @@ export default function AdminDashboardHome() {
     if (processingId) return;
     setProcessingId(id);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/approve`, {
         method: 'POST',
         headers: {
@@ -111,7 +112,7 @@ export default function AdminDashboardHome() {
     if (processingId) return;
     setProcessingId(id);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/reject`, {
         method: 'POST',
         headers: {

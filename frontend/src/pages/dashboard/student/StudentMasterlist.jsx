@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
+import { getToken } from '../../../lib/auth.js';
 
 const TABS = [
   { to: '/dashboard/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
@@ -17,7 +18,7 @@ export default function StudentMasterlist({ level }) {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await fetch('http://localhost:5000/api/admin/students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

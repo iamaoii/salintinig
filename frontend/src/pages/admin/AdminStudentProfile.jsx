@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { getToken } from '../../lib/auth.js';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../components/dashboard/progress/StatCard.jsx';
 import AccuracyTrendChart from '../../components/dashboard/progress/AccuracyTrendChart.jsx';
@@ -71,7 +72,7 @@ export default function AdminStudentProfile() {
   useEffect(() => {
     const fetchStudentDetail = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await fetch(`http://localhost:5000/api/admin/students/${lrn}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

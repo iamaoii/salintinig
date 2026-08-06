@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-const supabase = require('../config/supabase.js');
+const { supabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
 
 function createToken(user) {

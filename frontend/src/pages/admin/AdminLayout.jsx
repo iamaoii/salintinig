@@ -13,7 +13,7 @@ import {
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import ProfileDropdown from '../../components/dashboard/layout/ProfileDropdown.jsx';
-import { getUser } from '../../lib/auth.js';
+import { getUser, getToken } from '../../lib/auth.js';
 
 const NAV_ITEMS = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: House },
@@ -54,7 +54,7 @@ export default function AdminLayout() {
   useEffect(() => {
     const fetchAdminInfo = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await fetch('http://localhost:5000/api/admin/info', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

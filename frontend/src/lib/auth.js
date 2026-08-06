@@ -5,10 +5,20 @@ const LEGACY_TOKEN_KEY = 'token';
 
 const API_BASE_URL = 'http://localhost:5000/api/auth';
 
+function getStorage(key) {
+  return localStorage.getItem(key) || sessionStorage.getItem(key);
+}
+
 function syncLegacyTokenKey() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token && !localStorage.getItem(LEGACY_TOKEN_KEY)) {
-    localStorage.setItem(LEGACY_TOKEN_KEY, token);
+  const token = getToken();
+  if (token) {
+    if (localStorage.getItem(TOKEN_KEY) && !localStorage.getItem(LEGACY_TOKEN_KEY)) {
+      localStorage.setItem(LEGACY_TOKEN_KEY, token);
+      localStorage.setItem('token', token);
+    } else if (sessionStorage.getItem(TOKEN_KEY) && !sessionStorage.getItem(LEGACY_TOKEN_KEY)) {
+      sessionStorage.setItem(LEGACY_TOKEN_KEY, token);
+      sessionStorage.setItem('token', token);
+    }
   }
 }
 
@@ -17,7 +27,7 @@ syncLegacyTokenKey();
 /**
  * Async API login connecting directly to live Supabase backend
  */
-export async function authenticateAsync(identifier, password) {
+export async function authenticateAsync(identifier, password, rememberMe = false) {
   try {
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
@@ -31,15 +41,28 @@ export async function authenticateAsync(identifier, password) {
 
     if (response.ok && data.success) {
       const mustChange = Boolean(data.mustChangePassword || data.user?.mustChangePassword);
+      const storage = rememberMe ? localStorage : sessionStorage;
+
+      // Clear both storages first to ensure clean state
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem('token');
+      sessionStorage.removeItem(AUTH_KEY);
+      sessionStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+      sessionStorage.removeItem('token');
+
       if (!mustChange) {
-        localStorage.setItem(AUTH_KEY, 'true');
-      } else {
-        localStorage.removeItem(AUTH_KEY);
+        storage.setItem(AUTH_KEY, 'true');
       }
-      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, mustChangePassword: mustChange }));
+      storage.setItem(USER_KEY, JSON.stringify({ ...data.user, mustChangePassword: mustChange }));
       if (data.token) {
-        localStorage.setItem(TOKEN_KEY, data.token);
-        localStorage.setItem(LEGACY_TOKEN_KEY, data.token);
+        storage.setItem(TOKEN_KEY, data.token);
+        storage.setItem(LEGACY_TOKEN_KEY, data.token);
+        storage.setItem('token', data.token);
       }
       return {
         success: true,
@@ -81,11 +104,13 @@ export async function changePasswordAsync(newPassword) {
 
     const data = await response.json();
     if (response.ok && data.success) {
-      localStorage.setItem(AUTH_KEY, 'true');
+      const isPersistent = Boolean(localStorage.getItem(USER_KEY) || localStorage.getItem(AUTH_KEY));
+      const targetStorage = isPersistent ? localStorage : sessionStorage;
+      targetStorage.setItem(AUTH_KEY, 'true');
       const user = getUser();
       if (user) {
         user.mustChangePassword = false;
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        targetStorage.setItem(USER_KEY, JSON.stringify(user));
       }
       return { success: true, message: data.message };
     }
@@ -109,19 +134,32 @@ export function logout() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
+  localStorage.removeItem('token');
+  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+  sessionStorage.removeItem('token');
 }
 
 export function isLoggedIn() {
-  return localStorage.getItem(AUTH_KEY) === 'true';
+  return getStorage(AUTH_KEY) === 'true';
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
+  return (
+    localStorage.getItem(TOKEN_KEY) ||
+    localStorage.getItem(LEGACY_TOKEN_KEY) ||
+    localStorage.getItem('token') ||
+    sessionStorage.getItem(TOKEN_KEY) ||
+    sessionStorage.getItem(LEGACY_TOKEN_KEY) ||
+    sessionStorage.getItem('token')
+  );
 }
 
 export function getUser() {
   try {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = getStorage(USER_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;
@@ -132,3 +170,4 @@ export function getUserRole() {
   const user = getUser();
   return user?.role || 'teacher';
 }
+
