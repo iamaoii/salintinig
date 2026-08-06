@@ -49,7 +49,7 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      const res = await authenticateAsync(username, password);
+      const res = await authenticateAsync(username, password, rememberMe);
       if (res.success) {
         if (res.mustChangePassword) {
           setPendingUser(res.user);

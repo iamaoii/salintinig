@@ -10,7 +10,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import Avatar from '../student/Avatar.jsx';
-import { getUser, getUserRole, logout } from '../../../lib/auth.js';
+import { getUser, getUserRole, getToken, logout } from '../../../lib/auth.js';
 
 export default function ProfileDropdown({ customName, role: propRole }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -99,7 +99,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     if (currentRole === 'admin') {
       const fetchAdminAvatar = async () => {
         try {
-          const token = localStorage.getItem('token');
+          const token = getToken();
           const res = await fetch('http://localhost:5000/api/admin/info', {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });

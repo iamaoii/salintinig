@@ -21,6 +21,7 @@ import {
   UserSwitch,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -94,7 +95,7 @@ export default function AdminStudentRecords() {
 
   const fetchStudents = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/students', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -111,7 +112,7 @@ export default function AdminStudentRecords() {
 
   const fetchSections = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/sections', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -172,7 +173,7 @@ export default function AdminStudentRecords() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const studentName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
 
       if (editingStudent) {
@@ -218,7 +219,7 @@ export default function AdminStudentRecords() {
   const handleToggleStatus = async (std) => {
     const targetLrn = std.lrn || std.id;
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}/status`, {
         method: 'PATCH',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -245,7 +246,7 @@ export default function AdminStudentRecords() {
     if (!deletingStudent) return;
     const targetLrn = deletingStudent.lrn || deletingStudent.id;
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -280,7 +281,7 @@ export default function AdminStudentRecords() {
         { lrn: '136670100205', firstName: 'Enrique', middleName: 'Gil', lastName: 'Gil', grade: 'Grade 6', section: 'Narra', gender: 'Male' },
       ];
 
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/students/import-csv', {
         method: 'POST',
         headers: {

@@ -23,6 +23,7 @@ import {
 } from '@phosphor-icons/react';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import logo from '../../assets/logo/logo.webp';
+import { getToken } from '../../lib/auth.js';
 import { getUser, logout } from '../../lib/auth.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
@@ -147,7 +148,7 @@ export default function AdminSettings() {
       window.dispatchEvent(new CustomEvent('adminAvatarChanged', { detail: croppedWebP }));
 
       // Sync to backend — backend uploads to Supabase Storage and returns the CDN URL
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await fetch('http://localhost:5000/api/admin/info', {
         method: 'PUT',
         headers: {
@@ -182,7 +183,7 @@ export default function AdminSettings() {
   const fetchAdminInfo = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/info', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -246,7 +247,7 @@ export default function AdminSettings() {
     e.preventDefault();
     try {
       setIsSaving(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/info', {
         method: 'PUT',
         headers: {

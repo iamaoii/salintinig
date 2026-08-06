@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import BackButton from '../../components/common/BackButton.jsx';
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminAccountRequests() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function AdminAccountRequests() {
 
   const fetchRequests = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/account-requests', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -54,7 +55,7 @@ export default function AdminAccountRequests() {
     if (processingId) return;
     setProcessingId(id);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/approve`, {
         method: 'POST',
         headers: {
@@ -80,7 +81,7 @@ export default function AdminAccountRequests() {
     if (processingId) return;
     setProcessingId(id);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/reject`, {
         method: 'POST',
         headers: {

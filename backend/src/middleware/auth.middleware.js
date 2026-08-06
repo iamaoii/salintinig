@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/supabase.js');
+const { supabase } = require('../config/supabase.js');
 
 /**
  * Middleware to verify JWT / Bearer auth token with dev/demo resilience

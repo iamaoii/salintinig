@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import Pagination from '../../../components/dashboard/records/Pagination.jsx';
+import { getToken } from '../../../lib/auth.js';
 
 const PAGE_SIZE = 10;
 
@@ -12,7 +13,7 @@ export default function OverviewPeople() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await fetch('http://localhost:5000/api/admin/students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
