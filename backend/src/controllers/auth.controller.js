@@ -110,6 +110,7 @@ async function login(req, res) {
             }
           }
         }
+
       } catch (dbErr) {
         console.warn('Direct Postgres login query notice:', dbErr.message || dbErr);
       }
@@ -155,10 +156,10 @@ async function login(req, res) {
 
     // Authenticated user formatting
     if (matchedUser) {
-      if (matchedUser.role === 'student') {
+      if (matchedUser.role === 'student' || matchedUser.role === 'parent') {
         return res.status(403).json({
           success: false,
-          error: 'Student login is available on the Salintinig mobile app.',
+          error: 'This account is only accessible via the Salintinig mobile app.',
         });
       }
 

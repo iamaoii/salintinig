@@ -112,12 +112,8 @@ CREATE TABLE IF NOT EXISTS students (
 
 CREATE TABLE IF NOT EXISTS parents (
     parent_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    first_name VARCHAR(100) NOT NULL,
-    middle_name VARCHAR(100),
-    last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    contact_number VARCHAR(50),
-    relationship_to_student VARCHAR(100),
+    parent_name VARCHAR(255) NOT NULL DEFAULT 'Mr./Mrs.', -- e.g. 'Mr./Mrs. Dela Cruz'
+    email VARCHAR(255) UNIQUE, -- Optional parent email
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -137,7 +133,7 @@ CREATE TABLE IF NOT EXISTS student_grade_history (
     history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
-    promotion_status VARCHAR(50) DEFAULT 'enrolled',
+    promotion_status VARCHAR(50) DEFAULT 'active', -- 'active', 'disabled', 'dropped', 'transferred'
     promoted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_student_class UNIQUE (student_id, class_id)

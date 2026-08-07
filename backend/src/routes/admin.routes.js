@@ -35,6 +35,8 @@ router.put('/school-years/:id/activate', adminController.activateSchoolYear);
 
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
+router.get('/students/check/:lrn', studentController.checkExistingStudent);
+router.post('/students/transfer-in', studentController.transferInStudent);
 router.post('/students', studentController.createStudent);
 router.put('/students/:lrn', studentController.updateStudent);
 router.patch('/students/:lrn/status', studentController.toggleStudentStatus);

@@ -31,9 +31,15 @@ async function getStudents(req, res) {
             COALESCE(c.section_name, 'Fyang') AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode",
+            COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
-            CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
+            CASE 
+              WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
+              WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
+              WHEN u.status = 'disabled' THEN 'Disabled'
+              ELSE 'Active'
+            END AS status,
             COALESCE(rp.current_profile_label, 'Instructional') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
@@ -80,9 +86,15 @@ async function getStudentByLrn(req, res) {
             COALESCE(c.section_name, 'Fyang') AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode",
+            COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
-            CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
+            CASE 
+              WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
+              WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
+              WHEN u.status = 'disabled' THEN 'Disabled'
+              ELSE 'Active'
+            END AS status,
             COALESCE(rp.current_profile_label, 'Instructional') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
@@ -144,7 +156,20 @@ function parseNameString(rawName = '') {
  */
 async function createStudent(req, res) {
   try {
-    let { lrn, firstName, middleName, lastName, name, grade, section, gender, parentEmail, personalEmail } = req.body;
+    let {
+      lrn,
+      firstName,
+      middleName,
+      lastName,
+      name,
+      grade,
+      section,
+      gender,
+      parentEmail,
+      personalEmail,
+      parentSalutation,
+      parentName,
+    } = req.body;
 
     if (!lrn || !grade || !section) {
       return res.status(400).json({ success: false, error: 'LRN, Grade, and Section are required.' });
@@ -168,6 +193,11 @@ async function createStudent(req, res) {
     lastName = (lastName || 'Record').trim();
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
 
+    const pFName = 'Mr./Mrs.';
+    const pMName = '';
+    const pLName = lastName;
+    const pEmail = parentEmail && parentEmail.trim() ? parentEmail.trim() : null;
+
     const parentAccessCode = generateParentAccessCode(lrn);
     const dateAdded = new Date().toISOString().split('T')[0];
 
@@ -182,7 +212,8 @@ async function createStudent(req, res) {
       section,
       gender: gender || 'Male',
       parentAccessCode,
-      parentEmail: parentEmail || 'parent@gmail.com',
+      parentEmail: pEmail,
+      parentName: `Mr./Mrs. ${lastName}`,
       personalEmail: personalEmail || `${lrn}@salintinig.edu.ph`,
       status: 'Active',
       level: 'Instructional',
@@ -217,25 +248,65 @@ async function createStudent(req, res) {
           if (stdRows && stdRows[0]) {
             const studentId = stdRows[0].student_id;
 
-            const { rows: parentRows } = await db.query(
-              `INSERT INTO parents (first_name, last_name, email)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (email) DO UPDATE SET email = $3
-               RETURNING parent_id`,
-              ['Parent of ' + firstName, lastName, newStudentObj.parentEmail]
-            );
+            const parentFullName = `Mr./Mrs. ${lastName}`;
+            let parentId = null;
 
-            if (parentRows && parentRows[0]) {
+            if (pEmail) {
+              const { rows: pRows } = await db.query(
+                `INSERT INTO parents (parent_name, email)
+                 VALUES ($1, $2)
+                 ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name
+                 RETURNING parent_id`,
+                [parentFullName, pEmail]
+              );
+              if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+            } else {
+              const { rows: pRows } = await db.query(
+                `INSERT INTO parents (parent_name, email) VALUES ($1, NULL) RETURNING parent_id`,
+                [parentFullName]
+              );
+              if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+            }
+
+            if (parentId) {
               await db.query(
                 `INSERT INTO student_parents (student_id, parent_id, access_code)
-                 VALUES ($1, $2, $3)`,
-                [studentId, parentRows[0].parent_id, parentAccessCode]
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT DO NOTHING`,
+                [studentId, parentId, parentAccessCode]
+              );
+            }
+
+            // Ensure section/class exists and link student to active school year history
+            const activeSchoolYear = '2026-2027';
+            let classId = null;
+            const { rows: existingClass } = await db.query(
+              `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+              [grade, section]
+            );
+
+            if (existingClass && existingClass[0]) {
+              classId = existingClass[0].class_id;
+            } else {
+              const { rows: newClass } = await db.query(
+                `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
+                [grade, section]
+              );
+              if (newClass && newClass[0]) classId = newClass[0].class_id;
+            }
+
+            if (classId) {
+              await db.query(
+                `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
+                 VALUES ($1, $2, 'active')
+                 ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
+                [studentId, classId]
               );
             }
           }
         }
       } catch (dbErr) {
-        console.warn('DB student insert error:', dbErr.message);
+        console.error('❌ DB student insert error:', dbErr.message || dbErr);
       }
     }
 
@@ -290,16 +361,17 @@ async function updateStudent(req, res) {
 }
 
 /**
- * PATCH /api/admin/students/:lrn/status — Toggle student status
+ * PATCH /api/admin/students/:lrn/status — Toggle student status (Active / Disabled / Dropped)
  */
 async function toggleStudentStatus(req, res) {
   try {
     const { lrn } = req.params;
-    let newStatus = 'Disabled';
+    const { status: targetStatus } = req.body || {};
+    let newStatus = targetStatus || 'Disabled';
 
     mockStudents = mockStudents.map((s) => {
       if (s.lrn === lrn || s.id === lrn) {
-        newStatus = s.status === 'Disabled' ? 'Active' : 'Disabled';
+        newStatus = targetStatus || (s.status === 'Disabled' ? 'Active' : 'Disabled');
         return { ...s, status: newStatus };
       }
       return s;
@@ -307,10 +379,30 @@ async function toggleStudentStatus(req, res) {
 
     if (isDbConfigured()) {
       try {
-        const dbStatus = newStatus === 'Disabled' ? 'disabled' : 'active';
+        const dbUserStatus = (newStatus === 'Disabled' || newStatus === 'Dropped' || newStatus === 'Transferred') ? 'disabled' : 'active';
+        const promotionStatus = newStatus.toLowerCase();
+
+        // 1. Update student user account login access
         await db.query(
           `UPDATE users SET status = $1 WHERE user_id = (SELECT user_id FROM students WHERE lrn = $2)`,
-          [dbStatus, lrn]
+          [dbUserStatus, lrn]
+        );
+
+        // 2. Update student grade history enrollment status
+        await db.query(
+          `UPDATE student_grade_history 
+           SET promotion_status = $1 
+           WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)`,
+          [promotionStatus, lrn]
+        );
+
+        // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)
+        const isParentAccessActive = (newStatus === 'Active');
+        await db.query(
+          `UPDATE student_parents 
+           SET is_active = $1 
+           WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)`,
+          [isParentAccessActive, lrn]
         );
       } catch (dbErr) {
         console.warn('DB status toggle notice:', dbErr.message);
@@ -320,7 +412,7 @@ async function toggleStudentStatus(req, res) {
     return res.json({ success: true, lrn, newStatus });
   } catch (err) {
     console.error('Error toggling student status:', err);
-    return res.status(500).json({ success: false, error: 'Failed to toggle student status.' });
+    return res.status(500).json({ success: false, error: 'Failed to update student status.' });
   }
 }
 
@@ -333,7 +425,9 @@ async function deleteStudent(req, res) {
     mockStudents = mockStudents.filter((s) => s.lrn !== lrn && s.id !== lrn);
 
     if (isDbConfigured()) {
+      await db.query('BEGIN');
       try {
+        // Step 1: Look up the student
         const { rows } = await db.query(
           `SELECT student_id, user_id FROM students WHERE lrn = $1 OR student_id::text = $1 LIMIT 1`,
           [lrn]
@@ -343,20 +437,41 @@ async function deleteStudent(req, res) {
           const studentId = rows[0].student_id;
           const userId = rows[0].user_id;
 
-          // 1. Remove grade history & parent access link
-          await db.query(`DELETE FROM student_parents WHERE student_id = $1`, [studentId]);
+          // Step 2: Capture parent_ids NOW, before any cascade deletes them
+          const { rows: parentRows } = await db.query(
+            `SELECT DISTINCT parent_id FROM student_parents WHERE student_id = $1 AND parent_id IS NOT NULL`,
+            [studentId]
+          );
+          const targetParentIds = (parentRows || []).map((r) => r.parent_id).filter(Boolean);
+
+          // Step 3: Manually delete student_parents & grade history to avoid cascade surprises
           await db.query(`DELETE FROM student_grade_history WHERE student_id = $1`, [studentId]);
+          await db.query(`DELETE FROM student_parents WHERE student_id = $1`, [studentId]);
 
-          // 2. Delete student profile record
+          // Step 4: Delete student record (cascade on user already handled, but we delete user too)
           await db.query(`DELETE FROM students WHERE student_id = $1`, [studentId]);
-
-          // 3. Delete corresponding user account from users table
           if (userId) {
             await db.query(`DELETE FROM users WHERE user_id = $1`, [userId]);
           }
+
+          // Step 5: Delete any parent records that now have NO remaining student links
+          for (const pid of targetParentIds) {
+            const { rows: stillLinked } = await db.query(
+              `SELECT 1 FROM student_parents WHERE parent_id = $1 LIMIT 1`,
+              [pid]
+            );
+            if (!stillLinked || stillLinked.length === 0) {
+              await db.query(`DELETE FROM parents WHERE parent_id = $1`, [pid]);
+              console.log(`✅ Deleted orphan parent record: ${pid}`);
+            }
+          }
         }
+
+        await db.query('COMMIT');
       } catch (dbErr) {
-        console.warn('DB student delete notice:', dbErr.message);
+        await db.query('ROLLBACK');
+        console.error('❌ DB deleteStudent error:', dbErr.message);
+        return res.status(500).json({ success: false, error: `Failed to delete student: ${dbErr.message}` });
       }
     }
 
@@ -402,6 +517,8 @@ async function importStudentsCSV(req, res) {
       const grade = item.grade || item.gradeLevel || item['Grade Level'] || 'Grade 4';
       const section = item.section || item.sectionName || item['Section'] || 'Fyang';
 
+      const cleanParentEmail = parentEmail && String(parentEmail).trim() && String(parentEmail).trim() !== 'undefined' ? String(parentEmail).trim() : null;
+
       const studentObj = {
         id: `STD-CSV-${Date.now()}-${index}`,
         lrn,
@@ -413,7 +530,7 @@ async function importStudentsCSV(req, res) {
         section,
         gender,
         parentAccessCode,
-        parentEmail,
+        parentEmail: cleanParentEmail,
         personalEmail,
         status: 'Active',
         level: 'Instructional',
@@ -422,12 +539,16 @@ async function importStudentsCSV(req, res) {
 
       if (isDbConfigured()) {
         try {
+          const bcrypt = require('bcryptjs');
+          const salt = bcrypt.genSaltSync(10);
+          const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
+
           const { rows: userRows } = await db.query(
             `INSERT INTO users (email, password_hash, role, status)
              VALUES ($1, $2, 'student', 'active')
-             ON CONFLICT (email) DO UPDATE SET status = 'active'
+             ON CONFLICT (email) DO UPDATE SET password_hash = $2, status = 'active'
              RETURNING user_id`,
-            [personalEmail, 'StudentPassword123!']
+            [personalEmail, hashedPass]
           );
 
           if (userRows && userRows[0]) {
@@ -443,26 +564,67 @@ async function importStudentsCSV(req, res) {
 
             if (stdRows && stdRows[0]) {
               const studentId = stdRows[0].student_id;
-              const { rows: parentRows } = await db.query(
-                `INSERT INTO parents (first_name, last_name, email)
-                 VALUES ($1, $2, $3)
-                 ON CONFLICT (email) DO UPDATE SET email = $3
-                 RETURNING parent_id`,
-                ['Parent of ' + firstName, lastName, parentEmail]
-              );
+              const parentFullName = `Mr./Mrs. ${lastName}`;
+              let parentId = null;
 
-              if (parentRows && parentRows[0]) {
+              if (cleanParentEmail) {
+                const { rows: pRows } = await db.query(
+                  `INSERT INTO parents (parent_name, email)
+                   VALUES ($1, $2)
+                   ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name
+                   RETURNING parent_id`,
+                  [parentFullName, cleanParentEmail]
+                );
+                if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+              } else {
+                const { rows: pRows } = await db.query(
+                  `INSERT INTO parents (parent_name, email)
+                   VALUES ($1, NULL)
+                   RETURNING parent_id`,
+                  [parentFullName]
+                );
+                if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+              }
+
+              if (parentId) {
                 await db.query(
                   `INSERT INTO student_parents (student_id, parent_id, access_code)
                    VALUES ($1, $2, $3)
                    ON CONFLICT DO NOTHING`,
-                  [studentId, parentRows[0].parent_id, parentAccessCode]
+                  [studentId, parentId, parentAccessCode]
+                );
+              }
+
+              // Ensure class/section exists and bind student to active school year history
+              const activeSchoolYear = '2026-2027';
+              let classId = null;
+              const { rows: existingClass } = await db.query(
+                `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+                [grade, section]
+              );
+
+              if (existingClass && existingClass[0]) {
+                classId = existingClass[0].class_id;
+              } else {
+                const { rows: newClass } = await db.query(
+                  `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
+                  [grade, section]
+                );
+                if (newClass && newClass[0]) classId = newClass[0].class_id;
+              }
+
+              if (classId) {
+                await db.query(
+                  `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
+                   VALUES ($1, $2, 'active')
+                   ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
+                  [studentId, classId]
                 );
               }
             }
           }
         } catch (dbErr) {
-          console.warn('DB CSV import row notice:', dbErr.message);
+          console.error('❌ DB CSV import row notice:', dbErr.message || dbErr);
         }
       }
 
@@ -480,6 +642,142 @@ async function importStudentsCSV(req, res) {
   }
 }
 
+/**
+ * GET /api/admin/students/check/:lrn — Check if LRN already exists in national database
+ */
+async function checkExistingStudent(req, res) {
+  try {
+    const { lrn } = req.params;
+    if (isDbConfigured()) {
+      try {
+        const { rows } = await db.query(
+          `SELECT 
+             s.student_id AS id,
+             s.lrn,
+             s.first_name AS "firstName",
+             s.middle_name AS "middleName",
+             s.last_name AS "lastName",
+             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+             s.sex AS gender,
+             u.school_id AS "currentSchoolId",
+             sch.school_name AS "currentSchoolName",
+             CASE 
+               WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
+               WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
+               WHEN u.status = 'disabled' THEN 'Disabled'
+               ELSE 'Active'
+             END AS status
+           FROM students s
+           LEFT JOIN users u ON s.user_id = u.user_id
+           LEFT JOIN schools sch ON u.school_id = sch.school_id
+           LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id
+           WHERE s.lrn = $1
+           LIMIT 1`,
+          [lrn]
+        );
+        if (rows && rows[0]) {
+          return res.json({ success: true, exists: true, student: rows[0] });
+        }
+      } catch (dbErr) {
+        console.warn('DB check existing student notice:', dbErr.message);
+      }
+    }
+
+    const foundMock = mockStudents.find((s) => s.lrn === lrn);
+    if (foundMock) {
+      return res.json({ success: true, exists: true, student: foundMock });
+    }
+
+    return res.json({ success: true, exists: false });
+  } catch (err) {
+    console.error('Error checking existing student:', err);
+    return res.status(500).json({ success: false, error: 'Failed to verify student LRN.' });
+  }
+}
+
+/**
+ * POST /api/admin/students/transfer-in — Transfer existing student into current school
+ */
+async function transferInStudent(req, res) {
+  try {
+    const { lrn, grade, section } = req.body;
+    if (!lrn || !grade || !section) {
+      return res.status(400).json({ success: false, error: 'LRN, Grade, and Section are required for transfer.' });
+    }
+
+    let transferredStudent = null;
+
+    if (isDbConfigured()) {
+      try {
+        const { rows: stdRows } = await db.query(
+          `SELECT s.student_id, s.user_id, s.first_name, s.last_name FROM students s WHERE s.lrn = $1 LIMIT 1`,
+          [lrn]
+        );
+
+        if (stdRows && stdRows[0]) {
+          const studentId = stdRows[0].student_id;
+          const userId = stdRows[0].user_id;
+
+          // 1. Reactivate user account login status
+          if (userId) {
+            await db.query(`UPDATE users SET status = 'active' WHERE user_id = $1`, [userId]);
+          }
+
+          // 2. Ensure section/class exists and create new active grade history entry
+          let classId = null;
+          const { rows: existingClass } = await db.query(
+            `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+            [grade, section]
+          );
+
+          if (existingClass && existingClass[0]) {
+            classId = existingClass[0].class_id;
+          } else {
+            const { rows: newClass } = await db.query(
+              `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
+              [grade, section]
+            );
+            if (newClass && newClass[0]) classId = newClass[0].class_id;
+          }
+
+          if (classId) {
+            await db.query(
+              `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
+               VALUES ($1, $2, 'active')
+               ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
+              [studentId, classId]
+            );
+          }
+
+          // 3. Reactivate parent access code
+          await db.query(`UPDATE student_parents SET is_active = TRUE WHERE student_id = $1`, [studentId]);
+
+          transferredStudent = { lrn, name: `${stdRows[0].first_name} ${stdRows[0].last_name}`, grade, section, status: 'Active' };
+        }
+      } catch (dbErr) {
+        console.error('❌ DB transfer-in student error:', dbErr.message || dbErr);
+      }
+    }
+
+    // Update in mock array if present
+    mockStudents = mockStudents.map((s) => {
+      if (s.lrn === lrn) {
+        return { ...s, grade, section, status: 'Active' };
+      }
+      return s;
+    });
+
+    return res.json({
+      success: true,
+      message: `Student ${lrn} successfully transferred in and enrolled in ${grade} - ${section}.`,
+      student: transferredStudent,
+    });
+  } catch (err) {
+    console.error('Error transferring in student:', err);
+    return res.status(500).json({ success: false, error: 'Failed to process student transfer.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -488,4 +786,6 @@ module.exports = {
   toggleStudentStatus,
   deleteStudent,
   importStudentsCSV,
+  checkExistingStudent,
+  transferInStudent,
 };
