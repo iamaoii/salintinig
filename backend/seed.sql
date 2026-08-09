@@ -138,11 +138,21 @@ FROM users WHERE email = 'adrian.alonzo@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Adrian', last_name = 'Alonzo';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'enrolled'
+SELECT s.student_id, c.class_id, 'active'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100091' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO NOTHING;
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+
+INSERT INTO parents (parent_name, email)
+VALUES ('Mr./Mrs. Alonzo', 'parent.136670100091@gmail.com')
+ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name;
+
+INSERT INTO student_parents (student_id, parent_id, access_code, is_active)
+SELECT s.student_id, p.parent_id, 'PAC-00091', true
+FROM students s, parents p
+WHERE s.lrn = '136670100091' AND p.email = 'parent.136670100091@gmail.com'
+ON CONFLICT (access_code) DO UPDATE SET is_active = true;
 
 INSERT INTO reading_profiles (student_id, reading_speed_wpm, comprehension_level, fluency_level, current_profile_label)
 SELECT student_id, 110, 'Excellent', 'Fluent', 'Independent'
@@ -160,11 +170,21 @@ FROM users WHERE email = 'janna.cruz@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Janna', last_name = 'Cruz';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'enrolled'
+SELECT s.student_id, c.class_id, 'active'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100092' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO NOTHING;
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+
+INSERT INTO parents (parent_name, email)
+VALUES ('Mr./Mrs. Cruz', 'parent.136670100092@gmail.com')
+ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name;
+
+INSERT INTO student_parents (student_id, parent_id, access_code, is_active)
+SELECT s.student_id, p.parent_id, 'PAC-00092', true
+FROM students s, parents p
+WHERE s.lrn = '136670100092' AND p.email = 'parent.136670100092@gmail.com'
+ON CONFLICT (access_code) DO UPDATE SET is_active = true;
 
 INSERT INTO reading_profiles (student_id, reading_speed_wpm, comprehension_level, fluency_level, current_profile_label)
 SELECT student_id, 85, 'Moderate', 'Developing', 'Instructional'
@@ -182,11 +202,21 @@ FROM users WHERE email = 'charlie.dizon@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Charlie', last_name = 'Dizon';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'enrolled'
+SELECT s.student_id, c.class_id, 'active'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100093' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO NOTHING;
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+
+INSERT INTO parents (parent_name, email)
+VALUES ('Mr./Mrs. Dizon', 'parent.136670100093@gmail.com')
+ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name;
+
+INSERT INTO student_parents (student_id, parent_id, access_code, is_active)
+SELECT s.student_id, p.parent_id, 'PAC-00093', true
+FROM students s, parents p
+WHERE s.lrn = '136670100093' AND p.email = 'parent.136670100093@gmail.com'
+ON CONFLICT (access_code) DO UPDATE SET is_active = true;
 
 INSERT INTO reading_profiles (student_id, reading_speed_wpm, comprehension_level, fluency_level, current_profile_label)
 SELECT student_id, 42, 'Needs Support', 'Emerging', 'Frustrational'

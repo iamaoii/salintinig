@@ -15,6 +15,7 @@ import {
   GraduationCap,
   IdentificationCard,
   ChartLineUp,
+  CaretDown,
   X,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
@@ -150,11 +151,17 @@ export default function AdminStudentProfile() {
                   {std.level || 'Instructional'}
                 </span>
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                    std.status === 'Disabled' ? 'bg-brand-red/10 text-brand-red' : 'bg-[#00a652]/15 text-[#00a652]'
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                    std.status === 'Active'
+                      ? 'bg-[#00a652]/15 text-[#00a652] border-[#00a652]/30'
+                      : std.status === 'Dropped'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : std.status === 'Transferred'
+                      ? 'bg-purple-100 text-purple-800 border-purple-300'
+                      : 'bg-brand-red/10 text-brand-red border-brand-red/20'
                   }`}
                 >
-                  {std.status === 'Disabled' ? 'Disabled' : 'Active Account'}
+                  {std.status === 'Dropped' ? 'Dropped Out' : std.status === 'Transferred' ? 'Transferred Out' : std.status === 'Disabled' ? 'Account Disabled' : 'Active Account'}
                 </span>
               </div>
 
@@ -188,18 +195,51 @@ export default function AdminStudentProfile() {
               <span>Reset Password</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleToggleStatus}
-              className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold cursor-pointer transition-colors ${
-                std.status === 'Disabled'
-                  ? 'border border-[#00a652]/30 bg-[#00a652]/10 text-[#00a652] hover:bg-[#00a652] hover:text-white'
-                  : 'border border-brand-red/30 bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white'
-              }`}
-            >
-              {std.status === 'Disabled' ? <UserSwitch size={16} /> : <Prohibit size={16} />}
-              <span>{std.status === 'Disabled' ? 'Activate Account' : 'Disable Account'}</span>
-            </button>
+            <div className="relative inline-flex items-center">
+              <span
+                className={`absolute left-3.5 size-2 rounded-full pointer-events-none z-10 ${
+                  std.status === 'Active'
+                    ? 'bg-[#00a652]'
+                    : std.status === 'Dropped'
+                    ? 'bg-amber-500'
+                    : std.status === 'Transferred'
+                    ? 'bg-purple-500'
+                    : 'bg-brand-red'
+                }`}
+              />
+              <select
+                value={std.status || 'Active'}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  try {
+                    const token = getToken();
+                    const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/status`, {
+                      method: 'PATCH',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                      body: JSON.stringify({ status: newStatus }),
+                    });
+                    if (res.ok) {
+                      setStudent((prev) => ({ ...prev, status: newStatus }));
+                      showToast(`Student status changed to ${newStatus}.`);
+                    }
+                  } catch (err) {
+                    showToast('Failed to update student status.');
+                  }
+                }}
+                className="appearance-none rounded-full bg-white hover:bg-cream border border-ink/15 pl-8 pr-8 py-2 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
+              >
+                <option value="Active">Status: Active</option>
+                <option value="Disabled">Status: Disabled</option>
+                <option value="Dropped">Status: Dropped Out</option>
+                <option value="Transferred">Status: Transferred Out</option>
+              </select>
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/40">
+                <CaretDown size={12} weight="bold" />
+              </div>
+            </div>
           </div>
         </div>
       </div>

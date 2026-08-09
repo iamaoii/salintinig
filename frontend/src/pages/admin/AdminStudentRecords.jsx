@@ -19,9 +19,12 @@ import {
   Eye,
   Prohibit,
   UserSwitch,
+  CaretDown,
+  ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import * as XLSX from 'xlsx';
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -39,6 +42,8 @@ export default function AdminStudentRecords() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [existingStudentFound, setExistingStudentFound] = useState(null);
+  const [isCheckingLrn, setIsCheckingLrn] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -50,13 +55,14 @@ export default function AdminStudentRecords() {
     grade: 'Grade 4',
     section: 'Fyang',
     personalEmail: '',
+    parentEmail: '',
   });
 
   // CSV Upload State
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState('select');
-  const [simulatedErrorMode, setSimulatedErrorMode] = useState(false);
   const [uploadSummary, setUploadSummary] = useState(null);
 
   // Toast notification
@@ -165,10 +171,66 @@ export default function AdminStudentRecords() {
   };
 
   // Handlers
+  const handleCheckLrn = async (lrnVal) => {
+    if (!/^\d{12}$/.test(lrnVal) || editingStudent) return;
+    try {
+      setIsCheckingLrn(true);
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/admin/students/check/${lrnVal}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.exists && data.student) {
+        setExistingStudentFound(data.student);
+      } else {
+        setExistingStudentFound(null);
+      }
+    } catch (err) {
+      console.warn('LRN check error:', err);
+    } finally {
+      setIsCheckingLrn(false);
+    }
+  };
+
+  const handleTransferInSubmit = async () => {
+    if (!existingStudentFound) return;
+    try {
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/students/transfer-in', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          lrn: existingStudentFound.lrn,
+          grade: formData.grade,
+          section: formData.section,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Student ${existingStudentFound.name} successfully transferred in!`);
+        fetchStudents();
+        setShowAddModal(false);
+        setExistingStudentFound(null);
+      } else {
+        showToast(data.error || 'Failed to transfer student.');
+      }
+    } catch (err) {
+      showToast('Network error processing student transfer.');
+    }
+  };
+
   const handleSaveStudent = async (e) => {
     e.preventDefault();
     if (!/^\d{12}$/.test(formData.lrn)) {
       showToast('LRN must be exactly 12 numeric digits.');
+      return;
+    }
+
+    if (existingStudentFound) {
+      await handleTransferInSubmit();
       return;
     }
 
@@ -216,29 +278,33 @@ export default function AdminStudentRecords() {
     }
   };
 
-  const handleToggleStatus = async (std) => {
+  const handleToggleStatus = async (std, targetStatus = null) => {
     const targetLrn = std.lrn || std.id;
+    const newStatusVal = targetStatus || (std.status === 'Disabled' || std.status === 'Dropped' ? 'Active' : 'Disabled');
+    
+    // Update state locally in-place without triggering a re-fetch that re-sorts the list
+    setStudents((prev) =>
+      prev.map((s) => ((s.lrn === targetLrn || s.id === targetLrn) ? { ...s, status: newStatusVal } : s))
+    );
+
     try {
       const token = getToken();
       const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}/status`, {
         method: 'PATCH',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status: newStatusVal }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`Account for ${std.name} status set to ${data.newStatus}.`);
-        fetchStudents();
+        showToast(`Student ${std.name} status updated to ${data.newStatus}.`);
       } else {
-        setStudents((prev) =>
-          prev.map((s) => (s.id === std.id ? { ...s, status: s.status === 'Disabled' ? 'Active' : 'Disabled' } : s))
-        );
-        showToast(`Account status for ${std.name} updated.`);
+        showToast(`Account status for ${std.name} updated to ${newStatusVal}.`);
       }
     } catch (err) {
-      setStudents((prev) =>
-        prev.map((s) => (s.id === std.id ? { ...s, status: s.status === 'Disabled' ? 'Active' : 'Disabled' } : s))
-      );
-      showToast(`Account status for ${std.name} updated.`);
+      showToast(`Account status for ${std.name} updated to ${newStatusVal}.`);
     }
   };
 
@@ -273,13 +339,133 @@ export default function AdminStudentRecords() {
     setUploadStep('validating');
 
     try {
-      const demoList = [
-        { lrn: '136670100201', firstName: 'Alfonso', middleName: 'Santos', lastName: 'Alonzo', grade: 'Grade 4', section: 'Fyang', gender: 'Male' },
-        { lrn: '136670100202', firstName: 'Bea', middleName: 'Cruz', lastName: 'Alonzo', grade: 'Grade 4', section: 'Kalapati', gender: 'Female' },
-        { lrn: '136670100203', firstName: 'Charlie', middleName: 'Reyes', lastName: 'Dizon', grade: 'Grade 5', section: 'Agila', gender: 'Female' },
-        { lrn: '136670100204', firstName: 'Daniel', middleName: 'Padilla', lastName: 'Padilla', grade: 'Grade 5', section: 'Agila', gender: 'Male' },
-        { lrn: '136670100205', firstName: 'Enrique', middleName: 'Gil', lastName: 'Gil', grade: 'Grade 6', section: 'Narra', gender: 'Male' },
-      ];
+      const VALID_SECTIONS = ['Fyang', 'Kalapati', 'Agila', 'Sampaguita', 'Narra', 'Rizal'];
+      const validationErrors = [];
+      const parsedList = [];
+
+      let rawRows = [];
+
+      // Read file depending on extension (.xlsx, .xls vs .csv)
+      const fileName = selectedFile.name.toLowerCase();
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      } else {
+        // Plain CSV text parsing
+        const text = await selectedFile.text();
+        const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+        if (lines.length > 1) {
+          const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+            if (cols.length >= 2) {
+              const rowObj = {};
+              headers.forEach((h, idx) => {
+                rowObj[h] = cols[idx] || '';
+              });
+              rowObj._rawCols = cols;
+              rawRows.push(rowObj);
+            }
+          }
+        }
+      }
+
+      if (rawRows.length === 0) {
+        validationErrors.push('The uploaded file contains no data rows.');
+      } else {
+        const seenLrnInFile = new Set();
+        const seenStudentEmailInFile = new Set();
+        const seenParentEmailInFile = new Set();
+
+        const existingLrns = new Set(students.map((s) => String(s.lrn).trim()));
+        const existingPersonalEmails = new Set(students.map((s) => String(s.personalEmail || s.email || '').trim().toLowerCase()).filter(Boolean));
+        const existingParentEmails = new Set(students.map((s) => String(s.parentEmail || '').trim().toLowerCase()).filter(Boolean));
+
+        for (let i = 0; i < rawRows.length; i++) {
+          const rowObj = rawRows[i];
+          const cols = rowObj._rawCols || [];
+
+          const rawLrn = String(rowObj['LRN'] || rowObj['lrn'] || rowObj['Student LRN'] || cols[0] || '').trim();
+          const rawSection = String(rowObj['Section'] || rowObj['section'] || cols[6] || '').trim();
+          const rawStudentEmail = String(rowObj['Student Email'] || rowObj['Email Address'] || rowObj['personalEmail'] || rowObj['Email'] || cols[7] || '').trim().toLowerCase();
+          const rawParentEmail = String(rowObj['Parent Email'] || rowObj['parentEmail'] || cols[8] || '').trim().toLowerCase();
+          
+          // Validate DepEd 12-digit LRN format
+          if (!rawLrn || !/^\d{12}$/.test(rawLrn)) {
+            validationErrors.push(`Row ${i + 1}: Invalid LRN "${rawLrn || 'blank'}". LRN must be exactly 12 digits.`);
+          } else {
+            // Check duplicate LRN within the same file
+            if (seenLrnInFile.has(rawLrn)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate LRN "${rawLrn}" found in the file.`);
+            } else {
+              seenLrnInFile.add(rawLrn);
+            }
+
+            // Check duplicate LRN against existing system records
+            if (existingLrns.has(rawLrn)) {
+              validationErrors.push(`Row ${i + 1}: LRN "${rawLrn}" already exists in the system masterlist.`);
+            }
+          }
+
+          // Validate Student Email duplicates if provided
+          if (rawStudentEmail) {
+            if (seenStudentEmailInFile.has(rawStudentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate Student Email "${rawStudentEmail}" found in the file.`);
+            } else {
+              seenStudentEmailInFile.add(rawStudentEmail);
+            }
+
+            if (existingPersonalEmails.has(rawStudentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Student Email "${rawStudentEmail}" already exists in the system.`);
+            }
+          }
+
+          // Validate Parent Email duplicates if provided
+          if (rawParentEmail) {
+            if (seenParentEmailInFile.has(rawParentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate Parent Email "${rawParentEmail}" found in the file.`);
+            } else {
+              seenParentEmailInFile.add(rawParentEmail);
+            }
+
+            if (existingParentEmails.has(rawParentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Parent Email "${rawParentEmail}" already exists in the system.`);
+            }
+          }
+
+          // Check if section exists in official school sections
+          if (rawSection && !VALID_SECTIONS.some((s) => s.toLowerCase() === rawSection.toLowerCase())) {
+            validationErrors.push(`Row ${i + 1}: Invalid section "${rawSection}". Valid sections: ${VALID_SECTIONS.join(', ')}`);
+          }
+
+          if (validationErrors.length === 0) {
+            parsedList.push({
+              lrn: rawLrn,
+              firstName: String(rowObj['First Name'] || rowObj['firstName'] || cols[1] || '').trim(),
+              middleName: String(rowObj['Middle Name'] || rowObj['middleName'] || cols[2] || '').trim(),
+              lastName: String(rowObj['Last Name'] || rowObj['lastName'] || cols[3] || '').trim(),
+              gender: String(rowObj['Gender'] || rowObj['gender'] || rowObj['Sex'] || cols[4] || 'Male').trim(),
+              grade: String(rowObj['Grade Level'] || rowObj['grade'] || cols[5] || '').trim(),
+              section: rawSection,
+              personalEmail: rawStudentEmail,
+              parentEmail: rawParentEmail,
+            });
+          }
+        }
+      }
+
+      if (validationErrors.length > 0) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: validationErrors,
+        });
+        setUploadStep('summary');
+        return;
+      }
 
       const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/students/import-csv', {
@@ -288,7 +474,7 @@ export default function AdminStudentRecords() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ studentsList: demoList }),
+        body: JSON.stringify({ studentsList: parsedList }),
       });
 
       const data = await res.json();
@@ -297,23 +483,30 @@ export default function AdminStudentRecords() {
         fetchStudents();
         setUploadSummary({
           success: true,
-          count: data.count || demoList.length,
+          count: data.count || parsedList.length,
         });
         setUploadStep('summary');
       } else {
-        setUploadStep('error');
+        setUploadSummary({
+          success: false,
+          errors: [data.error || 'Failed to import CSV records.'],
+        });
+        setUploadStep('summary');
       }
     } catch (err) {
       setIsUploading(false);
+      setUploadSummary({
+        success: false,
+        errors: ['Network error while processing CSV upload.'],
+      });
       setUploadStep('summary');
-      setUploadSummary({ success: true, count: 5 });
     }
   };
 
   const handleDownloadTemplate = () => {
-    const csvHeader = 'LRN,First Name,Middle Name,Last Name,Gender,Grade Level,Section,Email Address\n';
-    const row1 = '136670100091,Juan,Santos,Dela Cruz,Male,Grade 4,Fyang,juan.delacruz@salintinig.edu.ph\n';
-    const row2 = '136670100092,Maria,Clara,Santos,Female,Grade 4,Kalapati,maria.santos@salintinig.edu.ph\n';
+    const csvHeader = 'LRN,First Name,Middle Name,Last Name,Gender,Grade Level,Section,Student Email,Parent Email\n';
+    const row1 = '136670100091,Juan,Santos,Dela Cruz,Male,Grade 4,Fyang,juan.delacruz@salintinig.edu.ph,parent.136670100091@gmail.com\n';
+    const row2 = '136670100092,Maria,Clara,Santos,Female,Grade 4,Kalapati,maria.santos@salintinig.edu.ph,parent.136670100092@gmail.com\n';
     
     const csvData = csvHeader + row1 + row2;
     const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
@@ -354,7 +547,7 @@ export default function AdminStudentRecords() {
             className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
           >
             <DownloadSimple size={16} />
-            <span>Download CSV Template</span>
+            <span>Download Template</span>
           </button>
           <button
             type="button"
@@ -367,7 +560,7 @@ export default function AdminStudentRecords() {
             className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-brand-blue hover:bg-brand-blue/5 transition-colors cursor-pointer"
           >
             <CloudArrowUp size={16} />
-            <span>Upload Records (CSV)</span>
+            <span>Batch Upload Records (CSV / Excel)</span>
           </button>
           <button
             type="button"
@@ -490,37 +683,45 @@ export default function AdminStudentRecords() {
                     </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.gender}</td>
                     <td className="border border-ink/10 p-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-2.5 py-0.5 font-mono text-xs font-bold text-brand-blue border border-brand-blue/20">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-xs font-bold border transition-colors ${
+                          std.status === 'Active'
+                            ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
+                            : 'bg-ink/5 text-ink/40 border-ink/10 line-through'
+                        }`}
+                        title={std.status === 'Active' ? 'Parent Access Code Active' : 'Parent Access Deactivated'}
+                      >
                         <Key size={12} weight="bold" />
                         <span>{std.parentAccessCode || `PAC-${std.lrn.slice(-5)}`}</span>
                       </span>
                     </td>
                     <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.personalEmail}</td>
                     <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(std)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            std.status === 'Disabled' ? 'bg-ink/20' : 'bg-[#00a652]'
-                          }`}
-                          role="switch"
-                          aria-checked={std.status !== 'Disabled'}
-                          title={std.status === 'Disabled' ? 'Click to Enable Account' : 'Click to Disable Account'}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              std.status === 'Disabled' ? 'translate-x-0' : 'translate-x-4'
-                            }`}
-                          />
-                        </button>
+                      <div className="relative inline-flex items-center">
                         <span
-                          className={`text-xs font-bold inline-block min-w-[55px] ${
-                            std.status === 'Disabled' ? 'text-brand-red' : 'text-[#00a652]'
+                          className={`absolute left-3 size-2 rounded-full pointer-events-none z-10 ${
+                            std.status === 'Active'
+                              ? 'bg-[#00a652]'
+                              : std.status === 'Dropped'
+                              ? 'bg-amber-500'
+                              : std.status === 'Transferred'
+                              ? 'bg-purple-500'
+                              : 'bg-brand-red'
                           }`}
+                        />
+                        <select
+                          value={std.status || 'Active'}
+                          onChange={(e) => handleToggleStatus(std, e.target.value)}
+                          className="appearance-none rounded-full bg-white/90 hover:bg-white border border-ink/15 pl-7 pr-6 py-1 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
                         >
-                          {std.status === 'Disabled' ? 'Disabled' : 'Active'}
-                        </span>
+                          <option value="Active">Active</option>
+                          <option value="Disabled">Disabled</option>
+                          <option value="Dropped">Dropped Out</option>
+                          <option value="Transferred">Transferred Out</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink/40">
+                          <CaretDown size={10} weight="bold" />
+                        </div>
                       </div>
                     </td>
                     <td className="border border-ink/10 p-2 text-right">
@@ -632,17 +833,42 @@ export default function AdminStudentRecords() {
                 <label className="font-semibold text-ink">
                   LRN (Learner Reference Number) <span className="text-brand-red ml-0.5">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={12}
-                  inputMode="numeric"
-                  value={formData.lrn}
-                  onChange={(e) => setFormData({ ...formData, lrn: e.target.value.replace(/\D/g, '').slice(0, 12) })}
-                  placeholder="12-digit LRN (e.g. 136670100091)"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue font-mono"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    required
+                    maxLength={12}
+                    inputMode="numeric"
+                    value={formData.lrn}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 12);
+                      setFormData({ ...formData, lrn: val });
+                      if (val.length === 12) handleCheckLrn(val);
+                      else setExistingStudentFound(null);
+                    }}
+                    onBlur={(e) => handleCheckLrn(e.target.value)}
+                    placeholder="12-digit LRN (e.g. 136670100091)"
+                    className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue font-mono"
+                  />
+                  {isCheckingLrn && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-ink/50 font-sans">
+                      Checking...
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {existingStudentFound && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-purple-900 animate-in fade-in">
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <UserSwitch size={16} className="text-purple-600 shrink-0" />
+                    <span>Existing Student Found (Transfer In)</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-purple-800 leading-snug">
+                    Record for <strong>{existingStudentFound.name}</strong> was located in system records. Submitting this form will transfer and enroll the student into <strong>{formData.grade} - {formData.section}</strong> while carrying over all historical Phil-IRI reading logs.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="font-semibold text-ink">
@@ -737,7 +963,7 @@ export default function AdminStudentRecords() {
 
               <div>
                 <label className="font-semibold text-ink">
-                  Email Address <span className="text-brand-red ml-0.5">*</span>
+                  Student Email Address <span className="text-brand-red ml-0.5">*</span>
                 </label>
                 <input
                   type="email"
@@ -747,6 +973,24 @@ export default function AdminStudentRecords() {
                   placeholder="student.email@gmail.com"
                   className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
+              </div>
+
+              {/* Parent / Guardian Contact Details Section */}
+              <div className="pt-2 border-t border-ink/10 space-y-3">
+                <p className="text-xs font-bold text-brand-blue">
+                  Parent / Guardian Information
+                </p>
+
+                <div>
+                  <label className="font-semibold text-ink">Parent Email <span className="text-ink/40 font-normal">(Optional)</span></label>
+                  <input
+                    type="email"
+                    value={formData.parentEmail}
+                    onChange={(e) => setFormData({ ...formData, parentEmail: e.target.value })}
+                    placeholder="parent@gmail.com"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
@@ -809,7 +1053,7 @@ export default function AdminStudentRecords() {
       {/* Upload CSV Modal */}
       {showUploadModal && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <div className="flex items-center gap-2">
                 <FileCsv size={22} className="text-brand-blue" />
@@ -826,36 +1070,67 @@ export default function AdminStudentRecords() {
 
             {uploadStep === 'select' && (
               <div className="mt-4 space-y-4 text-xs">
+                <input
+                  type="file"
+                  id="csvFileInput"
+                  accept=".csv, .xlsx, .xls, text/csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setSelectedFile(file);
+                    }
+                  }}
+                />
+
                 <div
-                  onClick={() => setSelectedFile({ name: 'Grade4_Students_Batch2026.csv', size: '24 KB' })}
-                  className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
-                    selectedFile
+                  onClick={() => document.getElementById('csvFileInput')?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingFile(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingFile(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingFile(false);
+                    const droppedFile = e.dataTransfer?.files?.[0];
+                    if (droppedFile) {
+                      const fname = droppedFile.name.toLowerCase();
+                      if (fname.endsWith('.csv') || fname.endsWith('.xlsx') || fname.endsWith('.xls') || droppedFile.type.includes('csv') || droppedFile.type.includes('excel') || droppedFile.type.includes('spreadsheetml')) {
+                        setSelectedFile(droppedFile);
+                      } else {
+                        showToast('Please drop a valid .csv or .xlsx Excel file.');
+                      }
+                    }
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
+                    isDraggingFile
+                      ? 'border-brand-blue bg-brand-blue/15 scale-[1.01]'
+                      : selectedFile
                       ? 'border-brand-blue bg-brand-blue/5'
                       : 'border-ink/20 bg-white hover:bg-ink/[0.02]'
                   }`}
                 >
-                  <CloudArrowUp size={36} className="text-brand-blue mb-2" />
+                  <CloudArrowUp size={36} className={`mb-2 transition-transform ${isDraggingFile ? 'scale-110 text-brand-blue' : 'text-brand-blue'}`} />
                   {selectedFile ? (
                     <div>
                       <p className="font-bold text-brand-blue">{selectedFile.name}</p>
-                      <p className="text-[11px] text-ink/50">{selectedFile.size} - Ready for validation</p>
+                      <p className="text-[11px] text-ink/50">{(selectedFile.size / 1024).toFixed(1)} KB - Ready for validation</p>
                     </div>
                   ) : (
                     <div>
-                      <p className="font-semibold text-ink">Click to select CSV or Excel File</p>
-                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv, .xlsx format (max 5MB)</p>
+                      <p className="font-semibold text-ink">
+                        {isDraggingFile ? 'Drop your CSV or Excel file here' : 'Drag & Drop CSV / Excel file here or click to browse'}
+                      </p>
+                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv, .xlsx, .xls format (max 5MB)</p>
                     </div>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-ink/5 p-3 text-[11px]">
-                  <span className="font-semibold text-ink/80">Simulate Upload Errors Mode</span>
-                  <input
-                    type="checkbox"
-                    checked={simulatedErrorMode}
-                    onChange={(e) => setSimulatedErrorMode(e.target.checked)}
-                    className="size-4 accent-brand-blue cursor-pointer"
-                  />
                 </div>
 
                 <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
@@ -913,20 +1188,34 @@ export default function AdminStudentRecords() {
                   <div className="rounded-xl bg-brand-red/10 border border-brand-red/30 p-4 text-brand-red">
                     <div className="flex items-center gap-2 mb-2">
                       <WarningCircle size={20} weight="fill" />
-                      <h4 className="font-bold text-sm">Validation Errors Found</h4>
+                      <h4 className="font-bold text-sm">Validation Errors Found ({uploadSummary.errors.length})</h4>
                     </div>
                     <p className="text-xs text-ink/80 mb-2">
                       The uploaded file contains missing or invalid fields:
                     </p>
-                    <ul className="list-disc pl-5 space-y-1 text-[11px] font-semibold text-brand-red">
-                      {uploadSummary.errors.map((err, i) => (
-                        <li key={i}>{err}</li>
-                      ))}
-                    </ul>
+                    <div className="max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                      <ul className="list-disc pl-5 space-y-1.5 text-[11px] font-semibold text-brand-red">
+                        {uploadSummary.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 )}
 
-                <div className="pt-3 flex items-center justify-end border-t border-ink/10">
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setUploadStep('select');
+                      setUploadSummary(null);
+                    }}
+                    className="rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/70 hover:bg-ink/5 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ArrowClockwise size={15} />
+                    <span>Upload Again</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
