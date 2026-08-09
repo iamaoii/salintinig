@@ -351,10 +351,10 @@ export default function AdminFacultyAssignment() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <IdentificationCard size={26} className="text-brand-red" />
-            <h1 className="text-2xl font-bold text-ink">Section & Faculty Management</h1>
+            <IdentificationCard size={24} className="text-brand-red" />
+            <h1 className="text-3xl font-bold text-ink">Section & Faculty Management</h1>
           </div>
-          <p className="mt-0.5 text-xs text-ink/50">
+          <p className="mt-1 text-xs text-ink/50">
             Manage school sections, class assignments, and grade-level Faculty-in-Charge supervisors
           </p>
         </div>
@@ -392,17 +392,17 @@ export default function AdminFacultyAssignment() {
         </div>
       </div>
 
-      {/* Grade Level Faculty-in-Charge Bar (Clean standard Cards) */}
+      {/* Grade Level Faculty-in-Charge Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {assignments.map((item) => (
           <div
             key={item.gradeLevel}
-            className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_3px_6px_rgba(0,0,0,0.03)] flex flex-col justify-between"
+            className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
                 <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
-                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[11px] font-bold text-brand-blue">
+                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
                   {sections[item.gradeLevel]?.length || 0} Sections
                 </span>
               </div>
@@ -432,8 +432,23 @@ export default function AdminFacultyAssignment() {
         ))}
       </div>
 
-      {/* Sections Table & Controls (Matching Standard Admin Table Pattern) */}
+      {/* Sections Table & Controls */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
+        {/* Section Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+          <div className="flex items-center gap-2">
+            <ChalkboardTeacher size={20} className="text-brand-red" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-ink">Class Sections & Advisers</h2>
+                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                  {filteredSections.length} Sections Listed
+                </span>
+              </div>
+              <p className="text-xs text-ink/50">Manage school sections and assigned class advisers</p>
+            </div>
+          </div>
+        </div>
         {/* Filter Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ink/10 pb-4">
           {/* Grade Level Tabs */}

@@ -38,7 +38,7 @@ import AdminTeacherRecords from './pages/admin/AdminTeacherRecords.jsx';
 import TeacherProfile from './pages/admin/TeacherProfile.jsx';
 import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
 import AdminAccountRequests from './pages/admin/AdminAccountRequests.jsx';
-import AdminActivities from './pages/admin/AdminActivities.jsx';
+import AdminPhilIriReports from './pages/admin/AdminPhilIriReports.jsx';
 import AdminNotifications from './pages/admin/AdminNotifications.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
 
@@ -76,7 +76,8 @@ export default function App() {
         <Route path="teachers/:id" element={<TeacherProfile />} />
         <Route path="faculty-assignment" element={<AdminFacultyAssignment />} />
         <Route path="requests" element={<AdminAccountRequests />} />
-        <Route path="activities" element={<AdminActivities />} />
+        <Route path="reports" element={<AdminPhilIriReports />} />
+        <Route path="activities" element={<Navigate to="/admin/reports" replace />} />
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="profile" element={<Navigate to="/admin/settings" replace />} />

@@ -15,6 +15,7 @@ router.use(requireRole('admin'));
 
 router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);
+router.get('/analytics/phil-iri', adminController.getPhilIriAnalytics);
 
 // Teacher management endpoints
 router.get('/teachers', teacherController.getTeachers);

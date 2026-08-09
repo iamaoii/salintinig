@@ -1629,6 +1629,90 @@ async function updateAdminInfo(req, res) {
   }
 }
 
+/**
+ * GET /api/admin/analytics/phil-iri — Phil-IRI Reading Profile Analytics & Distribution
+ */
+async function getPhilIriAnalytics(req, res) {
+  try {
+    let analytics = {
+      summary: {
+        totalEvaluated: 0,
+        independent: 0,
+        instructional: 0,
+        frustration: 0,
+        nonReader: 0,
+        pending: 0,
+        proficiencyRate: 0,
+      },
+      byGrade: {
+        'Grade 4': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+        'Grade 5': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+        'Grade 6': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+      },
+    };
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const schoolId = await getAdminSchoolId(req);
+        const { rows } = await db.query(`
+          SELECT 
+            COALESCE(c.grade_level, 'Grade 4') AS grade,
+            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COUNT(s.student_id)::int AS count
+          FROM students s
+          JOIN users u ON s.user_id = u.user_id
+          LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+          LEFT JOIN classes c ON sgh.class_id = c.class_id
+          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          WHERE u.school_id = $1
+          GROUP BY COALESCE(c.grade_level, 'Grade 4'), COALESCE(rp.current_profile_label, 'Pending Evaluation')
+        `, [schoolId]);
+
+        rows.forEach((r) => {
+          const count = Number(r.count) || 0;
+          const levelKey = (r.level || '').toLowerCase();
+          const gradeKey = r.grade || 'Grade 4';
+
+          if (!analytics.byGrade[gradeKey]) {
+            analytics.byGrade[gradeKey] = { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 };
+          }
+
+          if (levelKey.includes('independent')) {
+            analytics.summary.independent += count;
+            analytics.byGrade[gradeKey].independent += count;
+          } else if (levelKey.includes('instructional')) {
+            analytics.summary.instructional += count;
+            analytics.byGrade[gradeKey].instructional += count;
+          } else if (levelKey.includes('frustration')) {
+            analytics.summary.frustration += count;
+            analytics.byGrade[gradeKey].frustration += count;
+          } else if (levelKey.includes('non-reader') || levelKey.includes('non reader')) {
+            analytics.summary.nonReader += count;
+            analytics.byGrade[gradeKey].nonReader += count;
+          } else {
+            analytics.summary.pending += count;
+            analytics.byGrade[gradeKey].pending += count;
+          }
+
+          analytics.byGrade[gradeKey].total += count;
+        });
+
+        const totalEvaluated = analytics.summary.independent + analytics.summary.instructional + analytics.summary.frustration + analytics.summary.nonReader;
+        analytics.summary.totalEvaluated = totalEvaluated;
+        const proficientCount = analytics.summary.independent + analytics.summary.instructional;
+        analytics.summary.proficiencyRate = totalEvaluated > 0 ? Math.round((proficientCount / totalEvaluated) * 100) : 0;
+      } catch (dbErr) {
+        console.warn('DB Phil-IRI analytics notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, analytics });
+  } catch (error) {
+    console.error('Error fetching Phil-IRI analytics:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch Phil-IRI analytics.' });
+  }
+}
+
 module.exports = {
   getSections,
   createSection,
@@ -1645,4 +1729,5 @@ module.exports = {
   activateSchoolYear,
   getAdminInfo,
   updateAdminInfo,
+  getPhilIriAnalytics,
 };
