@@ -5,14 +5,6 @@ import {
   ChartPie,
   DownloadSimple,
   MagnifyingGlass,
-  BookOpen,
-  CheckCircle,
-  WarningCircle,
-  TrendUp,
-  Users,
-  Brain,
-  Sparkle,
-  ChartLine,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
@@ -23,11 +15,13 @@ export default function AdminPhilIriReports() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [students, setStudents] = useState([]);
   const [toast, setToast] = useState(null);
 
   const fetchAnalytics = async () => {
     try {
+      setLoadingAnalytics(true);
       const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/analytics/phil-iri', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -38,6 +32,8 @@ export default function AdminPhilIriReports() {
       }
     } catch (err) {
       console.warn('Failed to fetch Phil-IRI analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
 
@@ -238,9 +234,13 @@ export default function AdminPhilIriReports() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-ink">Reading Profile Distribution (Donut Graph)</h3>
-                    <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                      {summaryData.proficiencyRate}% Proficient
-                    </span>
+                    {loadingAnalytics ? (
+                      <div className="h-4 w-20 animate-pulse rounded-full bg-ink/10" />
+                    ) : (
+                      <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                        {summaryData.proficiencyRate}% Proficient
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-ink/50">Proportion of learners by Phil-IRI reading category</p>
                 </div>
@@ -287,7 +287,12 @@ export default function AdminPhilIriReports() {
 
                 {/* Animated Center Display */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none transition-all duration-300">
-                  {hoveredSlice !== null ? (
+                  {loadingAnalytics ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
+                      <div className="h-2 w-12 animate-pulse rounded bg-ink/10" />
+                    </div>
+                  ) : hoveredSlice !== null ? (
                     <>
                       <span className="text-2xl font-extrabold text-ink animate-fade-in" style={{ color: donutSlices[hoveredSlice].color }}>
                         {donutSlices[hoveredSlice].count}
@@ -310,33 +315,48 @@ export default function AdminPhilIriReports() {
 
               {/* Legend & Interactive Hover Rows */}
               <div className="space-y-2.5 w-full max-w-xs text-xs">
-                {donutSlices.map((slice, i) => (
-                  <div
-                    key={i}
-                    onMouseEnter={() => setHoveredSlice(i)}
-                    onMouseLeave={() => setHoveredSlice(null)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
-                      hoveredSlice === i
-                        ? 'bg-white border-brand-blue shadow-md translate-x-1'
-                        : 'bg-white border-ink/10 hover:border-ink/20'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="size-3 rounded-full shrink-0 transition-transform duration-200" style={{ backgroundColor: slice.color, transform: hoveredSlice === i ? 'scale(1.25)' : 'scale(1)' }} />
-                      <span className="font-bold text-ink">{slice.label}</span>
+                {loadingAnalytics ? (
+                  [1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-9 w-full animate-pulse rounded-xl bg-ink/10" />
+                  ))
+                ) : (
+                  donutSlices.map((slice, i) => (
+                    <div
+                      key={i}
+                      onMouseEnter={() => setHoveredSlice(i)}
+                      onMouseLeave={() => setHoveredSlice(null)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                        hoveredSlice === i
+                          ? 'bg-white border-brand-blue shadow-md translate-x-1'
+                          : 'bg-white border-ink/10 hover:border-ink/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="size-3 rounded-full shrink-0 transition-transform duration-200" style={{ backgroundColor: slice.color, transform: hoveredSlice === i ? 'scale(1.25)' : 'scale(1)' }} />
+                        <span className="font-bold text-ink">{slice.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-ink">{slice.count}</span>
+                        <span className="text-ink/40 text-[11px]">({slice.percent}%)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-ink">{slice.count}</span>
-                      <span className="text-ink/40 text-[11px]">({slice.percent}%)</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
             <div className="pt-3 border-t border-ink/10 flex items-center justify-between text-[11px] text-ink/60">
-              <span>Total Assessed Learners: <strong>{summaryData.totalEvaluated}</strong></span>
-              <span>Pending Evaluation: <strong>{summaryData.pending}</strong></span>
+              {loadingAnalytics ? (
+                <>
+                  <div className="h-3 w-32 animate-pulse rounded bg-ink/10" />
+                  <div className="h-3 w-28 animate-pulse rounded bg-ink/10" />
+                </>
+              ) : (
+                <>
+                  <span>Total Assessed Learners: <strong>{summaryData.totalEvaluated}</strong></span>
+                  <span>Pending Evaluation: <strong>{summaryData.pending}</strong></span>
+                </>
+              )}
             </div>
           </div>
 
@@ -354,56 +374,68 @@ export default function AdminPhilIriReports() {
 
             {/* Vertical Bar Graph Visual */}
             <div className="my-6 space-y-5">
-              {Object.entries(gradeBreakdown).map(([grade, data]) => {
-                const maxVal = Math.max(data.total, 1);
-                return (
-                  <div key={grade} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-bold text-ink">
-                      <span>{grade}</span>
-                      <span className="text-ink/50 text-[11px]">{data.total} Students Assessed</span>
+              {loadingAnalytics ? (
+                [1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex justify-between">
+                      <div className="h-3 w-16 animate-pulse rounded bg-ink/10" />
+                      <div className="h-3 w-24 animate-pulse rounded bg-ink/10" />
                     </div>
-
-                    <div className="h-6 w-full rounded-xl bg-white border border-ink/10 overflow-hidden flex p-0.5 gap-0.5">
-                      {data.independent > 0 && (
-                        <div
-                          style={{ width: `${(data.independent / maxVal) * 100}%` }}
-                          className="bg-green-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                          title={`Grade ${grade} Independent: ${data.independent}`}
-                        >
-                          {data.independent}
-                        </div>
-                      )}
-                      {data.instructional > 0 && (
-                        <div
-                          style={{ width: `${(data.instructional / maxVal) * 100}%` }}
-                          className="bg-blue-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                          title={`Grade ${grade} Instructional: ${data.instructional}`}
-                        >
-                          {data.instructional}
-                        </div>
-                      )}
-                      {data.frustration > 0 && (
-                        <div
-                          style={{ width: `${(data.frustration / maxVal) * 100}%` }}
-                          className="bg-amber-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                          title={`Grade ${grade} Frustration: ${data.frustration}`}
-                        >
-                          {data.frustration}
-                        </div>
-                      )}
-                      {data.nonReader > 0 && (
-                        <div
-                          style={{ width: `${(data.nonReader / maxVal) * 100}%` }}
-                          className="bg-red-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                          title={`Grade ${grade} Non-Reader: ${data.nonReader}`}
-                        >
-                          {data.nonReader}
-                        </div>
-                      )}
-                    </div>
+                    <div className="h-6 w-full animate-pulse rounded-xl bg-ink/10" />
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                Object.entries(gradeBreakdown).map(([grade, data]) => {
+                  const maxVal = Math.max(data.total, 1);
+                  return (
+                    <div key={grade} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-ink">
+                        <span>{grade}</span>
+                        <span className="text-ink/50 text-[11px]">{data.total} Students Assessed</span>
+                      </div>
+
+                      <div className="h-6 w-full rounded-xl bg-white border border-ink/10 overflow-hidden flex p-0.5 gap-0.5">
+                        {data.independent > 0 && (
+                          <div
+                            style={{ width: `${(data.independent / maxVal) * 100}%` }}
+                            className="bg-green-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            title={`Grade ${grade} Independent: ${data.independent}`}
+                          >
+                            {data.independent}
+                          </div>
+                        )}
+                        {data.instructional > 0 && (
+                          <div
+                            style={{ width: `${(data.instructional / maxVal) * 100}%` }}
+                            className="bg-blue-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            title={`Grade ${grade} Instructional: ${data.instructional}`}
+                          >
+                            {data.instructional}
+                          </div>
+                        )}
+                        {data.frustration > 0 && (
+                          <div
+                            style={{ width: `${(data.frustration / maxVal) * 100}%` }}
+                            className="bg-amber-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            title={`Grade ${grade} Frustration: ${data.frustration}`}
+                          >
+                            {data.frustration}
+                          </div>
+                        )}
+                        {data.nonReader > 0 && (
+                          <div
+                            style={{ width: `${(data.nonReader / maxVal) * 100}%` }}
+                            className="bg-red-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            title={`Grade ${grade} Non-Reader: ${data.nonReader}`}
+                          >
+                            {data.nonReader}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             {/* Bar Legend */}
@@ -477,11 +509,16 @@ export default function AdminPhilIriReports() {
               </thead>
               <tbody className="divide-y divide-ink/10">
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-ink/40">
-                      Loading Phil-IRI student records...
-                    </td>
-                  </tr>
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-3 px-3"><div className="h-3.5 w-28 rounded bg-ink/10" /></td>
+                      <td className="py-3 px-3"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                      <td className="py-3 px-3"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="py-3 px-3"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                      <td className="py-3 px-3"><div className="h-4 w-20 rounded-full bg-ink/10" /></td>
+                      <td className="py-3 px-3 text-right"><div className="h-3.5 w-20 rounded bg-ink/10 ml-auto" /></td>
+                    </tr>
+                  ))
                 ) : filteredStudents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-ink/40">

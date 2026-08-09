@@ -18,19 +18,14 @@ import {
   X,
   UserCheck,
   ChartPie,
-  BookOpen,
-  WarningCircle,
-  Brain,
-  TrendUp,
-  Sparkle,
 } from '@phosphor-icons/react';
-import { adminStats, recentActivities } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [accountRequests, setAccountRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -40,6 +35,7 @@ export default function AdminDashboardHome() {
   // Fetch Phil-IRI reading analytics
   const fetchAnalytics = async () => {
     try {
+      setLoadingAnalytics(true);
       const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/analytics/phil-iri', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -50,6 +46,8 @@ export default function AdminDashboardHome() {
       }
     } catch (err) {
       console.warn('Could not fetch Phil-IRI analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
 
@@ -404,9 +402,13 @@ export default function AdminDashboardHome() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-ink">Phil-IRI Reading Analytics Overview</h2>
-                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                  {analytics?.summary?.proficiencyRate || 0}% Proficiency Rate
-                </span>
+                {loadingAnalytics ? (
+                  <div className="h-4 w-24 animate-pulse rounded-full bg-ink/10" />
+                ) : (
+                  <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                    {analytics?.summary?.proficiencyRate || 0}% Proficiency Rate
+                  </span>
+                )}
               </div>
               <p className="text-xs text-ink/50">Real-time school reading level distribution and DepEd Phil-IRI performance</p>
             </div>
@@ -423,7 +425,20 @@ export default function AdminDashboardHome() {
         </div>
 
         {/* Content Layout — Clean Human Dashboard Aesthetics */}
-        {(() => {
+        {loadingAnalytics ? (
+          <div className="mt-4 space-y-4">
+            <div className="h-3 w-full animate-pulse rounded-full bg-ink/10" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-ink/10" />
+                  <div className="h-5 w-14 animate-pulse rounded bg-ink/10" />
+                  <div className="h-2.5 w-24 animate-pulse rounded bg-ink/10" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (() => {
           const summary = analytics?.summary || { totalEvaluated: 0, independent: 0, instructional: 0, frustration: 0, nonReader: 0 };
           const total = summary.totalEvaluated || 1;
           const indPct = Math.round((summary.independent / total) * 100);
