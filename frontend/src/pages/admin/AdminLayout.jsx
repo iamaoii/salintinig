@@ -64,6 +64,8 @@ export default function AdminLayout() {
 
   const handleMarkAsRead = async (id) => {
     try {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
       const token = getToken();
       if (!token) return;
       await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
@@ -78,6 +80,8 @@ export default function AdminLayout() {
 
   const handleMarkAllAsRead = async () => {
     try {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
       const token = getToken();
       if (!token) return;
       await fetch('http://localhost:5000/api/notifications/read-all', {
@@ -104,6 +108,22 @@ export default function AdminLayout() {
   useEffect(() => {
     fetchNotifications();
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleNotifUpdate = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('notificationsUpdated', handleNotifUpdate);
+    return () => window.removeEventListener('notificationsUpdated', handleNotifUpdate);
+  }, []);
+
+  // Poll every 30 seconds for new notifications
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchAdminInfo = async () => {

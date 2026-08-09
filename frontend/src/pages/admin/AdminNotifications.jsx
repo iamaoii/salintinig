@@ -48,6 +48,8 @@ export default function AdminNotifications() {
 
   const handleMarkAllRead = async () => {
     try {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
       const res = await fetch('http://localhost:5000/api/notifications/read-all', {
@@ -65,6 +67,8 @@ export default function AdminNotifications() {
 
   const handleMarkAsRead = async (id) => {
     try {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
       await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
@@ -80,6 +84,8 @@ export default function AdminNotifications() {
   const handleDelete = async (id, e) => {
     e.stopPropagation();
     try {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
       const res = await fetch(`http://localhost:5000/api/notifications/${id}`, {
@@ -98,7 +104,8 @@ export default function AdminNotifications() {
   const filteredNotifications = useMemo(() => {
     if (filter === 'Unread') return notifications.filter((n) => !n.is_read);
     if (filter === 'Assessment') return notifications.filter((n) => n.notification_type === 'reading_level' || n.notification_type === 'assessment');
-    if (filter === 'Account') return notifications.filter((n) => n.notification_type === 'account_request' || n.notification_type === 'account_approval');
+    if (filter === 'Account') return notifications.filter((n) => n.notification_type === 'account_request' || n.notification_type === 'account_approval' || n.notification_type === 'account_rejection');
+    if (filter === 'Audit Logs') return notifications.filter((n) => n.notification_type === 'system' || n.notification_type === 'audit');
     return notifications;
   }, [notifications, filter]);
 
@@ -116,10 +123,10 @@ export default function AdminNotifications() {
           <div>
             <div className="flex items-center gap-2">
               <Bell size={28} className="text-brand-red" />
-              <h1 className="text-3xl font-bold text-ink">Notifications Center</h1>
+              <h1 className="text-3xl font-bold text-ink">Notifications & Audit Logs</h1>
             </div>
             <p className="mt-1 text-xs text-ink/50">
-              Complete history of assessment alerts, account activation notices, and system logs
+              Complete history of assessment alerts, account activation notices, system changes, and administrative audit logs
             </p>
           </div>
 
@@ -139,7 +146,7 @@ export default function AdminNotifications() {
             <Funnel size={16} className="text-ink/40" />
             <span className="text-xs font-bold text-ink/70">Filter:</span>
             <div className="flex items-center rounded-full border border-ink/10 bg-ink/5 p-0.5 text-xs font-semibold overflow-x-auto">
-              {['All', 'Unread', 'Assessment', 'System'].map((cat) => (
+              {['All', 'Unread', 'Assessment', 'Account', 'Audit Logs'].map((cat) => (
                 <button
                   key={cat}
                   type="button"

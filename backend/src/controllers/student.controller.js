@@ -460,6 +460,35 @@ async function toggleStudentStatus(req, res) {
            WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)`,
           [isParentAccessActive, lrn]
         );
+
+        // 4. Audit Log & Notification for Student Status Toggle
+        try {
+          const schoolId = await getAdminSchoolId(req);
+          const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ($1, $2, 'TOGGLE_STUDENT_STATUS', $3, $4)`,
+            [
+              schoolId || '109283',
+              adminUserId || null,
+              `Changed enrollment status for student LRN ${lrn} to "${newStatus}"`,
+              req.ip || req.headers['x-forwarded-for'] || null,
+            ]
+          );
+
+          await db.query(
+            `INSERT INTO notifications (school_id, title, message, notification_type)
+             VALUES ($1, $2, $3, 'system')`,
+            [
+              schoolId || '109283',
+              `Student Status Updated: ${lrn}`,
+              `Enrollment status for student LRN ${lrn} was updated to ${newStatus}.`,
+            ]
+          );
+        } catch (nErr) {
+          console.warn('Student status toggle audit notice:', nErr.message);
+        }
       } catch (dbErr) {
         console.warn('DB status toggle notice:', dbErr.message);
       }
@@ -485,7 +514,7 @@ async function deleteStudent(req, res) {
       try {
         // Step 1: Look up the student
         const { rows } = await db.query(
-          `SELECT student_id, user_id FROM students WHERE lrn = $1 OR student_id::text = $1 LIMIT 1`,
+          `SELECT student_id, user_id, first_name, last_name, lrn FROM students WHERE lrn = $1 OR student_id::text = $1 LIMIT 1`,
           [lrn]
         );
 
@@ -520,6 +549,38 @@ async function deleteStudent(req, res) {
               await db.query(`DELETE FROM parents WHERE parent_id = $1`, [pid]);
               console.log(`✅ Deleted orphan parent record: ${pid}`);
             }
+          }
+
+          // Step 6: Create System Notification & Audit Log
+          try {
+            const sName = [rows[0].first_name, rows[0].last_name].filter(Boolean).join(' ') || 'Student';
+            const adminSchoolId = await getAdminSchoolId(req);
+            const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+
+            // 6a. Record in audit_logs
+            await db.query(
+              `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+               VALUES ($1, $2, 'DELETE_STUDENT', $3, $4)`,
+              [
+                adminSchoolId || '109283',
+                adminUserId || null,
+                `Deleted student record ${sName} (LRN: ${rows[0].lrn || lrn})`,
+                req.ip || req.headers['x-forwarded-for'] || null,
+              ]
+            );
+
+            // 6b. Record in notifications
+            await db.query(
+              `INSERT INTO notifications (school_id, title, message, notification_type)
+               VALUES ($1, $2, $3, 'system')`,
+              [
+                adminSchoolId || '109283',
+                `Student Record Deleted: ${sName}`,
+                `Student record for ${sName} (LRN: ${rows[0].lrn || lrn}) was permanently deleted from the system.`,
+              ]
+            );
+          } catch (nErr) {
+            console.warn('Delete student audit/notification notice:', nErr.message);
           }
         }
 
@@ -691,6 +752,36 @@ async function importStudentsCSV(req, res) {
       importedBatch.push(studentObj);
     }
 
+    // Audit Log & Notification for Batch CSV Import
+    try {
+      const schoolId = await getAdminSchoolId(req);
+      const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+      const count = importedBatch.length;
+
+      await db.query(
+        `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+         VALUES ($1, $2, 'BATCH_IMPORT_STUDENTS', $3, $4)`,
+        [
+          schoolId || '109283',
+          adminUserId || null,
+          `Batch imported ${count} student records via CSV upload.`,
+          req.ip || req.headers['x-forwarded-for'] || null,
+        ]
+      );
+
+      await db.query(
+        `INSERT INTO notifications (school_id, title, message, notification_type)
+         VALUES ($1, $2, $3, 'system')`,
+        [
+          schoolId || '109283',
+          `Batch Student CSV Import Completed`,
+          `Successfully processed and imported ${count} student records into the database.`,
+        ]
+      );
+    } catch (nErr) {
+      console.warn('Batch import audit notice:', nErr.message);
+    }
+
     return res.json({
       success: true,
       count: importedBatch.length,
@@ -813,6 +904,36 @@ async function transferInStudent(req, res) {
           await db.query(`UPDATE student_parents SET is_active = TRUE WHERE student_id = $1`, [studentId]);
 
           transferredStudent = { lrn, name: `${stdRows[0].first_name} ${stdRows[0].last_name}`, grade, section, status: 'Active' };
+
+          // Audit Log & Notification for Student Transfer-In
+          try {
+            const schoolId = await getAdminSchoolId(req);
+            const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+            const sName = transferredStudent.name;
+
+            await db.query(
+              `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+               VALUES ($1, $2, 'TRANSFER_IN_STUDENT', $3, $4)`,
+              [
+                schoolId || '109283',
+                adminUserId || null,
+                `Transferred in student ${sName} (LRN: ${lrn}) into Grade ${grade} - ${section}`,
+                req.ip || req.headers['x-forwarded-for'] || null,
+              ]
+            );
+
+            await db.query(
+              `INSERT INTO notifications (school_id, title, message, notification_type)
+               VALUES ($1, $2, $3, 'system')`,
+              [
+                schoolId || '109283',
+                `Student Transferred In: ${sName}`,
+                `Student ${sName} (LRN: ${lrn}) was successfully transferred into Grade ${grade} - ${section}.`,
+              ]
+            );
+          } catch (nErr) {
+            console.warn('Transfer-in student audit notice:', nErr.message);
+          }
         }
       } catch (dbErr) {
         console.error('❌ DB transfer-in student error:', dbErr.message || dbErr);

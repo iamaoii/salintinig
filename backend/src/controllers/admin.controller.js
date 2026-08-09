@@ -305,6 +305,33 @@ async function createTeacher(req, res) {
                 [schoolId, teacherId, cleanGradeAssigned]
               );
             }
+
+            // Audit Log & Notification for Teacher Creation
+            try {
+              const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+              await db.query(
+                `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+                 VALUES ($1, $2, 'CREATE_TEACHER', $3, $4)`,
+                [
+                  schoolId || '109283',
+                  adminUserId || null,
+                  `Created teacher account for ${fullName} (${cleanEmail}, Employee ID: ${cleanEmpId})`,
+                  req.ip || req.headers['x-forwarded-for'] || null,
+                ]
+              );
+
+              await db.query(
+                `INSERT INTO notifications (school_id, title, message, notification_type)
+                 VALUES ($1, $2, $3, 'system')`,
+                [
+                  schoolId || '109283',
+                  `New Teacher Profile Added: ${fullName}`,
+                  `Teacher account for ${fullName} (${cleanEmpId}) was created and assigned to ${cleanGradeAssigned} - ${cleanSectionAssigned}.`,
+                ]
+              );
+            } catch (nErr) {
+              console.warn('Create teacher audit notice:', nErr.message);
+            }
           }
 
           // Send welcome email with temporary credentials asynchronously
@@ -834,6 +861,19 @@ async function approveAccountRequest(req, res) {
             ]
           );
 
+          // Audit Log
+          const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ($1, $2, 'APPROVE_ACCOUNT', $3, $4)`,
+            [
+              targetRequest.school_id || '109283',
+              adminUserId || null,
+              `Approved teacher account request for ${targetRequest.first_name} ${targetRequest.last_name} (${targetRequest.email})`,
+              req.ip || req.headers['x-forwarded-for'] || null,
+            ]
+          );
+
           sendWelcomeEmailWithTempPassword({
             toEmail: targetRequest.email,
             fullName: targetRequest.full_name,
@@ -943,6 +983,19 @@ async function rejectAccountRequest(req, res) {
               targetReq.school_id || '109283',
               `Account Request Rejected`,
               `Account activation request for ${targetReq.first_name} ${targetReq.last_name} (${targetReq.email}) was rejected.`,
+            ]
+          );
+
+          // Audit Log
+          const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ($1, $2, 'REJECT_ACCOUNT', $3, $4)`,
+            [
+              targetReq.school_id || '109283',
+              adminUserId || null,
+              `Rejected teacher account request for ${targetReq.first_name} ${targetReq.last_name} (${targetReq.email})`,
+              req.ip || req.headers['x-forwarded-for'] || null,
             ]
           );
         }
@@ -1140,13 +1193,14 @@ async function deleteTeacher(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const { rows } = await db.query(
-          `SELECT teacher_id, user_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1`,
+          `SELECT teacher_id, user_id, first_name, last_name, teacher_no FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1 LIMIT 1`,
           [id]
         );
 
         if (rows && rows[0]) {
           const teacherId = rows[0].teacher_id;
           const userId = rows[0].user_id;
+          const tName = [rows[0].first_name, rows[0].last_name].filter(Boolean).join(' ') || 'Teacher';
 
           // 1. Unassign from class sections
           await db.query(`UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`, [teacherId]);
@@ -1160,6 +1214,37 @@ async function deleteTeacher(req, res) {
           // 4. Delete corresponding user account from users table
           if (userId) {
             await db.query(`DELETE FROM users WHERE user_id = $1`, [userId]);
+          }
+
+          // 5. Create System Notification & Audit Log
+          try {
+            const adminSchoolId = await getAdminSchoolId(req);
+            const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+
+            // 5a. Record in audit_logs
+            await db.query(
+              `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+               VALUES ($1, $2, 'DELETE_TEACHER', $3, $4)`,
+              [
+                adminSchoolId || '109283',
+                adminUserId || null,
+                `Deleted teacher record ${tName} (Teacher No: ${rows[0].teacher_no || id})`,
+                req.ip || req.headers['x-forwarded-for'] || null,
+              ]
+            );
+
+            // 5b. Record in notifications
+            await db.query(
+              `INSERT INTO notifications (school_id, title, message, notification_type)
+               VALUES ($1, $2, $3, 'system')`,
+              [
+                adminSchoolId || '109283',
+                `Teacher Record Deleted: ${tName}`,
+                `Teacher record for ${tName} (${rows[0].teacher_no || id}) was permanently deleted from the system.`,
+              ]
+            );
+          } catch (nErr) {
+            console.warn('Delete teacher audit/notification notice:', nErr.message);
           }
         }
       } catch (dbErr) {
@@ -1270,6 +1355,33 @@ async function createSection(req, res) {
            VALUES ($1, $2, $3, $4, $5)`,
           [schoolId, syId, gradeLevel, cleanSection, adviserId || null]
         );
+
+        // Audit Log & Notification for Section Creation
+        try {
+          const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ($1, $2, 'CREATE_SECTION', $3, $4)`,
+            [
+              schoolId || '109283',
+              adminUserId || null,
+              `Created class section "${cleanSection}" under ${gradeLevel}`,
+              req.ip || req.headers['x-forwarded-for'] || null,
+            ]
+          );
+
+          await db.query(
+            `INSERT INTO notifications (school_id, title, message, notification_type)
+             VALUES ($1, $2, $3, 'system')`,
+            [
+              schoolId || '109283',
+              `New Section Created: ${cleanSection}`,
+              `Class section "${cleanSection}" was added under ${gradeLevel}.`,
+            ]
+          );
+        } catch (nErr) {
+          console.warn('Create section audit notice:', nErr.message);
+        }
       } catch (dbErr) {
         console.warn('DB create section notice:', dbErr.message);
       }
