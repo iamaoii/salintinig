@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   House,
@@ -9,6 +9,7 @@ import {
   DotsThree,
   UserCheck,
   ArrowRight,
+  ChartBar,
 } from '@phosphor-icons/react';
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/admin/students', label: 'Student Records', icon: Student },
   { to: '/admin/teachers', label: 'Teacher Records', icon: ChalkboardTeacher },
   { to: '/admin/faculty-assignment', label: 'Sections & Faculty', icon: IdentificationCard },
+  { to: '/admin/reports', label: 'Phil-IRI Reports', icon: ChartBar },
 ];
 
 const adminNotifications = [
@@ -50,6 +52,19 @@ export default function AdminLayout() {
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
 
   const [adminInfo, setAdminInfo] = useState(null);
+  const [showNotifPopover, setShowNotifPopover] = useState(false);
+  const notifRef = useRef(null);
+
+  // Close notification popover on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setShowNotifPopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchAdminInfo = async () => {
@@ -116,15 +131,64 @@ export default function AdminLayout() {
             ))}
           </nav>
 
-          {/* Right Account Profile Dropdown */}
-          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+          {/* Right Account Profile & Notification Popover */}
+          <div className="flex shrink-0 items-center gap-5 sm:gap-6">
+            {/* Notification Bell Button */}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setShowNotifPopover(!showNotifPopover)}
+                className="relative flex size-9 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
+                title="Notifications"
+              >
+                <Bell size={20} weight="bold" />
+                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-red" />
+              </button>
+
+              {/* Notification Popover Dropdown */}
+              {showNotifPopover && (
+                <div className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-ink/10">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-ink">Notifications</h4>
+                      <span className="rounded-full bg-brand-red/10 px-2 py-0.2 text-[9px] font-bold text-brand-red">
+                        {adminNotifications.length} New
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNotifPopover(false);
+                        navigate('/admin/notifications');
+                      }}
+                      className="text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer"
+                    >
+                      View All
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-ink/10 max-h-72 overflow-y-auto">
+                    {adminNotifications.map((notif) => (
+                      <div key={notif.id} className="py-2.5 px-1 hover:bg-ink/[0.02] rounded-xl transition-colors">
+                        <div className="flex items-center justify-between gap-2">
+                          <h5 className="text-xs font-bold text-ink truncate">{notif.title}</h5>
+                          <span className="text-[9px] text-ink/40 shrink-0">{notif.time}</span>
+                        </div>
+                        <p className="text-[11px] text-ink/60 mt-0.5 leading-snug line-clamp-2">{notif.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <ProfileDropdown role="admin" customName={currentUser?.name} />
           </div>
         </div>
       </header>
 
       {/* Main Layout Container */}
-      <main className="mx-auto max-w-[1480px] px-6 py-8 sm:px-8 lg:px-10">
+      <main className="mx-auto max-w-[1480px] px-6 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-28 lg:px-10 lg:pb-36">
         {isDashboard ? (
           <div className="flex flex-col gap-8 lg:flex-row">
             {/* Left Side Header Banner + Notification Cards (Dashboard Only) */}

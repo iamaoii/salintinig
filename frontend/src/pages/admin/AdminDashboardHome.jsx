@@ -17,19 +17,39 @@ import {
   Check,
   X,
   UserCheck,
+  ChartPie,
 } from '@phosphor-icons/react';
-import { adminStats, recentActivities } from '../../data/adminData.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
-  const [activities] = useState(recentActivities);
+  const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [accountRequests, setAccountRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [requestFilter, setRequestFilter] = useState('all');
   const [toast, setToast] = useState(null);
+
+  // Fetch Phil-IRI reading analytics
+  const fetchAnalytics = async () => {
+    try {
+      setLoadingAnalytics(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/analytics/phil-iri', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAnalytics(data.analytics);
+      }
+    } catch (err) {
+      console.warn('Could not fetch Phil-IRI analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
 
   // Fetch pending account activation requests
   const fetchRequests = async () => {
@@ -70,13 +90,23 @@ export default function AdminDashboardHome() {
     }
   };
 
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
     fetchRequests();
     fetchStats();
+    fetchAnalytics();
+    const timer = setTimeout(() => setIsMounted(true), 100);
 
-    const handleSYChange = () => fetchStats();
+    const handleSYChange = () => {
+      fetchStats();
+      fetchAnalytics();
+    };
     window.addEventListener('schoolYearChanged', handleSYChange);
-    return () => window.removeEventListener('schoolYearChanged', handleSYChange);
+    return () => {
+      window.removeEventListener('schoolYearChanged', handleSYChange);
+      clearTimeout(timer);
+    };
   }, []);
 
   const handleApprove = async (id, name) => {
@@ -364,22 +394,29 @@ export default function AdminDashboardHome() {
         )}
       </div>
 
-      {/* Recent Activities Section */}
+      {/* Phil-IRI School Reading Profile Analytics Dashboard Widget */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-ink">Recent Activities</h2>
-              <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                Real-time Log
-              </span>
+          <div className="flex items-center gap-2">
+            <ChartPie size={20} className="text-brand-red" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-ink">Phil-IRI Reading Analytics Overview</h2>
+                {loadingAnalytics ? (
+                  <div className="h-4 w-24 animate-pulse rounded-full bg-ink/10" />
+                ) : (
+                  <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                    {analytics?.summary?.proficiencyRate || 0}% Proficiency Rate
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-ink/50">Real-time school reading level distribution and DepEd Phil-IRI performance</p>
             </div>
-            <p className="text-xs text-ink/50">Audit log of record uploads and administrative actions</p>
           </div>
 
           <button
             type="button"
-            onClick={() => navigate('/admin/activities')}
+            onClick={() => navigate('/admin/reports')}
             className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer shrink-0"
           >
             <span>View All</span>
@@ -387,36 +424,119 @@ export default function AdminDashboardHome() {
           </button>
         </div>
 
-        <div className="mt-2 divide-y divide-ink/10">
-          {activities.map((act) => (
-            <div key={act.id} className="flex items-start justify-between py-1.5 first:pt-0 last:pb-0 hover:bg-ink/[0.02] rounded-xl px-2 transition-colors">
-              <div className="flex items-start gap-2">
-                <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg bg-ink/5 text-ink/70">
-                  {act.type === 'upload' && <CloudArrowUp size={12} weight="bold" />}
-                  {act.type === 'assignment' && <UserPlus size={12} weight="bold" />}
-                  {act.type === 'user' && <CheckCircle size={12} weight="bold" />}
-                  {act.type === 'security' && <ShieldWarning size={12} weight="bold" />}
+        {/* Content Layout — Clean Human Dashboard Aesthetics */}
+        {loadingAnalytics ? (
+          <div className="mt-4 space-y-4">
+            <div className="h-3 w-full animate-pulse rounded-full bg-ink/10" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-ink/10" />
+                  <div className="h-5 w-14 animate-pulse rounded bg-ink/10" />
+                  <div className="h-2.5 w-24 animate-pulse rounded bg-ink/10" />
                 </div>
+              ))}
+            </div>
+          </div>
+        ) : (() => {
+          const summary = analytics?.summary || { totalEvaluated: 0, independent: 0, instructional: 0, frustration: 0, nonReader: 0 };
+          const total = summary.totalEvaluated || 1;
+          const indPct = Math.round((summary.independent / total) * 100);
+          const instPct = Math.round((summary.instructional / total) * 100);
+          const frustPct = Math.round((summary.frustration / total) * 100);
+          const nonRPct = Math.round((summary.nonReader / total) * 100);
 
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-[10px] font-bold text-ink">{act.title}</h4>
-                    <span className="rounded bg-ink/5 px-1 py-0.2 text-[8px] font-bold text-ink/70">
-                      {act.type.toUpperCase()}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[10px] text-ink/60 leading-tight">{act.details}</p>
-                  <span className="text-[9px] text-ink/40 block">By {act.user}</span>
-                </div>
+          return (
+            <div className="mt-4 space-y-4">
+              {/* Segmented Distribution Bar */}
+              <div className="h-3 w-full rounded-full bg-ink/10 overflow-hidden flex gap-0.5 p-0.5">
+                {indPct > 0 && (
+                  <div
+                    style={{ width: isMounted ? `${indPct}%` : '0%' }}
+                    className="bg-emerald-500 h-full rounded-l-full transition-all duration-1000 ease-out"
+                    title={`Independent: ${summary.independent}`}
+                  />
+                )}
+                {instPct > 0 && (
+                  <div
+                    style={{ width: isMounted ? `${instPct}%` : '0%' }}
+                    className="bg-blue-500 h-full transition-all duration-1000 ease-out"
+                    title={`Instructional: ${summary.instructional}`}
+                  />
+                )}
+                {frustPct > 0 && (
+                  <div
+                    style={{ width: isMounted ? `${frustPct}%` : '0%' }}
+                    className="bg-amber-500 h-full transition-all duration-1000 ease-out"
+                    title={`Frustration: ${summary.frustration}`}
+                  />
+                )}
+                {nonRPct > 0 && (
+                  <div
+                    style={{ width: isMounted ? `${nonRPct}%` : '0%' }}
+                    className="bg-rose-500 h-full rounded-r-full transition-all duration-1000 ease-out"
+                    title={`Non-Reader: ${summary.nonReader}`}
+                  />
+                )}
               </div>
 
-              <div className="flex items-center gap-1 text-[9px] text-ink/40 whitespace-nowrap">
-                <Clock size={11} />
-                <span>{act.timestamp}</span>
+              {/* Clean Metric Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+                {/* Independent */}
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold text-ink">Independent</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 pl-3">
+                    <span className="text-lg font-bold text-ink">{summary.independent}</span>
+                    <span className="text-xs font-semibold text-emerald-700">({indPct}%)</span>
+                  </div>
+                  <span className="text-[10px] text-ink/50 block pl-3">Proficient readers</span>
+                </div>
+
+                {/* Instructional */}
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="text-xs font-bold text-ink">Instructional</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 pl-3">
+                    <span className="text-lg font-bold text-ink">{summary.instructional}</span>
+                    <span className="text-xs font-semibold text-blue-700">({instPct}%)</span>
+                  </div>
+                  <span className="text-[10px] text-ink/50 block pl-3">Guided learners</span>
+                </div>
+
+                {/* Frustration */}
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs font-bold text-ink">Frustration</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 pl-3">
+                    <span className="text-lg font-bold text-ink">{summary.frustration}</span>
+                    <span className="text-xs font-semibold text-amber-700">({frustPct}%)</span>
+                  </div>
+                  <span className="text-[10px] text-ink/50 block pl-3">Needs intervention</span>
+                </div>
+
+                {/* Non-Reader */}
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs font-bold text-ink">Non-Reader</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 pl-3">
+                    <span className="text-lg font-bold text-ink">{summary.nonReader}</span>
+                    <span className="text-xs font-semibold text-rose-700">({nonRPct}%)</span>
+                  </div>
+                  <span className="text-[10px] text-ink/50 block pl-3">Priority remediation</span>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
     </div>
   );
