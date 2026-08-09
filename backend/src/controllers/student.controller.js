@@ -3,9 +3,13 @@ const db = require('../config/db.js');
 // In-Memory Fallback Store (Empty by default)
 let mockStudents = [];
 
-function generateParentAccessCode(lrn) {
-  const codeSuffix = lrn ? lrn.slice(-5) : Math.floor(10000 + Math.random() * 90000);
-  return `PAC-${codeSuffix}`;
+function generateParentAccessCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Upper case alphanumeric excluding confusing 0/O, 1/I
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `PAC-${result}`;
 }
 
 const isDbConfigured = () =>
@@ -13,13 +17,57 @@ const isDbConfigured = () =>
   !process.env.DATABASE_URL.includes('password@localhost');
 
 /**
+ * Resolve the correct school_id for the currently logged-in admin.
+ * 1. Use school_id from JWT token if verified against schools table.
+ * 2. Fall back to querying users table by admin email.
+ * 3. Fall back to first school in schools table.
+ */
+async function getAdminSchoolId(req) {
+  if (process.env.DATABASE_URL) {
+    try {
+      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
+      if (tokenSchoolId) {
+        const schoolRes = await db.query(
+          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
+          [tokenSchoolId]
+        );
+        if (schoolRes.rows && schoolRes.rows[0] && schoolRes.rows[0].school_id) {
+          return schoolRes.rows[0].school_id;
+        }
+      }
+
+      if (req.user && req.user.email) {
+        const { rows } = await db.query(
+          `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [req.user.email]
+        );
+        if (rows && rows[0] && rows[0].school_id) {
+          return rows[0].school_id;
+        }
+      }
+
+      const sRes = await db.query(`SELECT school_id FROM schools LIMIT 1`);
+      if (sRes.rows && sRes.rows[0] && sRes.rows[0].school_id) {
+        return sRes.rows[0].school_id;
+      }
+    } catch (e) {}
+  }
+  if (req.user && (req.user.schoolId || req.user.school_id)) {
+    return req.user.schoolId || req.user.school_id;
+  }
+  return null;
+}
+
+/**
  * GET /api/admin/students — List all students
  */
 async function getStudents(req, res) {
   try {
+    const adminSchoolId = await getAdminSchoolId(req);
+
     if (isDbConfigured()) {
       try {
-        const { rows } = await db.query(`
+        let query = `
           SELECT 
             s.student_id AS id,
             s.lrn,
@@ -27,10 +75,10 @@ async function getStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            COALESCE(c.grade_level, 'Grade 4') AS grade,
-            COALESCE(c.section_name, 'Fyang') AS section,
+            COALESCE(c.grade_level, '') AS grade,
+            COALESCE(c.section_name, '') AS section,
             COALESCE(s.sex, 'Male') AS gender,
-            COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode",
+            COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
@@ -49,8 +97,17 @@ async function getStudents(req, res) {
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
-          ORDER BY s.created_at DESC
-        `);
+        `;
+        const params = [];
+
+        if (adminSchoolId) {
+          query += ` WHERE u.school_id = $1 `;
+          params.push(adminSchoolId);
+        }
+
+        query += ` ORDER BY s.created_at DESC`;
+
+        const { rows } = await db.query(query, params);
 
         return res.json({ success: true, students: rows || [] });
       } catch (dbErr) {
@@ -82,10 +139,10 @@ async function getStudentByLrn(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            COALESCE(c.grade_level, 'Grade 4') AS grade,
-            COALESCE(c.section_name, 'Fyang') AS section,
+            COALESCE(c.grade_level, '') AS grade,
+            COALESCE(c.section_name, '') AS section,
             COALESCE(s.sex, 'Male') AS gender,
-            COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode",
+            COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
@@ -167,7 +224,6 @@ async function createStudent(req, res) {
       gender,
       parentEmail,
       personalEmail,
-      parentSalutation,
       parentName,
     } = req.body;
 
@@ -193,10 +249,8 @@ async function createStudent(req, res) {
     lastName = (lastName || 'Record').trim();
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
 
-    const pFName = 'Mr./Mrs.';
-    const pMName = '';
-    const pLName = lastName;
     const pEmail = parentEmail && parentEmail.trim() ? parentEmail.trim() : null;
+    const computedParentName = parentName || `Mr./Mrs. ${lastName}`;
 
     const parentAccessCode = generateParentAccessCode(lrn);
     const dateAdded = new Date().toISOString().split('T')[0];
@@ -213,7 +267,7 @@ async function createStudent(req, res) {
       gender: gender || 'Male',
       parentAccessCode,
       parentEmail: pEmail,
-      parentName: `Mr./Mrs. ${lastName}`,
+      parentName: computedParentName,
       personalEmail: personalEmail || `${lrn}@salintinig.edu.ph`,
       status: 'Active',
       level: 'Instructional',
@@ -226,12 +280,16 @@ async function createStudent(req, res) {
         const salt = bcrypt.genSaltSync(10);
         const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
 
+        const adminSchoolId = await getAdminSchoolId(req);
+
+        console.log(`[createStudent] Resolved adminSchoolId: ${adminSchoolId}`);
+
         const { rows: userRows } = await db.query(
-          `INSERT INTO users (email, password_hash, role, status)
-           VALUES ($1, $2, 'student', 'active')
-           ON CONFLICT (email) DO UPDATE SET password_hash = $2, status = 'active'
+          `INSERT INTO users (school_id, email, password_hash, role, status)
+           VALUES ($1, $2, $3, 'student', 'active')
+           ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, status = 'active'
            RETURNING user_id`,
-          [newStudentObj.personalEmail, hashedPass]
+          [adminSchoolId, newStudentObj.personalEmail, hashedPass]
         );
 
         if (userRows && userRows[0]) {
@@ -248,7 +306,7 @@ async function createStudent(req, res) {
           if (stdRows && stdRows[0]) {
             const studentId = stdRows[0].student_id;
 
-            const parentFullName = `Mr./Mrs. ${lastName}`;
+            const parentFullName = computedParentName;
             let parentId = null;
 
             if (pEmail) {
@@ -277,8 +335,7 @@ async function createStudent(req, res) {
               );
             }
 
-            // Ensure section/class exists and link student to active school year history
-            const activeSchoolYear = '2026-2027';
+            // Ensure section/class exists and link student to active grade history
             let classId = null;
             const { rows: existingClass } = await db.query(
               `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
@@ -495,7 +552,14 @@ async function importStudentsCSV(req, res) {
     const importedBatch = [];
     for (let index = 0; index < studentsList.length; index++) {
       const item = studentsList[index];
-      const lrn = String(item.lrn || item.LRN || item['Student LRN'] || `136670${Math.floor(100000 + Math.random() * 900000)}`).trim();
+      const lrn = String(item.lrn || item.LRN || item['Student LRN'] || '').trim();
+
+      if (!lrn || !/^\d{12}$/.test(lrn)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid LRN "${lrn || 'blank'}" on row ${index + 1}. LRN must be exactly 12 numeric digits.`,
+        });
+      }
       
       let firstName = (item.firstName || item.first_name || item['First Name'] || '').trim();
       let middleName = (item.middleName || item.middle_name || item['Middle Name'] || '').trim();
@@ -512,10 +576,10 @@ async function importStudentsCSV(req, res) {
       const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`;
       const parentAccessCode = generateParentAccessCode(lrn);
       const personalEmail = (item.personalEmail || item.email || item['Email Address'] || item['Email'] || `${lrn}@salintinig.edu.ph`).trim();
-      const parentEmail = (item.parentEmail || item['Parent Email'] || `parent.${lrn}@gmail.com`).trim();
+      const parentEmail = (item.parentEmail || item['Parent Email'] || '').trim();
       const gender = item.gender || item.sex || item['Gender'] || 'Male';
-      const grade = item.grade || item.gradeLevel || item['Grade Level'] || 'Grade 4';
-      const section = item.section || item.sectionName || item['Section'] || 'Fyang';
+      const grade = (item.grade || item.gradeLevel || item['Grade Level'] || '').trim();
+      const section = (item.section || item.sectionName || item['Section'] || '').trim();
 
       const cleanParentEmail = parentEmail && String(parentEmail).trim() && String(parentEmail).trim() !== 'undefined' ? String(parentEmail).trim() : null;
 
@@ -542,13 +606,15 @@ async function importStudentsCSV(req, res) {
           const bcrypt = require('bcryptjs');
           const salt = bcrypt.genSaltSync(10);
           const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
+          const adminSchoolId = await getAdminSchoolId(req);
+          console.log(`[importStudentsCSV] Resolved adminSchoolId: ${adminSchoolId}`);
 
           const { rows: userRows } = await db.query(
-            `INSERT INTO users (email, password_hash, role, status)
-             VALUES ($1, $2, 'student', 'active')
-             ON CONFLICT (email) DO UPDATE SET password_hash = $2, status = 'active'
+            `INSERT INTO users (school_id, email, password_hash, role, status)
+             VALUES ($1, $2, $3, 'student', 'active')
+             ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, status = 'active'
              RETURNING user_id`,
-            [personalEmail, hashedPass]
+            [adminSchoolId, personalEmail, hashedPass]
           );
 
           if (userRows && userRows[0]) {
@@ -595,22 +661,17 @@ async function importStudentsCSV(req, res) {
                 );
               }
 
-              // Ensure class/section exists and bind student to active school year history
-              const activeSchoolYear = '2026-2027';
+              // Ensure class/section strictly exists in database (do NOT auto-create invalid section names)
               let classId = null;
               const { rows: existingClass } = await db.query(
-                `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+                `SELECT class_id FROM classes WHERE LOWER(grade_level) = LOWER($1) AND LOWER(section_name) = LOWER($2) LIMIT 1`,
                 [grade, section]
               );
 
               if (existingClass && existingClass[0]) {
                 classId = existingClass[0].class_id;
               } else {
-                const { rows: newClass } = await db.query(
-                  `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-                  [grade, section]
-                );
-                if (newClass && newClass[0]) classId = newClass[0].class_id;
+                console.warn(`⚠️ Skipped grade/section binding: Class "${grade} - ${section}" does not exist in database.`);
               }
 
               if (classId) {

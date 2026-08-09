@@ -20,9 +20,11 @@ import {
   Prohibit,
   UserSwitch,
   CaretDown,
+  ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import * as XLSX from 'xlsx';
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -61,7 +63,6 @@ export default function AdminStudentRecords() {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState('select');
-  const [simulatedErrorMode, setSimulatedErrorMode] = useState(false);
   const [uploadSummary, setUploadSummary] = useState(null);
 
   // Toast notification
@@ -338,39 +339,131 @@ export default function AdminStudentRecords() {
     setUploadStep('validating');
 
     try {
-      // Parse real CSV file content
-      const text = await selectedFile.text();
-      const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+      const VALID_SECTIONS = ['Fyang', 'Kalapati', 'Agila', 'Sampaguita', 'Narra', 'Rizal'];
+      const validationErrors = [];
       const parsedList = [];
 
-      if (lines.length > 1) {
-        const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
-          if (cols.length >= 2) {
-            const rowObj = {};
-            headers.forEach((h, idx) => {
-              rowObj[h] = cols[idx] || '';
-            });
+      let rawRows = [];
+
+      // Read file depending on extension (.xlsx, .xls vs .csv)
+      const fileName = selectedFile.name.toLowerCase();
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      } else {
+        // Plain CSV text parsing
+        const text = await selectedFile.text();
+        const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+        if (lines.length > 1) {
+          const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+            if (cols.length >= 2) {
+              const rowObj = {};
+              headers.forEach((h, idx) => {
+                rowObj[h] = cols[idx] || '';
+              });
+              rowObj._rawCols = cols;
+              rawRows.push(rowObj);
+            }
+          }
+        }
+      }
+
+      if (rawRows.length === 0) {
+        validationErrors.push('The uploaded file contains no data rows.');
+      } else {
+        const seenLrnInFile = new Set();
+        const seenStudentEmailInFile = new Set();
+        const seenParentEmailInFile = new Set();
+
+        const existingLrns = new Set(students.map((s) => String(s.lrn).trim()));
+        const existingPersonalEmails = new Set(students.map((s) => String(s.personalEmail || s.email || '').trim().toLowerCase()).filter(Boolean));
+        const existingParentEmails = new Set(students.map((s) => String(s.parentEmail || '').trim().toLowerCase()).filter(Boolean));
+
+        for (let i = 0; i < rawRows.length; i++) {
+          const rowObj = rawRows[i];
+          const cols = rowObj._rawCols || [];
+
+          const rawLrn = String(rowObj['LRN'] || rowObj['lrn'] || rowObj['Student LRN'] || cols[0] || '').trim();
+          const rawSection = String(rowObj['Section'] || rowObj['section'] || cols[6] || '').trim();
+          const rawStudentEmail = String(rowObj['Student Email'] || rowObj['Email Address'] || rowObj['personalEmail'] || rowObj['Email'] || cols[7] || '').trim().toLowerCase();
+          const rawParentEmail = String(rowObj['Parent Email'] || rowObj['parentEmail'] || cols[8] || '').trim().toLowerCase();
+          
+          // Validate DepEd 12-digit LRN format
+          if (!rawLrn || !/^\d{12}$/.test(rawLrn)) {
+            validationErrors.push(`Row ${i + 1}: Invalid LRN "${rawLrn || 'blank'}". LRN must be exactly 12 digits.`);
+          } else {
+            // Check duplicate LRN within the same file
+            if (seenLrnInFile.has(rawLrn)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate LRN "${rawLrn}" found in the file.`);
+            } else {
+              seenLrnInFile.add(rawLrn);
+            }
+
+            // Check duplicate LRN against existing system records
+            if (existingLrns.has(rawLrn)) {
+              validationErrors.push(`Row ${i + 1}: LRN "${rawLrn}" already exists in the system masterlist.`);
+            }
+          }
+
+          // Validate Student Email duplicates if provided
+          if (rawStudentEmail) {
+            if (seenStudentEmailInFile.has(rawStudentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate Student Email "${rawStudentEmail}" found in the file.`);
+            } else {
+              seenStudentEmailInFile.add(rawStudentEmail);
+            }
+
+            if (existingPersonalEmails.has(rawStudentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Student Email "${rawStudentEmail}" already exists in the system.`);
+            }
+          }
+
+          // Validate Parent Email duplicates if provided
+          if (rawParentEmail) {
+            if (seenParentEmailInFile.has(rawParentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Duplicate Parent Email "${rawParentEmail}" found in the file.`);
+            } else {
+              seenParentEmailInFile.add(rawParentEmail);
+            }
+
+            if (existingParentEmails.has(rawParentEmail)) {
+              validationErrors.push(`Row ${i + 1}: Parent Email "${rawParentEmail}" already exists in the system.`);
+            }
+          }
+
+          // Check if section exists in official school sections
+          if (rawSection && !VALID_SECTIONS.some((s) => s.toLowerCase() === rawSection.toLowerCase())) {
+            validationErrors.push(`Row ${i + 1}: Invalid section "${rawSection}". Valid sections: ${VALID_SECTIONS.join(', ')}`);
+          }
+
+          if (validationErrors.length === 0) {
             parsedList.push({
-              lrn: rowObj['LRN'] || rowObj['lrn'] || rowObj['Student LRN'] || cols[0],
-              firstName: rowObj['First Name'] || rowObj['firstName'] || cols[1],
-              middleName: rowObj['Middle Name'] || rowObj['middleName'] || cols[2],
-              lastName: rowObj['Last Name'] || rowObj['lastName'] || cols[3],
-              gender: rowObj['Gender'] || rowObj['gender'] || rowObj['Sex'] || cols[4] || 'Male',
-              grade: rowObj['Grade Level'] || rowObj['grade'] || cols[5] || 'Grade 4',
-              section: rowObj['Section'] || rowObj['section'] || cols[6] || 'Fyang',
-              personalEmail: rowObj['Student Email'] || rowObj['Email Address'] || rowObj['personalEmail'] || rowObj['Email'] || cols[7],
-              parentEmail: rowObj['Parent Email'] || rowObj['parentEmail'] || cols[8],
+              lrn: rawLrn,
+              firstName: String(rowObj['First Name'] || rowObj['firstName'] || cols[1] || '').trim(),
+              middleName: String(rowObj['Middle Name'] || rowObj['middleName'] || cols[2] || '').trim(),
+              lastName: String(rowObj['Last Name'] || rowObj['lastName'] || cols[3] || '').trim(),
+              gender: String(rowObj['Gender'] || rowObj['gender'] || rowObj['Sex'] || cols[4] || 'Male').trim(),
+              grade: String(rowObj['Grade Level'] || rowObj['grade'] || cols[5] || '').trim(),
+              section: rawSection,
+              personalEmail: rawStudentEmail,
+              parentEmail: rawParentEmail,
             });
           }
         }
       }
 
-      if (parsedList.length === 0) {
+      if (validationErrors.length > 0) {
         setIsUploading(false);
-        setUploadStep('error');
-        showToast('No valid student rows found in the CSV file.');
+        setUploadSummary({
+          success: false,
+          errors: validationErrors,
+        });
+        setUploadStep('summary');
         return;
       }
 
@@ -394,13 +487,19 @@ export default function AdminStudentRecords() {
         });
         setUploadStep('summary');
       } else {
-        setUploadStep('error');
-        showToast(data.error || 'Failed to import CSV records.');
+        setUploadSummary({
+          success: false,
+          errors: [data.error || 'Failed to import CSV records.'],
+        });
+        setUploadStep('summary');
       }
     } catch (err) {
       setIsUploading(false);
-      setUploadStep('error');
-      showToast('Network error while processing CSV upload.');
+      setUploadSummary({
+        success: false,
+        errors: ['Network error while processing CSV upload.'],
+      });
+      setUploadStep('summary');
     }
   };
 
@@ -448,7 +547,7 @@ export default function AdminStudentRecords() {
             className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
           >
             <DownloadSimple size={16} />
-            <span>Download CSV Template</span>
+            <span>Download Template</span>
           </button>
           <button
             type="button"
@@ -461,7 +560,7 @@ export default function AdminStudentRecords() {
             className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-brand-blue hover:bg-brand-blue/5 transition-colors cursor-pointer"
           >
             <CloudArrowUp size={16} />
-            <span>Upload Records (CSV)</span>
+            <span>Batch Upload Records (CSV / Excel)</span>
           </button>
           <button
             type="button"
@@ -954,7 +1053,7 @@ export default function AdminStudentRecords() {
       {/* Upload CSV Modal */}
       {showUploadModal && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-ink/10">
               <div className="flex items-center gap-2">
                 <FileCsv size={22} className="text-brand-blue" />
@@ -974,7 +1073,7 @@ export default function AdminStudentRecords() {
                 <input
                   type="file"
                   id="csvFileInput"
-                  accept=".csv, text/csv, application/vnd.ms-excel"
+                  accept=".csv, .xlsx, .xls, text/csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -1002,10 +1101,11 @@ export default function AdminStudentRecords() {
                     setIsDraggingFile(false);
                     const droppedFile = e.dataTransfer?.files?.[0];
                     if (droppedFile) {
-                      if (droppedFile.name.endsWith('.csv') || droppedFile.type.includes('csv') || droppedFile.type.includes('excel')) {
+                      const fname = droppedFile.name.toLowerCase();
+                      if (fname.endsWith('.csv') || fname.endsWith('.xlsx') || fname.endsWith('.xls') || droppedFile.type.includes('csv') || droppedFile.type.includes('excel') || droppedFile.type.includes('spreadsheetml')) {
                         setSelectedFile(droppedFile);
                       } else {
-                        showToast('Please drop a valid .csv file.');
+                        showToast('Please drop a valid .csv or .xlsx Excel file.');
                       }
                     }
                   }}
@@ -1026,21 +1126,11 @@ export default function AdminStudentRecords() {
                   ) : (
                     <div>
                       <p className="font-semibold text-ink">
-                        {isDraggingFile ? 'Drop your CSV file here' : 'Drag & Drop CSV file here or click to browse'}
+                        {isDraggingFile ? 'Drop your CSV or Excel file here' : 'Drag & Drop CSV / Excel file here or click to browse'}
                       </p>
-                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv format (max 5MB)</p>
+                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv, .xlsx, .xls format (max 5MB)</p>
                     </div>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-ink/5 p-3 text-[11px]">
-                  <span className="font-semibold text-ink/80">Simulate Upload Errors Mode</span>
-                  <input
-                    type="checkbox"
-                    checked={simulatedErrorMode}
-                    onChange={(e) => setSimulatedErrorMode(e.target.checked)}
-                    className="size-4 accent-brand-blue cursor-pointer"
-                  />
                 </div>
 
                 <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
@@ -1098,20 +1188,34 @@ export default function AdminStudentRecords() {
                   <div className="rounded-xl bg-brand-red/10 border border-brand-red/30 p-4 text-brand-red">
                     <div className="flex items-center gap-2 mb-2">
                       <WarningCircle size={20} weight="fill" />
-                      <h4 className="font-bold text-sm">Validation Errors Found</h4>
+                      <h4 className="font-bold text-sm">Validation Errors Found ({uploadSummary.errors.length})</h4>
                     </div>
                     <p className="text-xs text-ink/80 mb-2">
                       The uploaded file contains missing or invalid fields:
                     </p>
-                    <ul className="list-disc pl-5 space-y-1 text-[11px] font-semibold text-brand-red">
-                      {uploadSummary.errors.map((err, i) => (
-                        <li key={i}>{err}</li>
-                      ))}
-                    </ul>
+                    <div className="max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                      <ul className="list-disc pl-5 space-y-1.5 text-[11px] font-semibold text-brand-red">
+                        {uploadSummary.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 )}
 
-                <div className="pt-3 flex items-center justify-end border-t border-ink/10">
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setUploadStep('select');
+                      setUploadSummary(null);
+                    }}
+                    className="rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/70 hover:bg-ink/5 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ArrowClockwise size={15} />
+                    <span>Upload Again</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
