@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { House, PresentationChart, Article, FlagPennant, Bell } from '@phosphor-icons/react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { House, PresentationChart, Article, FlagPennant, Bell, List, X } from '@phosphor-icons/react';
 import logo from '../../../assets/logo/logo.webp';
 import ProfileDropdown from './ProfileDropdown.jsx';
 
@@ -19,6 +19,7 @@ const sampleNotifications = [
 export default function TopNav() {
   const navigate = useNavigate();
   const [showNotifPopover, setShowNotifPopover] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
 
   useEffect(() => {
@@ -34,22 +35,22 @@ export default function TopNav() {
   return (
     <header className="sticky top-0 z-30 border-b border-ink/10 bg-cream/95 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] backdrop-blur-md">
       <div className="mx-auto flex h-14 sm:h-16 max-w-[1480px] items-center justify-between px-6 sm:px-8 lg:px-10">
-        {/* Logo Branding */}
-        <div className="flex shrink-0 items-center gap-2.5">
+        {/* Clickable Logo Branding */}
+        <Link to="/dashboard/overview" className="flex shrink-0 items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer">
           <img src={logo} alt="SalinTinig" className="h-8 w-auto" />
           <span className="text-lg sm:text-xl font-bold tracking-tight text-ink font-sans">
             SalinTinig
           </span>
-        </div>
+        </Link>
 
-        {/* Navigation Tabs with Underline Indicator */}
-        <nav className="flex h-full min-w-0 items-center justify-center gap-3 sm:gap-6 md:gap-8">
+        {/* Desktop Navigation Tabs (Visible on lg screens 1024px+) */}
+        <nav className="hidden lg:flex h-full items-center justify-center gap-4 lg:gap-6">
           {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `relative flex h-full shrink-0 items-center gap-2 px-2.5 text-sm font-semibold transition-colors sm:px-3.5 ${
+                `relative flex h-full shrink-0 items-center gap-2 px-3 text-sm font-semibold transition-colors ${
                   isActive
                     ? 'text-brand-red'
                     : 'text-ink/70 hover:text-ink'
@@ -59,7 +60,7 @@ export default function TopNav() {
               {({ isActive }) => (
                 <>
                   <Icon size={20} weight="regular" className="shrink-0" />
-                  <span className="hidden md:inline">{label}</span>
+                  <span>{label}</span>
                   {isActive && (
                     <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-t-full bg-brand-red" />
                   )}
@@ -69,8 +70,8 @@ export default function TopNav() {
           ))}
         </nav>
 
-        {/* User Profile & Notification Bell Dropdown */}
-        <div className="flex shrink-0 items-center gap-5 sm:gap-6">
+        {/* User Profile & Notification Bell & Mobile Menu Button */}
+        <div className="flex shrink-0 items-center gap-3 sm:gap-5">
           <div className="relative" ref={notifRef}>
             <button
               type="button"
@@ -106,8 +107,41 @@ export default function TopNav() {
           </div>
 
           <ProfileDropdown role="teacher" />
+
+          {/* Mobile / Tablet Navigation Menu Toggle */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="flex lg:hidden size-9 items-center justify-center rounded-full text-ink/70 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
+            title="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile / Tablet Navigation Dropdown Drawer (< 1024px) */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-ink/10 bg-cream p-4 space-y-1.5 shadow-lg animate-fade-in">
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  isActive
+                    ? 'bg-brand-red text-cream shadow-xs'
+                    : 'text-ink/80 hover:bg-ink/5 hover:text-ink'
+                }`
+              }
+            >
+              <Icon size={18} weight="regular" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
     </header>
   );
 }

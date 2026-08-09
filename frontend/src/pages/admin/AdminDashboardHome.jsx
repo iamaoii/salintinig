@@ -256,7 +256,7 @@ export default function AdminDashboardHome() {
       {/* Summary Stat Cards */}
       <div>
         <h2 className="text-sm font-bold text-ink mb-2.5">System Summary</h2>
-        <div className="grid grid-cols-5 gap-2.5 w-full overflow-x-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
           {STAT_CARDS.map((card) => {
             const Icon = card.icon;
             return (
