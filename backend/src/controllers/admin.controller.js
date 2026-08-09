@@ -824,6 +824,16 @@ async function approveAccountRequest(req, res) {
             [requestId]
           );
 
+          await db.query(
+            `INSERT INTO notifications (school_id, title, message, notification_type)
+             VALUES ($1, $2, $3, 'account_approval')`,
+            [
+              targetRequest.school_id || '109283',
+              `Account Approved: ${targetRequest.first_name} ${targetRequest.last_name}`,
+              `Teacher account for ${targetRequest.first_name} ${targetRequest.last_name} (${targetRequest.email}) was approved.`,
+            ]
+          );
+
           sendWelcomeEmailWithTempPassword({
             toEmail: targetRequest.email,
             fullName: targetRequest.full_name,
@@ -917,11 +927,28 @@ async function rejectAccountRequest(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const reqRes = await db.query('SELECT * FROM account_requests WHERE request_id = $1 LIMIT 1', [requestId]);
+        const targetReq = reqRes.rows?.[0];
+
         await db.query(
           "UPDATE account_requests SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE request_id = $1",
           [requestId]
         );
-      } catch (e) {}
+
+        if (targetReq) {
+          await db.query(
+            `INSERT INTO notifications (school_id, title, message, notification_type)
+             VALUES ($1, $2, $3, 'account_rejection')`,
+            [
+              targetReq.school_id || '109283',
+              `Account Request Rejected`,
+              `Account activation request for ${targetReq.first_name} ${targetReq.last_name} (${targetReq.email}) was rejected.`,
+            ]
+          );
+        }
+      } catch (e) {
+        console.warn('Reject account request DB notice:', e.message);
+      }
     }
 
     return res.json({ success: true, message: 'Account request rejected.' });
