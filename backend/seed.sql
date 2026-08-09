@@ -52,25 +52,21 @@ ON CONFLICT (email) DO UPDATE SET
 -- -----------------------------------------------------------------------------
 -- 4. SEED TEACHER PROFILE RECORD
 -- -----------------------------------------------------------------------------
-INSERT INTO teachers (user_id, school_id, teacher_no, first_name, middle_name, last_name, sex, contact_number)
+INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name, sex)
 SELECT 
     user_id, 
-    school_id, 
     'EMP-2024-001', 
     'Gaile', 
     'Maria', 
     'Espinosa', 
-    'Female', 
-    '+63 917 123 4567'
+    'Female'
 FROM users 
 WHERE email = 'teacher@gmail.com'
 ON CONFLICT (teacher_no) DO UPDATE SET 
-    school_id = EXCLUDED.school_id, 
     first_name = EXCLUDED.first_name, 
     middle_name = EXCLUDED.middle_name, 
     last_name = EXCLUDED.last_name, 
-    sex = EXCLUDED.sex,
-    contact_number = EXCLUDED.contact_number;
+    sex = EXCLUDED.sex;
 
 -- -----------------------------------------------------------------------------
 -- 5. SEED CLASS SECTIONS (Grade 4, Grade 5, Grade 6)

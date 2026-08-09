@@ -58,13 +58,11 @@ CREATE TABLE IF NOT EXISTS school_years (
 CREATE TABLE IF NOT EXISTS teachers (
     teacher_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE SET NULL,
     teacher_no VARCHAR(50) UNIQUE NOT NULL, -- Employee ID
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
     sex VARCHAR(20) DEFAULT 'Male',
-    contact_number VARCHAR(50),
     profile_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

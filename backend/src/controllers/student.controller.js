@@ -281,7 +281,6 @@ async function createStudent(req, res) {
         const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
 
         const adminSchoolId = await getAdminSchoolId(req);
-
         console.log(`[createStudent] Resolved adminSchoolId: ${adminSchoolId}`);
 
         const { rows: userRows } = await db.query(
