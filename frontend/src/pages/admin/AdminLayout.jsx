@@ -26,26 +26,7 @@ const NAV_ITEMS = [
   { to: '/admin/reports', label: 'Phil-IRI Reports', icon: ChartBar },
 ];
 
-const adminNotifications = [
-  {
-    id: 1,
-    title: 'Adrian Completed Oral Reading Assessment',
-    time: '3 minutes ago',
-    description: 'Finished reading the passage aloud and answered the comprehension questions successfully.',
-  },
-  {
-    id: 2,
-    title: 'Janna Completed Oral Reading Assessment',
-    time: '4 minutes ago',
-    description: 'Finished reading the passage aloud and answered the comprehension questions successfully.',
-  },
-  {
-    id: 3,
-    title: 'Batch Import Completed for Grade 4',
-    time: '15 minutes ago',
-    description: '52 new student accounts created and credentials dispatched to registered parent emails.',
-  },
-];
+
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -54,9 +35,60 @@ export default function AdminLayout() {
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
 
   const [adminInfo, setAdminInfo] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
+
+  // Fetch live notifications
+  const fetchNotifications = async () => {
+    try {
+      setLoadingNotifs(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch notifications:', err.message);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.warn('Error marking notification as read:', err.message);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      await fetch('http://localhost:5000/api/notifications/read-all', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.warn('Error marking all notifications as read:', err.message);
+    }
+  };
 
   // Close notification popover on outside click
   useEffect(() => {
@@ -68,6 +100,10 @@ export default function AdminLayout() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [location.pathname]);
 
   useEffect(() => {
     const fetchAdminInfo = async () => {
@@ -86,7 +122,10 @@ export default function AdminLayout() {
     };
     fetchAdminInfo();
 
-    const handleSYChange = () => fetchAdminInfo();
+    const handleSYChange = () => {
+      fetchAdminInfo();
+      fetchNotifications();
+    };
     window.addEventListener('schoolYearChanged', handleSYChange);
     return () => window.removeEventListener('schoolYearChanged', handleSYChange);
   }, []);
@@ -145,7 +184,9 @@ export default function AdminLayout() {
                 title="Notifications"
               >
                 <Bell size={20} weight="bold" />
-                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-red" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-red animate-pulse" />
+                )}
               </button>
 
               {/* Notification Popover Dropdown */}
@@ -154,32 +195,64 @@ export default function AdminLayout() {
                   <div className="flex items-center justify-between pb-2 border-b border-ink/10">
                     <div className="flex items-center gap-1.5">
                       <h4 className="text-xs font-bold text-ink">Notifications</h4>
-                      <span className="rounded-full bg-brand-red/10 px-2 py-0.2 text-[9px] font-bold text-brand-red">
-                        {adminNotifications.length} New
-                      </span>
+                      {unreadCount > 0 && (
+                        <span className="rounded-full bg-brand-red/10 px-2 py-0.2 text-[9px] font-bold text-brand-red">
+                          {unreadCount} Unread
+                        </span>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowNotifPopover(false);
-                        navigate('/admin/notifications');
-                      }}
-                      className="text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer"
-                    >
-                      View All
-                    </button>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllAsRead}
+                          className="font-semibold text-ink/60 hover:text-ink hover:underline cursor-pointer"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNotifPopover(false);
+                          navigate('/admin/notifications');
+                        }}
+                        className="font-semibold text-brand-blue hover:underline cursor-pointer"
+                      >
+                        View All
+                      </button>
+                    </div>
                   </div>
 
                   <div className="divide-y divide-ink/10 max-h-72 overflow-y-auto">
-                    {adminNotifications.map((notif) => (
-                      <div key={notif.id} className="py-2.5 px-1 hover:bg-ink/[0.02] rounded-xl transition-colors">
-                        <div className="flex items-center justify-between gap-2">
-                          <h5 className="text-xs font-bold text-ink truncate">{notif.title}</h5>
-                          <span className="text-[9px] text-ink/40 shrink-0">{notif.time}</span>
-                        </div>
-                        <p className="text-[11px] text-ink/60 mt-0.5 leading-snug line-clamp-2">{notif.description}</p>
+                    {notifications.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <Bell size={32} weight="regular" className="text-ink/30 mb-2" />
+                        <p className="text-xs font-bold text-ink">All caught up!</p>
+                        <p className="text-[11px] text-ink/50 mt-0.5">No unread notifications at the moment.</p>
                       </div>
-                    ))}
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => !notif.is_read && handleMarkAsRead(notif.id)}
+                          className={`py-2.5 px-2 hover:bg-ink/[0.03] rounded-xl transition-colors cursor-pointer ${
+                            !notif.is_read ? 'bg-brand-blue/[0.04]' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                              {!notif.is_read && <span className="size-1.5 rounded-full bg-brand-red shrink-0" />}
+                              <h5 className="text-xs font-bold text-ink truncate">{notif.title}</h5>
+                            </div>
+                            <span className="text-[9px] text-ink/40 shrink-0">
+                              {new Date(notif.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-ink/60 mt-0.5 leading-snug line-clamp-2">{notif.message}</p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
@@ -288,13 +361,28 @@ export default function AdminLayout() {
                   </button>
                 </div>
                 <div className="flex flex-col divide-y divide-ink/10">
-                  {adminNotifications.map((n) => (
-                    <div key={n.id} className="py-3 first:pt-0 last:pb-0">
-                      <p className="text-sm font-medium text-ink">{n.title}</p>
-                      <p className="mt-1 text-xs text-ink/40">{n.time}</p>
-                      <p className="mt-1 text-sm text-ink/60">{n.description}</p>
+                  {loadingNotifs ? (
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-ink/50">
+                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                      <span className="text-xs font-semibold text-ink/70">Loading notifications...</span>
                     </div>
-                  ))}
+                  ) : notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <Bell size={36} weight="regular" className="text-ink/30 mb-2" />
+                      <p className="text-xs font-bold text-ink">No Notifications Available</p>
+                      <p className="text-[11px] text-ink/50 mt-0.5 max-w-[200px] leading-snug">System updates and activity alerts will appear here.</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 3).map((n) => (
+                      <div key={n.id} className="py-3 first:pt-0 last:pb-0">
+                        <p className="text-sm font-medium text-ink">{n.title}</p>
+                        <p className="mt-1 text-xs text-ink/40">
+                          {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="mt-1 text-sm text-ink/60">{n.message}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </aside>

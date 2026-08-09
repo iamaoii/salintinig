@@ -193,22 +193,22 @@ export default function AdminAccountRequests() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="border border-ink/10 p-8 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                        <span className="text-xs font-semibold">Loading account activation requests...</span>
+                    <td colSpan={7} className="border border-ink/10 p-12 text-center text-ink/50">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="size-10 rounded-full border-4 border-ink/10 border-t-brand-blue animate-spin" />
+                        <span className="text-xs font-bold text-ink/70">Loading account activation requests...</span>
                       </div>
                     </td>
                   </tr>
                 ) : filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="border border-ink/10 p-10 text-center">
-                      <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
-                        <UserCheck size={40} className="text-ink/30" />
-                        <h4 className="text-sm font-bold text-ink">
+                    <td colSpan={7} className="border border-ink/10 p-12 text-center">
+                      <div className="mx-auto max-w-sm flex flex-col items-center justify-center">
+                        <UserCheck size={48} weight="regular" className="text-ink/30 mb-3" />
+                        <h4 className="text-sm font-bold text-ink tracking-tight">
                           {requests.length === 0 ? 'No Account Activation Requests' : 'No Matching Account Requests'}
                         </h4>
-                        <p className="text-xs text-ink/60 leading-relaxed">
+                        <p className="mt-1 text-xs text-ink/60 leading-relaxed">
                           {requests.length === 0
                             ? 'There are currently no account activation requests submitted by teachers.'
                             : 'No account activation requests match your search or status filter.'}
