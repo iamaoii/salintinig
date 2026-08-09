@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller.js');
 const studentController = require('../controllers/student.controller.js');
+const teacherController = require('../controllers/teacher.controller.js');
 const { verifyToken, requireRole } = require('../middleware/auth.middleware.js');
 
 // Public or Dashboard stats endpoint
@@ -14,10 +15,13 @@ router.use(requireRole('admin'));
 
 router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);
-router.get('/teachers', adminController.getTeachers);
-router.post('/teachers', adminController.createTeacher);
-router.put('/teachers/:id', adminController.updateTeacher);
-router.delete('/teachers/:id', adminController.deleteTeacher);
+
+// Teacher management endpoints
+router.get('/teachers', teacherController.getTeachers);
+router.post('/teachers', teacherController.createTeacher);
+router.put('/teachers/:id', teacherController.updateTeacher);
+router.delete('/teachers/:id', teacherController.deleteTeacher);
+router.post('/teachers/import-csv', teacherController.importTeachersCSV);
 
 // Section & Faculty Assignment endpoints
 router.get('/sections', adminController.getSections);
@@ -43,11 +47,9 @@ router.patch('/students/:lrn/status', studentController.toggleStudentStatus);
 router.delete('/students/:lrn', studentController.deleteStudent);
 router.post('/students/import-csv', studentController.importStudentsCSV);
 
-router.post('/import-csv', adminController.batchImportCSV);
-
 // Account Requests Management
-router.get('/account-requests', adminController.getAccountRequests);
-router.post('/account-requests/:id/approve', adminController.approveAccountRequest);
-router.post('/account-requests/:id/reject', adminController.rejectAccountRequest);
+router.get('/account-requests', teacherController.getAccountRequests);
+router.post('/account-requests/:id/approve', teacherController.approveAccountRequest);
+router.post('/account-requests/:id/reject', teacherController.rejectAccountRequest);
 
 module.exports = router;

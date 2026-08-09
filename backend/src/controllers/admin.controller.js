@@ -189,7 +189,7 @@ async function getTeachers(req, res) {
             TO_CHAR(t.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM teachers t
           LEFT JOIN users u ON t.user_id = u.user_id
-          WHERE (t.school_id = $1 OR u.school_id = $1 OR t.school_id IS NULL)
+          WHERE u.school_id = $1
           ORDER BY t.created_at DESC
         `, [schoolId]);
 
@@ -278,11 +278,11 @@ async function createTeacher(req, res) {
           const userId = userRows[0].user_id;
 
           const { rows: tchRows } = await db.query(
-            `INSERT INTO teachers (user_id, school_id, teacher_no, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (teacher_no) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7
+            `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
              RETURNING teacher_id`,
-            [userId, schoolId, cleanEmpId, firstName, middleName || null, lastName, cleanGender]
+            [userId, cleanEmpId, firstName, middleName || null, lastName, cleanGender]
           );
 
           if (tchRows && tchRows[0]) {
@@ -364,7 +364,7 @@ async function getStudents(req, res) {
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
           LEFT JOIN student_parents sp ON sp.student_id = s.student_id
-          WHERE (s.school_id = $1 OR u.school_id = $1 OR s.school_id IS NULL)
+          WHERE u.school_id = $1
           ORDER BY s.student_id, s.created_at DESC
         `, [schoolId]);
 
@@ -430,11 +430,11 @@ async function createStudent(req, res) {
           const userId = uRows[0].user_id;
 
           const { rows: sRows } = await db.query(
-            `INSERT INTO students (user_id, school_id, lrn, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (lrn) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7
+            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
              RETURNING student_id`,
-            [userId, schoolId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
+            [userId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
           );
 
           if (sRows && sRows[0]) {
@@ -813,10 +813,10 @@ async function approveAccountRequest(req, res) {
           const sex = targetRequest.sex || 'Male';
 
           await db.query(
-            `INSERT INTO teachers (user_id, school_id, teacher_no, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (teacher_no) DO UPDATE SET school_id = $2, first_name = $4, middle_name = $5, last_name = $6, sex = $7`,
-            [userId, targetRequest.school_id, teacherNo, firstName, middleName, lastName, sex]
+            `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name, sex)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6`,
+            [userId, teacherNo, firstName, middleName, lastName, sex]
           );
 
           await db.query(
@@ -1630,10 +1630,6 @@ async function updateAdminInfo(req, res) {
 }
 
 module.exports = {
-  getTeachers,
-  createTeacher,
-  updateTeacher,
-  deleteTeacher,
   getSections,
   createSection,
   updateSection,
@@ -1641,12 +1637,8 @@ module.exports = {
   getFacultyAssignments,
   getStudents,
   createStudent,
-  batchImportCSV,
   verifyParentAccessCode,
   assignFaculty,
-  getAccountRequests,
-  approveAccountRequest,
-  rejectAccountRequest,
   getSystemStats,
   getSchoolYears,
   createSchoolYear,

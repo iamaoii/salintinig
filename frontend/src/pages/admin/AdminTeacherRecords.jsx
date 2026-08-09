@@ -17,10 +17,12 @@ import {
   ChalkboardTeacher,
   Prohibit,
   UserSwitch,
+  ArrowClockwise,
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import * as XLSX from 'xlsx';
 
 function parseCsvRows(csvText) {
   const rows = [];
@@ -311,29 +313,140 @@ export default function AdminTeacherRecords() {
     setUploadStep('validating');
 
     try {
-      const csvText = await selectedFile.text();
-      const records = parseCsvRows(csvText);
+      let rawRows = [];
+      const fileName = selectedFile.name.toLowerCase();
 
-      if (records.length === 0) {
-        showToast('CSV file has no teacher records.');
-        setUploadStep('select');
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      } else {
+        const csvText = await selectedFile.text();
+        rawRows = parseCsvRows(csvText);
+      }
+
+      if (!rawRows || rawRows.length === 0) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: ['The uploaded file contains no teacher record rows.'],
+        });
+        setUploadStep('summary');
+        return;
+      }
+
+      // Collect existing system IDs and Emails for duplicate checking
+      const existingEmpIds = new Set(teachers.map((t) => (t.employeeId || '').toUpperCase()));
+      const existingEmails = new Set(teachers.map((t) => (t.email || '').toLowerCase()));
+
+      const validationErrors = [];
+      const seenEmpIdInFile = new Set();
+      const seenEmailInFile = new Set();
+      const validRecords = [];
+
+      rawRows.forEach((row, i) => {
+        const empId = String(
+          row['DepEd Employee ID'] || row['Employee ID'] || row.employeeId || row.employee_id || ''
+        ).trim().toUpperCase();
+
+        let firstName = String(row['First Name'] || row.firstName || row.first_name || '').trim();
+        let middleName = String(row['Middle Name'] || row.middleName || row.middle_name || '').trim();
+        let lastName = String(row['Last Name'] || row.lastName || row.last_name || '').trim();
+
+        if (!firstName || !lastName) {
+          const rawName = String(row['Full Name'] || row.name || row.Name || '').trim();
+          if (rawName) {
+            const parsed = parseNameString(rawName);
+            firstName = firstName || parsed.firstName;
+            middleName = middleName || parsed.middleName;
+            lastName = lastName || parsed.lastName;
+          }
+        }
+
+        const email = String(
+          row['DepEd Email Address'] || row['DepEd Email'] || row.email || row.Email || ''
+        ).trim().toLowerCase();
+
+        const gender = String(row['Sex / Gender'] || row.Gender || row.gender || row.Sex || 'Male').trim();
+
+        // 1. Missing Required Fields Check
+        if (!empId) {
+          validationErrors.push(`Row ${i + 1}: Missing DepEd Employee ID.`);
+        }
+        if (!firstName) {
+          validationErrors.push(`Row ${i + 1}: Missing First Name.`);
+        }
+        if (!lastName) {
+          validationErrors.push(`Row ${i + 1}: Missing Last Name.`);
+        }
+
+        // 2. Duplicate Employee ID in file
+        if (empId) {
+          if (seenEmpIdInFile.has(empId)) {
+            validationErrors.push(`Row ${i + 1}: Duplicate Employee ID "${empId}" found in the uploaded file.`);
+          } else {
+            seenEmpIdInFile.add(empId);
+          }
+
+          // 3. Duplicate Employee ID against system masterlist
+          if (existingEmpIds.has(empId)) {
+            validationErrors.push(`Row ${i + 1}: Employee ID "${empId}" already exists in the system teacher masterlist.`);
+          }
+        }
+
+        // 4. Duplicate Email checks if email is provided
+        if (email) {
+          if (seenEmailInFile.has(email)) {
+            validationErrors.push(`Row ${i + 1}: Duplicate Email "${email}" found in the uploaded file.`);
+          } else {
+            seenEmailInFile.add(email);
+          }
+
+          if (existingEmails.has(email)) {
+            validationErrors.push(`Row ${i + 1}: Email "${email}" already belongs to an existing user in the system.`);
+          }
+        }
+
+        validRecords.push({
+          employeeId: empId,
+          firstName,
+          middleName,
+          lastName,
+          gender,
+          email,
+        });
+      });
+
+      if (validationErrors.length > 0) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: validationErrors,
+        });
+        setUploadStep('summary');
         return;
       }
 
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/import-csv', {
+      const res = await fetch('http://localhost:5000/api/admin/teachers/import-csv', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ type: 'teacher', records }),
+        body: JSON.stringify({ records: validRecords }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        showToast(data.error || 'Failed to import teacher CSV.');
-        setUploadStep('select');
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: [data.error || 'Failed to import teacher records.'],
+        });
+        setUploadStep('summary');
         return;
       }
 
@@ -345,8 +458,13 @@ export default function AdminTeacherRecords() {
       });
       setUploadStep('summary');
     } catch (error) {
-      showToast('Error importing teacher CSV.');
-      setUploadStep('select');
+      console.error('Teacher import error:', error);
+      setIsUploading(false);
+      setUploadSummary({
+        success: false,
+        errors: ['Error processing teacher import file. Please check file format.'],
+      });
+      setUploadStep('summary');
     } finally {
       setIsUploading(false);
     }
@@ -354,7 +472,7 @@ export default function AdminTeacherRecords() {
 
   const handleDownloadTemplate = () => {
     const csvContent =
-      'data:text/csv;charset=utf-8,Employee ID,Full Name,Gender,DepEd Email,Assigned Grade,Assigned Section,Faculty In Charge\nEMP-2024-099,Maria Santos,Female,maria.santos@deped.gov.ph,Unassigned,Unassigned,No';
+      'data:text/csv;charset=utf-8,DepEd Employee ID,First Name,Middle Name,Last Name,Sex / Gender,DepEd Email Address\nEMP-2024-099,Maria,Santos,Dela Cruz,Female,maria.delacruz@deped.gov.ph';
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -403,7 +521,7 @@ export default function AdminTeacherRecords() {
             className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-brand-blue hover:bg-brand-blue/5 transition-colors cursor-pointer"
           >
             <CloudArrowUp size={16} />
-            <span>Upload Teacher CSV</span>
+            <span>Batch Upload Records (CSV / Excel)</span>
           </button>
           <button
             type="button"
@@ -965,12 +1083,26 @@ export default function AdminTeacherRecords() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv, .xlsx, .xls, text/csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={handleCsvFileChange}
                   className="hidden"
                 />
                 <div
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const droppedFile = e.dataTransfer.files?.[0];
+                    if (droppedFile) {
+                      const fname = droppedFile.name.toLowerCase();
+                      if (fname.endsWith('.csv') || fname.endsWith('.xlsx') || fname.endsWith('.xls')) {
+                        setSelectedFile(droppedFile);
+                        setUploadSummary(null);
+                      } else {
+                        showToast('Please drop a valid .csv or .xlsx Excel file.');
+                      }
+                    }
+                  }}
                   className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
                     selectedFile
                       ? 'border-brand-blue bg-brand-blue/5'
@@ -985,8 +1117,8 @@ export default function AdminTeacherRecords() {
                     </div>
                   ) : (
                     <div>
-                      <p className="font-semibold text-ink">Click to select CSV File</p>
-                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv format (max 5MB)</p>
+                      <p className="font-semibold text-ink">Drag & Drop CSV / Excel file here or click to browse</p>
+                      <p className="text-[11px] text-ink/40 mt-0.5">Supports .csv, .xlsx, .xls format (max 5MB)</p>
                     </div>
                   )}
                 </div>
@@ -1005,7 +1137,7 @@ export default function AdminTeacherRecords() {
                     onClick={handleImportTeacherCsv}
                     className="rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                   >
-                    Import Teacher Records
+                    Validate & Import Records
                   </button>
                 </div>
               </div>
@@ -1021,38 +1153,69 @@ export default function AdminTeacherRecords() {
 
             {uploadStep === 'summary' && uploadSummary && (
               <div className="mt-4 space-y-4 text-xs">
-                <div className="rounded-xl bg-[#00a652]/15 border border-[#00a652]/30 p-4 text-[#00a652]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle size={20} weight="fill" />
-                    <h4 className="font-bold text-sm">Faculty Import Complete</h4>
-                  </div>
-                  <p className="text-xs text-ink/80">
-                    Created accounts for <span className="font-bold">{uploadSummary.count} new teachers</span>.
-                  </p>
-                  {uploadSummary.errors?.length > 0 && (
-                    <p className="mt-1 text-xs text-ink/70">
-                      Skipped <span className="font-bold">{uploadSummary.errors.length} rows</span> with missing or duplicate data.
+                {uploadSummary.success ? (
+                  <div className="rounded-xl bg-[#00a652]/15 border border-[#00a652]/30 p-4 text-[#00a652]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle size={20} weight="fill" />
+                      <h4 className="font-bold text-sm">Faculty Import Complete</h4>
+                    </div>
+                    <p className="text-xs text-ink/80">
+                      Created accounts for <span className="font-bold">{uploadSummary.count} new teachers</span>.
                     </p>
-                  )}
+                    {uploadSummary.errors?.length > 0 && (
+                      <p className="mt-1 text-xs text-ink/70">
+                        Skipped <span className="font-bold">{uploadSummary.errors.length} rows</span> with missing or duplicate data.
+                      </p>
+                    )}
 
-                  <div className="mt-3 rounded-lg bg-white p-3 border border-ink/10 space-y-1 text-[11px] text-ink/80">
-                    <div className="flex items-center gap-1.5 font-semibold text-brand-blue">
-                      <Key size={14} />
-                      <span>DepEd Credentials Dispatched</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-semibold text-green-700">
-                      <EnvelopeSimple size={14} />
-                      <span>Activation links sent to official DepEd email addresses</span>
+                    <div className="mt-3 rounded-lg bg-white p-3 border border-ink/10 space-y-1 text-[11px] text-ink/80">
+                      <div className="flex items-center gap-1.5 font-semibold text-brand-blue">
+                        <Key size={14} />
+                        <span>DepEd Credentials Dispatched</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-semibold text-green-700">
+                        <EnvelopeSimple size={14} />
+                        <span>Activation links sent to official DepEd email addresses</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-xl bg-brand-red/10 border border-brand-red/30 p-4 text-brand-red">
+                    <div className="flex items-center gap-2 mb-2">
+                      <WarningCircle size={20} weight="fill" />
+                      <h4 className="font-bold text-sm">Validation Errors Found ({uploadSummary.errors?.length || 0})</h4>
+                    </div>
+                    <p className="text-xs text-ink/80 mb-2">
+                      The uploaded file contains missing, duplicate, or invalid fields:
+                    </p>
+                    <div className="max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                      <ul className="list-disc pl-5 space-y-1.5 text-[11px] font-semibold text-brand-red">
+                        {uploadSummary.errors?.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
-                <div className="pt-3 flex items-center justify-end border-t border-ink/10">
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-ink/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setUploadStep('select');
+                      setUploadSummary(null);
+                    }}
+                    className="rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/70 hover:bg-ink/5 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ArrowClockwise size={15} />
+                    <span>Upload Again</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       setShowUploadModal(false);
-                      showToast('Teacher CSV import completed.');
+                      showToast('Teacher upload workflow completed.');
                     }}
                     className="rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 cursor-pointer"
                   >
