@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/services.dart';
 import 'package:salintinig/pages/auth/set_new_password_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class VerificationPage extends StatefulWidget {
   final String email;
@@ -22,7 +23,7 @@ class _VerificationPageState extends State<VerificationPage> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _hasError = false;
 
-  void _onContinue() {
+  void _onContinue() async {
     Feedback.forTap(context);
     
     // Concatenate code
@@ -35,17 +36,19 @@ class _VerificationPageState extends State<VerificationPage> {
       return;
     }
 
-    // Reference screenshot verification code: 416444
-    if (code == '000000') {
-      setState(() {
-        _hasError = false;
-      });
+    setState(() {
+      _hasError = false;
+    });
 
-      // Verification successful flow -> Push to SetNewPasswordPage!
+    final response = await AuthService.verifyResetCode(widget.email, code);
+
+    if (!mounted) return;
+
+    if (response.success) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const SetNewPasswordPage(),
+          builder: (context) => SetNewPasswordPage(email: widget.email, resetCode: code),
         ),
       );
     } else {
@@ -55,27 +58,43 @@ class _VerificationPageState extends State<VerificationPage> {
     }
   }
 
-  void _onResendCode() {
+  void _onResendCode() async {
     Feedback.forTap(context);
-    setState(() {
-      _hasError = false;
-      for (var controller in _controllers) {
-        controller.clear();
-      }
-      _focusNodes[0].requestFocus();
-    });
+    final response = await AuthService.forgotPassword(widget.email);
+    if (!mounted) return;
+    if (response.success) {
+      setState(() {
+        _hasError = false;
+        for (var controller in _controllers) {
+          controller.clear();
+        }
+        _focusNodes[0].requestFocus();
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'A new verification code has been sent to ${widget.email}!',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'A new verification code has been sent to ${widget.email}!',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+            ),
           ),
+          backgroundColor: Colors.blue,
         ),
-        backgroundColor: Colors.blue,
-      ),
-    );
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.error ?? 'Failed to resend verification code.',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override

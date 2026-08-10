@@ -43,6 +43,7 @@ dependencies:
   google_fonts: ^8.1.0
   iconify_flutter: ^0.0.7
   confetti: ^0.8.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/auth/verification_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -21,7 +22,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _onSendCode() {
+  void _onSendCode() async {
     if (_isLoading) return;
     Feedback.forTap(context);
     final email = _emailController.text.trim();
@@ -42,38 +43,32 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
 
-    // Simulated existing accounts list for demonstration
-    final List<String> existingEmails = [
-      'student@edu.org.ph',
-      'teacher@edu.org.ph',
-    ];
-
-    if (!existingEmails.contains(email.toLowerCase())) {
-      setState(() {
-        _errorMessage = "Account doesn't exist.";
-        _hasError = true;
-      });
-      return;
-    }
-
-    // Success flow
     setState(() {
-      _hasError = false;
       _isLoading = true;
+      _hasError = false;
     });
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VerificationPage(email: email),
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    final response = await AuthService.forgotPassword(email);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
     });
+
+    if (response.success) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VerificationPage(email: email),
+        ),
+      );
+    } else {
+      setState(() {
+        _hasError = true;
+        _errorMessage = response.error ?? "Account doesn't exist or request failed.";
+      });
+    }
   }
 
   @override

@@ -112,6 +112,24 @@ async function login(req, res) {
           }
         }
 
+        // C. Match by Student LRN (lrn) or LRN identifier
+        if (!matchedUser) {
+          const studentQuery = `
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, st.first_name, st.last_name, st.lrn, st.parent_access_code
+            FROM students st
+            JOIN users u ON st.user_id = u.user_id
+            WHERE LOWER(st.lrn) = $1 OR LOWER(u.username) = $1
+            LIMIT 1;
+          `;
+          const { rows: studentRows } = await db.query(studentQuery, [cleanId]);
+          if (studentRows && studentRows.length > 0) {
+            const u = studentRows[0];
+            // Allow matching password_hash or parent_access_code
+            if (checkPasswordMatch(cleanPass, u.password_hash) || (u.parent_access_code && u.parent_access_code.trim() === cleanPass)) {
+              matchedUser = u;
+            }
+          }
+        }
       } catch (dbErr) {
         console.warn('Direct Postgres login query notice:', dbErr.message || dbErr);
       }
@@ -157,10 +175,24 @@ async function login(req, res) {
 
     // Authenticated user formatting
     if (matchedUser) {
-      if (matchedUser.role === 'student' || matchedUser.role === 'parent') {
+      const clientPlatform = (req.headers['x-client-platform'] || req.body.clientPlatform || '').toLowerCase();
+      const isMobileApp = clientPlatform === 'mobile' || req.body.isMobile === true;
+      const expectedRole = (req.headers['x-expected-role'] || req.body.expectedRole || '').toLowerCase();
+
+      // Reject student/parent logins ONLY IF request is from Web Portal (not mobile app)
+      if ((matchedUser.role === 'student' || matchedUser.role === 'parent') && !isMobileApp) {
         return res.status(403).json({
           success: false,
           error: 'This account is only accessible via the Salintinig mobile app.',
+        });
+      }
+
+      // Enforce strict portal/button role matching
+      if (expectedRole && matchedUser.role.toLowerCase() !== expectedRole) {
+        const portalLabel = expectedRole.charAt(0).toUpperCase() + expectedRole.slice(1);
+        return res.status(403).json({
+          success: false,
+          error: `Access denied. This account cannot log in through the ${portalLabel} portal.`,
         });
       }
 

@@ -1,0 +1,104 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:salintinig/services/api_config.dart';
+
+class ApiResponse {
+  final bool success;
+  final dynamic data;
+  final String? message;
+  final String? error;
+  final int statusCode;
+
+  ApiResponse({
+    required this.success,
+    this.data,
+    this.message,
+    this.error,
+    required this.statusCode,
+  });
+
+  factory ApiResponse.fromResponse(http.Response response) {
+    dynamic body;
+    try {
+      body = jsonDecode(response.body);
+    } catch (_) {
+      body = null;
+    }
+
+    final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+    
+    if (body is Map<String, dynamic>) {
+      return ApiResponse(
+        success: body['success'] ?? isSuccess,
+        data: body,
+        message: body['message'] as String?,
+        error: body['error'] as String? ?? (isSuccess ? null : 'Request failed with status ${response.statusCode}'),
+        statusCode: response.statusCode,
+      );
+    }
+
+    return ApiResponse(
+      success: isSuccess,
+      data: body,
+      error: isSuccess ? null : 'Server Error (${response.statusCode})',
+      statusCode: response.statusCode,
+    );
+  }
+
+  factory ApiResponse.error(String errorMessage) {
+    return ApiResponse(
+      success: false,
+      error: errorMessage,
+      statusCode: 500,
+    );
+  }
+}
+
+class ApiService {
+  static String? _authToken;
+
+  static void setAuthToken(String? token) {
+    _authToken = token;
+  }
+
+  static String? get authToken => _authToken;
+
+  static Map<String, String> get _headers {
+    final map = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Client-Platform': 'mobile',
+    };
+    if (_authToken != null && _authToken!.isNotEmpty) {
+      map['Authorization'] = 'Bearer $_authToken';
+    }
+    return map;
+  }
+
+  static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+      final response = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode(body),
+      );
+      return ApiResponse.fromResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Network error: Unable to connect to server. ($e)');
+    }
+  }
+
+  static Future<ApiResponse> get(String endpoint) async {
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+      final response = await http.get(
+        url,
+        headers: _headers,
+      );
+      return ApiResponse.fromResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Network error: Unable to connect to server. ($e)');
+    }
+  }
+}
