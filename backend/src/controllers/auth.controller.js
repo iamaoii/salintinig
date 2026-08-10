@@ -662,6 +662,29 @@ async function resetPassword(req, res) {
           'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
           [hashedPassword, cleanEmail]
         );
+
+        // Audit Log & Notification for Password Reset
+        try {
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ('109283', NULL, 'PASSWORD_RESET', $1, $2)`,
+            [
+              `Password reset completed via email verification code for ${cleanEmail}.`,
+              req.ip || req.headers['x-forwarded-for'] || null,
+            ]
+          );
+
+          await db.query(
+            `INSERT INTO notifications (school_id, title, message, notification_type)
+             VALUES ('109283', $1, $2, 'system')`,
+            [
+              `Password Reset Completed: ${cleanEmail}`,
+              `Password reset was performed for ${cleanEmail}.`,
+            ]
+          );
+        } catch (nErr) {
+          console.warn('Reset password audit notice:', nErr.message);
+        }
       } catch (dbErr) {
         console.warn('Reset password DB update notice:', dbErr.message);
       }
@@ -920,6 +943,36 @@ async function changePassword(req, res) {
            WHERE user_id::text = $2 OR LOWER(email) = LOWER($3)`,
           [hashedPassword, userId || '', userEmail || '']
         );
+
+        // Audit Log & Notification for Password Change
+        try {
+          const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+          const actualUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+
+          await db.query(
+            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+             VALUES ($1, $2, 'CHANGE_PASSWORD', $3, $4)`,
+            [
+              schoolId,
+              actualUserId || null,
+              `User ${userEmail || 'Account'} updated account password.`,
+              req.ip || req.headers['x-forwarded-for'] || null,
+            ]
+          );
+
+          await db.query(
+            `INSERT INTO notifications (school_id, user_id, title, message, notification_type)
+             VALUES ($1, $2, $3, $4, 'system')`,
+            [
+              schoolId,
+              actualUserId || null,
+              `Password Updated`,
+              `Account password for ${userEmail || 'User'} was updated successfully.`,
+            ]
+          );
+        } catch (nErr) {
+          console.warn('Change password audit notice:', nErr.message);
+        }
       } catch (dbErr) {
         console.warn('DB change password notice:', dbErr.message);
       }

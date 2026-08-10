@@ -557,6 +557,35 @@ async function importTeachersCSV(req, res) {
       }
     }
 
+    // Audit Log & Notification for Batch Teacher CSV Import
+    try {
+      const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
+      const count = imported.length;
+
+      await db.query(
+        `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
+         VALUES ($1, $2, 'BATCH_IMPORT_TEACHERS', $3, $4)`,
+        [
+          schoolId || '109283',
+          adminUserId || null,
+          `Batch imported ${count} teacher accounts via CSV upload.`,
+          req.ip || req.headers['x-forwarded-for'] || null,
+        ]
+      );
+
+      await db.query(
+        `INSERT INTO notifications (school_id, title, message, notification_type)
+         VALUES ($1, $2, $3, 'system')`,
+        [
+          schoolId || '109283',
+          `Batch Teacher CSV Import Completed`,
+          `Successfully processed and imported ${count} teacher accounts into the system.`,
+        ]
+      );
+    } catch (nErr) {
+      console.warn('Batch teacher import audit notice:', nErr.message);
+    }
+
     return res.json({
       success: true,
       count: imported.length,
