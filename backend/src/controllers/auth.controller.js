@@ -1,6 +1,7 @@
 const db = require('../config/db.js');
 const { supabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
+const { sendPasswordResetEmail, sendTeacherAccountRequestEmail } = require('../services/emailService.js');
 
 function createToken(user) {
   const secret = process.env.JWT_SECRET || 'salintinig_super_secret_jwt_key_2026';
@@ -297,11 +298,13 @@ async function forgotPassword(req, res) {
       });
     }
 
-    // Check database if user exists
+    let userFullName = '';
+
+    // Check database if user exists and resolve real full name
     if (process.env.DATABASE_URL) {
       try {
         const { rows } = await db.query(
-          'SELECT user_id, email FROM users WHERE LOWER(email) = $1 LIMIT 1',
+          'SELECT user_id, email, role FROM users WHERE LOWER(email) = $1 LIMIT 1',
           [cleanEmail]
         );
         if (!rows || rows.length === 0) {
@@ -311,6 +314,49 @@ async function forgotPassword(req, res) {
           });
         }
         dbUserFound = true;
+        const u = rows[0];
+
+        // 1. Try querying Teachers table by user_id
+        const { rows: tRows } = await db.query(
+          'SELECT first_name, last_name FROM teachers WHERE user_id = $1 LIMIT 1',
+          [u.user_id]
+        );
+        if (tRows && tRows.length > 0 && tRows[0].first_name) {
+          userFullName = `${tRows[0].first_name} ${tRows[0].last_name || ''}`.trim();
+        }
+
+        // 2. Try querying Students table by user_id if not found
+        if (!userFullName) {
+          const { rows: sRows } = await db.query(
+            'SELECT first_name, last_name FROM students WHERE user_id = $1 LIMIT 1',
+            [u.user_id]
+          );
+          if (sRows && sRows.length > 0 && sRows[0].first_name) {
+            userFullName = `${sRows[0].first_name} ${sRows[0].last_name || ''}`.trim();
+          }
+        }
+
+        // 3. Try querying Parents table by user_id if not found
+        if (!userFullName) {
+          const { rows: pRows } = await db.query(
+            'SELECT parent_name FROM parents WHERE user_id = $1 LIMIT 1',
+            [u.user_id]
+          );
+          if (pRows && pRows.length > 0 && pRows[0].parent_name) {
+            userFullName = pRows[0].parent_name.trim();
+          }
+        }
+
+        // 4. Try querying Account Requests table by email if not found
+        if (!userFullName) {
+          const { rows: reqRows } = await db.query(
+            'SELECT first_name, last_name FROM account_requests WHERE LOWER(email) = $1 LIMIT 1',
+            [cleanEmail]
+          );
+          if (reqRows && reqRows.length > 0 && reqRows[0].first_name) {
+            userFullName = `${reqRows[0].first_name} ${reqRows[0].last_name || ''}`.trim();
+          }
+        }
       } catch (dbErr) {
         console.warn('Forgot password DB check notice:', dbErr.message);
       }
@@ -375,94 +421,10 @@ async function forgotPassword(req, res) {
       process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
     ) {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: 'SalinTinig <onboarding@resend.dev>',
-          to: cleanEmail,
-          subject: `${resetCode} is your SalinTinig Password Reset Code`,
-          html: `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <link rel="preconnect" href="https://fonts.googleapis.com">
-              <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-              <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-            </head>
-            <body style="margin: 0; padding: 0; background-color: #f7f5f0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f5f0; padding: 48px 16px;">
-                <tr>
-                  <td align="center">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 18px; border: 1px solid #e5e0d8; box-shadow: 0 4px 14px rgba(26, 24, 22, 0.04); overflow: hidden;">
-                      
-                      <!-- Header Blue Accent Bar -->
-                      <tr>
-                        <td style="background-color: #165fd5; height: 5px;"></td>
-                      </tr>
-
-                      <!-- SalinTinig Brand Header (Matching Frontend Font & Colors) -->
-                      <tr>
-                        <td align="center" style="padding: 32px 36px 20px 36px;">
-                          <span style="font-size: 30px; font-weight: 800; color: #1a1816; letter-spacing: -0.6px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                            SalinTinig
-                          </span>
-                        </td>
-                      </tr>
-
-                      <!-- Decorative Divider -->
-                      <tr>
-                        <td style="padding: 0 36px;">
-                          <div style="border-bottom: 1px solid #f0ece1; width: 100%;"></div>
-                        </td>
-                      </tr>
-
-                      <!-- Main Email Content -->
-                      <tr>
-                        <td style="padding: 28px 36px 20px 36px; text-align: center;">
-                          <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #1a1816; line-height: 1.3; font-family: 'Inter', sans-serif;">
-                            Password Reset Verification
-                          </h1>
-                          <p style="margin: 0 0 24px 0; font-size: 15px; color: #6e6a63; line-height: 1.6; font-family: 'Inter', sans-serif;">
-                            We received a request to reset your account password for <strong style="color: #1a1816;">${cleanEmail}</strong>. Please enter the verification code below:
-                          </p>
-
-                          <!-- Solid Clean Verification Code Container -->
-                          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto 24px auto;">
-                            <tr>
-                              <td align="center" style="background-color: #f4f2ee; border: 1px solid #e0dad0; border-radius: 14px; padding: 22px 16px;">
-                                <span style="font-size: 38px; font-weight: 800; color: #165fd5; letter-spacing: 14px; font-family: 'Inter', 'Courier New', monospace; display: block; margin-left: 14px;">
-                                  ${resetCode}
-                                </span>
-                              </td>
-                            </tr>
-                          </table>
-
-                          <p style="margin: 0 0 18px 0; font-size: 13px; color: #88837a; line-height: 1.5; font-family: 'Inter', sans-serif;">
-                            This code is valid for <strong>10 minutes</strong>. Do not share this code with anyone.
-                          </p>
-                        </td>
-                      </tr>
-
-                      <!-- Footer Notice -->
-                      <tr>
-                        <td style="background-color: #faf8f4; padding: 20px 36px; border-top: 1px solid #f0ece1; text-align: center;">
-                          <p style="margin: 0 0 6px 0; font-size: 12px; color: #88837a; line-height: 1.5; font-family: 'Inter', sans-serif;">
-                            If you did not request a password reset, please ignore this email. Your account is completely safe.
-                          </p>
-                          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #b0aaa0; font-family: 'Inter', sans-serif;">
-                            &copy; 2026 SalinTinig. All rights reserved.
-                          </p>
-                        </td>
-                      </tr>
-
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-          `,
+        sendPasswordResetEmail({
+          toEmail: cleanEmail,
+          fullName: userFullName || cleanEmail.split('@')[0],
+          resetCode,
         });
       } catch (resendErr) {
         console.warn('Resend email error:', resendErr.message);
@@ -836,74 +798,14 @@ async function contactAdmin(req, res) {
     }
 
     // 3. Dispatch Resend notification email to School Admin
-    if (
-      process.env.RESEND_API_KEY &&
-      process.env.RESEND_API_KEY.startsWith('re_') &&
-      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
-    ) {
-      try {
-        const { Resend } = require('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: 'SalinTinig <onboarding@resend.dev>',
-          to: adminEmail,
-          subject: `New Teacher Activation Request from ${computedFullName}`,
-          html: `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <link rel="preconnect" href="https://fonts.googleapis.com">
-              <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-              <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-            </head>
-            <body style="margin: 0; padding: 0; background-color: #f7f5f0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f5f0; padding: 48px 16px;">
-                <tr>
-                  <td align="center">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 18px; border: 1px solid #e5e0d8; box-shadow: 0 4px 14px rgba(26, 24, 22, 0.04); overflow: hidden;">
-                      <tr>
-                        <td style="background-color: #165fd5; height: 5px;"></td>
-                      </tr>
-                      <tr>
-                        <td align="center" style="padding: 32px 36px 20px 36px;">
-                          <span style="font-size: 30px; font-weight: 800; color: #1a1816; letter-spacing: -0.6px;">SalinTinig</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 0 36px;"><div style="border-bottom: 1px solid #f0ece1; width: 100%;"></div></td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 28px 36px 20px 36px;">
-                          <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #1a1816;">New Teacher Account Request</h1>
-                          <p style="margin: 0 0 20px 0; font-size: 15px; color: #6e6a63; line-height: 1.6;">A teacher has submitted an account activation request for School ID <strong>${cleanSchoolId}</strong>:</p>
-                          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f2ee; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Full Name:</strong> ${computedFullName}</td></tr>
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Teacher ID:</strong> ${cleanTeacherNo || 'N/A'}</td></tr>
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Sex / Gender:</strong> ${cleanSex}</td></tr>
-                            <tr><td style="padding: 6px 0; font-size: 14px; color: #1a1816;"><strong>Email:</strong> ${cleanEmail}</td></tr>
-                          </table>
-                          <p style="margin: 0 0 18px 0; font-size: 14px; color: #6e6a63;">Log in to your Admin Dashboard to review and approve this request.</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="background-color: #faf8f4; padding: 20px 36px; border-top: 1px solid #f0ece1; text-align: center;">
-                          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #b0aaa0;">&copy; 2026 SalinTinig. All rights reserved.</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
-          `,
-        });
-      } catch (resendErr) {
-        console.warn('Contact Admin email notice:', resendErr.message);
-      }
-    }
+    sendTeacherAccountRequestEmail({
+      adminEmail,
+      computedFullName,
+      cleanTeacherNo,
+      cleanSex,
+      cleanEmail,
+      cleanSchoolId,
+    });
 
     return res.json({
       success: true,
