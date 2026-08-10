@@ -12,6 +12,17 @@ function generateParentAccessCode() {
   return `PAC-${result}`;
 }
 
+function generateTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let tempPass = 'St-';
+  for (let i = 0; i < 6; i++) {
+    tempPass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return tempPass;
+}
+
+const { sendWelcomeEmailWithTempPassword } = require('../services/emailService.js');
+
 const isDbConfigured = () =>
   process.env.DATABASE_URL &&
   !process.env.DATABASE_URL.includes('password@localhost');
@@ -274,19 +285,21 @@ async function createStudent(req, res) {
       dateAdded,
     };
 
+    const tempPassword = generateTempPassword();
+
     if (isDbConfigured()) {
       try {
         const bcrypt = require('bcryptjs');
         const salt = bcrypt.genSaltSync(10);
-        const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
+        const hashedPass = bcrypt.hashSync(tempPassword, salt);
 
         const adminSchoolId = await getAdminSchoolId(req);
         console.log(`[createStudent] Resolved adminSchoolId: ${adminSchoolId}`);
 
         const { rows: userRows } = await db.query(
-          `INSERT INTO users (school_id, email, password_hash, role, status)
-           VALUES ($1, $2, $3, 'student', 'active')
-           ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, status = 'active'
+          `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
+           VALUES ($1, $2, $3, 'student', 'active', true)
+           ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
           [adminSchoolId, newStudentObj.personalEmail, hashedPass]
         );
@@ -359,6 +372,24 @@ async function createStudent(req, res) {
                 [studentId, classId]
               );
             }
+
+            // Send welcome email with temporary password
+            sendWelcomeEmailWithTempPassword({
+              toEmail: newStudentObj.personalEmail,
+              fullName,
+              role: 'student',
+              tempPassword,
+              identifier: lrn,
+            });
+            if (pEmail && pEmail !== newStudentObj.personalEmail) {
+              sendWelcomeEmailWithTempPassword({
+                toEmail: pEmail,
+                fullName: `Parent of ${fullName}`,
+                role: 'student',
+                tempPassword,
+                identifier: lrn,
+              });
+            }
           }
         }
       } catch (dbErr) {
@@ -366,8 +397,13 @@ async function createStudent(req, res) {
       }
     }
 
-    mockStudents.unshift(newStudentObj);
-    return res.status(201).json({ success: true, student: newStudentObj });
+    mockStudents.unshift({ ...newStudentObj, tempPassword });
+    return res.status(201).json({
+      success: true,
+      message: `Student record created. Temporary password sent to ${newStudentObj.personalEmail}.`,
+      tempPassword,
+      student: newStudentObj,
+    });
   } catch (err) {
     console.error('Error creating student:', err);
     return res.status(500).json({ success: false, error: 'Failed to create student record.' });
@@ -643,6 +679,7 @@ async function importStudentsCSV(req, res) {
 
       const cleanParentEmail = parentEmail && String(parentEmail).trim() && String(parentEmail).trim() !== 'undefined' ? String(parentEmail).trim() : null;
 
+      const tempPassword = generateTempPassword();
       const studentObj = {
         id: `STD-CSV-${Date.now()}-${index}`,
         lrn,
@@ -656,6 +693,7 @@ async function importStudentsCSV(req, res) {
         parentAccessCode,
         parentEmail: cleanParentEmail,
         personalEmail,
+        tempPassword,
         status: 'Active',
         level: 'Instructional',
         dateAdded: new Date().toISOString().split('T')[0],
@@ -665,14 +703,14 @@ async function importStudentsCSV(req, res) {
         try {
           const bcrypt = require('bcryptjs');
           const salt = bcrypt.genSaltSync(10);
-          const hashedPass = bcrypt.hashSync('StudentPassword123!', salt);
+          const hashedPass = bcrypt.hashSync(tempPassword, salt);
           const adminSchoolId = await getAdminSchoolId(req);
           console.log(`[importStudentsCSV] Resolved adminSchoolId: ${adminSchoolId}`);
 
           const { rows: userRows } = await db.query(
-            `INSERT INTO users (school_id, email, password_hash, role, status)
-             VALUES ($1, $2, $3, 'student', 'active')
-             ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, status = 'active'
+            `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
+             VALUES ($1, $2, $3, 'student', 'active', true)
+             ON CONFLICT (email) DO UPDATE SET school_id = EXCLUDED.school_id, password_hash = $3, must_change_password = true, status = 'active'
              RETURNING user_id`,
             [adminSchoolId, personalEmail, hashedPass]
           );
@@ -741,6 +779,24 @@ async function importStudentsCSV(req, res) {
                    ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
                   [studentId, classId]
                 );
+              }
+
+              // Send welcome email with temporary password
+              sendWelcomeEmailWithTempPassword({
+                toEmail: personalEmail,
+                fullName,
+                role: 'student',
+                tempPassword,
+                identifier: lrn,
+              });
+              if (cleanParentEmail && cleanParentEmail !== personalEmail) {
+                sendWelcomeEmailWithTempPassword({
+                  toEmail: cleanParentEmail,
+                  fullName: `Parent of ${fullName}`,
+                  role: 'student',
+                  tempPassword,
+                  identifier: lrn,
+                });
               }
             }
           }

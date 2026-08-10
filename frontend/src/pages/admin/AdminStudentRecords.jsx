@@ -266,7 +266,7 @@ export default function AdminStudentRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`Student ${studentName} registered! Login credentials sent to email.`);
+          showToast(`Student registered successfully. Credentials sent to email.`);
           fetchStudents();
           setShowAddModal(false);
         } else {

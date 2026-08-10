@@ -35,64 +35,7 @@ function hashPassword(plainPassword) {
   }
 }
 
-/**
- * Helper to send Welcome email with temporary credentials via Resend API
- */
-async function sendWelcomeEmailWithTempPassword({ toEmail, fullName, role, tempPassword, identifier }) {
-  if (!toEmail) return;
-  try {
-    if (
-      process.env.RESEND_API_KEY &&
-      process.env.RESEND_API_KEY.startsWith('re_') &&
-      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
-    ) {
-      const { Resend } = require('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: 'SalinTinig <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: `Welcome to SalinTinig — Your Temporary Account Credentials`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
-            <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;">
-              <h1 style="color: #1e3a8a; margin: 0; font-size: 24px;">SalinTinig 🎙️</h1>
-              <p style="color: #64748b; font-size: 14px; margin-top: 4px;">DepEd Phil-IRI Educational Portal</p>
-            </div>
-            
-            <div style="padding: 20px 0;">
-              <p style="font-size: 15px; color: #1e293b;">Hello <strong>${fullName}</strong>,</p>
-              <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-                An official <strong>${role.toUpperCase()}</strong> account has been registered for you on the SalinTinig portal. Here are your temporary login credentials:
-              </p>
-              
-              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0;">
-                <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b;">
-                  <strong>Portal ID / Email:</strong> <code style="background: #e2e8f0; padding: 3px 8px; border-radius: 6px; color: #0f172a; font-size: 14px;">${identifier || toEmail}</code>
-                </p>
-                <p style="margin: 0; font-size: 13px; color: #64748b;">
-                  <strong>Temporary Password:</strong> <code style="background: #fee2e2; padding: 3px 8px; border-radius: 6px; color: #dc2626; font-size: 15px; font-weight: bold;">${tempPassword}</code>
-                </p>
-              </div>
-
-              <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
-                ⚠️ <strong>Important Security Notice:</strong> Please log in to your portal and update your temporary password upon your first login.
-              </p>
-            </div>
-
-            <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center;">
-              <p style="font-size: 12px; color: #94a3b8; margin: 0;">
-                This is an automated notification from the SalinTinig Educational Portal System.
-              </p>
-            </div>
-          </div>
-        `,
-      });
-      console.log(`✅ Welcome email with temporary password sent to ${toEmail}`);
-    }
-  } catch (err) {
-    console.warn(`⚠️ Failed to send welcome email to ${toEmail}:`, err.message);
-  }
-}
+const { sendWelcomeEmailWithTempPassword } = require('../services/emailService.js');
 
 // In-Memory Database Store for backend REST endpoints
 let teachersStore = [];

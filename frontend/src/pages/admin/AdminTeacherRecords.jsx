@@ -258,7 +258,7 @@ export default function AdminTeacherRecords() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showToast(`Teacher ${teacherName} created! Login credentials sent to email.`);
+          showToast(`Teacher registered successfully. Credentials sent to email.`);
           fetchTeachers();
           setShowAddModal(false);
         } else {
