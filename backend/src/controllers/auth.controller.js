@@ -200,6 +200,12 @@ async function login(req, res) {
       let schoolId = matchedUser.school_id || null;
       let empId = matchedUser.teacher_no || null;
 
+      let firstName = matchedUser.first_name || null;
+      let lastName = matchedUser.last_name || null;
+      let lrn = matchedUser.lrn || null;
+      let gradeLevel = null;
+      let sectionName = null;
+
       if (matchedUser.role === 'admin') {
         displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
       } else if (matchedUser.role === 'teacher') {
@@ -208,12 +214,41 @@ async function login(req, res) {
         } else {
           displayName = 'Teacher Account';
         }
+      } else if (matchedUser.role === 'student') {
+        try {
+          const stRes = await db.query(
+            `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+             FROM students st
+             LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+             LEFT JOIN classes c ON sgh.class_id = c.class_id
+             WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
+             ORDER BY sgh.created_at DESC
+             LIMIT 1`,
+            [matchedUser.user_id, matchedUser.email || '']
+          );
+          if (stRes.rows && stRes.rows.length > 0) {
+            const stRow = stRes.rows[0];
+            firstName = stRow.first_name || firstName;
+            lastName = stRow.last_name || lastName;
+            lrn = stRow.lrn || lrn;
+            gradeLevel = stRow.grade_level ? String(stRow.grade_level) : null;
+            sectionName = stRow.section_name || null;
+            displayName = [stRow.first_name, stRow.last_name].filter(Boolean).join(' ');
+          }
+        } catch (stErr) {
+          console.warn('Student detail enrichment warning:', stErr.message);
+        }
       }
 
       const formattedUser = {
         id: matchedUser.user_id,
         username: matchedUser.email,
         name: displayName,
+        firstName: firstName || displayName,
+        lastName,
+        lrn,
+        gradeLevel,
+        sectionName,
         email: matchedUser.email,
         role: matchedUser.role,
         schoolId,
@@ -256,6 +291,47 @@ async function getMe(req, res) {
     if (!user) {
       return res.status(404).json({ success: false, error: 'User profile not found.' });
     }
+
+    const userId = user.id || user.user_id;
+
+    if (process.env.DATABASE_URL && userId) {
+      try {
+        if (user.role === 'student') {
+          const stRes = await db.query(
+            `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+             FROM students st
+             LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+             LEFT JOIN classes c ON sgh.class_id = c.class_id
+             WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
+             ORDER BY sgh.created_at DESC
+             LIMIT 1`,
+            [userId, user.email || '']
+          );
+          if (stRes.rows && stRes.rows.length > 0) {
+            const stRow = stRes.rows[0];
+            const firstName = stRow.first_name || user.firstName;
+            const lastName = stRow.last_name || user.lastName;
+            const displayName = [stRow.first_name, stRow.last_name].filter(Boolean).join(' ');
+
+            return res.json({
+              success: true,
+              user: {
+                ...user,
+                name: displayName || user.name,
+                firstName: firstName || user.firstName || displayName,
+                lastName: lastName || user.lastName,
+                lrn: stRow.lrn || user.lrn,
+                gradeLevel: stRow.grade_level ? String(stRow.grade_level) : (user.gradeLevel || '4'),
+                sectionName: stRow.section_name || user.sectionName || '',
+              },
+            });
+          }
+        }
+      } catch (dbErr) {
+        console.warn('getMe enrichment notice:', dbErr.message);
+      }
+    }
+
     return res.json({ success: true, user });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to fetch user profile.' });

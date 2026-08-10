@@ -340,7 +340,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                               });
 
                                               final navigator = Navigator.of(context);
-                                              final messenger = ScaffoldMessenger.of(context);
 
                                               final response = await AuthService.login(
                                                 email, 
@@ -370,17 +369,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                                   navigator.pushReplacement(
                                                     MaterialPageRoute(
                                                       builder: (context) => const StudentOverviewPage(),
-                                                    ),
-                                                  );
-                                                  messenger.showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        'Logged in successfully!',
-                                                        style: GoogleFonts.inter(
-                                                          fontWeight: FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                      backgroundColor: Colors.green,
                                                     ),
                                                   );
                                                 }

@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:salintinig/services/api_config.dart';
 import 'package:salintinig/pages/common/loading_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('dotenv init notice: $e');
+  }
+  try {
+    await Supabase.initialize(
+      url: ApiConfig.supabaseUrl,
+      anonKey: ApiConfig.supabaseAnonKey,
+    );
+  } catch (e) {
+    debugPrint('Supabase init notice: $e');
+  }
   runApp(const SalinTinigApp());
 }
 

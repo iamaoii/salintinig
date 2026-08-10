@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
@@ -36,12 +38,54 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   bool _isOralReadingDone = false;
   bool _isSilentReadingDone = false;
 
+  dynamic _realtimeSubscription;
+
   @override
   void initState() {
     super.initState();
     _isListeningDone = PhilIriAssessmentPage.isListeningDone;
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+
+    // Refresh user profile immediately and subscribe to instant Supabase Realtime stream
+    _refreshUserProfile();
+    _setupRealtimeSubscription();
+  }
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeSubscription = client
+          .channel('public:student_grade_history')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'student_grade_history',
+            callback: (payload) {
+              _refreshUserProfile();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Realtime stream subscription notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_realtimeSubscription != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeSubscription);
+      } catch (_) {}
+    }
+    super.dispose();
+  }
+
+  Future<void> _refreshUserProfile() async {
+    final res = await AuthService.fetchMe();
+    if (res.success && mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -246,7 +290,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Kumusta, ${AuthService.currentUser?.firstName ?? 'Doechii'}! 👋',
+                                                'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.w800,
@@ -255,41 +299,30 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
-                                              Text(
-                                                'Grade ${AuthService.currentUser?.rawUser?['grade_level'] ?? '4'} - ${AuthService.currentUser?.rawUser?['section'] ?? 'Fyang'}',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 15,
-                                                  color: Colors.white.withValues(alpha: 0.8),
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
+                                               Text(
+                                                 AuthService.currentUser?.sectionName != null && AuthService.currentUser!.sectionName.isNotEmpty
+                                                     ? 'Grade ${AuthService.currentUser?.gradeLevel ?? ''} - ${AuthService.currentUser?.sectionName}'
+                                                     : (AuthService.currentUser?.gradeLevel != null ? 'Grade ${AuthService.currentUser?.gradeLevel}' : ''),
+                                                 style: GoogleFonts.inter(
+                                                   fontSize: 15,
+                                                   color: Colors.white.withValues(alpha: 0.8),
+                                                   fontWeight: FontWeight.w500,
+                                                 ),
+                                               ),
                                             ],
                                           ),
                                         ),
-                                        // User Avatar Profile Picture
-                                        GestureDetector(
-                                          onTap: () {
-                                            Feedback.forTap(context);
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => const ProfilePage(),
-                                              ),
-                                            );
-                                          },
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 2),
-                                            ),
-                                            child: const CircleAvatar(
-                                              radius: 30,
-                                              backgroundImage: NetworkImage(
-                                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-                                              ),
-                                            ),
-                                          ),
-                                        ),
+                                         UserAvatar(
+                                           size: 56,
+                                           onTap: () {
+                                             Navigator.push(
+                                               context,
+                                               MaterialPageRoute(
+                                                 builder: (context) => const ProfilePage(),
+                                               ),
+                                             );
+                                           },
+                                         ),
                                       ],
                                     ),
                                   ),

@@ -340,7 +340,6 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                                });
 
                                                final navigator = Navigator.of(context);
-                                               final messenger = ScaffoldMessenger.of(context);
 
                                                final response = await AuthService.login(
                                                  teacherId, 
@@ -370,17 +369,6 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                                    navigator.pushReplacement(
                                                      MaterialPageRoute(
                                                        builder: (context) => const TeacherOverviewPage(),
-                                                     ),
-                                                   );
-                                                   messenger.showSnackBar(
-                                                     SnackBar(
-                                                       content: Text(
-                                                         'Teacher logged in successfully!',
-                                                         style: GoogleFonts.inter(
-                                                           fontWeight: FontWeight.w600,
-                                                         ),
-                                                       ),
-                                                       backgroundColor: Colors.green,
                                                      ),
                                                    );
                                                  }

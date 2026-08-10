@@ -6,6 +6,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/edit_profile_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -52,7 +53,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _parentAccessCode = "ABCD-1234";
-  String _avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300";
   String _selectedFrame = "None";
 
   // Border frames details
@@ -133,7 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
       MaterialPageRoute(
         builder: (context) => EditProfilePage(
           currentNickname: _displayName,
-          currentAvatarUrl: _avatarUrl,
+          currentAvatarUrl: '',
           currentFrame: _selectedFrame,
         ),
       ),
@@ -142,7 +142,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         _customDisplayName = result['nickname'] as String?;
-        _avatarUrl = result['avatarUrl'] ?? _avatarUrl;
         _selectedFrame = result['frame'] ?? _selectedFrame;
       });
       if (!mounted) return;
@@ -239,10 +238,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ),
                                   ],
                                 ),
-                                child: CircleAvatar(
-                                  radius: 54,
-                                  backgroundImage: NetworkImage(_avatarUrl),
-                                  backgroundColor: Colors.grey[200],
+                                child: const UserAvatar(
+                                  size: 108,
                                 ),
                               ),
                             ),

@@ -1183,35 +1183,38 @@ class _SettingsPageState extends State<SettingsPage> {
     final textColor = isDestructive ? const Color(0xFFEF4444) : Colors.black87;
     final iconColor = isDestructive ? const Color(0xFFEF4444) : const Color(0xFF71717A);
 
-    return ListTile(
-      onTap: onTap,
-      leading: Container(
-        decoration: BoxDecoration(
-          color: isDestructive ? const Color(0xFFFEF2F2) : const Color(0xFFF4F4F5),
-          borderRadius: BorderRadius.circular(8),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          decoration: BoxDecoration(
+            color: isDestructive ? const Color(0xFFFEF2F2) : const Color(0xFFF4F4F5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.all(8),
+          child: Iconify(
+            iconSvg,
+            color: iconColor,
+            size: 20,
+          ),
         ),
-        padding: const EdgeInsets.all(8),
-        child: Iconify(
-          iconSvg,
-          color: iconColor,
+        title: Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.keyboard_arrow_right,
+          color: Color(0xFFA1A1AA),
           size: 20,
         ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        visualDensity: VisualDensity.compact,
       ),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: textColor,
-        ),
-      ),
-      trailing: const Icon(
-        Icons.keyboard_arrow_right,
-        color: Color(0xFFA1A1AA),
-        size: 20,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      visualDensity: VisualDensity.compact,
     );
   }
 }
