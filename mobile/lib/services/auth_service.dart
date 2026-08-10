@@ -17,20 +17,54 @@ class UserSession {
 
   String get displayName {
     if (rawUser == null) return email;
-    final first = rawUser!['first_name'] as String? ?? '';
-    final last = rawUser!['last_name'] as String? ?? '';
+    final name = rawUser!['name'] as String?;
+    if (name != null && name.isNotEmpty) return name;
+    final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String? ?? '';
+    final last = rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String? ?? '';
     final fullName = '$first $last'.trim();
     return fullName.isNotEmpty ? fullName : email;
   }
 
   String get firstName {
     if (rawUser == null) return email.split('@').first;
-    return rawUser!['first_name'] as String? ?? email.split('@').first;
+    final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String?;
+    if (first != null && first.isNotEmpty) return first;
+    final name = rawUser!['name'] as String?;
+    if (name != null && name.isNotEmpty) return name.split(' ').first;
+    return email.split('@').first;
   }
 
   String get lastName {
     if (rawUser == null) return '';
-    return rawUser!['last_name'] as String? ?? '';
+    return rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String? ?? '';
+  }
+
+  String get initials {
+    final first = firstName;
+    final last = lastName;
+    if (first.isNotEmpty && last.isNotEmpty) {
+      return '${first[0]}${last[0]}'.toUpperCase();
+    }
+    if (displayName.isNotEmpty) {
+      final parts = displayName.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 2) {
+        return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+        return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+      }
+    }
+    return 'ST';
+  }
+
+  String get gradeLevel {
+    if (rawUser == null) return '4';
+    final val = rawUser!['gradeLevel']?.toString() ?? rawUser!['grade']?.toString() ?? '4';
+    return val.replaceAll(RegExp(r'^Grade\s*', caseSensitive: false), '').trim();
+  }
+
+  String get sectionName {
+    if (rawUser == null) return 'A';
+    return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? 'A';
   }
 
   bool get mustChangePassword {

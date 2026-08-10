@@ -273,7 +273,6 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                               });
 
                                               final navigator = Navigator.of(context);
-                                              final messenger = ScaffoldMessenger.of(context);
 
                                               final response = await AuthService.login(
                                                 lrn,
@@ -303,17 +302,6 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                                   navigator.pushReplacement(
                                                     MaterialPageRoute(
                                                       builder: (context) => const ParentOverviewPage(),
-                                                    ),
-                                                  );
-                                                  messenger.showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        'Parent logged in successfully!',
-                                                        style: GoogleFonts.inter(
-                                                          fontWeight: FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                      backgroundColor: Colors.green,
                                                     ),
                                                   );
                                                 }

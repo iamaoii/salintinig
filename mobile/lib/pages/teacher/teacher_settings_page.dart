@@ -689,36 +689,39 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     final iconBg = isDestructive ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC);
     final textColor = isDestructive ? const Color(0xFFDC2626) : Colors.black;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: iconBg,
-          borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: iconBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Iconify(iconName, color: iconColor, size: 18),
+          ),
         ),
-        child: Center(
-          child: Iconify(iconName, color: iconColor, size: 18),
+        title: Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
         ),
-      ),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: textColor,
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          size: 20,
+          color: isDestructive ? const Color(0xFFDC2626).withValues(alpha: 0.7) : Colors.grey[400],
         ),
+        onTap: () {
+          Feedback.forTap(context);
+          onTap();
+        },
       ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        size: 20,
-        color: isDestructive ? const Color(0xFFDC2626).withValues(alpha: 0.7) : Colors.grey[400],
-      ),
-      onTap: () {
-        Feedback.forTap(context);
-        onTap();
-      },
     );
   }
 }

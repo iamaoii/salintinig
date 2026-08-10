@@ -86,7 +86,11 @@ async function getStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            COALESCE(c.grade_level, '') AS grade,
+            CASE 
+              WHEN c.grade_level IS NULL OR c.grade_level = '' THEN 'Grade 4'
+              WHEN c.grade_level ILIKE 'Grade%' THEN c.grade_level
+              ELSE CONCAT('Grade ', c.grade_level)
+            END AS grade,
             COALESCE(c.section_name, '') AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
@@ -103,7 +107,7 @@ async function getStudents(req, res) {
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
-          LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id
+          LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
@@ -429,16 +433,67 @@ async function updateStudent(req, res) {
 
     if (isDbConfigured()) {
       try {
-        await db.query(
+        const { rows: stRows } = await db.query(
           `UPDATE students 
            SET first_name = COALESCE($1, first_name),
                middle_name = COALESCE($2, middle_name),
                last_name = COALESCE($3, last_name),
                sex = COALESCE($4, sex),
                updated_at = CURRENT_TIMESTAMP
-           WHERE lrn = $5`,
+           WHERE lrn = $5
+           RETURNING student_id`,
           [firstName || null, middleName || null, lastName || null, gender || null, lrn]
         );
+
+        if (stRows && stRows[0] && (grade || section)) {
+          const studentId = stRows[0].student_id;
+          const rawGrade = grade ? String(grade).trim() : 'Grade 4';
+          const gradeNum = rawGrade.replace(/^Grade\s*/i, '').trim();
+          const targetGrade = rawGrade.toLowerCase().startsWith('grade') ? rawGrade : `Grade ${gradeNum}`;
+          const targetSection = section || 'Fyang';
+
+          // Find or create target class (supports 'Grade 4' or '4' in database)
+          let classId = null;
+          const { rows: existingClass } = await db.query(
+            `SELECT class_id FROM classes 
+             WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
+               AND LOWER(section_name) = LOWER($3) 
+             LIMIT 1`,
+            [targetGrade, gradeNum, targetSection]
+          );
+
+          if (existingClass && existingClass[0]) {
+            classId = existingClass[0].class_id;
+          } else {
+            const { rows: newClass } = await db.query(
+              `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
+              [targetGrade, targetSection]
+            );
+            if (newClass && newClass[0]) classId = newClass[0].class_id;
+          }
+
+          if (classId) {
+            // Check if active history row exists
+            const { rows: activeHist } = await db.query(
+              `SELECT history_id FROM student_grade_history WHERE student_id = $1 AND promotion_status = 'active' LIMIT 1`,
+              [studentId]
+            );
+
+            if (activeHist && activeHist[0]) {
+              await db.query(
+                `UPDATE student_grade_history SET class_id = $1 WHERE history_id = $2`,
+                [classId, activeHist[0].history_id]
+              );
+            } else {
+              await db.query(
+                `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
+                 VALUES ($1, $2, 'active')
+                 ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
+                [studentId, classId]
+              );
+            }
+          }
+        }
       } catch (dbErr) {
         console.warn('DB student update notice:', dbErr.message);
       }
