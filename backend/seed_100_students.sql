@@ -1,4 +1,4 @@
--- =============================================================================
+﻿-- =============================================================================
 -- SalinTinig 100 Students Seed Script for Supabase / PostgreSQL
 -- =============================================================================
 
@@ -21,9 +21,9 @@ DECLARE
     v_sex VARCHAR;
     v_email VARCHAR;
     v_parent_email VARCHAR;
+    v_parent_name VARCHAR;
     v_pac VARCHAR;
     v_class_id UUID;
-    v_profile VARCHAR;
     v_status VARCHAR;
     
     first_names_m TEXT[] := ARRAY[
@@ -42,14 +42,13 @@ DECLARE
         'Kyla', 'Rica', 'Sarah', 'Tania', 'Aaliyah', 'Bernadette', 'Clarisse', 'Daphne', 'Elaine', 'Giselle'
     ];
     
+    -- No spaces in last names so emails stay clean
     last_names TEXT[] := ARRAY[
         'Cruz', 'Santos', 'Reyes', 'Garcia', 'Mendoza', 'Ramos', 'Flores', 'Gonzales', 'Bautista', 'Villanueva', 
-        'Fernandez', 'De Guzman', 'Aquino', 'Torres', 'Navarro', 'Castaneda', 'Del Rosario', 'Santiago', 'Soriano', 'Perez', 
-        'Mercado', 'Castillo', 'Salazar', 'Morales', 'Rivera', 'Valenzuela', 'Cordero', 'Domingo', 'Dela Cruz', 'Tolentino', 
+        'Fernandez', 'DeGuzman', 'Aquino', 'Torres', 'Navarro', 'Castaneda', 'DelRosario', 'Santiago', 'Soriano', 'Perez', 
+        'Mercado', 'Castillo', 'Salazar', 'Morales', 'Rivera', 'Valenzuela', 'Cordero', 'Domingo', 'DelaCruz', 'Tolentino', 
         'Manalo', 'Serrano', 'Velasco', 'Pineda', 'Castro', 'Corpuz', 'Ocampo', 'Aguilar', 'Padilla', 'Vergara'
     ];
-    
-    profiles TEXT[] := ARRAY['Instructional', 'Independent', 'Frustrational'];
     
     i INT;
 BEGIN
@@ -64,23 +63,23 @@ BEGIN
         INSERT INTO school_years (school_year, is_active) VALUES ('2026-2027', true) RETURNING school_year_id INTO v_sy_id;
     END IF;
 
-    -- 3. Ensure Classes exist
-    SELECT class_id INTO v_class_g4_fyang FROM classes WHERE grade_level = 'Grade 4' AND section_name = 'Fyang' LIMIT 1;
+    -- 3. Ensure Classes exist (scoped to school_id to avoid cross-school conflict)
+    SELECT class_id INTO v_class_g4_fyang FROM classes WHERE school_id = v_school_id AND grade_level = 'Grade 4' AND section_name = 'Fyang' LIMIT 1;
     IF v_class_g4_fyang IS NULL THEN
         INSERT INTO classes (school_id, school_year_id, grade_level, section_name) VALUES (v_school_id, v_sy_id, 'Grade 4', 'Fyang') RETURNING class_id INTO v_class_g4_fyang;
     END IF;
 
-    SELECT class_id INTO v_class_g4_kalapati FROM classes WHERE grade_level = 'Grade 4' AND section_name = 'Kalapati' LIMIT 1;
+    SELECT class_id INTO v_class_g4_kalapati FROM classes WHERE school_id = v_school_id AND grade_level = 'Grade 4' AND section_name = 'Kalapati' LIMIT 1;
     IF v_class_g4_kalapati IS NULL THEN
         INSERT INTO classes (school_id, school_year_id, grade_level, section_name) VALUES (v_school_id, v_sy_id, 'Grade 4', 'Kalapati') RETURNING class_id INTO v_class_g4_kalapati;
     END IF;
 
-    SELECT class_id INTO v_class_g5_agila FROM classes WHERE grade_level = 'Grade 5' AND section_name = 'Agila' LIMIT 1;
+    SELECT class_id INTO v_class_g5_agila FROM classes WHERE school_id = v_school_id AND grade_level = 'Grade 5' AND section_name = 'Agila' LIMIT 1;
     IF v_class_g5_agila IS NULL THEN
         INSERT INTO classes (school_id, school_year_id, grade_level, section_name) VALUES (v_school_id, v_sy_id, 'Grade 5', 'Agila') RETURNING class_id INTO v_class_g5_agila;
     END IF;
 
-    SELECT class_id INTO v_class_g6_narra FROM classes WHERE grade_level = 'Grade 6' AND section_name = 'Narra' LIMIT 1;
+    SELECT class_id INTO v_class_g6_narra FROM classes WHERE school_id = v_school_id AND grade_level = 'Grade 6' AND section_name = 'Narra' LIMIT 1;
     IF v_class_g6_narra IS NULL THEN
         INSERT INTO classes (school_id, school_year_id, grade_level, section_name) VALUES (v_school_id, v_sy_id, 'Grade 6', 'Narra') RETURNING class_id INTO v_class_g6_narra;
     END IF;
@@ -99,14 +98,13 @@ BEGIN
         END IF;
 
         v_email := LOWER(v_first_name || '.' || v_last_name || i || '@salintinig.edu.ph');
-        v_email := REPLACE(v_email, ' ', '');
         v_parent_email := LOWER('parent.' || v_last_name || i || '@gmail.com');
-        v_parent_email := REPLACE(v_parent_email, ' ', '');
-        v_pac := 'PAC-' || LPAD(((10000 + i * 37) % 89999 + 10000)::TEXT, 5, '0');
-        v_profile := profiles[1 + (i % array_length(profiles, 1))];
+        v_parent_name := 'Mr./Mrs. ' || v_last_name;
+        -- Unique access code per student: PAC-00001-1037, PAC-00002-1074, etc.
+        v_pac := 'PAC-' || LPAD(i::TEXT, 5, '0') || '-' || LPAD(((i * 37 + 1000) % 9999)::TEXT, 4, '0');
         v_status := CASE WHEN (i % 15 = 0) THEN 'disabled' ELSE 'active' END;
 
-        -- Assign class
+        -- Assign class based on loop index
         CASE (i % 4)
             WHEN 0 THEN v_class_id := v_class_g4_fyang;
             WHEN 1 THEN v_class_id := v_class_g4_kalapati;
@@ -114,38 +112,33 @@ BEGIN
             ELSE v_class_id := v_class_g6_narra;
         END CASE;
 
-        -- Insert user
+        -- Insert user account
         INSERT INTO users (school_id, email, password_hash, role, status)
-        VALUES (v_school_id, v_email, '$2b$10$e8T.W2bO9zL4x...mock', 'student', v_status)
+        VALUES (v_school_id, v_email, '$2b$10$e8TWbO9zL4xMockHashedPassword12', 'student', v_status)
         ON CONFLICT (email) DO UPDATE SET status = EXCLUDED.status
         RETURNING user_id INTO v_user_id;
 
-        -- Insert student
+        -- Insert student profile
         INSERT INTO students (user_id, lrn, first_name, last_name, sex)
         VALUES (v_user_id, v_lrn, v_first_name, v_last_name, v_sex)
-        ON CONFLICT (lrn) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name
+        ON CONFLICT (lrn) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, user_id = EXCLUDED.user_id
         RETURNING student_id INTO v_student_id;
 
-        -- Insert parent
-        INSERT INTO parents (first_name, last_name, email)
-        VALUES ('Parent of ' || v_first_name, v_last_name, v_parent_email)
-        ON CONFLICT (email) DO UPDATE SET last_name = EXCLUDED.last_name
+        -- Insert parent using correct schema column: parent_name (NOT first_name/last_name)
+        INSERT INTO parents (parent_name, email)
+        VALUES (v_parent_name, v_parent_email)
+        ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name
         RETURNING parent_id INTO v_parent_id;
 
-        -- Insert student_parent link
+        -- Link student <-> parent with unique access code per student
         INSERT INTO student_parents (student_id, parent_id, access_code)
         VALUES (v_student_id, v_parent_id, v_pac)
-        ON CONFLICT DO NOTHING;
+        ON CONFLICT (access_code) DO NOTHING;
 
-        -- Insert grade history
+        -- Insert grade history using named constraint
         INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-        VALUES (v_student_id, v_class_id, 'enrolled')
-        ON CONFLICT DO NOTHING;
-
-        -- Insert reading profile
-        INSERT INTO reading_profiles (student_id, current_profile_label, reading_speed_wpm, comprehension_level)
-        VALUES (v_student_id, v_profile, 60 + (i % 50), v_profile)
-        ON CONFLICT DO NOTHING;
+        VALUES (v_student_id, v_class_id, 'active')
+        ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
 
     END LOOP;
 END $$;
