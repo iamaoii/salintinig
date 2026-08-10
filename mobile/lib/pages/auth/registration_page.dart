@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/auth/registration_loading_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
@@ -20,7 +21,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     Feedback.forTap(context);
     final email = _emailController.text.trim();
 
@@ -40,17 +41,33 @@ class _RegistrationPageState extends State<RegistrationPage> {
       return;
     }
 
-    // Success flow
     setState(() {
       _hasError = false;
     });
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const RegistrationLoadingPage(),
-      ),
+    final response = await AuthService.contactAdmin(
+      role: 'Student',
+      firstName: 'Student',
+      lastName: 'Request',
+      email: email,
+      sex: 'Male',
     );
+
+    if (!mounted) return;
+
+    if (response.success) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const RegistrationLoadingPage(),
+        ),
+      );
+    } else {
+      setState(() {
+        _hasError = true;
+        _errorMessage = response.error ?? 'Failed to submit registration request.';
+      });
+    }
   }
 
   @override

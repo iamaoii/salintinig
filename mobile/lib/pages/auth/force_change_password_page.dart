@@ -2,112 +2,118 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/auth/reset_password_loading_page.dart';
+import 'package:salintinig/pages/auth/password_changed_success_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 
-class SetNewPasswordPage extends StatefulWidget {
+class ForceChangePasswordPage extends StatefulWidget {
   final String? email;
-  final String? resetCode;
 
-  const SetNewPasswordPage({
+  const ForceChangePasswordPage({
     super.key,
     this.email,
-    this.resetCode,
   });
 
   @override
-  State<SetNewPasswordPage> createState() => _SetNewPasswordPageState();
+  State<ForceChangePasswordPage> createState() => _ForceChangePasswordPageState();
 }
 
-class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
-  final TextEditingController _passwordController = TextEditingController();
+class _ForceChangePasswordPageState extends State<ForceChangePasswordPage> {
+  final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
-  bool _hasError = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-  String _errorMessage = 'Please create a new password.';
 
-  void _onResetPassword() async {
-    Feedback.forTap(context);
-    final password = _passwordController.text;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _hasError = false;
+  bool _isLoading = false;
+  String _errorMessage = '';
+
+  void _onSavePassword() async {
+    FocusScope.of(context).unfocus();
+    final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (password.isEmpty || confirmPassword.isEmpty) {
+    if (newPassword.isEmpty || confirmPassword.isEmpty) {
       setState(() {
-        _errorMessage = 'Please fill out both password fields.';
         _hasError = true;
+        _errorMessage = 'Please enter and confirm your new password.';
       });
       return;
     }
 
-    if (password != confirmPassword) {
+    if (newPassword.length < 6) {
       setState(() {
+        _hasError = true;
+        _errorMessage = 'Password must be at least 6 characters long.';
+      });
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      setState(() {
+        _hasError = true;
         _errorMessage = 'Passwords do not match.';
-        _hasError = true;
       });
       return;
-    }
-
-    if (widget.email != null && widget.resetCode != null) {
-      setState(() {
-        _hasError = false;
-      });
-
-      final response = await AuthService.resetPassword(
-        widget.email!,
-        widget.resetCode!,
-        password,
-      );
-
-      if (!mounted) return;
-
-      if (!response.success) {
-        setState(() {
-          _hasError = true;
-          _errorMessage = response.error ?? 'Failed to reset password.';
-        });
-        return;
-      }
-    } else {
-      // User is logged in with a temporary password (must_change_password)
-      final response = await ApiService.post('/auth/change-password', {
-        'newPassword': password,
-      });
-
-      if (!mounted) return;
-
-      if (!response.success) {
-        setState(() {
-          _hasError = true;
-          _errorMessage = response.error ?? 'Failed to update password.';
-        });
-        return;
-      }
     }
 
     setState(() {
+      _isLoading = true;
       _hasError = false;
+      _errorMessage = '';
     });
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => const ResetPasswordLoadingPage(),
-      ),
-    );
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final response = await ApiService.post('/auth/change-password', {
+      'newPassword': newPassword,
+    });
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (response.success) {
+      // Re-fetch me to update user session state (mustChangePassword -> false)
+      await AuthService.fetchMe();
+
+      navigator.pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const PasswordChangedSuccessPage(),
+        ),
+      );
+    } else {
+      setState(() {
+        _hasError = true;
+        _errorMessage = response.error ?? 'Failed to update password. Please try again.';
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _errorMessage,
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const borderRed = Color(0xFFEF4444);
-    const bgRedTint = Color(0xFFFEF2F2);
     const borderSlate = Color(0xFFE4E4E7);
+    const bgSoftLight = Color(0xFFFCFAF7);
+
     final activeBorderColor = _hasError ? borderRed : primaryBlue;
     final inactiveBorderColor = _hasError ? borderRed : borderSlate;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFAF7),
+      backgroundColor: bgSoftLight,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -120,7 +126,7 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                 ),
                 child: Column(
                   children: [
-                    // 1. Header (Fixed at the top)
+                    // ── 1. Top Header Bar (Back Arrow & SalinTinig Logo) ──────
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         isTablet ? 0 : 24.0,
@@ -133,10 +139,7 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                         children: [
                           // Back Arrow Button
                           IconButton(
-                            onPressed: () {
-                              Feedback.forTap(context);
-                              Navigator.pop(context);
-                            },
+                            onPressed: () => Navigator.pop(context),
                             icon: Iconify(
                               Ph.arrow_u_up_left,
                               size: 32,
@@ -145,7 +148,7 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
-                          // Logo and App Name
+                          // SalinTinig App Brand Logo
                           Row(
                             children: [
                               Image.asset(
@@ -168,7 +171,7 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                       ),
                     ),
 
-                    // 2. Middle Set Password Form (Centered & shifted upward)
+                    // ── 2. Middle Body (Scrollable Form Content) ─────────────
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, middleConstraints) {
@@ -180,45 +183,81 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                               ),
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: isTablet ? 0 : 24.0,
+                                  horizontal: isTablet ? 0 : 28.0,
                                 ),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    const SizedBox(height: 0),
+                                    // Slight top lift nudge
+                                    const SizedBox(height: 12),
+
+                                    // Lock Icon Badge
+                                    Container(
+                                      width: 64,
+                                      height: 64,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFFFFBEB), // Soft warm yellow tint
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Iconify(
+                                          Ph.lock_key,
+                                          size: 32,
+                                          color: const Color(0xFFD97706), // Amber / Golden Orange lock
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+
                                     // Title
                                     Text(
-                                      'Set New Password',
-                                      textAlign: TextAlign.start,
+                                      'Set Your New Password',
+                                      textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
-                                        fontSize: 32,
+                                        fontSize: 24,
                                         fontWeight: FontWeight.w800,
                                         color: Colors.black,
-                                        letterSpacing: -0.8,
+                                        letterSpacing: -0.5,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    // Subtitle
-                                    Text(
-                                      'Create new unique password',
-                                      textAlign: TextAlign.start,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 16,
-                                        color: const Color(0xFF71717A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 40),
+                                    const SizedBox(height: 12),
 
-                                    // Password field 1 (New Password)
+                                    // Subtitle
+                                    RichText(
+                                      textAlign: TextAlign.center,
+                                      text: TextSpan(
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          color: const Color(0xFF71717A),
+                                          height: 1.45,
+                                        ),
+                                        children: const [
+                                          TextSpan(text: 'You logged in using a '),
+                                          TextSpan(
+                                            text: 'temporary password',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF3F3F46),
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: '. Please set a new permanent password to secure your account.',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 32),
+
+                                    // New Password Input
                                     TextField(
-                                      controller: _passwordController,
-                                      obscureText: _obscurePassword,
+                                      controller: _newPasswordController,
+                                      obscureText: _obscureNewPassword,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
                                       ),
-                                      onChanged: (val) {
+                                      onChanged: (_) {
                                         if (_hasError) {
                                           setState(() {
                                             _hasError = false;
@@ -226,28 +265,16 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'New Password',
+                                        hintText: 'New Password (min 6 characters)',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
+                                          fontSize: 15,
                                         ),
                                         filled: true,
-                                        fillColor: _hasError ? bgRedTint : Colors.white,
+                                        fillColor: Colors.white,
                                         contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 18,
-                                        ),
-                                        suffixIcon: IconButton(
-                                          onPressed: () {
-                                            Feedback.forTap(context);
-                                            setState(() {
-                                              _obscurePassword = !_obscurePassword;
-                                            });
-                                          },
-                                          icon: Iconify(
-                                            _obscurePassword ? Ph.eye_slash : Ph.eye,
-                                            color: const Color(0xFFA1A1AA),
-                                            size: 22,
-                                          ),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
@@ -263,11 +290,23 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                             width: 1.5,
                                           ),
                                         ),
+                                        suffixIcon: IconButton(
+                                          icon: Iconify(
+                                            _obscureNewPassword ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _obscureNewPassword = !_obscureNewPassword;
+                                            });
+                                          },
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
 
-                                    // Password field 2 (Confirm New Password)
+                                    // Confirm Password Input
                                     TextField(
                                       controller: _confirmPasswordController,
                                       obscureText: _obscureConfirmPassword,
@@ -275,7 +314,7 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                         fontSize: 16,
                                         color: Colors.black,
                                       ),
-                                      onChanged: (val) {
+                                      onChanged: (_) {
                                         if (_hasError) {
                                           setState(() {
                                             _hasError = false;
@@ -286,25 +325,13 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                         hintText: 'Confirm New Password',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
+                                          fontSize: 15,
                                         ),
                                         filled: true,
-                                        fillColor: _hasError ? bgRedTint : Colors.white,
+                                        fillColor: Colors.white,
                                         contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 18,
-                                        ),
-                                        suffixIcon: IconButton(
-                                          onPressed: () {
-                                            Feedback.forTap(context);
-                                            setState(() {
-                                              _obscureConfirmPassword = !_obscureConfirmPassword;
-                                            });
-                                          },
-                                          icon: Iconify(
-                                            _obscureConfirmPassword ? Ph.eye_slash : Ph.eye,
-                                            color: const Color(0xFFA1A1AA),
-                                            size: 22,
-                                          ),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
@@ -320,25 +347,39 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                             width: 1.5,
                                           ),
                                         ),
+                                        suffixIcon: IconButton(
+                                          icon: Iconify(
+                                            _obscureConfirmPassword ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _obscureConfirmPassword = !_obscureConfirmPassword;
+                                            });
+                                          },
+                                        ),
                                       ),
                                     ),
 
-                                    if (_hasError) ...[
+                                    if (_hasError && _errorMessage.isNotEmpty) ...[
                                       const SizedBox(height: 16),
                                       Text(
                                         _errorMessage,
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.inter(
                                           color: const Color(0xFFEF4444),
-                                          fontSize: 15,
+                                          fontSize: 14,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 24),
-                                    // Reset Password Button
+
+                                    const SizedBox(height: 28),
+
+                                    // Action Button
                                     ElevatedButton(
-                                      onPressed: _onResetPassword,
+                                      onPressed: _isLoading ? null : _onSavePassword,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: primaryBlue,
                                         foregroundColor: Colors.white,
@@ -348,17 +389,26 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                                         ),
                                         elevation: 0,
                                       ),
-                                      child: Text(
-                                        'Reset Password',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2.5,
+                                              ),
+                                            )
+                                          : Text(
+                                              'Save Password & Continue',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                     ),
-                                    const SizedBox(height: 155),
-                                  ],
-                                ),
+                                     const SizedBox(height: 110), // Increased top lift nudge
+                                   ],
+                                 ),
                               ),
                             ),
                           );
@@ -366,35 +416,37 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
                       ),
                     ),
 
-                    // 3. Bottom Pinned Link (Back to Log In)
+                    // ── 3. Bottom Footer (Terms of Service & Privacy Policy) ─
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 24.0),
-                      child: TextButton(
-                        onPressed: () {
-                          Feedback.forTap(context);
-                          Navigator.popUntil(context, (route) => route.isFirst);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      padding: EdgeInsets.fromLTRB(
+                        isTablet ? 0 : 24,
+                        0,
+                        isTablet ? 0 : 24,
+                        24,
+                      ),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF71717A),
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
                           children: [
-                            Iconify(
-                              Ph.arrow_left,
-                              color: primaryBlue,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Back to Log In',
+                            const TextSpan(text: 'By signing in you accept the '),
+                            TextSpan(
+                              text: 'Terms of Service',
                               style: GoogleFonts.inter(
-                                color: primaryBlue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF3F3F46),
+                              ),
+                            ),
+                            const TextSpan(text: '\nand '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF3F3F46),
                               ),
                             ),
                           ],
@@ -409,12 +461,5 @@ class _SetNewPasswordPageState extends State<SetNewPasswordPage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
   }
 }

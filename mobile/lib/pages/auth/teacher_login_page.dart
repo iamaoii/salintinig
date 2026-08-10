@@ -5,7 +5,9 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
 import 'package:salintinig/pages/auth/registration_page.dart';
 import 'package:salintinig/pages/auth/forgot_password_page.dart';
+import 'package:salintinig/pages/auth/force_change_password_page.dart';
 import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class TeacherLoginPage extends StatefulWidget {
   const TeacherLoginPage({super.key});
@@ -19,6 +21,8 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _hasError = false;
+  bool _isLoading = false;
+  String _errorMessage = '';
 
   void _resetState() {
     setState(() {
@@ -141,9 +145,29 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     const SizedBox(height: 24), // Top margin safety buffer
+                                    // Role distinction badge
+                                    Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFD34426).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          'TEACHER LOGIN',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFFD34426),
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
                                     // Title
                                     Text(
-                                      'Welcome back!',
+                                      'Welcome Back!',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         fontSize: 32,
@@ -152,31 +176,17 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                         letterSpacing: -0.8,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    // Subtitle with Contact Admin link
-                                    Center(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            color: const Color(0xFF71717A),
-                                          ),
-                                          children: [
-                                            const TextSpan(text: 'Not registered yet? '),
-                                            TextSpan(
-                                              text: 'Contact admin',
-                                              style: GoogleFonts.inter(
-                                                color: primaryBlue,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = _showContactAdminDialog,
-                                            ),
-                                          ],
-                                        ),
+                                    const SizedBox(height: 6),
+                                    // Subtitle
+                                    Text(
+                                      'Login to your account to continue',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        color: const Color(0xFF71717A),
                                       ),
                                     ),
-                                    const SizedBox(height: 40),
+                                    const SizedBox(height: 24),
                                     // Teacher ID Field
                                     TextField(
                                       controller: _teacherIdController,
@@ -273,99 +283,165 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                         ),
                                       ),
                                     ),
-                                    if (_hasError) ...[
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Incorrect credentials, please try again.',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.inter(
-                                          color: const Color(0xFFEF4444),
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    // Forgot Password Link
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: _showForgotPasswordDialog,
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: Text(
-                                          'Forgot your password?',
-                                          style: GoogleFonts.inter(
-                                            color: primaryBlue,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    // Log in Button
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        final teacherId = _teacherIdController.text.trim();
-                                        final password = _passwordController.text;
+                                     if (_hasError) ...[
+                                       const SizedBox(height: 16),
+                                       Text(
+                                         _errorMessage,
+                                         textAlign: TextAlign.center,
+                                         style: GoogleFonts.inter(
+                                           color: const Color(0xFFEF4444),
+                                           fontSize: 15,
+                                           fontWeight: FontWeight.w500,
+                                         ),
+                                       ),
+                                     ],
+                                     const SizedBox(height: 12),
+                                     // Forgot Password Link
+                                     Align(
+                                       alignment: Alignment.centerRight,
+                                       child: TextButton(
+                                         onPressed: _showForgotPasswordDialog,
+                                         style: TextButton.styleFrom(
+                                           padding: EdgeInsets.zero,
+                                           minimumSize: Size.zero,
+                                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                         ),
+                                         child: Text(
+                                           'Forgot your password?',
+                                           style: GoogleFonts.inter(
+                                             color: primaryBlue,
+                                             fontWeight: FontWeight.w600,
+                                             fontSize: 15,
+                                           ),
+                                         ),
+                                       ),
+                                     ),
+                                     const SizedBox(height: 24),
+                                     // Log in Button
+                                     ElevatedButton(
+                                       onPressed: _isLoading
+                                           ? null
+                                           : () async {
+                                               final teacherId = _teacherIdController.text.trim();
+                                               final password = _passwordController.text;
 
-                                        if (teacherId.isEmpty || password.isEmpty) {
-                                          setState(() {
-                                            _hasError = true;
-                                          });
-                                          return;
-                                        }
+                                               if (teacherId.isEmpty || password.isEmpty) {
+                                                 setState(() {
+                                                   _hasError = true;
+                                                   _errorMessage = 'Please enter both ID/Email and password.';
+                                                 });
+                                                 return;
+                                               }
 
-                                        // Simulating validation for presentation (allows ID or Email):
-                                        if ((teacherId == 'T-1001' || teacherId == 'teacher@edu.org.ph') && password == 'password') {
-                                          setState(() {
-                                            _hasError = false;
-                                          });
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => const TeacherOverviewPage(),
-                                            ),
-                                          );
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Teacher Logged in successfully!',
-                                                style: GoogleFonts.inter(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        } else {
-                                          setState(() {
-                                            _hasError = true;
-                                          });
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryBlue,
-                                        foregroundColor: Colors.white,
-                                        minimumSize: const Size(double.infinity, 56),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                      child: Text(
-                                        'Log in',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24), // Bottom margin safety buffer
+                                               setState(() {
+                                                 _isLoading = true;
+                                                 _hasError = false;
+                                                 _errorMessage = '';
+                                               });
+
+                                               final navigator = Navigator.of(context);
+                                               final messenger = ScaffoldMessenger.of(context);
+
+                                               final response = await AuthService.login(
+                                                 teacherId, 
+                                                 password,
+                                                 expectedRole: 'teacher',
+                                               );
+
+                                               if (!mounted) return;
+
+                                               setState(() {
+                                                 _isLoading = false;
+                                               });
+
+                                               if (response.success) {
+                                                 final mustChange = response.data != null && 
+                                                     (response.data['mustChangePassword'] == true || response.data['user']?['mustChangePassword'] == true || AuthService.currentUser?.mustChangePassword == true);
+
+                                                 if (mustChange) {
+                                                   navigator.pushReplacement(
+                                                     MaterialPageRoute(
+                                                       builder: (context) => ForceChangePasswordPage(
+                                                         email: teacherId,
+                                                       ),
+                                                     ),
+                                                   );
+                                                 } else {
+                                                   navigator.pushReplacement(
+                                                     MaterialPageRoute(
+                                                       builder: (context) => const TeacherOverviewPage(),
+                                                     ),
+                                                   );
+                                                   messenger.showSnackBar(
+                                                     SnackBar(
+                                                       content: Text(
+                                                         'Teacher logged in successfully!',
+                                                         style: GoogleFonts.inter(
+                                                           fontWeight: FontWeight.w600,
+                                                         ),
+                                                       ),
+                                                       backgroundColor: Colors.green,
+                                                     ),
+                                                   );
+                                                 }
+                                               } else {
+                                                 setState(() {
+                                                   _hasError = true;
+                                                   _errorMessage = response.error ?? 'Incorrect credentials, please try again.';
+                                                 });
+                                               }
+                                             },
+                                       style: ElevatedButton.styleFrom(
+                                         backgroundColor: primaryBlue,
+                                         foregroundColor: Colors.white,
+                                         minimumSize: const Size(double.infinity, 56),
+                                         shape: RoundedRectangleBorder(
+                                           borderRadius: BorderRadius.circular(12),
+                                         ),
+                                         elevation: 0,
+                                       ),
+                                       child: _isLoading
+                                           ? const SizedBox(
+                                               height: 24,
+                                               width: 24,
+                                               child: CircularProgressIndicator(
+                                                 color: Colors.white,
+                                                 strokeWidth: 2.5,
+                                               ),
+                                             )
+                                           : Text(
+                                               'Log in',
+                                               style: GoogleFonts.inter(
+                                                 fontSize: 18,
+                                                 fontWeight: FontWeight.bold,
+                                               ),
+                                             ),
+                                     ),
+                                     const SizedBox(height: 20),
+                                     // Not registered yet? Contact admin
+                                     Center(
+                                       child: RichText(
+                                         text: TextSpan(
+                                           style: GoogleFonts.inter(
+                                             fontSize: 15,
+                                             color: const Color(0xFF71717A),
+                                           ),
+                                           children: [
+                                             const TextSpan(text: 'Not registered yet? '),
+                                             TextSpan(
+                                               text: 'Contact admin',
+                                               style: GoogleFonts.inter(
+                                                 color: primaryBlue,
+                                                 fontWeight: FontWeight.w600,
+                                               ),
+                                               recognizer: TapGestureRecognizer()
+                                                 ..onTap = _showContactAdminDialog,
+                                             ),
+                                           ],
+                                         ),
+                                       ),
+                                     ),
+                                     const SizedBox(height: 24), // Bottom margin safety buffer
                                   ],
                                 ),
                               ),

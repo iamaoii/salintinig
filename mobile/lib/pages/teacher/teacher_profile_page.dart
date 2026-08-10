@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'teacher_edit_profile_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   const TeacherProfilePage({super.key});
@@ -12,11 +13,42 @@ class TeacherProfilePage extends StatefulWidget {
 }
 
 class _TeacherProfilePageState extends State<TeacherProfilePage> {
-  String _teacherName = 'Maria Santos';
+  String? _customTeacherName;
+  String? _customEmailAddress;
+  String? _customEmployeeId;
+
+  String get _teacherName {
+    if (_customTeacherName != null && _customTeacherName!.isNotEmpty) {
+      return _customTeacherName!;
+    }
+    final user = AuthService.currentUser;
+    if (user != null && user.displayName.isNotEmpty) {
+      return user.displayName;
+    }
+    return 'Maria Santos';
+  }
+
+  String get _emailAddress {
+    if (_customEmailAddress != null && _customEmailAddress!.isNotEmpty) {
+      return _customEmailAddress!;
+    }
+    final user = AuthService.currentUser;
+    if (user != null && user.email.isNotEmpty) {
+      return user.email;
+    }
+    return 'maria.santos@deped.gov.ph';
+  }
+
+  String get _employeeId {
+    if (_customEmployeeId != null && _customEmployeeId!.isNotEmpty) {
+      return _customEmployeeId!;
+    }
+    final raw = AuthService.currentUser?.rawUser;
+    return raw?['teacher_no'] ?? raw?['id_no'] ?? '198420349';
+  }
+
   String _teacherTitle = 'Grade IV Teacher';
   String _schoolName = 'San Juan Elementary School';
-  String _employeeId = '198420349';
-  String _emailAddress = 'maria.santos@deped.gov.ph';
   String _contactNumber = '+63 917 890 1234';
   String _assignedClass = 'Grade 4 - FYANG';
   IconData _selectedAvatarIcon = Icons.person_rounded;
@@ -41,11 +73,11 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
     if (result != null && mounted) {
       setState(() {
-        _teacherName = result['name'] ?? _teacherName;
+        _customTeacherName = result['name'] as String?;
         _teacherTitle = result['title'] ?? _teacherTitle;
         _schoolName = result['school'] ?? _schoolName;
-        _employeeId = result['employeeId'] ?? _employeeId;
-        _emailAddress = result['email'] ?? _emailAddress;
+        _customEmployeeId = result['employeeId'] as String?;
+        _customEmailAddress = result['email'] as String?;
         _contactNumber = result['contactNumber'] ?? _contactNumber;
         _assignedClass = result['assignedClass'] ?? _assignedClass;
         _selectedAvatarIcon = result['avatarIcon'] ?? _selectedAvatarIcon;

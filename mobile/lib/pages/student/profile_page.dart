@@ -5,6 +5,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/edit_profile_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -14,14 +15,42 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  String? _customDisplayName;
 
+  String get _fullName {
+    final user = AuthService.currentUser;
+    if (user != null && user.displayName.isNotEmpty) {
+      return user.displayName;
+    }
+    return "Doechii E. Carganilla";
+  }
 
-  // Profile data state
-  final String _fullName = "Doechii E. Carganilla";
-  String _displayName = "Doechii Carganilla";
-  final String _gradeLevel = "Grade 4";
-  final String _section = "Malinis";
-  final String _lrn = "1366 7010 0099";
+  String get _displayName {
+    if (_customDisplayName != null && _customDisplayName!.isNotEmpty) {
+      return _customDisplayName!;
+    }
+    final user = AuthService.currentUser;
+    if (user != null && user.displayName.isNotEmpty) {
+      return user.displayName;
+    }
+    return "Doechii Carganilla";
+  }
+
+  String get _gradeLevel {
+    final raw = AuthService.currentUser?.rawUser;
+    return raw?['grade_level'] ?? "Grade 4";
+  }
+
+  String get _section {
+    final raw = AuthService.currentUser?.rawUser;
+    return raw?['section'] ?? "Malinis";
+  }
+
+  String get _lrn {
+    final raw = AuthService.currentUser?.rawUser;
+    return raw?['id_no'] ?? raw?['lrn'] ?? "1366 7010 0099";
+  }
+
   String _parentAccessCode = "ABCD-1234";
   String _avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300";
   String _selectedFrame = "None";
@@ -112,7 +141,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
-        _displayName = result['nickname'] ?? _displayName;
+        _customDisplayName = result['nickname'] as String?;
         _avatarUrl = result['avatarUrl'] ?? _avatarUrl;
         _selectedFrame = result['frame'] ?? _selectedFrame;
       });

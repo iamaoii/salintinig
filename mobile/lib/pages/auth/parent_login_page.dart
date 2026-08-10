@@ -2,60 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:flutter/gestures.dart';
 import 'package:salintinig/pages/auth/force_change_password_page.dart';
-import 'package:salintinig/pages/auth/registration_page.dart';
-import 'package:salintinig/pages/auth/forgot_password_page.dart';
-import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 
-class StudentLoginPage extends StatefulWidget {
-  const StudentLoginPage({super.key});
+class ParentLoginPage extends StatefulWidget {
+  const ParentLoginPage({super.key});
 
   @override
-  State<StudentLoginPage> createState() => _StudentLoginPageState();
+  State<ParentLoginPage> createState() => _ParentLoginPageState();
 }
 
-class _StudentLoginPageState extends State<StudentLoginPage> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _obscurePassword = true;
+class _ParentLoginPageState extends State<ParentLoginPage> {
+  final TextEditingController _lrnController = TextEditingController();
+  final TextEditingController _parentCodeController = TextEditingController();
   bool _hasError = false;
   bool _isLoading = false;
   String _errorMessage = '';
-
-  void _resetState() {
-    setState(() {
-      _emailController.clear();
-      _passwordController.clear();
-      _obscurePassword = true;
-      _hasError = false;
-    });
-  }
-
-  void _showContactAdminDialog() {
-    Feedback.forTap(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const RegistrationPage(),
-      ),
-    ).then((_) {
-      _resetState();
-    });
-  }
-
-  void _showForgotPasswordDialog() {
-    Feedback.forTap(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ForgotPasswordPage(),
-      ),
-    ).then((_) {
-      _resetState();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,8 +33,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // On tablets (width > 600), center content with a max width so it
-            // doesn't stretch across the full iPad canvas.
             final isTablet = constraints.maxWidth > 600;
 
             return Center(
@@ -81,7 +42,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                 ),
                 child: Column(
                   children: [
-                    // 1. Header (Fixed at the top)
+                    // 1. Top Header (Back button & App Brand Logo)
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         isTablet ? 0 : 24.0,
@@ -92,7 +53,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Back Arrow Button
                           IconButton(
                             onPressed: () => Navigator.pop(context),
                             icon: Iconify(
@@ -103,7 +63,6 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
-                          // Logo and App Name
                           Row(
                             children: [
                               Image.asset(
@@ -126,7 +85,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                       ),
                     ),
 
-                    // 2. Middle Section (Expanded & Centered Scrollable content)
+                    // 2. Middle Body (Scrollable Form Content)
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, middleConstraints) {
@@ -144,52 +103,55 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    const SizedBox(height: 24), // Top margin safety buffer
-                                    // Role distinction badge
-                                    Center(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1B64D8).withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
+                                     // Role distinction badge
+                                     Center(
+                                       child: Container(
+                                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                         decoration: BoxDecoration(
+                                           color: const Color(0xFF1B64D8).withValues(alpha: 0.1),
+                                           borderRadius: BorderRadius.circular(20),
+                                         ),
+                                         child: Text(
+                                           'PARENT LOGIN',
+                                           style: GoogleFonts.inter(
+                                             fontSize: 12,
+                                             fontWeight: FontWeight.w800,
+                                             color: const Color(0xFF1B64D8),
+                                             letterSpacing: 0.8,
+                                           ),
+                                         ),
+                                       ),
+                                     ),
+                                     const SizedBox(height: 12),
+                                      // Welcome Back! Title
+                                      Center(
                                         child: Text(
-                                          'STUDENT LOGIN',
+                                          'Welcome Back!',
                                           style: GoogleFonts.inter(
-                                            fontSize: 12,
+                                            fontSize: 32,
                                             fontWeight: FontWeight.w800,
-                                            color: const Color(0xFF1B64D8),
-                                            letterSpacing: 0.8,
+                                            color: Colors.black,
+                                            letterSpacing: -0.8,
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    // Title
-                                    Text(
-                                      'Welcome Back!',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black,
-                                        letterSpacing: -0.8,
+                                      const SizedBox(height: 6),
+                                      // Subtitle
+                                      Center(
+                                        child: Text(
+                                          'Login to your account to continue',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            color: const Color(0xFF71717A),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    // Subtitle
-                                    Text(
-                                      'Login to your account to continue',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 16,
-                                        color: const Color(0xFF71717A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    // Email Field
+                                      const SizedBox(height: 24),
+
+                                    // LRN Field
                                     TextField(
-                                      controller: _emailController,
+                                      controller: _lrnController,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -202,9 +164,10 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Email',
+                                        hintText: 'LRN',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
+                                          fontSize: 16,
                                         ),
                                         filled: true,
                                         fillColor: Colors.white,
@@ -229,10 +192,10 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    // Password Field
+
+                                    // Parent Code Field
                                     TextField(
-                                      controller: _passwordController,
-                                      obscureText: _obscurePassword,
+                                      controller: _parentCodeController,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -245,24 +208,13 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         }
                                       },
                                       decoration: InputDecoration(
-                                        hintText: 'Password',
+                                        hintText: 'Parent Code',
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
+                                          fontSize: 16,
                                         ),
                                         filled: true,
                                         fillColor: Colors.white,
-                                        suffixIcon: IconButton(
-                                          icon: Iconify(
-                                            _obscurePassword ? Ph.eye_slash : Ph.eye,
-                                            color: const Color(0xFFA1A1AA),
-                                            size: 22,
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _obscurePassword = !_obscurePassword;
-                                            });
-                                          },
-                                        ),
                                         contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 18,
@@ -283,7 +235,8 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                       ),
                                     ),
-                                    if (_hasError) ...[
+
+                                    if (_hasError && _errorMessage.isNotEmpty) ...[
                                       const SizedBox(height: 16),
                                       Text(
                                         _errorMessage,
@@ -295,40 +248,20 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 12),
-                                    // Forgot Password Link
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: _showForgotPasswordDialog,
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: Text(
-                                          'Forgot your password?',
-                                          style: GoogleFonts.inter(
-                                            color: primaryBlue,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
                                     const SizedBox(height: 24),
+
                                     // Log in Button
                                     ElevatedButton(
                                       onPressed: _isLoading
                                           ? null
                                           : () async {
-                                              final email = _emailController.text.trim();
-                                              final password = _passwordController.text;
+                                              final lrn = _lrnController.text.trim();
+                                              final parentCode = _parentCodeController.text.trim();
 
-                                              if (email.isEmpty || password.isEmpty) {
+                                              if (lrn.isEmpty || parentCode.isEmpty) {
                                                 setState(() {
                                                   _hasError = true;
-                                                  _errorMessage = 'Please enter both email and password.';
+                                                  _errorMessage = 'Please enter both LRN and Parent Code.';
                                                 });
                                                 return;
                                               }
@@ -343,9 +276,9 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                               final messenger = ScaffoldMessenger.of(context);
 
                                               final response = await AuthService.login(
-                                                email, 
-                                                password,
-                                                expectedRole: 'student',
+                                                lrn,
+                                                parentCode,
+                                                expectedRole: 'parent',
                                               );
 
                                               if (!mounted) return;
@@ -362,20 +295,20 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                                   navigator.pushReplacement(
                                                     MaterialPageRoute(
                                                       builder: (context) => ForceChangePasswordPage(
-                                                        email: email,
+                                                        email: lrn,
                                                       ),
                                                     ),
                                                   );
                                                 } else {
                                                   navigator.pushReplacement(
                                                     MaterialPageRoute(
-                                                      builder: (context) => const StudentOverviewPage(),
+                                                      builder: (context) => const ParentOverviewPage(),
                                                     ),
                                                   );
                                                   messenger.showSnackBar(
                                                     SnackBar(
                                                       content: Text(
-                                                        'Logged in successfully!',
+                                                        'Parent logged in successfully!',
                                                         style: GoogleFonts.inter(
                                                           fontWeight: FontWeight.w600,
                                                         ),
@@ -387,7 +320,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                               } else {
                                                 setState(() {
                                                   _hasError = true;
-                                                  _errorMessage = response.error ?? 'Incorrect credentials, please try again.';
+                                                  _errorMessage = response.error ?? 'Invalid LRN or Parent Code. Please try again.';
                                                 });
                                               }
                                             },
@@ -417,31 +350,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                                               ),
                                             ),
                                     ),
-                                    const SizedBox(height: 20),
-                                    // Not registered yet? Contact admin
-                                    Center(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          style: GoogleFonts.inter(
-                                            fontSize: 15,
-                                            color: const Color(0xFF71717A),
-                                          ),
-                                          children: [
-                                            const TextSpan(text: 'Not registered yet? '),
-                                            TextSpan(
-                                              text: 'Contact admin',
-                                              style: GoogleFonts.inter(
-                                                color: primaryBlue,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = _showContactAdminDialog,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24), // Bottom margin safety buffer
+                                    const SizedBox(height: 24),
                                   ],
                                 ),
                               ),
@@ -451,7 +360,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                       ),
                     ),
 
-                    // ── Footer — always pinned at the bottom ───────────────
+                    // 3. Footer — always pinned at the bottom
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         isTablet ? 0 : 24,
@@ -472,16 +381,16 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                             TextSpan(
                               text: 'Terms of Service',
                               style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
                                 color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const TextSpan(text: '\nand '),
                             TextSpan(
                               text: 'Privacy Policy',
                               style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
                                 color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -497,12 +406,4 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
       ),
     );
   }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 }
-

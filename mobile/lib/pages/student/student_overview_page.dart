@@ -16,6 +16,7 @@ import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -245,7 +246,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Hello, Doechii!',
+                                                'Kumusta, ${AuthService.currentUser?.firstName ?? 'Doechii'}! 👋',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 26,
                                                   fontWeight: FontWeight.w800,
@@ -255,7 +256,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                'Grade 4 - Fyang',
+                                                'Grade ${AuthService.currentUser?.rawUser?['grade_level'] ?? '4'} - ${AuthService.currentUser?.rawUser?['section'] ?? 'Fyang'}',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 15,
                                                   color: Colors.white.withValues(alpha: 0.8),
