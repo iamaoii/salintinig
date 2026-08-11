@@ -608,12 +608,15 @@ async function verifyParentAccessCode(req, res) {
           `SELECT 
              s.student_id,
              s.lrn,
-             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+             s.first_name AS student_first_name,
+             CONCAT(s.first_name, ' ', s.last_name) AS name,
              COALESCE(c.grade_level, 'Grade 4') AS grade,
              COALESCE(c.section_name, 'Unassigned') AS section,
-             sp.access_code
+             sp.access_code,
+             COALESCE(NULLIF(p.parent_name, ''), 'Parent') AS parent_name
            FROM students s
            JOIN student_parents sp ON s.student_id = sp.student_id
+           LEFT JOIN parents p ON sp.parent_id = p.parent_id
            LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
            LEFT JOIN classes c ON sgh.class_id = c.class_id
            WHERE TRIM(s.lrn) = $1 AND UPPER(TRIM(sp.access_code)) = $2
@@ -630,8 +633,10 @@ async function verifyParentAccessCode(req, res) {
               studentId: std.student_id,
               lrn: std.lrn,
               name: std.name,
+              studentFirstName: std.student_first_name,
               grade: std.grade,
               section: std.section,
+              parentName: std.parent_name,
             },
           });
         }
