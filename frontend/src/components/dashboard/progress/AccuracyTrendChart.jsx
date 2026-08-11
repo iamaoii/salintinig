@@ -19,10 +19,12 @@ function toPath(points) {
 
 const Y_TICKS = [0, 25, 50, 75, 100];
 
-export default function AccuracyTrendChart({ sessions, accuracy, comprehension }) {
-  const accuracyPoints = toPoints(accuracy);
-  const comprehensionPoints = toPoints(comprehension);
-  const stepX = (WIDTH - PADDING_LEFT - PADDING) / (sessions.length - 1);
+export default function AccuracyTrendChart({ sessions = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'], accuracy = [], comprehension = [] }) {
+  const chartSessions = sessions && sessions.length > 0 ? sessions : ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
+  const hasData = accuracy && accuracy.length > 0;
+  const accuracyPoints = hasData ? toPoints(accuracy) : [];
+  const comprehensionPoints = (comprehension && comprehension.length > 0) ? toPoints(comprehension) : [];
+  const stepX = (WIDTH - PADDING_LEFT - PADDING) / (chartSessions.length - 1);
 
   return (
     <div className="w-full">
@@ -49,15 +51,19 @@ export default function AccuracyTrendChart({ sessions, accuracy, comprehension }
           );
         })}
 
-        {sessions.map((_, i) => {
+        {chartSessions.map((_, i) => {
           const x = PADDING_LEFT + i * stepX;
           return (
             <line key={i} x1={x} y1={PADDING} x2={x} y2={HEIGHT - PADDING} stroke="rgba(26,24,22,0.08)" strokeWidth={1} />
           );
         })}
 
-        <path d={toPath(accuracyPoints)} fill="none" stroke="#165fd5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        <path d={toPath(comprehensionPoints)} fill="none" stroke="#d53f24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {accuracyPoints.length > 0 && (
+          <path d={toPath(accuracyPoints)} fill="none" stroke="#165fd5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        )}
+        {comprehensionPoints.length > 0 && (
+          <path d={toPath(comprehensionPoints)} fill="none" stroke="#d53f24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        )}
 
         {accuracyPoints.map(([x, y], i) => (
           <circle key={`a-${i}`} cx={x} cy={y} r={3} fill="#165fd5" />
@@ -66,7 +72,7 @@ export default function AccuracyTrendChart({ sessions, accuracy, comprehension }
           <circle key={`c-${i}`} cx={x} cy={y} r={3} fill="#d53f24" />
         ))}
 
-        {sessions.map((label, i) => (
+        {chartSessions.map((label, i) => (
           <text key={label} x={PADDING_LEFT + i * stepX} y={HEIGHT - 4} fontSize={9} textAnchor="middle" fill="rgba(26,24,22,0.5)">
             {label}
           </text>
