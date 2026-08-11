@@ -23,6 +23,8 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
 
   late String _selectedChild;
   late String _childGradeSection;
+  late String _parentName;
+  late String _studentFirstName;
   final String _readingLevel = 'Instructional Level';
   final double _oralAccuracy = 88.5;
   final double _comprehension = 85.0;
@@ -31,9 +33,11 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
   @override
   void initState() {
     super.initState();
-    _selectedChild = widget.linkedChild?['name'] ?? 'Doechii Carganilla';
+    _selectedChild = widget.linkedChild?['name'] ?? 'Student';
+    _studentFirstName = widget.linkedChild?['studentFirstName'] ?? _selectedChild.split(' ').first;
+    _parentName = widget.linkedChild?['parentName'] ?? 'Parent';
     final g = widget.linkedChild?['grade'] ?? 'Grade 4';
-    final s = widget.linkedChild?['section'] ?? 'FYANG';
+    final s = widget.linkedChild?['section'] ?? 'Unassigned';
     _childGradeSection = '$g - $s';
   }
 
@@ -368,27 +372,34 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Iconify(Ph.student, color: Colors.white, size: 16),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _selectedChild,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Iconify(Ph.student, color: Colors.white, size: 16),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          _selectedChild,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
@@ -408,7 +419,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Welcome, Mrs. Carganilla',
+                            'Welcome, $_parentName',
                             style: GoogleFonts.inter(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
@@ -417,7 +428,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Monitor Doechii\'s reading progress and Phil-IRI assessment results.',
+                            'Monitor $_studentFirstName\'s reading progress and Phil-IRI assessment results.',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.95),
