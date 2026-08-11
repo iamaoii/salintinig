@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/teacher/teacher_student_details_page.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherGstStudentListPage extends StatefulWidget {
   final String filterType; // 'Under 14' or 'Above 14'
@@ -174,16 +175,10 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            leading: CircleAvatar(
+                            leading: InitialsAvatar(
+                              name: name,
                               radius: 20,
-                              backgroundColor: isUnder ? const Color(0xFFFDF4F2) : const Color(0xFFECFDF5),
-                              child: Text(
-                                name.substring(0, 1),
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.bold,
-                                  color: isUnder ? const Color(0xFFD34426) : const Color(0xFF059669),
-                                ),
-                              ),
+                              fontSize: 14,
                             ),
                             title: Text(
                               name,

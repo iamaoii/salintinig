@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_student_details_page.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherReadingLevelsPage extends StatefulWidget {
   final String initialLevel;
@@ -350,17 +351,9 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
             padding: const EdgeInsets.all(14.0),
             child: Row(
               children: [
-                CircleAvatar(
+                InitialsAvatar(
+                  name: name,
                   radius: 22,
-                  backgroundColor: bgColor,
-                  child: Text(
-                    initial,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                      fontSize: 16,
-                    ),
-                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

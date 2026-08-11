@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherStudentDetailsPage extends StatefulWidget {
   final String studentName;
@@ -261,17 +262,10 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Avatar Circle
-                        CircleAvatar(
+                        InitialsAvatar(
+                          name: widget.studentName,
                           radius: 38,
-                          backgroundColor: const Color(0xFFEFF6FF),
-                          child: Text(
-                            widget.avatarInitial,
-                            style: GoogleFonts.inter(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: primaryBlue,
-                            ),
-                          ),
+                          fontSize: 26,
                         ),
                         const SizedBox(width: 16),
                         Expanded(

@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
 import 'package:salintinig/pages/teacher/teacher_student_details_page.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherClassDetailsPage extends StatefulWidget {
   final String className;
@@ -368,16 +369,10 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                     const SizedBox(height: 4),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
+                      leading: InitialsAvatar(
+                        name: 'Ted Mosby',
                         radius: 20,
-                        backgroundColor: const Color(0xFFFEF3C7),
-                        child: Text(
-                          'TM',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFFD97706),
-                          ),
-                        ),
+                        fontSize: 14,
                       ),
                       title: Text(
                         'Ted Mosby',
@@ -421,22 +416,6 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                         final String name = student['name']!;
                         final String initial = student['avatar']!;
 
-                        final List<Color> avatarColors = [
-                          const Color(0xFFEFF6FF),
-                          const Color(0xFFFDF4F2),
-                          const Color(0xFFFEF3C7),
-                          const Color(0xFFECFDF5),
-                          const Color(0xFFF5F3FF),
-                        ];
-                        final List<Color> textColors = [
-                          const Color(0xFF1D4ED8),
-                          const Color(0xFFD34426),
-                          const Color(0xFFD97706),
-                          const Color(0xFF059669),
-                          const Color(0xFF7C3AED),
-                        ];
-                        final int colorIdx = index % avatarColors.length;
-
                         return InkWell(
                           onTap: () {
                             Feedback.forTap(context);
@@ -455,17 +434,10 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                             padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
                             child: Row(
                               children: [
-                                CircleAvatar(
+                                InitialsAvatar(
+                                  name: name,
                                   radius: 20,
-                                  backgroundColor: avatarColors[colorIdx],
-                                  child: Text(
-                                    initial,
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.bold,
-                                      color: textColors[colorIdx],
-                                      fontSize: 15,
-                                    ),
-                                  ),
+                                  fontSize: 14,
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(

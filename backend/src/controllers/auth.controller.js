@@ -233,7 +233,7 @@ async function login(req, res) {
             lrn = stRow.lrn || lrn;
             gradeLevel = stRow.grade_level ? String(stRow.grade_level) : null;
             sectionName = stRow.section_name || null;
-            displayName = [stRow.first_name, stRow.last_name].filter(Boolean).join(' ');
+            displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
           }
         } catch (stErr) {
           console.warn('Student detail enrichment warning:', stErr.message);
@@ -311,7 +311,7 @@ async function getMe(req, res) {
             const stRow = stRes.rows[0];
             const firstName = stRow.first_name || user.firstName;
             const lastName = stRow.last_name || user.lastName;
-            const displayName = [stRow.first_name, stRow.last_name].filter(Boolean).join(' ');
+            const displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
 
             return res.json({
               success: true,

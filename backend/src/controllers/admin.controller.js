@@ -609,7 +609,7 @@ async function verifyParentAccessCode(req, res) {
              s.student_id,
              s.lrn,
              s.first_name AS student_first_name,
-             CONCAT(s.first_name, ' ', s.last_name) AS name,
+             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
              COALESCE(c.grade_level, 'Grade 4') AS grade,
              COALESCE(c.section_name, 'Unassigned') AS section,
              sp.access_code,
