@@ -146,6 +146,7 @@ async function getStudentByLrn(req, res) {
 
     if (isDbConfigured()) {
       try {
+        const cleanLrn = String(lrn || '').trim();
         const { rows } = await db.query(`
           SELECT 
             s.student_id AS id,
@@ -171,14 +172,18 @@ async function getStudentByLrn(req, res) {
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
-          LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, class_id, promotion_status
+            FROM student_grade_history
+            ORDER BY student_id, created_at DESC
+          ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
-          WHERE s.lrn = $1 OR s.student_id::text = $1
+          WHERE TRIM(s.lrn) = $1 OR s.student_id::text = $1
           LIMIT 1
-        `, [lrn]);
+        `, [cleanLrn]);
 
         if (rows && rows.length > 0) {
           const studentObj = rows[0];
@@ -235,6 +240,52 @@ async function getStudentByLrn(req, res) {
             studentObj.avgAccuracy = 0;
             studentObj.avgComprehension = 0;
             studentObj.avgWps = 0;
+          }
+
+          // Fetch activities assigned to student's class
+          const { rows: actRows } = await db.query(
+            `SELECT 
+               act.activity_id AS id,
+               act.title,
+               COALESCE(act.activity_type, 'Practice') AS type,
+               CASE WHEN aa.activity_attempt_id IS NOT NULL THEN 'done' ELSE 'not-done' END AS status
+             FROM activities act
+             JOIN student_grade_history sgh ON sgh.class_id = act.class_id
+             LEFT JOIN activity_attempts aa ON aa.activity_id = act.activity_id AND aa.student_id = sgh.student_id
+             WHERE sgh.student_id = $1
+             ORDER BY act.created_at DESC`,
+            [studentId]
+          );
+          studentObj.activities = actRows || [];
+
+          // Fetch earned badges from DB
+          try {
+            const { rows: badgeRows } = await db.query(
+              `SELECT b.badge_id AS id, b.badge_name AS name, COALESCE(b.icon_path, '') AS image
+               FROM student_badges sb
+               JOIN badges b ON sb.badge_id = b.badge_id
+               WHERE sb.student_id = $1
+               ORDER BY sb.earned_at DESC`,
+              [studentId]
+            );
+            studentObj.badges = badgeRows || [];
+          } catch (bErr) {
+            studentObj.badges = [];
+          }
+
+          // Fetch completed stories from DB if table exists
+          try {
+            const { rows: storyRows } = await db.query(
+              `SELECT rm.material_id AS id, rm.title, COALESCE(rm.category, 'blue') AS color
+               FROM student_story_progress ssp
+               JOIN reading_materials rm ON ssp.material_id = rm.material_id
+               WHERE ssp.student_id = $1 AND ssp.status = 'completed'
+               ORDER BY ssp.updated_at DESC`,
+              [studentId]
+            );
+            studentObj.stories = storyRows || [];
+          } catch (sErr) {
+            studentObj.stories = [];
           }
 
           return res.json({ success: true, student: studentObj });

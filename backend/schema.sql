@@ -351,6 +351,15 @@ CREATE TABLE IF NOT EXISTS student_progress (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS student_story_progress (
+    story_progress_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
+    status VARCHAR(50) DEFAULT 'in_progress', -- 'in_progress' or 'completed'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS reading_profiles (
     profile_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,

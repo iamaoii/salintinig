@@ -40,16 +40,6 @@ const LEVEL_BADGE = {
 
 const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Activities', 'Badges', 'Stories'];
 
-const ACTIVITIES = [
-  { id: 1, title: 'Oral Reading Screening Test', status: 'done', type: 'PhilIRI' },
-  { id: 2, title: 'Comprehension Activity - Ang Pinagmulan ng Marikina', status: 'done', type: 'Practice' },
-  { id: 3, title: 'Silent Reading Passage - Form 1B', status: 'not-done', type: 'PhilIRI' },
-];
-
-const SESSIONS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
-const ACCURACY_TREND = [58, 65, 70, 76, 82, 87];
-const COMPREHENSION_TREND = [20, 24, 28, 31, 34, 37];
-
 const BADGE_COLUMNS = 5;
 
 function withPlaceholders(items) {
@@ -103,9 +93,9 @@ export default function AdminStudentProfile() {
     status: 'N/A',
   };
 
-  const rawBadges = badgesByLrn[std.lrn] || defaultBadges;
+  const rawBadges = std.badges || [];
   const badges = withPlaceholders(rawBadges);
-  const stories = storiesByLrn[std.lrn] || defaultStories;
+  const stories = std.stories || [];
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -383,10 +373,24 @@ export default function AdminStudentProfile() {
               )}
 
               {achievementTab === 'Activities' && (
-                <div className="flex flex-col gap-3">
-                  {ACTIVITIES.map((activity) => (
-                    <AchievementActivityRow key={activity.id} activity={activity} />
-                  ))}
+                <div>
+                  {std.activities && std.activities.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                      {std.activities.map((activity) => (
+                        <AchievementActivityRow key={activity.id} activity={activity} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+                      <div className="flex flex-col items-center justify-center space-y-1.5">
+                        <Icon icon="ph:article-bold" className="size-8 text-ink/30 mb-1" />
+                        <span className="text-xs font-bold text-ink">No Activities Assigned Yet</span>
+                        <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
+                          This student has not been assigned any class reading activities.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -404,7 +408,7 @@ export default function AdminStudentProfile() {
                         <Icon icon="ph:medal-bold" className="size-8 text-ink/30 mb-1" />
                         <span className="text-xs font-bold text-ink">No Badges Unlocked Yet</span>
                         <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
-                          Achievement badges (e.g. 10-Day Reading Streak, Perfect Comprehension, Early Bird Reader) will unlock here as the student completes activities.
+                          This student has not unlocked any achievement badges yet.
                         </span>
                       </div>
                     </div>
@@ -426,7 +430,7 @@ export default function AdminStudentProfile() {
                         <Icon icon="ph:book-open-bold" className="size-8 text-ink/30 mb-1" />
                         <span className="text-xs font-bold text-ink">No Completed Stories Yet</span>
                         <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
-                          Stories read and finished by the student in the mobile library will be showcased here.
+                          This student has not completed any reading stories yet.
                         </span>
                       </div>
                     </div>
