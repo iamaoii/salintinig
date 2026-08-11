@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math' as math;
 import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/services/api_service.dart';
 
 class PracticeCongratulationsPage extends StatefulWidget {
   final String bookTitle;
@@ -28,6 +29,19 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 4));
     _confettiController.play();
+    _syncStoryCompletion();
+  }
+
+  Future<void> _syncStoryCompletion() async {
+    try {
+      await ApiService.post('/api/admin/students/story/complete', {
+        'bookTitle': widget.bookTitle,
+        'score': widget.score,
+        'totalQuestions': widget.totalQuestions,
+      });
+    } catch (e) {
+      debugPrint('Story completion sync notice: $e');
+    }
   }
 
   @override

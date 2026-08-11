@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/services/api_service.dart';
 
 class VocabularyMatchingPage extends StatefulWidget {
   const VocabularyMatchingPage({super.key});
@@ -11,6 +12,17 @@ class VocabularyMatchingPage extends StatefulWidget {
 }
 
 class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
+  Future<void> _syncActivityCompletion(String title) async {
+    try {
+      await ApiService.post('/api/admin/students/activity/complete', {
+        'activityTitle': title,
+        'activityType': 'Vocabulary',
+        'score': 100,
+      });
+    } catch (e) {
+      debugPrint('Activity completion notice: $e');
+    }
+  }
   final List<String> _englishWords = ['Dog', 'Cat', 'House', 'Water', 'Sun'];
   final List<String> _filipinoWords = ['Bahay', 'Tubig', 'Araw', 'Aso', 'Pusa'];
 
@@ -73,6 +85,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
           setState(() {
             _isFinished = true;
           });
+          _syncActivityCompletion('Vocabulary Matching Challenge');
         }
       } else {
         // Mismatch - trigger temporary error states
