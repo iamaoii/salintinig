@@ -130,6 +130,116 @@ async function getTeachers(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/teachers/:id — Get single teacher by ID or Employee ID
+// ---------------------------------------------------------------------------
+async function getTeacherById(req, res) {
+  try {
+    const { id } = req.params;
+    const cleanId = String(id || '').trim();
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(
+          `SELECT 
+             t.teacher_id AS id,
+             t.teacher_no AS "employeeId",
+             t.first_name AS "firstName",
+             t.middle_name AS "middleName",
+             t.last_name AS "lastName",
+             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
+             COALESCE(t.sex, 'Male') AS gender,
+             COALESCE(u.email, '') AS email,
+             COALESCE(
+               (SELECT c.grade_level FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               'Unassigned'
+             ) AS "gradeAssigned",
+             COALESCE(
+               (SELECT c.section_name FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               'Unassigned'
+             ) AS "sectionAssigned",
+             COALESCE(
+               (SELECT c.class_id FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               NULL
+             ) AS "classId",
+             EXISTS(
+               SELECT 1 FROM faculty_in_charge fic JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
+             ) AS "isFacultyInCharge",
+             CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Active' END AS status,
+             TO_CHAR(t.created_at, 'YYYY-MM-DD') AS "dateAdded"
+           FROM teachers t
+           LEFT JOIN users u ON t.user_id = u.user_id
+           WHERE TRIM(t.teacher_no) = $1 OR t.teacher_id::text = $1
+           LIMIT 1`,
+          [cleanId]
+        );
+
+        if (rows && rows.length > 0) {
+          const teacherObj = rows[0];
+          const classId = teacherObj.classId;
+
+          // Fetch enrolled class roster if teacher has assigned section
+          if (classId) {
+            const { rows: roster } = await db.query(
+              `SELECT 
+                 s.student_id AS id,
+                 s.lrn,
+                 CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+                 COALESCE(s.sex, 'Male') AS gender,
+                 COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level
+               FROM student_grade_history sgh
+               JOIN students s ON sgh.student_id = s.student_id
+               LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
+               WHERE sgh.class_id = $1 AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+               ORDER BY s.last_name ASC`,
+              [classId]
+            );
+            teacherObj.students = roster || [];
+          } else {
+            teacherObj.students = [];
+          }
+
+          // Count submissions created by teacher and fetch recent assessment activity logs
+          try {
+            const { rows: subRes } = await db.query(
+              `SELECT COUNT(*) FROM assessments WHERE assigned_by_teacher_id = $1`,
+              [teacherObj.id]
+            );
+            teacherObj.submissionsCount = parseInt(subRes[0]?.count || 0, 10);
+
+            const { rows: logRows } = await db.query(
+              `SELECT 
+                 a.assessment_id AS id,
+                 CONCAT('Assigned ', UPPER(a.assessment_type), ' Assessment (', REPLACE(a.assessment_period, '_', ' '), ')') AS title,
+                 CONCAT('Material ID: ', COALESCE(rm.title, 'Phil-IRI Passage')) AS detail,
+                 TO_CHAR(a.date_assigned, 'Mon DD, YYYY "at" HH12:MI AM') AS time
+               FROM assessments a
+               LEFT JOIN reading_materials rm ON a.material_id = rm.material_id
+               WHERE a.assigned_by_teacher_id = $1
+               ORDER BY a.date_assigned DESC
+               LIMIT 10`,
+              [teacherObj.id]
+            );
+            teacherObj.activityLogs = logRows || [];
+          } catch (e) {
+            teacherObj.submissionsCount = 0;
+            teacherObj.activityLogs = [];
+          }
+
+          return res.json({ success: true, teacher: teacherObj });
+        }
+      } catch (dbErr) {
+        console.warn('DB fetch teacher by ID notice:', dbErr.message);
+      }
+    }
+
+    return res.status(404).json({ success: false, error: 'Teacher record not found.' });
+  } catch (error) {
+    console.error('Error fetching teacher by ID:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch teacher profile.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/teachers — Create single teacher
 // ---------------------------------------------------------------------------
 async function createTeacher(req, res) {
@@ -677,6 +787,7 @@ async function rejectAccountRequest(req, res) {
 
 module.exports = {
   getTeachers,
+  getTeacherById,
   createTeacher,
   updateTeacher,
   deleteTeacher,

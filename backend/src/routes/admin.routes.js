@@ -19,6 +19,7 @@ router.get('/analytics/phil-iri', adminController.getPhilIriAnalytics);
 
 // Teacher management endpoints
 router.get('/teachers', teacherController.getTeachers);
+router.get('/teachers/:id', teacherController.getTeacherById);
 router.post('/teachers', teacherController.createTeacher);
 router.put('/teachers/:id', teacherController.updateTeacher);
 router.delete('/teachers/:id', teacherController.deleteTeacher);
