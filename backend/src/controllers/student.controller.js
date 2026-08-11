@@ -167,7 +167,7 @@ async function getStudentByLrn(req, res) {
               WHEN u.status = 'disabled' THEN 'Disabled'
               ELSE 'Active'
             END AS status,
-            COALESCE(rp.current_profile_label, 'Instructional') AS level,
+            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
@@ -181,7 +181,63 @@ async function getStudentByLrn(req, res) {
         `, [lrn]);
 
         if (rows && rows.length > 0) {
-          return res.json({ success: true, student: rows[0] });
+          const studentObj = rows[0];
+          const studentId = studentObj.id;
+
+          // Fetch real assessment performance attempts
+          const { rows: perfRows } = await db.query(
+            `SELECT 
+               aa.completed_at,
+               COALESCE(orr.fluency_score, 0) AS oral_accuracy,
+               COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension,
+               COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, 0) AS reading_time,
+               COALESCE(orr.words_read, 0) AS words_read
+             FROM assessment_attempts aa
+             JOIN assessments a ON aa.assessment_id = a.assessment_id
+             LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+             LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
+             WHERE a.student_id = $1 AND aa.status = 'completed'
+             ORDER BY aa.completed_at ASC
+             LIMIT 6`,
+            [studentId]
+          );
+
+          if (perfRows && perfRows.length > 0) {
+            const sessions = perfRows.map((_, idx) => `S${idx + 1}`);
+            const accuracy = perfRows.map((r) => Math.round(Number(r.oral_accuracy || 0)));
+            const comprehension = perfRows.map((r) => Math.round(Number(r.comprehension || 0)));
+
+            const totalAcc = accuracy.reduce((a, b) => a + b, 0);
+            const totalComp = comprehension.reduce((a, b) => a + b, 0);
+            
+            let totalWps = 0;
+            let wpsCount = 0;
+            perfRows.forEach((r) => {
+              const sec = Number(r.reading_time || 0);
+              const words = Number(r.words_read || 0);
+              if (sec > 0 && words > 0) {
+                totalWps += Math.round(words / sec);
+                wpsCount++;
+              }
+            });
+
+            studentObj.sessions = sessions;
+            studentObj.accuracyTrend = accuracy;
+            studentObj.comprehensionTrend = comprehension;
+            studentObj.avgAccuracy = Math.round(totalAcc / accuracy.length);
+            studentObj.avgComprehension = Math.round(totalComp / comprehension.length);
+            studentObj.avgWps = wpsCount > 0 ? Math.round(totalWps / wpsCount) : 0;
+          } else {
+            // Un-assessed student metrics
+            studentObj.sessions = [];
+            studentObj.accuracyTrend = [];
+            studentObj.comprehensionTrend = [];
+            studentObj.avgAccuracy = 0;
+            studentObj.avgComprehension = 0;
+            studentObj.avgWps = 0;
+          }
+
+          return res.json({ success: true, student: studentObj });
         }
       } catch (dbErr) {
         console.warn('DB fetch student by LRN notice:', dbErr.message);

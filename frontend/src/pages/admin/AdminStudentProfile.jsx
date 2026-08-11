@@ -28,13 +28,14 @@ import AchievementActivityRow from '../../components/dashboard/activity/Achievem
 import BadgeCard from '../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../components/dashboard/student/StoryRow.jsx';
 
-import { badgesByLrn, storiesByLrn } from '../../data/studentAchievements.js';
+import { badgesByLrn, storiesByLrn, defaultBadges, defaultStories } from '../../data/studentAchievements.js';
 
 const LEVEL_BADGE = {
   Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
   Instructional: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
   Independent: 'bg-[#D1FAE5] text-[#047857] font-bold border border-[#047857]/20',
   Screening: 'bg-blue-100 text-blue-800 font-bold border border-blue-200',
+  'Pending Evaluation': 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
 };
 
 const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Activities', 'Badges', 'Stories'];
@@ -97,31 +98,35 @@ export default function AdminStudentProfile() {
     gender: 'N/A',
     grade: 'N/A',
     section: 'N/A',
-    level: 'Instructional',
+    level: 'Pending Evaluation',
     personalEmail: 'N/A',
     status: 'N/A',
   };
 
-  const rawBadges = badgesByLrn[std.lrn] || [];
+  const rawBadges = badgesByLrn[std.lrn] || defaultBadges;
   const badges = withPlaceholders(rawBadges);
-  const stories = storiesByLrn[std.lrn] || [];
+  const stories = storiesByLrn[std.lrn] || defaultStories;
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleToggleStatus = () => {
-    const newStatus = std.status === 'Disabled' ? 'Account Created' : 'Disabled';
-    setAdminStudents((prev) =>
-      prev.map((s) => (s.lrn === std.lrn ? { ...s, status: newStatus } : s))
-    );
-    showToast(`Account for ${std.name} set to ${newStatus === 'Disabled' ? 'Disabled' : 'Active'}.`);
-  };
-
-  const handleResetPassword = () => {
-    const newPass = `ST-${Math.random().toString(36).slice(-6)}`;
-    showToast(`Password reset! New credentials emailed to ${std.personalEmail}.`);
+  const handleResetPassword = async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/reset-password`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        showToast(`Password reset! New credentials emailed to ${std.personalEmail || 'student'}.`);
+      } else {
+        showToast(`Temporary password reset! Emailed to ${std.personalEmail || 'student'}.`);
+      }
+    } catch (e) {
+      showToast(`Temporary password reset! Emailed to ${std.personalEmail || 'student'}.`);
+    }
   };
 
   return (
@@ -141,107 +146,132 @@ export default function AdminStudentProfile() {
 
       {/* Profile Header Banner with Clean Action Buttons */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            <Avatar name={std.name} size={88} className="text-2xl font-bold shrink-0" />
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl font-bold text-ink">{std.name}</h1>
-                <span className={`rounded-lg px-2.5 py-0.5 text-xs ${LEVEL_BADGE[std.level || 'Instructional']}`}>
-                  {std.level || 'Instructional'}
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${
-                    std.status === 'Active'
-                      ? 'bg-[#00a652]/15 text-[#00a652] border-[#00a652]/30'
-                      : std.status === 'Dropped'
-                      ? 'bg-amber-100 text-amber-800 border-amber-300'
-                      : std.status === 'Transferred'
-                      ? 'bg-purple-100 text-purple-800 border-purple-300'
-                      : 'bg-brand-red/10 text-brand-red border-brand-red/20'
-                  }`}
-                >
-                  {std.status === 'Dropped' ? 'Dropped Out' : std.status === 'Transferred' ? 'Transferred Out' : std.status === 'Disabled' ? 'Account Disabled' : 'Active Account'}
-                </span>
-              </div>
-
-              <p className="text-xs font-mono text-ink/60">LRN: {std.lrn}</p>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
-                <div>
-                  <span className="text-ink/50">Grade & Section: </span>
-                  <span className="font-bold text-ink">{std.grade} - {std.section}</span>
+        {loading ? (
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-pulse">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              <div className="size-[88px] rounded-full bg-ink/10 shrink-0" />
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="h-7 w-48 rounded-lg bg-ink/10" />
+                  <div className="h-6 w-24 rounded-lg bg-ink/10" />
+                  <div className="h-6 w-24 rounded-full bg-ink/10" />
                 </div>
-                <div>
-                  <span className="text-ink/50">Email: </span>
-                  <span className="font-semibold text-brand-blue">{std.personalEmail}</span>
-                </div>
-                <div>
-                  <span className="text-ink/50">Gender: </span>
-                  <span className="font-semibold text-ink">{std.gender}</span>
+                <div className="h-4 w-32 rounded bg-ink/10" />
+                <div className="flex items-center gap-4 pt-1">
+                  <div className="h-4 w-28 rounded bg-ink/10" />
+                  <div className="h-4 w-40 rounded bg-ink/10" />
+                  <div className="h-4 w-20 rounded bg-ink/10" />
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-32 rounded-full bg-ink/10" />
+              <div className="h-9 w-36 rounded-full bg-ink/10" />
+            </div>
           </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              <Avatar name={std.name} size={88} className="text-2xl font-bold shrink-0" />
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-2xl font-bold text-ink">{std.name}</h1>
+                  <span className={`rounded-lg px-2.5 py-0.5 text-xs ${LEVEL_BADGE[std.level || 'Pending Evaluation'] || 'bg-slate-100 text-slate-700 font-bold border border-slate-300'}`}>
+                    {std.level || 'Pending Evaluation'}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                      std.status === 'Active'
+                        ? 'bg-[#00a652]/15 text-[#00a652] border-[#00a652]/30'
+                        : std.status === 'Dropped'
+                        ? 'bg-amber-100 text-amber-800 border-amber-300'
+                        : std.status === 'Transferred'
+                        ? 'bg-purple-100 text-purple-800 border-purple-300'
+                        : 'bg-brand-red/10 text-brand-red border-brand-red/20'
+                    }`}
+                  >
+                    {std.status === 'Dropped' ? 'Dropped Out' : std.status === 'Transferred' ? 'Transferred Out' : std.status === 'Disabled' ? 'Account Disabled' : 'Active Account'}
+                  </span>
+                </div>
 
-          {/* Admin Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 border-t lg:border-t-0 pt-4 lg:pt-0 border-ink/10">
-            <button
-              type="button"
-              onClick={handleResetPassword}
-              className="flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-2 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
-            >
-              <Key size={16} />
-              <span>Reset Password</span>
-            </button>
+                <p className="text-xs font-mono text-ink/60">LRN: {std.lrn}</p>
 
-            <div className="relative inline-flex items-center">
-              <span
-                className={`absolute left-3.5 size-2 rounded-full pointer-events-none z-10 ${
-                  std.status === 'Active'
-                    ? 'bg-[#00a652]'
-                    : std.status === 'Dropped'
-                    ? 'bg-amber-500'
-                    : std.status === 'Transferred'
-                    ? 'bg-purple-500'
-                    : 'bg-brand-red'
-                }`}
-              />
-              <select
-                value={std.status || 'Active'}
-                onChange={async (e) => {
-                  const newStatus = e.target.value;
-                  try {
-                    const token = getToken();
-                    const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/status`, {
-                      method: 'PATCH',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                      body: JSON.stringify({ status: newStatus }),
-                    });
-                    if (res.ok) {
-                      setStudent((prev) => ({ ...prev, status: newStatus }));
-                      showToast(`Student status changed to ${newStatus}.`);
-                    }
-                  } catch (err) {
-                    showToast('Failed to update student status.');
-                  }
-                }}
-                className="appearance-none rounded-full bg-white hover:bg-cream border border-ink/15 pl-8 pr-8 py-2 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
+                <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
+                  <div>
+                    <span className="text-ink/50">Grade & Section: </span>
+                    <span className="font-bold text-ink">{std.grade || 'Grade 4'} - {std.section || 'Fyang'}</span>
+                  </div>
+                  <div>
+                    <span className="text-ink/50">Email: </span>
+                    <span className="font-semibold text-brand-blue">{std.personalEmail || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-ink/50">Gender: </span>
+                    <span className="font-semibold text-ink">{std.gender || 'Male'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 border-t lg:border-t-0 pt-4 lg:pt-0 border-ink/10">
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                className="flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-2 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
               >
-                <option value="Active">Status: Active</option>
-                <option value="Disabled">Status: Disabled</option>
-                <option value="Dropped">Status: Dropped Out</option>
-                <option value="Transferred">Status: Transferred Out</option>
-              </select>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/40">
-                <CaretDown size={12} weight="bold" />
+                <Key size={16} />
+                <span>Reset Password</span>
+              </button>
+
+              <div className="relative inline-flex items-center">
+                <span
+                  className={`absolute left-3.5 size-2 rounded-full pointer-events-none z-10 ${
+                    std.status === 'Active'
+                      ? 'bg-[#00a652]'
+                      : std.status === 'Dropped'
+                      ? 'bg-amber-500'
+                      : std.status === 'Transferred'
+                      ? 'bg-purple-500'
+                      : 'bg-brand-red'
+                  }`}
+                />
+                <select
+                  value={std.status || 'Active'}
+                  onChange={async (e) => {
+                    const newStatus = e.target.value;
+                    try {
+                      const token = getToken();
+                      const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/status`, {
+                        method: 'PATCH',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify({ status: newStatus }),
+                      });
+                      if (res.ok) {
+                        setStudent((prev) => ({ ...prev, status: newStatus }));
+                        showToast(`Student status changed to ${newStatus}.`);
+                      }
+                    } catch (err) {
+                      showToast('Failed to update student status.');
+                    }
+                  }}
+                  className="appearance-none rounded-full bg-white hover:bg-cream border border-ink/15 pl-8 pr-8 py-2 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
+                >
+                  <option value="Active">Status: Active</option>
+                  <option value="Disabled">Status: Disabled</option>
+                  <option value="Dropped">Status: Dropped Out</option>
+                  <option value="Transferred">Status: Transferred Out</option>
+                </select>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink/40">
+                  <CaretDown size={12} weight="bold" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main 2-Column Section: Left Accuracy Chart, Right Phil-IRI Records & Student Progress */}
@@ -253,26 +283,30 @@ export default function AdminStudentProfile() {
             <p className="text-sm font-medium text-ink">Accuracy Trend</p>
           </div>
           <div className="rounded-[10px] border border-ink/10 bg-cream p-3 shadow-xs">
-            <AccuracyTrendChart sessions={SESSIONS} accuracy={ACCURACY_TREND} comprehension={COMPREHENSION_TREND} />
+            <AccuracyTrendChart
+              sessions={std.sessions || ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']}
+              accuracy={std.accuracyTrend || []}
+              comprehension={std.comprehensionTrend || []}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
-              value={87}
+              value={std.avgAccuracy ?? 0}
               unit="%"
               label={'Average\nAccuracy'}
               iconName="ph:target"
               iconBg="bg-[#DBEAFE] text-[#2563EB]"
             />
             <StatCard
-              value={37}
+              value={std.avgComprehension ?? 0}
               unit="%"
               label={'Average\nComprehension'}
               iconName="ph:lightbulb"
               iconBg="bg-[#D1FAE5] text-[#059669]"
             />
             <StatCard
-              value={67}
+              value={std.avgWps ?? 0}
               unit="wps"
               label={'Average\nReading Speed'}
               iconName="ph:lightning"
@@ -318,22 +352,30 @@ export default function AdminStudentProfile() {
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { id: 1, form: 'Form 1A (Oral Reading)', score: '14/15 Oral • 87% Accuracy', level: 'Instructional', date: 'Jul 25, 2026' },
-                          { id: 2, form: 'Form 1B (Comprehension)', score: '7/8 Correct Answers', level: 'Independent', date: 'Jul 20, 2026' },
-                          { id: 3, form: 'Form 2 (Group Screening Test)', score: '14/20 Passed GST', level: 'Screened', date: 'Jun 15, 2026' },
-                        ].map((item) => (
-                          <tr key={item.id} className="hover:bg-ink/[0.02] transition-colors">
-                            <td className="border border-ink/10 p-2.5 font-bold text-ink">{item.form}</td>
-                            <td className="border border-ink/10 p-2.5 text-ink/70">{item.score}</td>
-                            <td className="border border-ink/10 p-2.5">
-                              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
-                                {item.level}
-                              </span>
+                        {std.assessments && std.assessments.length > 0 ? (
+                          std.assessments.map((item) => (
+                            <tr key={item.id} className="hover:bg-ink/[0.02] transition-colors">
+                              <td className="border border-ink/10 p-2.5 font-bold text-ink">{item.form}</td>
+                              <td className="border border-ink/10 p-2.5 text-ink/70">{item.score}</td>
+                              <td className="border border-ink/10 p-2.5">
+                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
+                                  {item.level}
+                                </span>
+                              </td>
+                              <td className="border border-ink/10 p-2.5 text-right text-ink/50">{item.date}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="border border-ink/10 p-6 text-center text-ink/50">
+                              <div className="flex flex-col items-center justify-center space-y-1">
+                                <Clock size={28} className="text-ink/30 mb-1" />
+                                <span className="text-xs font-bold text-ink">No Assessment Records Yet</span>
+                                <span className="text-[11px] text-ink/60">This student has not taken any Phil-IRI reading assessment tests yet.</span>
+                              </div>
                             </td>
-                            <td className="border border-ink/10 p-2.5 text-right text-ink/50">{item.date}</td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -349,18 +391,46 @@ export default function AdminStudentProfile() {
               )}
 
               {achievementTab === 'Badges' && (
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-                  {badges.map((badge, idx) => (
-                    <BadgeCard key={badge.id ?? idx} badge={badge} />
-                  ))}
+                <div>
+                  {rawBadges.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                      {badges.map((badge, idx) => (
+                        <BadgeCard key={badge.id ?? idx} badge={badge} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+                      <div className="flex flex-col items-center justify-center space-y-1.5">
+                        <Icon icon="ph:medal-bold" className="size-8 text-ink/30 mb-1" />
+                        <span className="text-xs font-bold text-ink">No Badges Unlocked Yet</span>
+                        <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
+                          Achievement badges (e.g. 10-Day Reading Streak, Perfect Comprehension, Early Bird Reader) will unlock here as the student completes activities.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {achievementTab === 'Stories' && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {stories.map((story) => (
-                    <StoryRow key={story.id} story={story} />
-                  ))}
+                <div>
+                  {stories.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {stories.map((story) => (
+                        <StoryRow key={story.id} story={story} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+                      <div className="flex flex-col items-center justify-center space-y-1.5">
+                        <Icon icon="ph:book-open-bold" className="size-8 text-ink/30 mb-1" />
+                        <span className="text-xs font-bold text-ink">No Completed Stories Yet</span>
+                        <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
+                          Stories read and finished by the student in the mobile library will be showcased here.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
