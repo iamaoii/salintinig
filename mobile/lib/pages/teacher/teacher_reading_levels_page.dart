@@ -316,7 +316,6 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
         final student = students[index];
         final String name = student['name'] as String;
         final String level = student['level'] as String;
-        final String initial = student['initial'] as String;
         final String wps = student['wps'] as String;
         final String accuracy = student['accuracy'] as String;
 
@@ -329,7 +328,6 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                 builder: (context) => TeacherStudentDetailsPage(
                   studentName: name,
                   level: level,
-                  avatarInitial: initial,
                 ),
               ),
             );

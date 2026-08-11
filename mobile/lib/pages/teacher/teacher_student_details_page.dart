@@ -10,7 +10,6 @@ class TeacherStudentDetailsPage extends StatefulWidget {
   final String grade;
   final String section;
   final String lrn;
-  final String avatarInitial;
 
   const TeacherStudentDetailsPage({
     super.key,
@@ -19,7 +18,6 @@ class TeacherStudentDetailsPage extends StatefulWidget {
     this.grade = 'Grade 4',
     this.section = 'Fyang',
     this.lrn = '1366 7010 0099',
-    this.avatarInitial = 'A',
   });
 
   @override

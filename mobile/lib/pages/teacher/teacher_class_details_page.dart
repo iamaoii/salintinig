@@ -22,41 +22,41 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final List<Map<String, String>> _students = const [
-    {'name': 'Adrian Matthew Cruz', 'avatar': 'A'},
-    {'name': 'Bianca Louise Santos', 'avatar': 'B'},
-    {'name': 'Caleb James Rivera', 'avatar': 'C'},
-    {'name': 'Daniela Mae Flores', 'avatar': 'D'},
-    {'name': 'Ethan Gabriel Reyes', 'avatar': 'E'},
-    {'name': 'Fiona Claire Mendoza', 'avatar': 'F'},
-    {'name': 'Hannah Nicole Castillo', 'avatar': 'H'},
-    {'name': 'Gabriel Anthony Navarro', 'avatar': 'G'},
-    {'name': 'Julia Camille Torres', 'avatar': 'J'},
-    {'name': 'Isaac Daniel Ramos', 'avatar': 'I'},
-    {'name': 'Juan Dela Cruz', 'avatar': 'J'},
-    {'name': 'Maria Clara Santos', 'avatar': 'M'},
-    {'name': 'Jose Protasio Rizal', 'avatar': 'J'},
-    {'name': 'Andres Bonifacio', 'avatar': 'A'},
-    {'name': 'Emilio Aguinaldo', 'avatar': 'E'},
-    {'name': 'Kylie Marie Soriano', 'avatar': 'K'},
-    {'name': 'Liam Alexander Diaz', 'avatar': 'L'},
-    {'name': 'Mia Sofia Garcia', 'avatar': 'M'},
-    {'name': 'Nathaniel Scott Villanueva', 'avatar': 'N'},
-    {'name': 'Olivia Grace Hernandez', 'avatar': 'O'},
-    {'name': 'Patrick John Aquino', 'avatar': 'P'},
-    {'name': 'Quentin Blake Valenzuela', 'avatar': 'Q'},
-    {'name': 'Rose Ann Del Rosario', 'avatar': 'R'},
-    {'name': 'Samuel David Tan', 'avatar': 'S'},
-    {'name': 'Tristan Paul Mercado', 'avatar': 'T'},
-    {'name': 'Ursula Beatrice Lim', 'avatar': 'U'},
-    {'name': 'Vincent Mark Pascual', 'avatar': 'V'},
-    {'name': 'Wendy Joy Roxas', 'avatar': 'W'},
-    {'name': 'Xavier Cole Bautista', 'avatar': 'X'},
-    {'name': 'Yvonne Mae Alonzo', 'avatar': 'Y'},
-    {'name': 'Zachary Sean Ocampo', 'avatar': 'Z'},
-    {'name': 'Angelica Ruth Corpuz', 'avatar': 'A'},
-    {'name': 'Benjamin Thomas Salazar', 'avatar': 'B'},
-    {'name': 'Chloe Danielle Ibáñez', 'avatar': 'C'},
-    {'name': 'Dominic Rafael David', 'avatar': 'D'},
+    {'name': 'Adrian Matthew Cruz'},
+    {'name': 'Bianca Louise Santos'},
+    {'name': 'Caleb James Rivera'},
+    {'name': 'Daniela Mae Flores'},
+    {'name': 'Ethan Gabriel Reyes'},
+    {'name': 'Fiona Claire Mendoza'},
+    {'name': 'Hannah Nicole Castillo'},
+    {'name': 'Gabriel Anthony Navarro'},
+    {'name': 'Julia Camille Torres'},
+    {'name': 'Isaac Daniel Ramos'},
+    {'name': 'Juan Dela Cruz'},
+    {'name': 'Maria Clara Santos'},
+    {'name': 'Jose Protasio Rizal'},
+    {'name': 'Andres Bonifacio'},
+    {'name': 'Emilio Aguinaldo'},
+    {'name': 'Kylie Marie Soriano'},
+    {'name': 'Liam Alexander Diaz'},
+    {'name': 'Mia Sofia Garcia'},
+    {'name': 'Nathaniel Scott Villanueva'},
+    {'name': 'Olivia Grace Hernandez'},
+    {'name': 'Patrick John Aquino'},
+    {'name': 'Quentin Blake Valenzuela'},
+    {'name': 'Rose Ann Del Rosario'},
+    {'name': 'Samuel David Tan'},
+    {'name': 'Tristan Paul Mercado'},
+    {'name': 'Ursula Beatrice Lim'},
+    {'name': 'Vincent Mark Pascual'},
+    {'name': 'Wendy Joy Roxas'},
+    {'name': 'Xavier Cole Bautista'},
+    {'name': 'Yvonne Mae Alonzo'},
+    {'name': 'Zachary Sean Ocampo'},
+    {'name': 'Angelica Ruth Corpuz'},
+    {'name': 'Benjamin Thomas Salazar'},
+    {'name': 'Chloe Danielle Ibáñez'},
+    {'name': 'Dominic Rafael David'},
   ];
 
   Widget _buildTeacherDrawer(BuildContext context) {
@@ -414,7 +414,6 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                       itemBuilder: (context, index) {
                         final student = _students[index];
                         final String name = student['name']!;
-                        final String initial = student['avatar']!;
 
                         return InkWell(
                           onTap: () {
@@ -424,7 +423,6 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                               MaterialPageRoute(
                                 builder: (context) => TeacherStudentDetailsPage(
                                   studentName: name,
-                                  avatarInitial: initial,
                                 ),
                               ),
                             );
