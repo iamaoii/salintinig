@@ -614,7 +614,7 @@ export default function AdminTeacherRecords() {
                     <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{tch.employeeId}</td>
                     <td
                       className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer"
-                      onClick={() => navigate(`/admin/teachers/${tch.id}`)}
+                      onClick={() => navigate(`/admin/teachers/${tch.employeeId || tch.id}`)}
                     >
                       {tch.name}
                     </td>
@@ -674,7 +674,7 @@ export default function AdminTeacherRecords() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/teachers/${tch.id}`)}
+                          onClick={() => navigate(`/admin/teachers/${tch.employeeId || tch.id}`)}
                           className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         >
                           View Profile

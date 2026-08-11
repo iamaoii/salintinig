@@ -103,7 +103,7 @@ async function getStudents(req, res) {
               WHEN u.status = 'disabled' THEN 'Disabled'
               ELSE 'Active'
             END AS status,
-            COALESCE(rp.current_profile_label, 'Instructional') AS level,
+            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id

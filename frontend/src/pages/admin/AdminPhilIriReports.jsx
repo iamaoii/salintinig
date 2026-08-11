@@ -97,21 +97,22 @@ export default function AdminPhilIriReports() {
   // Compute Grade Level comparison data
   const gradeBreakdown = useMemo(() => {
     const defaultGrades = {
-      'Grade 4': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, total: 0 },
-      'Grade 5': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, total: 0 },
-      'Grade 6': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, total: 0 },
+      'Grade 4': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+      'Grade 5': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+      'Grade 6': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
     };
 
     students.forEach((s) => {
       const g = s.grade || 'Grade 4';
       if (!defaultGrades[g]) {
-        defaultGrades[g] = { independent: 0, instructional: 0, frustration: 0, nonReader: 0, total: 0 };
+        defaultGrades[g] = { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 };
       }
       const lvl = (s.level || '').toLowerCase();
       if (lvl.includes('independent')) defaultGrades[g].independent++;
       else if (lvl.includes('instructional')) defaultGrades[g].instructional++;
       else if (lvl.includes('frustration')) defaultGrades[g].frustration++;
       else if (lvl.includes('non-reader') || lvl.includes('non reader')) defaultGrades[g].nonReader++;
+      else defaultGrades[g].pending++;
 
       defaultGrades[g].total++;
     });
@@ -121,12 +122,13 @@ export default function AdminPhilIriReports() {
 
   // SVG Donut Chart Calculation
   const donutSlices = useMemo(() => {
-    const total = summaryData.totalEvaluated || 1;
+    const total = (summaryData.totalEvaluated + summaryData.pending) || 1;
     const segments = [
       { label: 'Independent', count: summaryData.independent, color: '#22c55e' }, // green-500
       { label: 'Instructional', count: summaryData.instructional, color: '#3b82f6' }, // blue-500
       { label: 'Frustration', count: summaryData.frustration, color: '#f59e0b' }, // amber-500
       { label: 'Non-Reader', count: summaryData.nonReader, color: '#ef4444' }, // red-500
+      { label: 'Pending Evaluation', count: summaryData.pending, color: '#8b5cf6' }, // violet-500
     ];
 
     let cumulativePercent = 0;
@@ -282,11 +284,11 @@ export default function AdminPhilIriReports() {
                     );
                   })}
                   {/* Donut Hole */}
-                  <circle cx="50" cy="50" r="26" fill="#F7F5F0" />
+                  <circle cx="50" cy="50" r="28" fill="#F7F5F0" />
                 </svg>
 
                 {/* Animated Center Display */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none transition-all duration-300">
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none transition-all duration-300 px-3">
                   {loadingAnalytics ? (
                     <div className="flex flex-col items-center gap-1">
                       <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
@@ -294,20 +296,22 @@ export default function AdminPhilIriReports() {
                     </div>
                   ) : hoveredSlice !== null ? (
                     <>
-                      <span className="text-2xl font-extrabold text-ink animate-fade-in" style={{ color: donutSlices[hoveredSlice].color }}>
+                      <span className="text-xl font-extrabold leading-none animate-fade-in" style={{ color: donutSlices[hoveredSlice].color }}>
                         {donutSlices[hoveredSlice].count}
                       </span>
-                      <span className="text-[10px] font-bold text-ink/70">
-                        {donutSlices[hoveredSlice].label}
-                      </span>
-                      <span className="text-[9px] font-bold text-ink/40">
+                      <div className="flex flex-col items-center justify-center my-0.5 leading-tight text-[9px] font-bold text-ink/80">
+                        {donutSlices[hoveredSlice].label.split(' ').map((word, idx) => (
+                          <span key={idx} className="block">{word}</span>
+                        ))}
+                      </div>
+                      <span className="text-[8px] font-bold text-ink/50 leading-none">
                         ({donutSlices[hoveredSlice].percent}%)
                       </span>
                     </>
                   ) : (
                     <>
-                      <span className="text-2xl font-extrabold text-ink">{summaryData.totalEvaluated}</span>
-                      <span className="text-[9px] font-semibold text-ink/50 uppercase tracking-wider">Learners</span>
+                      <span className="text-2xl font-extrabold text-ink leading-none">{students.length || summaryData.totalEvaluated}</span>
+                      <span className="text-[9px] font-semibold text-ink/50 uppercase tracking-wider mt-0.5">Learners</span>
                     </>
                   )}
                 </div>
@@ -431,6 +435,15 @@ export default function AdminPhilIriReports() {
                             {data.nonReader}
                           </div>
                         )}
+                        {data.pending > 0 && (
+                          <div
+                            style={{ width: `${(data.pending / maxVal) * 100}%` }}
+                            className="bg-purple-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            title={`Grade ${grade} Pending Evaluation: ${data.pending}`}
+                          >
+                            {data.pending}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -455,6 +468,10 @@ export default function AdminPhilIriReports() {
               <div className="flex items-center gap-1.5">
                 <span className="size-3 rounded bg-red-500" />
                 <span className="text-ink/70">Non-Reader</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="size-3 rounded bg-purple-500" />
+                <span className="text-ink/70">Pending Evaluation</span>
               </div>
             </div>
           </div>
@@ -528,11 +545,12 @@ export default function AdminPhilIriReports() {
                 ) : (
                   filteredStudents.map((s) => {
                     const lvl = (s.level || '').toLowerCase();
-                    let badgeBg = 'bg-gray-100 text-gray-700';
+                    let badgeBg = 'bg-slate-100 text-slate-700 border border-slate-300';
                     if (lvl.includes('independent')) badgeBg = 'bg-green-100 text-green-700';
                     else if (lvl.includes('instructional')) badgeBg = 'bg-blue-100 text-blue-700';
                     else if (lvl.includes('frustration')) badgeBg = 'bg-amber-100 text-amber-700';
                     else if (lvl.includes('non-reader') || lvl.includes('non reader')) badgeBg = 'bg-red-100 text-red-700';
+                    else if (lvl.includes('pending')) badgeBg = 'bg-slate-100 text-slate-700 border border-slate-300';
 
                     return (
                       <tr key={s.id || s.lrn} className="hover:bg-white/60 transition-colors">
