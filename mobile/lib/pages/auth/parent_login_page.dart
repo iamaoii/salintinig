@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/auth/force_change_password_page.dart';
 import 'package:salintinig/pages/parent/parent_overview_page.dart';
-import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/api_service.dart';
 
 class ParentLoginPage extends StatefulWidget {
   const ParentLoginPage({super.key});
@@ -16,6 +15,7 @@ class ParentLoginPage extends StatefulWidget {
 class _ParentLoginPageState extends State<ParentLoginPage> {
   final TextEditingController _lrnController = TextEditingController();
   final TextEditingController _parentCodeController = TextEditingController();
+  bool _obscureParentCode = true;
   bool _hasError = false;
   bool _isLoading = false;
   String _errorMessage = '';
@@ -196,6 +196,7 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                     // Parent Code Field
                                     TextField(
                                       controller: _parentCodeController,
+                                      obscureText: _obscureParentCode,
                                       style: GoogleFonts.inter(
                                         fontSize: 16,
                                         color: Colors.black,
@@ -209,6 +210,18 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                       },
                                       decoration: InputDecoration(
                                         hintText: 'Parent Code',
+                                        suffixIcon: IconButton(
+                                          icon: Iconify(
+                                            _obscureParentCode ? Ph.eye_slash : Ph.eye,
+                                            color: const Color(0xFFA1A1AA),
+                                            size: 22,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _obscureParentCode = !_obscureParentCode;
+                                            });
+                                          },
+                                        ),
                                         hintStyle: GoogleFonts.inter(
                                           color: const Color(0xFFA1A1AA),
                                           fontSize: 16,
@@ -274,11 +287,11 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
 
                                               final navigator = Navigator.of(context);
 
-                                              final response = await AuthService.login(
-                                                lrn,
-                                                parentCode,
-                                                expectedRole: 'parent',
-                                              );
+                                              // Verify LRN and Parent Access Code via Public Auth API
+                                              final response = await ApiService.post('/auth/verify-parent-code', {
+                                                'lrn': lrn,
+                                                'parentAccessCode': parentCode,
+                                              });
 
                                               if (!mounted) return;
 
@@ -287,24 +300,14 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                               });
 
                                               if (response.success) {
-                                                final mustChange = response.data != null && 
-                                                    (response.data['mustChangePassword'] == true || response.data['user']?['mustChangePassword'] == true || AuthService.currentUser?.mustChangePassword == true);
-
-                                                if (mustChange) {
-                                                  navigator.pushReplacement(
-                                                    MaterialPageRoute(
-                                                      builder: (context) => ForceChangePasswordPage(
-                                                        email: lrn,
-                                                      ),
+                                                final childData = response.data?['student'];
+                                                navigator.pushReplacement(
+                                                  MaterialPageRoute(
+                                                    builder: (context) => ParentOverviewPage(
+                                                      linkedChild: childData,
                                                     ),
-                                                  );
-                                                } else {
-                                                  navigator.pushReplacement(
-                                                    MaterialPageRoute(
-                                                      builder: (context) => const ParentOverviewPage(),
-                                                    ),
-                                                  );
-                                                }
+                                                  ),
+                                                );
                                               } else {
                                                 setState(() {
                                                   _hasError = true;

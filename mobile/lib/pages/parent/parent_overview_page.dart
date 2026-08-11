@@ -7,7 +7,12 @@ import 'package:salintinig/pages/parent/parent_announcements_page.dart';
 import 'package:salintinig/pages/parent/parent_progress_reports_page.dart';
 
 class ParentOverviewPage extends StatefulWidget {
-  const ParentOverviewPage({super.key});
+  final Map<String, dynamic>? linkedChild;
+
+  const ParentOverviewPage({
+    super.key,
+    this.linkedChild,
+  });
 
   @override
   State<ParentOverviewPage> createState() => _ParentOverviewPageState();
@@ -16,12 +21,21 @@ class ParentOverviewPage extends StatefulWidget {
 class _ParentOverviewPageState extends State<ParentOverviewPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  final String _selectedChild = 'Doechii Carganilla';
-  final String _childGradeSection = 'Grade 4 - FYANG';
+  late String _selectedChild;
+  late String _childGradeSection;
   final String _readingLevel = 'Instructional Level';
   final double _oralAccuracy = 88.5;
   final double _comprehension = 85.0;
   final int _wordsPerMinute = 82;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedChild = widget.linkedChild?['name'] ?? 'Doechii Carganilla';
+    final g = widget.linkedChild?['grade'] ?? 'Grade 4';
+    final s = widget.linkedChild?['section'] ?? 'FYANG';
+    _childGradeSection = '$g - $s';
+  }
 
 
 

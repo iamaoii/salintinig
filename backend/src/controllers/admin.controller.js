@@ -602,6 +602,45 @@ async function verifyParentAccessCode(req, res) {
     const cleanLrn = lrn.trim();
     const cleanCode = parentAccessCode.trim().toUpperCase();
 
+    if (process.env.DATABASE_URL) {
+      try {
+        const { rows } = await db.query(
+          `SELECT 
+             s.student_id,
+             s.lrn,
+             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+             COALESCE(c.grade_level, 'Grade 4') AS grade,
+             COALESCE(c.section_name, 'Unassigned') AS section,
+             sp.access_code
+           FROM students s
+           JOIN student_parents sp ON s.student_id = sp.student_id
+           LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+           LEFT JOIN classes c ON sgh.class_id = c.class_id
+           WHERE TRIM(s.lrn) = $1 AND UPPER(TRIM(sp.access_code)) = $2
+           LIMIT 1`,
+          [cleanLrn, cleanCode]
+        );
+
+        if (rows && rows.length > 0) {
+          const std = rows[0];
+          return res.json({
+            success: true,
+            message: 'Parent Access Code verified successfully!',
+            student: {
+              studentId: std.student_id,
+              lrn: std.lrn,
+              name: std.name,
+              grade: std.grade,
+              section: std.section,
+            },
+          });
+        }
+      } catch (dbErr) {
+        console.warn('DB verify parent access code notice:', dbErr.message);
+      }
+    }
+
+    // Fallback store check
     const student = studentsStore.find(
       (s) => s.lrn === cleanLrn && s.parentAccessCode.toUpperCase() === cleanCode
     );

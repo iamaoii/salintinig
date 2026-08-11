@@ -165,7 +165,7 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                             
                             // Send submission to backend
                             try {
-                              await ApiService.post('/api/admin/students/assessment/submit', {
+                              await ApiService.post('/students/assessment/submit', {
                                 'assessmentType': 'oral',
                                 'score': score,
                                 'maxScore': totalQuestions,

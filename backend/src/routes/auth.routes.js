@@ -3,8 +3,11 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller.js');
 const { verifyToken, requireRole } = require('../middleware/auth.middleware.js');
 
+const adminController = require('../controllers/admin.controller.js');
+
 // Public routes
 router.post('/login', authController.login);
+router.post('/verify-parent-code', adminController.verifyParentAccessCode);
 router.post('/contact-admin', authController.contactAdmin);
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/reset-status', authController.getResetStatus);

@@ -14,7 +14,7 @@ class VocabularyMatchingPage extends StatefulWidget {
 class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   Future<void> _syncActivityCompletion(String title) async {
     try {
-      await ApiService.post('/api/admin/students/activity/complete', {
+      await ApiService.post('/students/activity/complete', {
         'activityTitle': title,
         'activityType': 'Vocabulary',
         'score': 100,

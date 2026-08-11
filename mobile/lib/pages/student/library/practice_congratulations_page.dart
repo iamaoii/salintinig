@@ -34,7 +34,7 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
 
   Future<void> _syncStoryCompletion() async {
     try {
-      await ApiService.post('/api/admin/students/story/complete', {
+      await ApiService.post('/students/story/complete', {
         'bookTitle': widget.bookTitle,
         'score': widget.score,
         'totalQuestions': widget.totalQuestions,
