@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 
 class OralReadingComprehensionSummaryPage extends StatelessWidget {
   final int score;
@@ -139,6 +141,64 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                           final item = questions[index];
                           return _buildQuestionCard(item);
                         },
+                      ),
+                    ),
+
+                    // Submit & Finish Assessment Button
+                    Container(
+                      padding: const EdgeInsets.all(16.0),
+                      decoration: const BoxDecoration(
+                        color: softCreamBg,
+                        border: Border(
+                          top: BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            Feedback.forTap(context);
+                            
+                            // Send submission to backend
+                            try {
+                              await ApiService.post('/api/admin/students/assessment/submit', {
+                                'assessmentType': 'oral',
+                                'score': score,
+                                'maxScore': totalQuestions,
+                                'wordAccuracy': 87,
+                                'readingTimeSeconds': 60,
+                                'wordsRead': 67,
+                              });
+                            } catch (e) {
+                              debugPrint('Assessment submission notice: $e');
+                            }
+
+                            // Mark assessment done & return to PhilIriAssessmentPage
+                            PhilIriAssessmentPage.isOralReadingDone = true;
+                            if (context.mounted) {
+                              Navigator.popUntil(context, (route) => route.isFirst);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1B64D8),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'Finish & Complete Assessment',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
