@@ -194,8 +194,13 @@ export default function AdminTeacherRecords() {
 
   const teacherSectionsForSelectedGrade = useMemo(() => {
     if (!availableSections || availableSections.length === 0) return [];
-    return availableSections.filter((sec) => sec.gradeLevel === formData.gradeAssigned);
-  }, [availableSections, formData.gradeAssigned]);
+    const currentTeacherEmpId = editingTeacher?.employeeId || editingTeacher?.id;
+    return availableSections.filter((sec) => {
+      const isSameGrade = sec.gradeLevel === formData.gradeAssigned;
+      const isUnassignedSection = !sec.adviserId || sec.adviserId === currentTeacherEmpId;
+      return isSameGrade && isUnassignedSection;
+    });
+  }, [availableSections, formData.gradeAssigned, editingTeacher]);
 
   // Filtered Teachers
   const filteredTeachers = useMemo(() => {
@@ -999,6 +1004,50 @@ export default function AdminTeacherRecords() {
                   placeholder="teacher.name@deped.gov.ph"
                   className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs"
                 />
+              </div>
+
+              {/* Grade Level Assigned */}
+              <div>
+                <label className="font-semibold text-ink">
+                  Grade Level Assigned <span className="text-ink/40 font-normal">(1 section max)</span>
+                </label>
+                <select
+                  value={formData.gradeAssigned}
+                  onChange={(e) => {
+                    const newGrade = e.target.value;
+                    setFormData({
+                      ...formData,
+                      gradeAssigned: newGrade,
+                      sectionAssigned: newGrade === 'Unassigned' ? 'Unassigned' : formData.sectionAssigned,
+                    });
+                  }}
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer"
+                >
+                  <option value="Unassigned">Unassigned (No Grade)</option>
+                  <option value="Grade 4">Grade 4</option>
+                  <option value="Grade 5">Grade 5</option>
+                  <option value="Grade 6">Grade 6</option>
+                </select>
+              </div>
+
+              {/* Section Assigned */}
+              <div>
+                <label className="font-semibold text-ink">
+                  Section Assigned <span className="text-ink/40 font-normal">(1 section max)</span>
+                </label>
+                <select
+                  value={formData.sectionAssigned}
+                  onChange={(e) => setFormData({ ...formData, sectionAssigned: e.target.value })}
+                  disabled={formData.gradeAssigned === 'Unassigned'}
+                  className="mt-1.5 w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2.5 text-xs text-ink outline-none focus:border-brand-blue shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="Unassigned">Unassigned (No Section)</option>
+                  {teacherSectionsForSelectedGrade.map((sec) => (
+                    <option key={sec.id || `${sec.gradeLevel}-${sec.sectionName}`} value={sec.sectionName}>
+                      {sec.sectionName} ({sec.gradeLevel})
+                    </option>
+                  ))}
+                </select>
               </div>
 
 

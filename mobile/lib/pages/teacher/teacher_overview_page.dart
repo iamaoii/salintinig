@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
@@ -12,6 +13,7 @@ import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_reading_levels_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'dart:math' as math;
 
 class TeacherOverviewPage extends StatefulWidget {
@@ -24,6 +26,7 @@ class TeacherOverviewPage extends StatefulWidget {
 class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
+  dynamic _realtimeSubscription;
 
   // Scroll keys
   final GlobalKey _activitiesKey = GlobalKey();
@@ -79,6 +82,58 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     {'title': 'Pending evaluation', 'time': '1 hour ago', 'desc': '3 students are waiting for oral reading grading.'},
     {'title': 'Low score alert', 'time': '2 hours ago', 'desc': 'Maria Clara scored Frustration level on Form 1A.'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTeacherProfile();
+    _setupRealtimeSubscription();
+  }
+
+  Future<void> _refreshTeacherProfile() async {
+    final res = await AuthService.fetchMe();
+    if (res.success && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeSubscription = client
+          .channel('public:teacher_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'student_grade_history',
+            callback: (payload) {
+              _refreshTeacherProfile();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assessments',
+            callback: (payload) {
+              _refreshTeacherProfile();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Teacher Realtime subscription notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_realtimeSubscription != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeSubscription);
+      } catch (_) {}
+    }
+    _scrollController.dispose();
+    super.dispose();
+  }
 
 
 

@@ -353,9 +353,16 @@ async function createStudent(req, res) {
 
             // Ensure section/class exists and link student to active grade history
             let classId = null;
+            const rawGrade = grade ? String(grade).trim() : 'Grade 4';
+            const gradeNum = rawGrade.replace(/^Grade\s*/i, '').trim();
+            const targetGrade = rawGrade.toLowerCase().startsWith('grade') ? rawGrade : `Grade ${gradeNum}`;
+
             const { rows: existingClass } = await db.query(
-              `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
-              [grade, section]
+              `SELECT class_id FROM classes 
+               WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
+                 AND LOWER(section_name) = LOWER($3) 
+               LIMIT 1`,
+              [targetGrade, gradeNum, section]
             );
 
             if (existingClass && existingClass[0]) {
@@ -363,7 +370,7 @@ async function createStudent(req, res) {
             } else {
               const { rows: newClass } = await db.query(
                 `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-                [grade, section]
+                [targetGrade, section]
               );
               if (newClass && newClass[0]) classId = newClass[0].class_id;
             }

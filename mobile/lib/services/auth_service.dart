@@ -67,6 +67,11 @@ class UserSession {
     return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? 'A';
   }
 
+  String get lrn {
+    if (rawUser == null) return '';
+    return rawUser!['lrn']?.toString() ?? rawUser!['id_no']?.toString() ?? '';
+  }
+
   bool get mustChangePassword {
     if (rawUser == null) return false;
     return rawUser!['must_change_password'] == true || rawUser!['mustChangePassword'] == true;

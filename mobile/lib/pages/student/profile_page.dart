@@ -38,21 +38,40 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String get _gradeLevel {
-    final raw = AuthService.currentUser?.rawUser;
-    return raw?['grade_level'] ?? "Grade 4";
+    final user = AuthService.currentUser;
+    if (user != null && user.gradeLevel.isNotEmpty) {
+      return user.gradeLevel.startsWith('Grade') ? user.gradeLevel : 'Grade ${user.gradeLevel}';
+    }
+    return "Grade 4";
   }
 
   String get _section {
-    final raw = AuthService.currentUser?.rawUser;
-    return raw?['section'] ?? "Malinis";
+    final user = AuthService.currentUser;
+    if (user != null && user.sectionName.isNotEmpty) {
+      return user.sectionName;
+    }
+    return "Fyang";
   }
 
   String get _lrn {
-    final raw = AuthService.currentUser?.rawUser;
-    return raw?['id_no'] ?? raw?['lrn'] ?? "1366 7010 0099";
+    final user = AuthService.currentUser;
+    if (user != null && user.lrn.isNotEmpty) {
+      return user.lrn;
+    }
+    final raw = user?.rawUser;
+    return raw?['id_no'] ?? raw?['lrn'] ?? "N/A";
   }
 
-  String _parentAccessCode = "ABCD-1234";
+  String? _customParentAccessCode;
+
+  String get _parentAccessCode {
+    if (_customParentAccessCode != null && _customParentAccessCode!.isNotEmpty) {
+      return _customParentAccessCode!;
+    }
+    final raw = AuthService.currentUser?.rawUser;
+    return raw?['parentAccessCode'] ?? raw?['access_code'] ?? "PAC-9SA7HJ";
+  }
+
   String _selectedFrame = "None";
 
   // Border frames details
@@ -102,28 +121,13 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     
     setState(() {
-      _parentAccessCode = "$part1-$part2";
+      _customParentAccessCode = "$part1-$part2";
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('New parent access code generated!', style: GoogleFonts.inter()),
-        backgroundColor: const Color(0xFF1B64D8),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   // Function to copy text to clipboard
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Copied code to clipboard!', style: GoogleFonts.inter()),
-        backgroundColor: const Color(0xFF00A859),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   // Navigate to Edit Profile Page
@@ -144,13 +148,6 @@ class _ProfilePageState extends State<ProfilePage> {
         _customDisplayName = result['nickname'] as String?;
         _selectedFrame = result['frame'] ?? _selectedFrame;
       });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profile updated successfully!', style: GoogleFonts.inter()),
-          backgroundColor: const Color(0xFF00A859),
-        ),
-      );
     }
   }
 
@@ -262,7 +259,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             // Grade & Section Subtitle
                             Center(
                               child: Text(
-                                '$_gradeLevel- $_section',
+                                '$_gradeLevel - $_section',
                                 style: GoogleFonts.inter(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,

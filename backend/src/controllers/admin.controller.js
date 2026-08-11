@@ -231,6 +231,12 @@ async function createTeacher(req, res) {
           if (tchRows && tchRows[0]) {
             const teacherId = tchRows[0].teacher_id;
 
+            // Ensure 1 section per teacher max: unassign teacher from any existing sections first
+            await db.query(
+              `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id = $1`,
+              [teacherId]
+            );
+
             // Assign as class adviser if section specified
             if (hasSectionAssignment) {
               await db.query(
@@ -967,23 +973,22 @@ async function getSystemStats(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true LIMIT 1');
         const activeSyId = syRes.rows[0]?.school_year_id || null;
         if (syRes.rows[0]?.school_year) {
           activeSchoolYear = syRes.rows[0].school_year;
         }
 
-        // Count students enrolled in active school year (or total if no history)
-        let studentRes;
-        if (activeSyId) {
-          studentRes = await db.query(
-            `SELECT COUNT(DISTINCT sgh.student_id) 
-             FROM student_grade_history sgh
-             JOIN classes c ON sgh.class_id = c.class_id
-             WHERE c.school_year_id = $1`,
-            [activeSyId]
-          );
-        } else {
+        // Count students enrolled in active school year (or total from students table)
+        let studentRes = await db.query(
+          `SELECT COUNT(DISTINCT s.student_id) 
+           FROM students s
+           JOIN users u ON s.user_id = u.user_id
+           WHERE u.school_id = $1`,
+          [schoolId]
+        );
+        if (!studentRes.rows[0] || parseInt(studentRes.rows[0].count, 10) === 0) {
           studentRes = await db.query('SELECT COUNT(*) FROM students');
         }
         totalStudents = parseInt(studentRes.rows[0].count, 10) || 0;
@@ -1347,14 +1352,24 @@ async function updateSection(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const cleanAdviserId = adviserId && adviserId !== 'Unassigned' ? adviserId : null;
+
+        // Strict 1-to-1 constraint: If assigning an adviser, unassign them from any existing section first
+        if (cleanAdviserId) {
+          await db.query(
+            `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id::text = $1 OR advisor_teacher_id IN (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1)`,
+            [String(cleanAdviserId)]
+          );
+        }
+
         await db.query(
           `UPDATE classes 
            SET section_name = COALESCE(NULLIF($1, ''), section_name),
                grade_level = COALESCE($2, grade_level),
-               advisor_teacher_id = COALESCE($3, advisor_teacher_id),
+               advisor_teacher_id = $3,
                updated_at = CURRENT_TIMESTAMP
            WHERE class_id::text = $4 OR (grade_level = $2 AND section_name = $4)`,
-          [sectionName?.trim() || null, gradeLevel || null, adviserId || null, id]
+          [sectionName?.trim() || null, gradeLevel || null, cleanAdviserId, id]
         );
       } catch (dbErr) {
         console.warn('DB update section notice:', dbErr.message);

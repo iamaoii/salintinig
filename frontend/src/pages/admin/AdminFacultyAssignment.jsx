@@ -149,7 +149,8 @@ export default function AdminFacultyAssignment() {
     return () => window.removeEventListener('schoolYearChanged', handleSYChange);
   }, []);
 
-  const uniqueTeachers = useMemo(() => {
+  // All unique teachers for Faculty-in-Charge assignment (allows advisers to also be faculty-in-charge)
+  const allTeachers = useMemo(() => {
     const map = new Map();
     (teachers || []).forEach((t) => {
       const key = t.id || t.employeeId || t.name;
@@ -157,6 +158,38 @@ export default function AdminFacultyAssignment() {
     });
     return Array.from(map.values());
   }, [teachers]);
+
+  // Available teachers for Section Adviser assignment (filters out teachers who already advise another section)
+  const adviserTeachers = useMemo(() => {
+    const map = new Map();
+    const currentSectionId = editingSectionData?.id || editingSectionData?.name;
+    const currentAdviserId = sectionFormData?.adviserId;
+
+    // Get set of teacher IDs/names that are currently assigned to OTHER sections
+    const assignedTeacherIds = new Set();
+    (dbSectionsList || []).forEach((sec) => {
+      const secId = sec.id || sec.name;
+      if (sec.adviserId && secId !== currentSectionId) {
+        assignedTeacherIds.add(String(sec.adviserId));
+      }
+    });
+
+    (teachers || []).forEach((t) => {
+      const key = t.id || t.employeeId || t.name;
+      const tId = String(t.id || t.employeeId || '');
+      const tName = String(t.name || '');
+
+      const isAssigned = assignedTeacherIds.has(tId) || assignedTeacherIds.has(tName);
+      const isCurrentAdviser = tId === String(currentAdviserId) || tName === String(currentAdviserId);
+
+      if (!map.has(key)) {
+        if (!isAssigned || isCurrentAdviser) {
+          map.set(key, t);
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [teachers, dbSectionsList, editingSectionData, sectionFormData]);
 
   // Flat list of sections for the data table
   const allSectionsList = useMemo(() => {
@@ -635,8 +668,8 @@ export default function AdminFacultyAssignment() {
                   className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
                 >
                   <option value="">Unassigned (No Adviser)</option>
-                  {uniqueTeachers.map((t) => (
-                    <option key={t.id || t.employeeId || t.name} value={t.id}>
+                  {adviserTeachers.map((t) => (
+                    <option key={t.id || t.employeeId || t.name} value={t.id || t.employeeId || t.name}>
                       {t.name} ({t.employeeId})
                     </option>
                   ))}
@@ -701,7 +734,7 @@ export default function AdminFacultyAssignment() {
                   className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
                 >
                   <option value="">Unassigned (No Faculty-in-Charge)</option>
-                  {uniqueTeachers.map((t) => (
+                  {allTeachers.map((t) => (
                     <option key={t.id || t.employeeId || t.name} value={t.name}>
                       {t.name} ({t.employeeId})
                     </option>
