@@ -561,11 +561,15 @@ class _SilentReadingAssessmentReaderPageState extends State<SilentReadingAssessm
     );
   }
 
+  List<dynamic>? _dynamicQuestions;
+
   void _finishReading() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const SilentReadingAssessmentQuizPage(),
+        builder: (context) => SilentReadingAssessmentQuizPage(
+          dynamicQuestions: _dynamicQuestions,
+        ),
       ),
     );
   }

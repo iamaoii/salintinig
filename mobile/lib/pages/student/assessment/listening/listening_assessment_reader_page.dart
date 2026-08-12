@@ -561,11 +561,15 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
     );
   }
 
+  List<dynamic>? _dynamicQuestions;
+
   void _finishReading() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const ListeningAssessmentQuizPage(),
+        builder: (context) => ListeningAssessmentQuizPage(
+          dynamicQuestions: _dynamicQuestions,
+        ),
       ),
     );
   }

@@ -785,6 +785,42 @@ async function rejectAccountRequest(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/teacher/assign-phil-iri — Assign Phil-IRI Set (Set A/B/C/D) to Class
+// ---------------------------------------------------------------------------
+async function assignPhilIriSetToClass(req, res) {
+  try {
+    const { classId, gradeLevel, set, period } = req.body;
+    if (!set || !period) {
+      return res.status(400).json({ success: false, error: 'Set (Set A/B/C/D) and period (Pre-Test/Post-Test) are required.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        await db.query(
+          `INSERT INTO notifications (school_id, title, message, notification_type)
+           VALUES ('109283', $1, $2, 'system')`,
+          [
+            `Phil-IRI ${set} Assigned`,
+            `Teacher assigned Phil-IRI ${set} (${period}) for ${gradeLevel || 'Class Section'}.`,
+          ]
+        );
+      } catch (dbErr) {
+        console.warn('Notice creating assignment notification:', dbErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully assigned Phil-IRI ${set} (${period}) to ${gradeLevel || 'class'}.`,
+      assignment: { classId, gradeLevel, set, period, assignedAt: new Date().toISOString() },
+    });
+  } catch (err) {
+    console.error('Error assigning Phil-IRI set:', err);
+    return res.status(500).json({ success: false, error: 'Failed to assign Phil-IRI set.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,

@@ -17,13 +17,14 @@ router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);
 router.get('/analytics/phil-iri', adminController.getPhilIriAnalytics);
 
-// Teacher management endpoints
+// Teacher management & assignment endpoints
 router.get('/teachers', teacherController.getTeachers);
 router.get('/teachers/:id', teacherController.getTeacherById);
 router.post('/teachers', teacherController.createTeacher);
 router.put('/teachers/:id', teacherController.updateTeacher);
 router.delete('/teachers/:id', teacherController.deleteTeacher);
 router.post('/teachers/import-csv', teacherController.importTeachersCSV);
+router.post('/teacher/assign-phil-iri', teacherController.assignPhilIriSetToClass);
 
 // Section & Faculty Assignment endpoints
 router.get('/sections', adminController.getSections);

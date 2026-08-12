@@ -4,7 +4,12 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/student_overview_page.dart';
 
 class SilentReadingAssessmentQuizPage extends StatefulWidget {
-  const SilentReadingAssessmentQuizPage({super.key});
+  final List<dynamic>? dynamicQuestions;
+
+  const SilentReadingAssessmentQuizPage({
+    super.key,
+    this.dynamicQuestions,
+  });
 
   @override
   State<SilentReadingAssessmentQuizPage> createState() => _SilentReadingAssessmentQuizPageState();
@@ -12,9 +17,10 @@ class SilentReadingAssessmentQuizPage extends StatefulWidget {
 
 class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmentQuizPage> {
   int _currentQuestionIndex = 0;
-  final List<int?> _selectedAnswers = [null, null, null];
+  late List<int?> _selectedAnswers;
+  late List<Map<String, dynamic>> _questions;
 
-  final List<Map<String, dynamic>> _questions = [
+  final List<Map<String, dynamic>> _defaultQuestions = [
     {
       'questionText': 'Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?',
       'options': [
@@ -46,6 +52,21 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       'correctAnswerIndex': 0,
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
+      _questions = widget.dynamicQuestions!.map((q) => {
+        'questionText': q['questionText'] ?? '',
+        'options': List<String>.from(q['options'] ?? []),
+        'correctAnswerIndex': q['correctAnswerIndex'] ?? 0,
+      }).toList();
+    } else {
+      _questions = _defaultQuestions;
+    }
+    _selectedAnswers = List<int?>.filled(_questions.length, null);
+  }
 
   void _onOptionSelected(int index) {
     Feedback.forTap(context);
