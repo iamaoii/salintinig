@@ -1,0 +1,986 @@
+[
+  {
+    "id": "phil_iri_g4_fil_set_a_pre",
+    "title": "Si Jamil at ang Ramadan",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 115,
+    "contentText": "Isang umaga, masayang sumalubong si Jamil sa kanyang Tito Abdul. Dumating ang kanyang tiyuhin mula sa Lungsod ng Cotabato upang makisali sa pag-aayuno sa nalalapit na Ramadan. Ang Ramadan ay ang ikasiyam na buwan sa kalendaryong Islam kung saan ang mga Muslim ay nag-aayuno mula sa pagsikat hanggang sa paglubog ng araw. Sa panahong ito, mas pinalalalim ng mga Muslim ang kanilang pananampalataya, pagdarasal, at pagtulong sa kapwa. Binigyan ni Tito Abdul si Jamil ng bagong kopya ng banal na aklat na Koran. Nangako si Jamil na mag-aaral siyang mabuti at magiging mabuting batang Muslim araw-araw.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?",
+        "options": ["Jamil", "Abdul", "Mohammed", "Ali"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang banal na aklat ng mga Muslim na ibinigay ni Tito Abdul?",
+        "options": ["Bibliya", "Koran", "Torah", "Vedas"],
+        "correctAnswerIndex": 1
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit mahalaga ang pag-aayuno sa buwan ng Ramadan?",
+        "options": ["Upang magpalipas ng gutom", "Upang palalimin ang pananampalataya at pagtulong sa kapwa", "Upang makatanggap ng regalo", "Upang maglakbay sa ibang lungsod"],
+        "correctAnswerIndex": 1
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano mo maipakikita ang paggalang sa kultura at paniniwala ng iba?",
+        "options": ["Igalang ang kanilang tradisyon at kaugalian", "Pilitin silang sumunod sa sarili mong paniniwala", "Iwasan silang kausapin", "Manukso sa kanilang ginagawa"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_b_pre",
+    "title": "Ang Halamanang Kawayan",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "silent",
+    "wordCount": 128,
+    "contentText": "Sa tabing-ilog ng nayon nina Mateo, may malawak na taniman ng kawayan. Ang kawayan ay isa sa pinakamahalagang halaman sa Pilipinas dahil marami itong gamit. Ginagamit ito sa paggawa ng bahay-kubo, muwebles, at maging ng mga instrumentong pangmusika tulad ng organong kawayan sa Las Piñas. Bukod dito, ang kawayan ay matatag laban sa malalakas na hangin at bagyo dahil ito ay yumuyukod ngunit hindi nababali. Nagbibigay rin ang kawayan ng masarap na labong na ginagawang ulam. Nangako ang mga mamamayan na aalagaan ang taniman upang manatiling berde ang kanilang pamayanan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saan matatagpuan ang taniman ng kawayan sa nayon nina Mateo?",
+        "options": ["Sa tabing-ilog", "Sa palengke", "Sa bundok", "Sa paaralan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang sikat na instrumentong pangmusika sa Las Piñas na gawa sa kawayan?",
+        "options": ["Organong kawayan", "Gitarang kawayan", "Piyano", "Gitara"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit sinabing matatag ang kawayan sa panahon ng bagyo?",
+        "options": ["Yumuyukod sa hangin ngunit hindi nababali", "Mataas at matigas na kahoy", "Maraming dahon", "Nakatanim sa bato"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang katangiang maipagmamalaki ng mga Pilipino na maihahalintulad sa kawayan?",
+        "options": ["Matatag at flexible sa kabila ng pagsubok", "Matigas ang ulo", "Pagtakas sa problema", "Pag-aaway sa bagyo"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_c_pre",
+    "title": "Ang Alitaptap at ang Bulaklak",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "listening",
+    "wordCount": 110,
+    "contentText": "Gabi-gabi, lumilipad ang maliit na alitaptap na si Alingaw sa paligid ng samyo ng mga bulaklak sa hardin. Si Alingaw ay may taglay na nagniningning na liwanag sa kanyang tiyan. Ginamit niya ang kanyang liwanag upang gabayan ang maliliit na langgam na nawawala sa dilim pauwi sa kanilang pugad. Isang gabi, pinasalamatan siya ng haring langgam at binigyan ng matamis na nektar mula sa pinakamagandang sampaguita. Naging magkaibigan ang mga alitaptap at langgam dahil sa pagtutulungan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sino ang nagniningning na alitaptap sa kwento?",
+        "options": ["Alingaw", "Lito", "Pedro", "Juan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang ibinigay ng haring langgam bilang pasasalamat kay Alingaw?",
+        "options": ["Matamis na nektar", "Gintong dahon", "Tubig", "Kendi"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Paano nakatulong si Alingaw sa maliliit na langgam?",
+        "options": ["Ginamit ang kanyang liwanag upang gabayan sila sa dilim", "Binigyan sila ng pagkain", "Pumatay ng mga insekto", "Nagtago sa dahon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang aral na matututunan sa ginawa ni Alingaw?",
+        "options": ["Gamitin ang sariling kakayahan upang tumulong sa kapwa", "Magskap na maging sikat", "Maningil ng bayad sa pagtulong", "Umiwas sa mga nangangailangan"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_d_pre",
+    "title": "Ang Masipag na Mangingisda",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 118,
+    "contentText": "Maagang gumigising si Mang Mario upang pumalaot sa dagat bago pa sumikat ang araw. Dala ang kanyang lambat at bangka, maingat niyang iniiwasan ang paggamit ng maliliit na lambat at dinamita upang hindi masira ang mga coral reef at maliliit na isda. Naniniwala si Mang Mario na kapag inalagaan ang dagat, patuloy itong magbibigay ng masaganang huli para sa kanyang pamilya at buong nayon. Pag-uwi sa hapon, ibinabahagi rin niya ang ilang huli sa kanyang mga katutubong kapitbahay.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sino ang masipag na mangingisda sa kwento?",
+        "options": ["Mang Mario", "Mang Juan", "Mang Pedro", "Mang Jose"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Bakit iniiwasan ni Mang Mario ang paggamit ng dinamita?",
+        "options": ["Upang hindi masira ang mga coral reef at maliliit na isda", "Dahil mahal ang dinamita", "Dahil ayaw niya ng maingay", "Dahil natatakot siya sa pulis"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang magiging bunga ng responsableng pangingisda ni Mang Mario?",
+        "options": ["Patuloy na magkakaroon ng masaganang isda sa hinaharap", "Maubos ang mga isda sa dagat", "Masira ang kanyang bangka", "Maghirap ang pamayanan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang magandang asal ni Mang Mario na dapat tularan ng lahat?",
+        "options": ["Pangangalaga sa kalikasan at pagiging mapagbigay sa kapwa", "Pagiging madamot", "Pagwawalang-bahala sa dagat", "Pang-aaway sa kapwa"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_a_post",
+    "title": "Ang Pasko sa Nayon",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 120,
+    "contentText": "Masiglang nagkakaisa ang mga mamamayan sa Nayon ng San Isidro sa pagsapit ng Disyembre. Naglalagay ang bawat pamilya ng makukulay na parol na gawa sa recycled na plastik at kawayan. Sa gabi, nagtitipon ang mga kabataan upang mangharana at mag-awit ng mga katutubong awiting Pasko. Ang perang naiipon nila mula sa pamamasko ay ibinibili ng mga libro at gamit sa pag-aaral para sa mga batang nangangailangan sa kanilang barangay.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong nayon ang nagkakaisa sa pagsapit ng Disyembre?",
+        "options": ["San Isidro", "San Jose", "Santa Maria", "San Juan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Saan inilalaan ng mga kabataan ang perang naiipon mula sa pamamasko?",
+        "options": ["Gamit sa pag-aaral at libro ng mga nangangailangan", "Pambili ng laruan", "Pampasyala sa mall", "Pambili ng kendi"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit ginamit ang recycled na plastik sa paggawa ng parol?",
+        "options": ["Upang makatipid at makatulong sa pagbawas ng basura", "Dahil walang ibang kagamitan", "Dahil ipinag-uutos ng kapitan", "Dahil mabilis itong masira"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang tunay na diwa ng Pasko na ipinakita sa kwento?",
+        "options": ["Pagbibigayan, pagkakaisa, at pagmamalasakit sa kapwa", "Makatanggap ng mamahaling regalo", "Kumain ng masasarap na pagkain", "Manalo sa paligsahan"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_b_post",
+    "title": "Ang Luntiang Halaman sa Bakuran",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "silent",
+    "wordCount": 116,
+    "contentText": "Araw-araw paggaling sa paaralan, binibisita ni Ana ang kanilang bakuran. Mayroon silang maliit na gulayan kung saan nakatanim ang talong, sitaw, at kalabasa. Tinuruan siya ng kanyang lola na gumamit ng basurang nabubulok tulad ng balat ng prutas at tuyong dahon bilang pataba o compost. Dahil sa maingat na pag-aalaga, sariwa at malusog ang mga gulay na naihahain sa kanilang hapag-kainan araw-araw.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sino ang batang nag-aalaga ng gulayan sa bakuran?",
+        "options": ["Ana", "Maria", "Elena", "Sofia"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang ginagamit bilang organic na pataba o compost?",
+        "options": ["Balat ng prutas at tuyong dahon", "Plastik", "Bato", "Kemikal"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang magandang maidudulot ng pagkakaroon ng sariling gulayan sa bahay?",
+        "options": ["Makatitipid sa pagkain at makakain ng ligtas at sariwang gulay", "Madudumihan ang bakuran", "Mapapagod lamang ang pamilya", "Mawawalan ng espasyo sa bahay"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Bakit mahalagang matutunan ng mga bata ang pagtatanim?",
+        "options": ["Upang matutong maging responsable at pahalagahan ang pagkain", "Upang pumalit sa mga magsasaka agad", "Upang makaiwas sa pag-aaral", "Upang magkaroon ng dahilan magdumi"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_c_post",
+    "title": "Ang Malinis na Batis",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "listening",
+    "wordCount": 112,
+    "contentText": "Sa paanan ng Bundok Makiling, may isang malinis na batis kung saan malayang lumalangoy ang maliliit na isda. Nagkasundo ang mga bata sa nayon na maglagay ng mga babala laban sa pagtatapon ng basura sa tubig. Linggo-linggo, sama-sama silang naglilinis sa gilid ng batis upang panatilihing malinaw ang tubig na ginagamit sa patubig ng mga sakahan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sa paanan ng anong bundok matatagpuan ang malinis na batis?",
+        "options": ["Bundok Makiling", "Bundok Banahaw", "Bundok Apo", "Bundok Mayon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Kailan naglilinis ang mga bata sa gilid ng batis?",
+        "options": ["Linggo-linggo", "Araw-araw", "Buwan-buwan", "Minsan sa isang taon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit mahalagang panatilihing malinis ang tubig sa batis?",
+        "options": ["Dahil ginagamit ito sa patubig sa sakahan at inuman ng hayop", "Upang maging maganda sa litrato", "Upang hindi magalit ang kapitan", "Upang paliguan ng mga ibon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang maaari mong gawin kapag nakakita ka ng nagtatapon ng basura sa ilog?",
+        "options": ["Maingat at magalang na paalalahanan at sabihin ang tamang tapunan", "Makipag-away agad", "Tapon rin ng sariling basura", "Manahimik at magtago"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g4_fil_set_d_post",
+    "title": "Ang Aklatan sa Kariton",
+    "gradeLevel": "Grade 4",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 122,
+    "contentText": "Tuwing Sabado, itinutulak ni Kuya Ben ang kanyang kariton na puno ng mga aklat patungo sa plasa. Nais niyang bahaginan ng karunungan ang mga batang hindi nakakapunta sa malalaking aklatan. Sa tulong ng kanyang kariton, libreng nakakahiram ng kwento ang mga bata at tinuturuan din sila ni Kuya Ben ng wastong pagbigkas ng mga salita sa Filipino at Ingles.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Sino ang nagtutulak ng kariton na puno ng aklat tuwing Sabado?",
+        "options": ["Kuya Ben", "Kuya Lito", "Kuya Mark", "Kuya Rey"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Saan itinutulak ni Kuya Ben ang kanyang pampublikong aklatan sa kariton?",
+        "options": ["Sa plasa", "Sa palengke", "Sa simbahan", "Sa sementeryo"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit itinayo ni Kuya Ben ang kariton klasrum/aklatan?",
+        "options": ["Upang maihatid ang karunungan sa mga batang walang access sa aklatan", "Upang magtinda ng mga lumang libro", "Upang kumita ng pera", "Upang mag-ehersisyo sa umaga"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano mo maipapakita ang pagpapahalaga sa pagbabasa ng mga aklat?",
+        "options": ["Maglaan ng oras sa pagbabasa araw-araw at ingatan ang mga libro", "Sirain at sulatan ang mga pahina ng libro", "Itapon ang mga lumang aklat", "Umiwas sa pagbabasa"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_a_pre",
+    "title": "Ang Agila ng Pilipinas",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 142,
+    "contentText": "Ang Agila ng Pilipinas ay ang Pambansang Ibon ng ating bansa. Ito ay isa sa pinakamalaki at pinakamakapangyarihang ibon sa buong mundo. Matatagpuan ang mga agilang ito sa mga kagubatan ng Luzon, Samar, Leyte, at Mindanao, partikular sa palibot ng Bundok Apo. Ang agila ay kumakain ng mga unggoy, malalaking ibon, at iba pang maliliit na hayop. Sa kasamaang palad, ang mga agila ay nanganganib nang maubos o maging endangered dahil sa pagkasira ng kanilang tirahan at ilegal na pangangaso. Binuo ang Philippine Eagle Foundation upang protektahan at paramihin muli ang mga ibong ito.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Ano ang pambansang ibon ng Pilipinas?",
+        "options": ["Agila ng Pilipinas", "Maya", "Pipit", "Kalaw"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Anong samahan ang binuo upang protektahan ang mga agila sa bansa?",
+        "options": ["Philippine Eagle Foundation", "DepEd Wildlife Council", "DENR Rescue Team", "Mindanao Bird Protectors"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang pangunahing dahilan kung bakit nanganganib maubos ang Agila ng Pilipinas?",
+        "options": ["Pagkasira ng kagubatan at ilegal na pangangaso", "Kawalan ng makakain sa dagat", "Malamig na panahon", "Sobrang dami ng lahi"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Bilang isang mag-aaral, paano ka makakatulong sa pangangalaga sa ating kalikasan at wildlife?",
+        "options": ["Magtanim ng puno at alagaan ang tirahan ng mga hayop", "Manghuli ng ilap na ibon", "Pumutol ng mga puno", "Manahimik lamang"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_b_pre",
+    "title": "Ang Banaue Rice Terraces",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "silent",
+    "wordCount": 145,
+    "contentText": "Ang Hagdan-hagdang Palayan sa Banaue, Ifugao ay isa sa mga itinuturing na UNESCO World Heritage Site. Ginawa ito ng ating mga ninuno dalawang libong taon na ang nakararaan gamit lamang ang kanilang mga kamay at simpleng kagamitan. Inukit nila ang gilid ng mga bundok upang makagawa ng hagdan-hagdang taniman ng palay na may likas na sistema ng patubig mula sa kagubatan sa itaas. Ipinapakita nito ang husay, tiyaga, at talino ng mga katutubong Pilipino sa pakikiangkop sa kalikasan nang hindi ito sinisira.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saan matatagpuan ang Hagdan-hagdang Palayan?",
+        "options": ["Banaue, Ifugao", "Baguio City", "Tagaytay", "Davao"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ilang taon na ang nakararaan nang likhain ng ating mga ninuno ang palayan?",
+        "options": ["Dalawang libong taon", "Isang daang taon", "Limangdaang taon", "Sampung libong taon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit hanggang ngayon ay hinahangaan ang Banaue Rice Terraces sa buong mundo?",
+        "options": ["Dahil sa natatanging arkitektura at likas-kayang inhinyerya ng mga ninuno", "Dahil sa mataas na presyo ng palay", "Dahil malapit ito sa lungsod", "Dahil gawa ito sa semento"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano natin maiingatan ang mga makasaysayang pamana ng ating mga ninuno?",
+        "options": ["Irespeto at suportahan ang preserbasyon ng pamana at kultura", "Paltan ng matataas na gusali", "Hayaan itong masira", "Sirain ang mga taniman"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_c_pre",
+    "title": "Ang Enerhiyang Geothermal sa Tiwi",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "listening",
+    "wordCount": 138,
+    "contentText": "Ang Pilipinas ay isa sa mga nangungunang bansa sa mundo sa paggamit ng geothermal energy o lakas mula sa init ng ilalim ng lupa. Sa Tiwi, Albay, matatagpuan ang malaking plantang geothermal na sumisipsip ng singaw mula sa bulkang nakapaligid dito upang gumawa ng kuryente. Ang ganitong uri ng enerhiya ay malinis at renewable dahil hindi ito naglalabas ng maitim na usok na nakakasira sa ozone layer. Nakakatulong ito upang mabawasan ang pagdepende ng ating bansa sa imported na langis.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saang bayan sa Albay matatagpuan ang sikat na plantang geothermal?",
+        "options": ["Tiwi", "Legazpi", "Daraga", "Tabaco"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Saan nagmumula ang lakas ng enerhiyang geothermal?",
+        "options": ["Sa init mula sa ilalim ng lupa", "Sa lakas ng hangin", "Sa alon ng dagat", "Sa init ng araw"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit itinuturing na 'renewable' at malinis ang enerhiyang geothermal?",
+        "options": ["Hindi ito naubos at hindi naglalabas ng usok na nakakasira sa ozone layer", "Dahil mura ang singil sa kuryente", "Dahil madali itong bitbitin", "Dahil kulay berde ang kuryente"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Bakit mahalagang magtipid ng kuryente sa ating mga tahanan?",
+        "options": ["Upang makatipid sa gastusin at mabawasan ang pagkonsumo ng likas na yaman", "Upang makipag-away sa pamilya", "Upang magdilim ang bahay", "Upang masira ang mga kagamitan"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_d_pre",
+    "title": "Ang Bayanihan sa Panahon ng Bagyo",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 140,
+    "contentText": "Nang tamaan ng malakas na bagyo ang lalawigan ng Cagayan, mabilis na nag-organisa ang mga mamamayan ng pamamahagi ng tulong. Ang mga kabataan sa barangay ay nagkusa sa pagpapakete ng mga pagkain, tubig, at gamot habang ang mga mangingisda naman ay ginamit ang kanilang mga bangka upang iligtas ang mga pamilyang na-stranded sa bubong ng kanilang bahay. Ang espiritu ng Bayanihan ay muling napatunayan bilang simbolo ng pag-asa at pagmamahalan ng mga Pilipino sa oras ng matinding kalamidad.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong lalawigan ang tinamaan ng bagyo sa kwento?",
+        "options": ["Cagayan", "Isabela", "Ilocos", "Pangasinan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang ginamit ng mga mangingisda upang iligtas ang mga pamilyang na-stranded?",
+        "options": ["Kani-kanilang mga bangka", "Helicopter", "Trak ng bumbero", "Kariton"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang ibig sabihin ng kaugaliang 'Bayanihan' batay sa kwento?",
+        "options": ["Kusa at sama-samang pagtulong sa kapwa nang walang hinihintay na kapalit", "Paghingi ng bayad sa pagtulong", "Paglitrato para maging sikat sa internet", "Paghihintay sa tulong ng ibang bansa"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano mo maipakikita ang Bayanihan sa iyong sariling komunidad?",
+        "options": ["Sumali sa mga voluntary cleanup o pamamahagi ng relief goods sa nangangailangan", "Manood lamang sa mga naghihirap", "Magtago sa bahay", "Maningil ng interes sa tulong"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_a_post",
+    "title": "Ang Organikong Pagsasaka",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 144,
+    "contentText": "Sa bayan ng Lucban, Quezon, unti-unting lumilipat ang mga magsasaka sa organikong pagsasaka. Sa halip na gumamit ng mga nakakalason na pestisidyo at artipisyal na pataba, gumagamit sila ng mga katas ng halaman, vermicompost, at malinis na patubig. Dahil dito, nananatiling mataba ang lupa at ligtas kainin ang mga aning prutas at gulay. Bukod sa nakakatipid sa gastos sa pataba, nababawasan din ang polusyon sa mga ilog na malapit sa sakahan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saang bayan sa Quezon lumilipat ang mga magsasaka sa organikong pagsasaka?",
+        "options": ["Lucban", "Tayabas", "Sariaya", "Candelaria"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang ginagamit ng mga magsasaka sa halip na nakakalason na pestisidyo?",
+        "options": ["Katas ng halaman at vermicompost", "Kemikal na pataba", "Gasolina", "Sabon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang pangunahing bentahe ng organikong gulay para sa ating kalusugan?",
+        "options": ["Ligtas kainin dahil walang natitirang lason o kemikal", "Mas masarap at matamis ang lasa lamang", "Mas mabilis mabulok", "Mas mahal ang presyo"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Bakit mahalagang tangkilikin ang mga produktong gawa ng ating mga lokal na magsasaka?",
+        "options": ["Upang suportahan ang kabuhayan ng mga kababayan at paunlarin ang lokal na ekonomiya", "Upang makipagkompetensya sa ibang bansa", "Upang maubos agad ang pera", "Upang maging sikat sa palengke"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_b_post",
+    "title": "Ang Yunit ng Tubig sa Komunidad",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "silent",
+    "wordCount": 140,
+    "contentText": "Ang tubig ay isa sa pinakamahalagang pangangailangan ng bawat nilalang. Sa pamayanan nina Mang Tomas, binuo ang isang rainwater harvesting system o imbakan ng tubig-ulan sa kanilang barangay hall. Ang naipong tubig-ulan ay ginagamit sa pagdidilig ng halaman, paglilinis ng mga pasilidad, at pambuhos sa palikuran. Dahil sa proyektong ito, nabawasan ng tatlumpung porsyento ang nakokonsumong tap water sa kanilang barangay.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong sistema ng pag-iimbak ng tubig ang binuo sa barangay hall?",
+        "options": ["Rainwater harvesting system", "Deep well pump", "Dam system", "Desalination plant"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ilang porsyento ang nabawas sa nakokonsumong tap water sa barangay?",
+        "options": ["Tatlumpung porsyento (30%)", "LIMAng porsyento (5%)", "Sandaang porsyento (100%)", "Sampung porsyento (10%)"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit itinuturing na matalinong hakbang ang paggamit ng tubig-ulan sa pang-araw-araw na gawain?",
+        "options": ["Nakakatipid sa malinis na inuming tubig at nakababawas sa gastusin", "Dahil mas malamig ang tubig-ulan", "Dahil libre ang ulan sa buong taon", "Dahil ayaw nila ng gripo"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang maaari mong gawin sa bahay upang makatulong sa pagtitipid ng tubig?",
+        "options": ["Isara ang gripo habang nagsisipilyo at ayusin ang mga may sirang tubo", "Hayaan lang na umapaw ang balde", "Maglaro ng tubig tuwing hapon", "Maligo nang limang beses sa isang araw"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_c_post",
+    "title": "Ang Sining ng Pabalat sa Bulacan",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "listening",
+    "wordCount": 136,
+    "contentText": "Sa San Miguel, Bulacan, kilala ang katutubong sining ng 'Pabalat' o ang maingat na paggupit ng makukulay na papel de hapon upang gawing balot ng pastillas. Ang mga disenyo ay nagpapakita ng mga bulaklak, kubo, at mga tanawin sa nayon. Ginagawa ito nang manu-mano gamit ang maliliit na gunting. Sa kasalukuyan, kakaunti na lamang ang mga nakakatandang artist na marunong nito kaya naman nagsasagawa ng mga workshop ang pamahalaan para sa mga kabataan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saang bayan sa Bulacan kilala ang katutubong sining ng Pabalat?",
+        "options": ["San Miguel", "Malolos", "Meycauayan", "Baliuag"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang ginagawan ng maingat na balot gamit ang papel de hapon sa Pabalat?",
+        "options": ["Pastillas", "Yema", "Polvoron", "Chocolates"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit mahalagang magdaos ng mga workshop sa Pabalat para sa mga kabataan?",
+        "options": ["Upang hindi mamatay at maipasa sa susunod na henerasyon ang katutubong sining", "Upang mabilis na makapagtinda ng kendi", "Upang matutong gumamit ng gunting lamang", "Upang makipagkompetensya sa ibang bansa"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano natin maiingatan ang mga sining at kultura ng ating sariling lalawigan?",
+        "options": ["Pagaralan, ipagmalaki, at tangkilikin ang mga produktong gawa ng lokal na alagad ng sining", "Paltan ng makabagong stickers ang lahat", "Umiwas sa mga tradisyunal na pagdiriwang", "Manahimik at magwalang-bahala"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g5_fil_set_d_post",
+    "title": "Ang Reforestation sa Bundok Banahaw",
+    "gradeLevel": "Grade 5",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 142,
+    "contentText": "Nagtulong-tulong ang mga boluntaryo mula sa iba't ibang paaralan upang magsagawa ng tree planting o pagtatanim ng punong narra at mahogany sa paanan ng Bundok Banahaw. Ang mga natanim na punla ay regular na binibisita ng mga park ranger upang tiyaking hindi kakainin ng mga mababangis na hayop at makakaligtas sa tagtuyot. Sa loob ng limang taon, inaasahang lalong lalago ang kagubatan na nagbibigay ng malinis na hangin at patubig sa buong lalawigan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saang bundok nagsagawa ng pagtatanim ng puno ang mga boluntaryo?",
+        "options": ["Bundok Banahaw", "Bundok Makiling", "Bundok Pulag", "Bundok Arayat"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Anong mga uri ng puno ang itinanim sa paanan ng bundok?",
+        "options": ["Narra at Mahogany", "Kawayan at Manga", "Niyog at Saging", "Puno ng Pine"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit mahalagang bisitahin at alagaan ang mga punla matapos itong itanim?",
+        "options": ["Upang tiyaking mabubuhay ito at lalago bilang ganap na puno", "Upang makuhanan ng litrato linggo-linggo", "Upang hindi kainin ng mga tao", "Upang diligan lamang tuwing gabi"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang pangmatagalang pakinabang ng reforestation sa ating kapaligiran?",
+        "options": ["Pinipigilan ang pagguho ng lupa, binabawasan ang baha, at nagbibigay ng malinis na hangin", "Nagbibigay ng dahilan upang pumutol ng puno sa hinaharap", "Nagpapainit sa kapaligiran", "Mababawasan ang ulan sa lugar"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_a_pre",
+    "title": "Ang Mangrove Forest sa Palawan",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 165,
+    "contentText": "Ang mga bakawan o mangrove sa lalawigan ng Palawan ay nagsisilbing natural na bentilador at harang ng baybayin laban sa malalakas na hampas ng alon at bagyo. Ang mga ugat ng bakawan ay nagsisilbing tirahan at paitlogan ng iba't ibang uri ng isda, alimango, at hipon. Bukod dito, ang mga kagubatang bakawan ay sumisipsip ng malaking dami ng carbon dioxide mula sa hangin, kaya nakakatulong ito sa paglaban sa climate change. Gayunpaman, maraming bakawan ang nasisira dahil sa komersyal na pagtatayo ng mga resort at palaisdaan. Ang Pamahalaang Lokal ng Palawan at mga lokal na komunidad ay patuloy na nagsasagawa ng malawakang pagtatanim ng bakawan upang mapanatili ang yaman ng baybayin.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Ano ang ginagampanang papel ng mga ugat ng bakawan sa baybayin?",
+        "options": ["Tirahan at paitlogan ng mga isda, alimango, at hipon", "Daanan ng mga malalaking barko", "Kainan ng mga ibon sa gabi", "Palaruan ng mga turista"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang binabawasan ng mga kagubatang bakawan mula sa kapaligiran upang labanan ang climate change?",
+        "options": ["Carbon dioxide", "Oxygen", "Nitrogen", "Methane"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang magiging epekto sa pamayanan sa tabing-dagat kapag nawala ang mga bakawan?",
+        "options": ["Mas madaling mararanasan ang matinding baha at pinsala mula sa hampas ng bagyo", "Lalong darami ang mga huling isda", "Gaganda ang pasyalan sa tabing-dagat", "Mababawasan ang ulan"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Bakit mahalagang magtulungan ang pamahalaan at mamamayan sa pagtatanim muli ng mga bakawan?",
+        "options": ["Upang protektahan ang likas na yaman at tiyakin ang kaligtasan ng mga susunod na henerasyon", "Upang kumita ng malaking pera mula sa mga turista lamang", "Upang magkaroon ng dahilan para magbakasyon", "Upang masiyahan ang mga negosyante"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_b_pre",
+    "title": "Ang Tubbataha Reefs Natural Park",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "silent",
+    "wordCount": 168,
+    "contentText": "Ang Tubbataha Reefs Natural Park sa Dagat Sulu ay itinuturing na isa sa pinakamagagandang coral reef sanctuary sa buong mundo. Sa lawak nitong humigit-kumulang 97,030 ektarya, tahanan ito ng higit anim na daang uri ng isda, tatlong daang uri ng prusisyon ng koral, at iba't ibang uri ng pating at pawikan. Dahil sa pambihirang biodiversidad nito, striktong ipinagbabawal ang pangingisda at pag-aalis ng anumang koral sa protected area. Ang pagpapanatili sa kalinisan ng Tubbataha ay mahalaga sa seguridad sa pagkain ng buong Pilipinas dahil dito nagmumula ang mga larba ng isda na kumakalat sa buong karagatan ng bansa.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Saang dagat matatagpuan ang Tubbataha Reefs Natural Park?",
+        "options": ["Dagat Sulu", "Dagat Timog Tsina", "Dagat Pasipiko", "Dagat Celebes"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ilang uri ng isda ang humigit-kumulang na naninirahan sa Tubbataha Reefs?",
+        "options": ["Higit anim na daan (600+)", "Isang daan (100)", "Dalawang libo (2000)", "Limampu (50)"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit sinabing mahalaga ang Tubbataha Reefs sa seguridad sa pagkain ng buong bansa?",
+        "options": ["Dito nagmumula ang mga larba ng isda na kumakalat at nagpapadami ng huli sa karagatan", "Dahil doon kumakain ang mga mangingisda araw-araw", "Dahil nagbebenta doon ng murang isda", "Dahil malapit ito sa Maynila"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang magiging bunga kapag sinira o pinabayaan ng tao ang mga coral reef tulad ng Tubbataha?",
+        "options": ["Mawawalan ng tirahan ang mga isda na magdudulot ng krisis sa supply ng pagkain mula sa dagat", "Lalong dadami ang mga isda sa dalampasigan", "Lilinaw ang tubig-dagat", "Gaganda ang turismo sa bansa"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_c_pre",
+    "title": "Ang Paggamit ng Solar Energy sa mga Isla",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "listening",
+    "wordCount": 160,
+    "contentText": "Maraming maliliit na isla sa Pilipinas ang dating walang kuryente sa gabi dahil sa kawalan ng linya ng kable mula sa pangunahing lupain. Sa kasalukuyan, sa pamamagitan ng mga micro-grid solar panel system, nakakagamit na ang mga residente ng malinis na kuryente mula sa sikat ng araw. Dahil dito, nakakapag-aral na nang maayos ang mga mag-aaral sa gabi at napananatiling malamig ang mga nahuling isda ng mga mangingisda sa mga solar-powered freezer. Ang inobasyong ito ay hindi lamang nag-aangat sa antas ng pamumuhay kundi nakakabawas pa sa polusyon mula sa mga generator na gumagamit ng krudo.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Ano ang ginagamit na teknolohiya upang magkaroon ng kuryente sa maliliit na isla?",
+        "options": ["Micro-grid solar panel system", "Nuclear power plant", "Dinamita", "Kandila"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang nakakatulong sa mga mangingisda upang mapanatiling sariwa ang kanilang huli?",
+        "options": ["Solar-powered freezer", "Yelo mula sa Maynila", "Asin", "Araw"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang pangunahing kabutihan ng paglipat mula sa krudo tungo sa solar energy sa mga isla?",
+        "options": ["Nababawasan ang polusyon sa hangin at nakakatipid sa mahal na bayad sa krudo", "Mas mabilis masira ang mga gamit sa bahay", "Nawawala ang liwanag tuwing tanghali", "Mas mainit ang paligid"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano makatutulong ang pamahalaan at pribadong sektor sa pagpapalawak ng solar energy sa malalayong lugar?",
+        "options": ["Maglaan ng pondo at suporta sa pagpapatayo ng mga pasilidad ng renewable energy", "Taasan ang buwis sa mga solar panel", "Ipagbawal ang paggamit ng solar energy", "Hayaan lang na walang kuryente ang mga isla"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_d_pre",
+    "title": "Ang Katutubong Karunungan sa Halamang Gamot",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Pre-Test",
+    "assessmentType": "oral",
+    "wordCount": 162,
+    "contentText": "Bago pa man dumating ang mga makabagong gamot, ang ating mga katutubong ninuno ay gumagamit na ng mga halamang gamot na matatagpuan sa mga kagubatan at bakuran. Ang mga halamang tulad ng lagundi para sa ubo, sambong para sa bato sa bato, at ampalaya para sa diabetes ay kinikilala na ngayon ng Kagawaran ng Kalusugan (DOH) dahil sa napatunayang bisa ng mga ito sa pamamagitan ng siyentipikong pag-aaral. Ang pagsasama ng katutubong karunungan at makabagong agham ay nagbibigay ng abot-kaya at ligtas na lunas para sa mamamayan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong halamang gamot ang kinikilala ng DOH para sa paggamot ng ubo?",
+        "options": ["Lagundi", "Sambong", "Ampalaya", "Bawang"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Anong ahensya ng pamahalaan ang nagsagawa ng siyentipikong pag-aaral sa mga halamang gamot?",
+        "options": ["Kagawaran ng Kalusugan (DOH)", "DepEd", "DOST", "DENR"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit mahalagang pagsamahin ang katutubong karunungan at makabagong agham sa medisina?",
+        "options": ["Upang matiyak na ligtas, epektibo, at abot-kaya ang mga lunas para sa pamilya", "Upang makipag-away sa mga doktor", "Upang maubos ang mga halaman sa bundok", "Upang mapansin ng ibang bansa"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano mo maipapakita ang pagpapahalaga sa ating mga katutubong kaalaman at tradisyon?",
+        "options": ["Irespeto, pagaralan, at suportahan ang pagsasaliksik sa ating sariling kultura at kaalaman", "Kutyain ang mga katutubong pamamaraan", "Huwag naniniwala sa agham", "Sirain ang mga halamanang gamot"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_a_post",
+    "title": "Ang Konserbasyon ng Pawikan sa La Union",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set A",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 166,
+    "contentText": "Sa baybayin ng San Juan, La Union, kilala ang organisasyong CURMA o Coastal Underwater Resource Management Actions sa pagtatanggol sa mga nangingitlog na pawikan. Tuwing panahon ng pangingitlog mula Setyembre hanggang Marso, nagroronda ang mga boluntaryong tinatawag na 'Pawikan Patrol' upang protektahan ang mga itlog laban sa mga poaching at mabangis na hayop. Inililipat ang mga itlog sa isang ligtas na ihawan o hatchery hanggang sa mapisa ang mga ito. Kapag handa na, masayang pinakawalan ang libu-libong maliliit na pawikan patungo sa malawak na karagatan sa tulong ng mga lokal at turista.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong organisasyon sa San Juan, La Union ang nagtatanggol sa mga nangingitlog na pawikan?",
+        "options": ["CURMA", "DENR", "WWF", "BFAR"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Kailan ang panahon ng pangingitlog ng mga pawikan sa baybayin?",
+        "options": ["Setyembre hanggang Marso", "Mayo hanggang Hulyo", "Disyembre lamang", "Buong taon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit kailangang ilipat ang mga itlog ng pawikan sa ligtas na hatchery?",
+        "options": ["Upang hindi makain ng mga hayop o manakaw ng mga ilegal na nagbebenta ng itlog", "Upang mabilis itong maluto", "Upang bumenta sa palengke", "Upang gawing koleksyon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang magagawa ng mga turista at mamamayan upang hindi maistorbo ang mga pawikan sa dalampasigan?",
+        "options": ["Patayin ang matitinding ilaw sa baybayin sa gabi at huwag mag-iwan ng basurang plastik", "Gumawa ng maingay na patugtog sa gabi", "Hukayin ang mga pugad ng pawikan", "Magtapon ng plastik sa dagat"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_b_post",
+    "title": "Ang Paggamit ng Zero Waste Lifestyle",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set B",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "silent",
+    "wordCount": 164,
+    "contentText": "Ang lungsod ng San Fernando sa Pampanga ay isa sa mga modelo sa Pilipinas sa pagpapatupad ng 'Zero Waste Management'. Sa pamamagitan ng mahigpit na paghihiwalay ng basurang nabubulok, nabubulok na puwedeng i-compost, at nabebentang kalakal, nabawasan ng higit pitumpung porsyento ang basurang dinadala sa mga dumpsite. Ang mga nabubulok na basura ay ginagawang pataba para sa mga pampublikong parke samantalang ang mga plastik naman ay ginagawang ecobricks para sa mga bakod at bangketa. Ang disiplina ng mamamayan ang naging susi sa tagumpay ng malinis na lungsod.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Anong lungsod sa Pampanga ang kilalang modelo sa Zero Waste Management?",
+        "options": ["San Fernando", "Angeles", "Mabalacat", "Guagua"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ilang porsyento ang nabawas sa basurang dinadala sa dumpsite dahil sa segregation?",
+        "options": ["Higit pitumpung porsyento (70%+)", "Sampung porsyento (10%)", "Limampung porsyento (50%)", "Walang nabawas"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Ano ang pangunahing kadahilanan kung bakit naging matagumpay ang proyekto sa lungsod?",
+        "options": ["Disiplina at aktibong pakikipagtulungan ng bawat mamamayan sa segregation", "Dahil sa malaking multa lamang", "Dahil sa tulong ng ibang bansa", "Dahil kaunti lang ang tao roon"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano mo maiaaplay ang prinsipyo ng Zero Waste sa iyong sariling buhay sa paaralan?",
+        "options": ["Magdala ng sariling tumbler at baunan, at magsegregate ng basura sa tamang basurahan", "Bumili ng disposable plastik araw-araw", "Itapon ang basura sa ilalim ng desk", "Huwag kumain sa paaralan"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_c_post",
+    "title": "Ang Tradisyunal na Paghahabi sa Ilocos",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set C",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "listening",
+    "wordCount": 160,
+    "contentText": "Ang 'Inabel' ay ang katutubong tela ng rehiyong Ilocos na ginagawa sa pamamagitan ng tradisyunal na paghahabi gamit ang wooden loom o tilaran. Ang mga disenyo nito tulad ng 'binakol' na mukhang alon o whirlpool ay naniniwala ang mga ninuno na nagtataboy ng mga masasamang espiritu. Ang proseso ng paggawa ng Inabel ay nangangailangan ng mataas na antas ng konsentrasyon at kasanayan mula sa pagpili ng hilo hanggang sa pagbuo ng komplikadong muwestra. Sa ngayon, ang Inabel ay ginagamit na sa mga makabagong kasuotan, bag, at dekorasyon sa tahanan na ipinagmamalaki sa buong mundo.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Ano ang tawag sa katutubong tela ng rehiyong Ilocos?",
+        "options": ["Inabel", "T'nalak", "Yakan", "Piña"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Anong kagamitan ang ginagamit sa tradisyunal na paghahabi ng Inabel?",
+        "options": ["Wooden loom o tilaran", "Makina sa pabrika", "Karayom at sinulid lang", "Gunting"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit itinuturing na mahalagang pamanang pangkultura ang paghahabi ng Inabel?",
+        "options": ["Dahil nagpapakita ito ng kasaysayan, sining, at natatanging kasanayan ng mga Ilocano", "Dahil mahal ang benta nito sa mall", "Dahil mabilis itong gawin", "Dahil ginagamit ito ng lahat ng tao"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Paano makatutulong ang mga kabataan upang mapanatiling buhay ang tradisyon ng paghahabi?",
+        "options": ["Ipagmalaki at tangkilikin ang mga produktong lokal at pagaralan ang sining nito", "Bumili ng mga imported na damit lamang", "Kutyain ang mga habihan sa probinsya", "Manahimik at magwalang-bahala"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "phil_iri_g6_fil_set_d_post",
+    "title": "Ang Proteksyon sa Watershed ng La Mesa",
+    "gradeLevel": "Grade 6",
+    "language": "fil",
+    "set": "Set D",
+    "assessmentPeriod": "Post-Test",
+    "assessmentType": "oral",
+    "wordCount": 168,
+    "contentText": "Ang La Mesa Watershed Reservation sa Lungsod Quezon ang pangunahing pinagmumulan ng inuming tubig para sa higit labindalawang milyong mamamayan ng Metro Manila. Dahil sa malawakang pagkasira nito noong nakaraang mga dekada, inilunsad ang proyektong 'Save La Mesa Watershed' upang muling tamnan ng milyun-milyong katutubong puno ang higit dalawang libong ektarya ng kagubatan. Sa kasalukuyan, ang reservation ay nagsisilbi na ring 'lungsod na baga' o green lung na sumisipsip ng polusyon sa hangin at tahanan ng higit sandaang uri ng mga ibon. Ang maingat na pangangalaga sa watershed ay patunay na kayang ibalik ang ganda ng kalikasan sa pamamagitan ng pagtutulungan.",
+    "questions": [
+      {
+        "id": "q1",
+        "questionType": "literal",
+        "questionText": "Ilang milyong mamamayan ng Metro Manila ang nakikinabang sa tubig mula sa La Mesa Watershed?",
+        "options": ["Higit labindalawang milyon (12M+)", "Isang milyon (1M)", "Limampung milyon (50M)", "Limangdaang libo (500K)"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q2",
+        "questionType": "literal",
+        "questionText": "Ano ang itinuturing na tawag sa La Mesa Watershed dahil sa pagpapababa nito ng polusyon sa lungsod?",
+        "options": ["Lungsod na baga (green lung)", "Lungsod na parke", "Dagat ng Maynila", "Bundok ng Basura"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q3",
+        "questionType": "inferential",
+        "questionText": "Bakit tinawag na kritikal na imprastraktura ng kalikasan ang isang watershed?",
+        "options": ["Sapagkat ito ang humahawak at nagpapadalisay ng suplay ng inuming tubig ng populasyon", "Dahil masarap magpiknik doon", "Dahil maraming matataas na puno", "Dahil malapit ito sa mga mall"],
+        "correctAnswerIndex": 0
+      },
+      {
+        "id": "q4",
+        "questionType": "critical",
+        "questionText": "Ano ang pangunahing aral na maipapasa sa mga mamamayan mula sa rehabilitasyon ng La Mesa Watershed?",
+        "options": ["Kayang isalba at ibalik ang nasirang kalikasan kapag may determinasyon at pagtutulungan", "Hayaan na lang masira ang kalikasan dahil lilipas din ito", "Bumili ng bottled water araw-araw", "Huwag nang magtanim ng puno"],
+        "correctAnswerIndex": 0
+      }
+    ]
+  }
+]

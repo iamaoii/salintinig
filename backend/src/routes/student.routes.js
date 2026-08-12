@@ -9,12 +9,14 @@ const {
   deleteStudent,
   importStudentsCSV,
   submitPhilIriAssessment,
+  getPhilIriPassages,
   completeStoryProgress,
   completeActivityProgress,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
 router.get('/', getStudents);
+router.get('/assessment/passages', getPhilIriPassages);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/story/complete', completeStoryProgress);
 router.post('/activity/complete', completeActivityProgress);

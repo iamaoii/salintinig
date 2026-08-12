@@ -1424,6 +1424,43 @@ async function completeActivityProgress(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/student/assessments/passages — Get DepEd Phil-IRI passages
+// ---------------------------------------------------------------------------
+async function getPhilIriPassages(req, res) {
+  try {
+    const { grade, set, type, language, period } = req.query;
+    const passagesSeed = require('../data/phil_iri_passages.json');
+
+    let filtered = [...passagesSeed];
+
+    if (grade) {
+      filtered = filtered.filter((p) => p.gradeLevel.toLowerCase() === String(grade).toLowerCase());
+    }
+    if (set) {
+      filtered = filtered.filter((p) => p.set.toLowerCase() === String(set).toLowerCase());
+    }
+    if (type) {
+      filtered = filtered.filter((p) => p.assessmentType.toLowerCase() === String(type).toLowerCase());
+    }
+    if (language) {
+      filtered = filtered.filter((p) => p.language.toLowerCase() === String(language).toLowerCase());
+    }
+    if (period) {
+      filtered = filtered.filter((p) => p.assessmentPeriod.toLowerCase() === String(period).toLowerCase());
+    }
+
+    return res.json({
+      success: true,
+      count: filtered.length,
+      passages: filtered,
+    });
+  } catch (error) {
+    console.error('Error fetching Phil-IRI passages:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch Phil-IRI passages.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -1435,6 +1472,7 @@ module.exports = {
   checkExistingStudent,
   transferInStudent,
   submitPhilIriAssessment,
+  getPhilIriPassages,
   completeStoryProgress,
   completeActivityProgress,
 };

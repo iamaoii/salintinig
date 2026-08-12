@@ -233,8 +233,34 @@ class OralReadingResultPage extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                const Expanded(
-                                  child: SizedBox(),
+                                Expanded(
+                                  child: () {
+                                    final compPct = (score / totalQuestions * 100).round();
+                                    const accPct = 87;
+                                    final isIndependent = accPct >= 97 && compPct >= 80;
+                                    final isFrustration = accPct <= 89 || compPct <= 59;
+                                    
+                                    final String levelName = isIndependent
+                                        ? 'Independent'
+                                        : (isFrustration ? 'Frustration' : 'Instructional');
+                                    final Color levelColor = isIndependent
+                                        ? const Color(0xFF059669)
+                                        : (isFrustration ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+                                    final Color levelBgColor = isIndependent
+                                        ? const Color(0xFFD1FAE5)
+                                        : (isFrustration ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7));
+                                    final String levelIcon = isIndependent
+                                        ? PhIcons.flagPennantBold
+                                        : (isFrustration ? PhIcons.warningCircleRegular : PhIcons.bookOpenRegular);
+
+                                    return _buildMetricCard(
+                                      valueNumber: levelName,
+                                      label: 'Phil-IRI Level',
+                                      iconSvg: levelIcon,
+                                      iconColor: levelColor,
+                                      iconBgColor: levelBgColor,
+                                    );
+                                  }(),
                                 ),
                               ],
                             ),

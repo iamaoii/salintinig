@@ -661,11 +661,15 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
     );
   }
 
+  List<dynamic>? _dynamicQuestions;
+
   void _finishReading() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const OralReadingAssessmentQuizPage(),
+        builder: (context) => OralReadingAssessmentQuizPage(
+          dynamicQuestions: _dynamicQuestions,
+        ),
       ),
     );
   }
