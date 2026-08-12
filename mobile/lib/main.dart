@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,19 @@ import 'package:salintinig/pages/common/loading_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: SystemUiOverlay.values,
+  );
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ),
+  );
+
   try {
     await dotenv.load(fileName: '.env');
   } catch (e) {
@@ -37,6 +51,13 @@ class SalinTinigApp extends StatelessWidget {
           seedColor: const Color(0xFF673AB7), // Deep Purple
           brightness: Brightness.light,
         ),
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
+        ),
         textTheme: GoogleFonts.interTextTheme(
           ThemeData.light().textTheme,
         ).copyWith(
@@ -63,6 +84,13 @@ class SalinTinigApp extends StatelessWidget {
           seedColor: const Color(0xFF673AB7),
           brightness: Brightness.dark,
         ),
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
+        ),
         textTheme: GoogleFonts.interTextTheme(
           ThemeData.dark().textTheme,
         ).copyWith(
@@ -84,6 +112,16 @@ class SalinTinigApp extends StatelessWidget {
         ),
       ),
       themeMode: ThemeMode.system,
+      builder: (context, child) {
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark, // Black/Dark icons visible on light app pages
+            statusBarBrightness: Brightness.light,    // iOS contrast setting
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const LoadingPage(),
     );
   }
