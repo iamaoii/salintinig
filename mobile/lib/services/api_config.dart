@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  // Override this if testing with a physical device (e.g. '192.168.1.100:5000')
   static String? customHost;
 
   static String get baseUrl {
@@ -24,8 +23,6 @@ class ApiConfig {
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     } else if (Platform.isAndroid) {
-      // 127.0.0.1 works for physical devices via ADB reverse (`adb reverse tcp:5000 tcp:5000`)
-      // You can also set API_HOST in .env to your PC IP (e.g. 192.168.1.146:5000)
       return 'http://127.0.0.1:5000/api';
     } else {
       return 'http://localhost:5000/api';
