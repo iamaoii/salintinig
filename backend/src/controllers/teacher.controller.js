@@ -831,4 +831,5 @@ module.exports = {
   getAccountRequests,
   approveAccountRequest,
   rejectAccountRequest,
+  assignPhilIriSetToClass,
 };

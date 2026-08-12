@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 
 class OralReadingAssessmentReaderPage extends StatefulWidget {
@@ -20,21 +21,12 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
   Timer? _progressTimer;
   final Random _random = Random();
 
-  // Combined full story text matching "Isang Pangarap"
-  final String _fullStoryText =
-      'Kasama si Jamil, isang batang Muslim, sa sumalubong sa pagdating ng kanyang tiyuhin.\n\n'
-      '“Tito Abdul, saan po ba kayo galing?” tanong ni Jamil.\n\n'
-      '“Galing ako sa Mecca, ang banal na sambahan nating mga Muslim. Bawat isa sa atin ay nangangarap na makapunta roon. Mapalad ako dahil narating ko iyon.”\n\n'
-      '“Bakit ngayon po kayo nagpunta roon?”\n\n'
-      '“Kasi, isinasagawa natin ngayon ang Ramadan, ang pinakabanal na gawain ng mga Muslim. Pag-alala ito sa ating banal na aklat na tinatawag na Koran. Doon ipinahayag na sugo ni Allah si Mohammed.”\n\n'
-      '“Alam ko po ang Ramadan. Nag-aayuno tayo at hindi kumakain mula sa pagsikat ng araw hanggang hapon.”\n\n'
-      '“Oo. Isang paraan kasi natin ito upang ipakita ang pagsisisi sa nagawa nating kasalanan.”\n\n'
-      '“Pangarap ko rin pong makapunta sa Mecca,” sabi ni Jamil.';
+  String _fullStoryText = '';
 
   @override
   void initState() {
     super.initState();
-    // Simulate real-time audio detection fluctuation updates
+    _fetchPassageFromApi();
     _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (mounted) {
         setState(() {
@@ -42,6 +34,24 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
         });
       }
     });
+  }
+
+  void _fetchPassageFromApi() async {
+    try {
+      final res = await ApiService.get('/student/assessment/passages?grade=Grade%204&type=oral&period=Pre-Test');
+      if (res.success && res.data != null && res.data['passages'] != null && (res.data['passages'] as List).isNotEmpty) {
+        final passage = res.data['passages'][0];
+        if (mounted) {
+          setState(() {
+            _fullStoryText = passage['contentText'] ?? '';
+            _dynamicQuestions = passage['questions'];
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Passage API fetch notice: $e');
+    }
   }
 
   @override

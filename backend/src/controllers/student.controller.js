@@ -1461,6 +1461,97 @@ async function getPhilIriPassages(req, res) {
   }
 }
 
+// In-memory active assignments storage fallback
+const activePhilIriAssignments = new Map();
+
+/**
+ * POST /api/student/assessment/assign — Assign specific Phil-IRI Set & Period to a student or grade level
+ */
+async function assignPhilIriToStudent(req, res) {
+  try {
+    const { studentId, lrn, gradeLevel, set, period, assessmentType } = req.body;
+    const targetSet = set || 'Set A';
+    const targetPeriod = period || 'Pre-Test';
+    const targetGrade = gradeLevel || 'Grade 4';
+    const targetType = assessmentType || 'oral';
+
+    const assignmentObj = {
+      studentId: studentId || lrn || 'ALL',
+      lrn: lrn || 'ALL',
+      gradeLevel: targetGrade,
+      set: targetSet,
+      period: targetPeriod,
+      assessmentType: targetType,
+      assignedAt: new Date().toISOString(),
+    };
+
+    if (lrn) {
+      activePhilIriAssignments.set(`lrn_${lrn}`, assignmentObj);
+    }
+    activePhilIriAssignments.set(`grade_${targetGrade}_${targetType}`, assignmentObj);
+
+    return res.json({
+      success: true,
+      message: `Assigned Phil-IRI ${targetSet} (${targetPeriod}) successfully.`,
+      assignment: assignmentObj,
+    });
+  } catch (error) {
+    console.error('Error assigning Phil-IRI set:', error);
+    return res.status(500).json({ success: false, error: 'Failed to assign Phil-IRI set.' });
+  }
+}
+
+/**
+ * GET /api/student/assessment/my-assignment — Get active Phil-IRI assignment for student
+ */
+async function getStudentActiveAssignment(req, res) {
+  try {
+    const { lrn, grade, type } = req.query;
+    const cleanLrn = lrn ? String(lrn).trim() : null;
+    const targetGrade = grade || 'Grade 4';
+    const targetType = type || 'oral';
+
+    let assignment = null;
+    if (cleanLrn && activePhilIriAssignments.has(`lrn_${cleanLrn}`)) {
+      assignment = activePhilIriAssignments.get(`lrn_${cleanLrn}`);
+    } else if (activePhilIriAssignments.has(`grade_${targetGrade}_${targetType}`)) {
+      assignment = activePhilIriAssignments.get(`grade_${targetGrade}_${targetType}`);
+    }
+
+    if (!assignment) {
+      // Default initial assignment
+      assignment = {
+        studentId: cleanLrn || 'ALL',
+        lrn: cleanLrn || 'ALL',
+        gradeLevel: targetGrade,
+        set: 'Set A',
+        period: 'Pre-Test',
+        assessmentType: targetType,
+        assignedAt: new Date().toISOString(),
+      };
+    }
+
+    // Fetch the matching passage details
+    const passagesSeed = require('../data/phil_iri_passages.json');
+    const matchedPassage = passagesSeed.find(
+      (p) =>
+        p.gradeLevel.toLowerCase() === assignment.gradeLevel.toLowerCase() &&
+        p.set.toLowerCase() === assignment.set.toLowerCase() &&
+        p.assessmentPeriod.toLowerCase() === assignment.period.toLowerCase()
+    ) || passagesSeed[0];
+
+    return res.json({
+      success: true,
+      hasAssignment: true,
+      assignment,
+      passage: matchedPassage,
+    });
+  } catch (error) {
+    console.error('Error fetching student assignment:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch assignment.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -1473,6 +1564,8 @@ module.exports = {
   transferInStudent,
   submitPhilIriAssessment,
   getPhilIriPassages,
+  assignPhilIriToStudent,
+  getStudentActiveAssignment,
   completeStoryProgress,
   completeActivityProgress,
 };

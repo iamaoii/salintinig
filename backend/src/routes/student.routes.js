@@ -10,6 +10,8 @@ const {
   importStudentsCSV,
   submitPhilIriAssessment,
   getPhilIriPassages,
+  assignPhilIriToStudent,
+  getStudentActiveAssignment,
   completeStoryProgress,
   completeActivityProgress,
 } = require('../controllers/student.controller.js');
@@ -17,6 +19,8 @@ const {
 // Routes for Student Records management & assessment submissions
 router.get('/', getStudents);
 router.get('/assessment/passages', getPhilIriPassages);
+router.get('/assessment/my-assignment', getStudentActiveAssignment);
+router.post('/assessment/assign', assignPhilIriToStudent);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/story/complete', completeStoryProgress);
 router.post('/activity/complete', completeActivityProgress);

@@ -14,6 +14,8 @@ import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 
+import 'package:salintinig/services/api_service.dart';
+
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
 
@@ -35,12 +37,41 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   bool _isListeningDone = false;
   bool _isSilentReadingDone = false;
 
+  String _assignedSet = 'Set A';
+  String _assignedPeriod = 'Pre-Test';
+  bool _isLoadingAssignment = true;
+
   @override
   void initState() {
     super.initState();
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isListeningDone = PhilIriAssessmentPage.isListeningDone;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+    _fetchTeacherAssignment();
+  }
+
+  void _fetchTeacherAssignment() async {
+    try {
+      final res = await ApiService.get('/student/assessment/my-assignment?grade=Grade%204&type=oral');
+      if (res.success && res.data != null && res.data['assignment'] != null) {
+        final assignment = res.data['assignment'];
+        if (mounted) {
+          setState(() {
+            _assignedSet = assignment['set'] ?? 'Set A';
+            _assignedPeriod = assignment['period'] ?? 'Pre-Test';
+            _isLoadingAssignment = false;
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Assignment fetch notice: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _isLoadingAssignment = false;
+      });
+    }
   }
 
   @override
@@ -151,6 +182,38 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SizedBox(height: 20),
+                              if (!_isLoadingAssignment)
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.assignment_ind_rounded, color: Color(0xFF1B64D8), size: 24),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Assigned by Teacher: $_assignedSet',
+                                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1E3A8A)),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Screening Period: $_assignedPeriod',
+                                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF3B82F6), fontWeight: FontWeight.w500),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               // Section Header
                               _buildSectionHeader('Phil - IRI Assessments', PhIcons.examRegular),
                               const SizedBox(height: 16),
