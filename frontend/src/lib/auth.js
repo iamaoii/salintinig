@@ -49,6 +49,8 @@ export async function authenticateAsync(identifier, password, rememberMe = false
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(LEGACY_TOKEN_KEY);
       localStorage.removeItem('token');
+      localStorage.removeItem('adminAvatarCache');
+      localStorage.removeItem('teacherAvatarCache');
       sessionStorage.removeItem(AUTH_KEY);
       sessionStorage.removeItem(USER_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
@@ -135,6 +137,8 @@ export function logout() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   localStorage.removeItem('token');
+  localStorage.removeItem('adminAvatarCache');
+  localStorage.removeItem('teacherAvatarCache');
   sessionStorage.removeItem(AUTH_KEY);
   sessionStorage.removeItem(USER_KEY);
   sessionStorage.removeItem(TOKEN_KEY);

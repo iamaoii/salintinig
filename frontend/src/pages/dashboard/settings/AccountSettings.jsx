@@ -784,32 +784,87 @@ export default function AccountSettings() {
 
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
-          <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
-              <h3 className="text-base font-bold text-ink font-sans">Help & FAQ</h3>
-              <button type="button" onClick={() => setIsHelpModalOpen(false)} className="text-ink/40 hover:text-ink cursor-pointer">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative flex max-h-[85vh] w-full max-w-xl flex-col rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-ink/10 pb-3.5 mb-3">
+              <div className="flex items-center gap-2">
+                <ChatText size={22} className="text-brand-blue" />
+                <div>
+                  <h3 className="text-lg font-bold text-ink">Teacher Help & FAQ</h3>
+                  <p className="text-xs text-ink/50">Frequently Asked Questions & Teacher Guide for SalinTinig</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHelpModalOpen(false)}
+                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
+              >
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-4 space-y-3 text-xs text-ink">
-              <div className="rounded-xl border border-ink/5 bg-white p-3.5 shadow-xs">
-                <p className="font-bold text-ink">How do I change my assigned section?</p>
-                <p className="text-ink/70 mt-1">Section assignments are managed by your school administrator in the Admin Faculty Assignment module.</p>
+
+            {/* Teacher FAQ Scrollable Content */}
+            <div className="flex-1 overflow-y-auto space-y-3.5 text-xs text-ink mt-2 pr-1">
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">What is SalinTinig?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  SalinTinig is an automated Phil-IRI assessment and oral reading analysis platform designed for DepEd schools to monitor student reading proficiency levels in real time.
+                </p>
               </div>
-              <div className="rounded-xl border border-ink/5 bg-white p-3.5 shadow-xs">
-                <p className="font-bold text-ink">How is reading level calculated?</p>
-                <p className="text-ink/70 mt-1">Calculated automatically from Oral Reading Score (%) and Comprehension Score (%) according to DepEd Phil-IRI GST guidelines.</p>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">How are student reading levels classified?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Reading levels (Independent, Instructional, Frustrational, Non-Reader) are automatically calculated based on Oral Reading Score (%) and Comprehension Score (%) following official DepEd Phil-IRI guidelines.
+                </p>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsHelpModalOpen(false)}
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-semibold text-cream hover:bg-blue-700 cursor-pointer"
-                >
-                  Close
-                </button>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">How do I generate and export Phil-IRI Form 1 to 4?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Navigate to the <strong>Phil - IRI Records</strong> tab in the top navigation bar to access pre-formatted templates, enter assessment scores, or export official DepEd Form 1–4 summary records.
+                </p>
               </div>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">How do class activities and oral reading practice work?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Go to <strong>Class Activities</strong> to create custom practice passages, assign reading tasks, and view real-time student recordings and submission progress.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">What notifications do I receive on my dashboard?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  You will receive real-time alerts for student Phil-IRI oral reading assessment completions, class progress alerts, and school announcements.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">How do Faculty-in-Charge (FIC) grade-level permissions work?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  If designated as Faculty-in-Charge for a grade level, you can view summary reading statistics, section performance, and faculty records across all sections in your assigned grade level.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                <p className="font-bold text-ink text-sm">Need additional support?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Contact your school administrator or reach out to DepEd IT support at <span className="font-semibold text-brand-blue">support.salintinig@deped.gov.ph</span>.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Fixed Footer */}
+            <div className="shrink-0 pt-3 border-t border-ink/10 mt-3">
+              <button
+                type="button"
+                onClick={() => setIsHelpModalOpen(false)}
+                className="w-full rounded-full bg-brand-blue px-6 py-2.5 text-xs font-semibold text-cream hover:bg-blue-700 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Gear,
   Building,
@@ -34,6 +34,7 @@ import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
+  const { tab } = useParams();
   const currentUser = getUser();
   const fileInputRef = useRef(null);
 
@@ -66,6 +67,38 @@ export default function AdminSettings() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
+
+  // Sync modal states with URL sub-route
+  useEffect(() => {
+    if (tab === 'password' || tab === 'security') {
+      setIsPasswordModalOpen(true);
+    } else if (tab === 'about') {
+      setIsAboutModalOpen(true);
+    } else if (tab === 'faq' || tab === 'help') {
+      setIsHelpModalOpen(true);
+    } else if (tab === 'edit-profile' || tab === 'profile') {
+      setIsEditProfileModalOpen(true);
+    } else if (tab === 'deactivate') {
+      setIsDeactivateModalOpen(true);
+    } else {
+      setIsEditProfileModalOpen(false);
+      setIsPasswordModalOpen(false);
+      setIsAboutModalOpen(false);
+      setIsHelpModalOpen(false);
+      setIsDeactivateModalOpen(false);
+    }
+  }, [tab]);
+
+  const closeModal = () => {
+    setIsEditProfileModalOpen(false);
+    setIsPasswordModalOpen(false);
+    setIsAboutModalOpen(false);
+    setIsHelpModalOpen(false);
+    setIsDeactivateModalOpen(false);
+    if (tab) {
+      navigate('/admin/account');
+    }
+  };
 
   // Lock body scroll when any modal is open (using position:fixed to avoid breaking sticky navbar)
   useEffect(() => {
@@ -490,7 +523,7 @@ export default function AdminSettings() {
           {/* Edit Profile Action Button on Banner Header */}
           <button
             type="button"
-            onClick={() => setIsEditProfileModalOpen(true)}
+            onClick={() => navigate('/admin/account/edit-profile')}
             className="relative z-10 flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 px-4 py-2 text-xs font-bold text-white transition-all cursor-pointer shrink-0"
           >
             <PencilSimple size={16} weight="bold" />
@@ -505,7 +538,7 @@ export default function AdminSettings() {
 
             <button
               type="button"
-              onClick={() => setIsPasswordModalOpen(true)}
+              onClick={() => navigate('/admin/account/password')}
               className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
               <span className="flex items-center gap-3">
@@ -529,7 +562,7 @@ export default function AdminSettings() {
 
             <button
               type="button"
-              onClick={() => setIsAboutModalOpen(true)}
+              onClick={() => navigate('/admin/account/about')}
               className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
               <span className="flex items-center gap-3">
@@ -541,7 +574,7 @@ export default function AdminSettings() {
 
             <button
               type="button"
-              onClick={() => setIsHelpModalOpen(true)}
+              onClick={() => navigate('/admin/account/faq')}
               className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
               <span className="flex items-center gap-3">
@@ -553,7 +586,7 @@ export default function AdminSettings() {
 
             <button
               type="button"
-              onClick={() => setIsDeactivateModalOpen(true)}
+              onClick={() => navigate('/admin/account/deactivate')}
               className="flex w-full items-center justify-between px-5 py-3.5 text-left text-xs font-bold text-brand-red hover:bg-brand-red/5 transition-colors cursor-pointer"
             >
               <span className="flex items-center gap-3">
@@ -576,7 +609,7 @@ export default function AdminSettings() {
                 <Building size={22} className="text-brand-blue" />
                 <h3 className="text-base font-bold text-ink">School Institutional Profile</h3>
               </div>
-              <button type="button" onClick={() => setIsEditProfileModalOpen(false)} className="text-ink/40 hover:text-ink cursor-pointer">
+              <button type="button" onClick={closeModal} className="text-ink/40 hover:text-ink cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -665,7 +698,7 @@ export default function AdminSettings() {
               <div className="flex justify-end gap-3 pt-3 border-t border-ink/10">
                 <button
                   type="button"
-                  onClick={() => setIsEditProfileModalOpen(false)}
+                  onClick={closeModal}
                   className="rounded-full bg-ink/10 px-4 py-2 text-xs font-semibold text-ink hover:bg-ink/20 cursor-pointer"
                 >
                   Cancel
@@ -695,8 +728,8 @@ export default function AdminSettings() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsPasswordModalOpen(false)}
-                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors"
+                onClick={closeModal}
+                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -772,14 +805,14 @@ export default function AdminSettings() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsPasswordModalOpen(false)}
-                  className="rounded-full border border-ink/20 px-5 py-2 text-xs font-semibold text-ink hover:bg-ink/5"
+                  onClick={closeModal}
+                  className="rounded-full border border-ink/20 px-5 py-2 text-xs font-semibold text-ink hover:bg-ink/5 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-full bg-brand-blue px-6 py-2 text-xs font-semibold text-cream hover:bg-blue-700"
+                  className="rounded-full bg-brand-blue px-6 py-2 text-xs font-semibold text-cream hover:bg-blue-700 cursor-pointer"
                 >
                   Update Password
                 </button>
@@ -795,8 +828,8 @@ export default function AdminSettings() {
           <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-5 text-center">
             <button
               type="button"
-              onClick={() => setIsAboutModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors"
+              onClick={closeModal}
+              className="absolute right-4 top-4 rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -823,8 +856,8 @@ export default function AdminSettings() {
 
             <button
               type="button"
-              onClick={() => setIsAboutModalOpen(false)}
-              className="w-full rounded-full bg-ink px-6 py-2.5 text-xs font-semibold text-cream hover:bg-ink/90"
+              onClick={closeModal}
+              className="w-full rounded-full bg-ink px-6 py-2.5 text-xs font-semibold text-cream hover:bg-ink/90 cursor-pointer"
             >
               Close
             </button>
@@ -835,49 +868,87 @@ export default function AdminSettings() {
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+          <div className="relative flex max-h-[85vh] w-full max-w-xl flex-col rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-ink/10 pb-3.5 mb-3">
               <div className="flex items-center gap-2">
                 <ChatText size={22} className="text-brand-blue" />
                 <h3 className="text-lg font-bold text-ink">Administrator Help & FAQ</h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsHelpModalOpen(false)}
-                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors"
+                onClick={closeModal}
+                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1">
-                <p className="font-bold text-ink">How do I activate a new Academic School Year?</p>
-                <p className="text-ink/60">
-                  Click the <strong>Active S.Y.</strong> button in the top navigation bar, enter the format (e.g., 2027-2028), and click <strong>Activate S.Y.</strong>. All section counts and stats update immediately across the system.
+            {/* Scrollable FAQ Content List */}
+            <div className="flex-1 overflow-y-auto space-y-3.5 text-xs pr-1">
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I activate a new Academic School Year?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Click the <strong>Active S.Y.</strong> button in the top navigation bar, enter the school year format (e.g., 2027-2028), and click <strong>Activate S.Y.</strong>. All section counts, analytics, and student metrics update immediately across the portal.
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1">
-                <p className="font-bold text-ink">How do I assign Faculty in Charge and Advisers?</p>
-                <p className="text-ink/60">
-                  Navigate to <strong>Faculty Assignment</strong> from the sidebar. You can select lead faculty and section advisers or unassign them by choosing "No Faculty in Charge".
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I approve teacher account activation requests?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Go to <strong>Overview</strong> or <strong>Account Requests</strong> in the admin sidebar. Review pending teacher account requests, click <strong>Approve</strong>, and automated login credentials will be generated and dispatched to the teacher via email.
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1">
-                <p className="font-bold text-ink">What happens when I update School Profile settings?</p>
-                <p className="text-ink/60">
-                  Changes save to PostgreSQL immediately and update the Red Header Welcome Cards on the dashboard in real time.
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I assign Faculty in Charge and Advisers?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Navigate to <strong>Faculty Assignment</strong> from the sidebar. Select grade-level lead faculty (Faculty-in-Charge) and section advisers, or unassign them by choosing "No Faculty in Charge".
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I batch import students or manage student profiles?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Go to <strong>Student Records</strong> or <strong>Overview</strong> and click <strong>Upload Student CSV</strong> to batch import learners into PostgreSQL. You can also view student profiles, edit sections, or toggle enrollment status.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I access Phil-IRI reading analytics and export reports?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Navigate to <strong>Phil-IRI Reports</strong> from the sidebar. You can monitor school-wide reading level distributions (Independent, Instructional, Frustration, Non-Reader) and export official DepEd Form 1 - 4 summary reports.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">What happens when I update School Profile settings?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Click <strong>Edit Profile</strong> in Admin Settings to open the School Institutional Profile modal. Updates save to PostgreSQL immediately and refresh the red welcome headers in real time.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">Where can I review system audit logs and notifications?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Click <strong>Notifications & Audit Logs</strong> in the top navbar or sidebar to inspect real-time system alerts, CSV import logs, teacher requests, and security audit records.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white p-4 border border-ink/10 space-y-1 shadow-xs">
+                <p className="font-bold text-ink text-sm">How do I change my Admin password or security credentials?</p>
+                <p className="text-ink/70 leading-relaxed">
+                  Under <strong>Other Settings</strong> in Admin Settings, click <strong>Change Password</strong>. Enter your current password and your new password to update your credentials securely.
                 </p>
               </div>
             </div>
 
-            <div className="pt-2">
+            {/* Modal Fixed Footer */}
+            <div className="shrink-0 pt-3 border-t border-ink/10 mt-3">
               <button
                 type="button"
-                onClick={() => setIsHelpModalOpen(false)}
-                className="w-full rounded-full bg-brand-blue px-6 py-2.5 text-xs font-semibold text-cream hover:bg-blue-700"
+                onClick={closeModal}
+                className="w-full rounded-full bg-brand-blue px-6 py-2.5 text-xs font-semibold text-cream hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 Got It
               </button>
@@ -905,8 +976,8 @@ export default function AdminSettings() {
             <div className="flex justify-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setIsDeactivateModalOpen(false)}
-                className="rounded-full border border-ink/20 px-6 py-2.5 text-xs font-semibold text-ink hover:bg-ink/5"
+                onClick={closeModal}
+                className="rounded-full border border-ink/20 px-6 py-2.5 text-xs font-semibold text-ink hover:bg-ink/5 cursor-pointer"
               >
                 Cancel
               </button>

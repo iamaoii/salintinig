@@ -9,6 +9,7 @@ import {
   CaretDown,
   X,
   GraduationCap,
+  ChatText,
 } from '@phosphor-icons/react';
 import Avatar from '../student/Avatar.jsx';
 import { getUser, getUserRole, getToken, logout } from '../../../lib/auth.js';
@@ -78,8 +79,8 @@ export default function ProfileDropdown({ customName, role: propRole }) {
   const name = customName || profileName;
   const email = profileEmail || user?.email || '';
 
-  const profilePath = currentRole === 'admin' ? '/admin/settings' : '/teacher/account';
-  const settingsPath = currentRole === 'admin' ? '/admin/settings' : '/teacher/account';
+  const profilePath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
+  const settingsPath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -173,12 +174,17 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
   const [avatarUrl, setAvatarUrl] = useState(() => {
     if (currentRole === 'admin') {
-      return localStorage.getItem('adminAvatarCache') || null;
+      return (
+        user?.profileImage ||
+        user?.profile_image ||
+        localStorage.getItem('adminAvatarCache') ||
+        null
+      );
     }
     return (
-      localStorage.getItem('teacherAvatarCache') ||
       user?.profileImage ||
       user?.profile_image ||
+      localStorage.getItem('teacherAvatarCache') ||
       null
     );
   });
@@ -325,64 +331,154 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
       {/* Help / FAQ Modal — rendered via portal to escape dropdown stacking context */}
       {isHelpOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
-          <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl sm:p-8">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-brand-blue/10 text-brand-blue">
-                  <Question size={24} weight="bold" />
-                </div>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative flex max-h-[85vh] w-full max-w-xl flex-col rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-ink/10 pb-3.5 mb-3">
+              <div className="flex items-center gap-2">
+                <ChatText size={22} className="text-brand-blue" />
                 <div>
-                  <h3 className="text-lg font-bold text-ink">Help & FAQ</h3>
-                  <p className="text-xs text-ink/50">Frequently Asked Questions for SalinTinig</p>
+                  <h3 className="text-lg font-bold text-ink">
+                    {currentRole === 'admin' ? 'Administrator Help & FAQ' : 'Teacher Help & FAQ'}
+                  </h3>
+                  <p className="text-xs text-ink/50">
+                    {currentRole === 'admin'
+                      ? 'Frequently Asked Questions & Admin Management Guide'
+                      : 'Frequently Asked Questions & Teacher Guide for SalinTinig'}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsHelpOpen(false)}
-                className="flex size-8 items-center justify-center rounded-full text-ink/40 transition-colors hover:bg-ink/10 hover:text-ink cursor-pointer"
+                className="rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="mt-6 space-y-4 text-xs text-ink">
-              <div className="rounded-2xl border border-ink/5 bg-white p-4 shadow-sm">
-                <h4 className="font-bold text-sm text-ink mb-1">What is SalinTinig?</h4>
-                <p className="text-ink/70 leading-relaxed">
-                  SalinTinig is an automated Phil-IRI assessment and oral reading analysis platform designed for DepEd schools to monitor student reading proficiency levels.
-                </p>
-              </div>
+            {/* Role-Specific FAQ Scrollable Content */}
+            <div className="flex-1 overflow-y-auto space-y-3.5 text-xs text-ink mt-2 pr-1">
+              {currentRole === 'admin' ? (
+                <>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I activate a new Academic School Year?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Click the <strong>Active S.Y.</strong> button in the top navigation bar, enter the school year format (e.g., 2027-2028), and click <strong>Activate S.Y.</strong>. All section counts, analytics, and student metrics update immediately across the portal.
+                    </p>
+                  </div>
 
-              <div className="rounded-2xl border border-ink/5 bg-white p-4 shadow-sm">
-                <h4 className="font-bold text-sm text-ink mb-1">How are reading levels classified?</h4>
-                <p className="text-ink/70 leading-relaxed">
-                  Reading levels (Independent, Instructional, Frustrational) are automatically calculated based on Oral Reading Score (%) and Comprehension Score (%) following official Phil-IRI guidelines.
-                </p>
-              </div>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I approve teacher account activation requests?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Go to <strong>Overview</strong> or <strong>Account Requests</strong> in the admin sidebar. Review pending teacher account requests, click <strong>Approve</strong>, and automated login credentials will be generated and dispatched to the teacher via email.
+                    </p>
+                  </div>
 
-              <div className="rounded-2xl border border-ink/5 bg-white p-4 shadow-sm">
-                <h4 className="font-bold text-sm text-ink mb-1">How do I generate Phil-IRI Form 1 to 4?</h4>
-                <p className="text-ink/70 leading-relaxed">
-                  Navigate to the Phil-IRI Records tab in the navigation bar to access pre-formatted templates, enter scores, or export official records.
-                </p>
-              </div>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I assign Faculty in Charge and Advisers?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Navigate to <strong>Faculty Assignment</strong> from the sidebar. Select grade-level lead faculty (Faculty-in-Charge) and section advisers, or unassign them by choosing "No Faculty in Charge".
+                    </p>
+                  </div>
 
-              <div className="rounded-2xl border border-ink/5 bg-white p-4 shadow-sm">
-                <h4 className="font-bold text-sm text-ink mb-1">Need additional support?</h4>
-                <p className="text-ink/70 leading-relaxed">
-                  Contact your school administrator or reach out to DepEd IT support at <span className="font-semibold text-brand-blue">support.salintinig@deped.gov.ph</span>.
-                </p>
-              </div>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I batch import students or manage student profiles?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Go to <strong>Student Records</strong> or <strong>Overview</strong> and click <strong>Upload Student CSV</strong> to batch import learners into PostgreSQL. You can also view student profiles, edit sections, or toggle enrollment status.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I access Phil-IRI reading analytics and export reports?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Navigate to <strong>Phil-IRI Reports</strong> from the sidebar. You can monitor school-wide reading level distributions (Independent, Instructional, Frustration, Non-Reader) and export official DepEd Form 1 - 4 summary reports.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">What happens when I update School Profile settings?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Click <strong>Edit Profile</strong> in Admin Settings to open the School Institutional Profile modal. Updates save to PostgreSQL immediately and refresh the red welcome headers in real time.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">Where can I review system audit logs and notifications?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Click <strong>Notifications & Audit Logs</strong> in the top navbar or sidebar to inspect real-time system alerts, CSV import logs, teacher requests, and security audit records.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I change my Admin password or security credentials?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Under <strong>Other Settings</strong> in Admin Settings, click <strong>Change Password</strong>. Enter your current password and your new password to update your credentials securely.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">What is SalinTinig?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      SalinTinig is an automated Phil-IRI assessment and oral reading analysis platform designed for DepEd schools to monitor student reading proficiency levels in real time.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How are student reading levels classified?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Reading levels (Independent, Instructional, Frustrational, Non-Reader) are automatically calculated based on Oral Reading Score (%) and Comprehension Score (%) following official DepEd Phil-IRI guidelines.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I generate and export Phil-IRI Form 1 to 4?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Navigate to the <strong>Phil - IRI Records</strong> tab in the top navigation bar to access pre-formatted templates, enter assessment scores, or export official DepEd Form 1–4 summary records.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do class activities and oral reading practice work?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Go to <strong>Class Activities</strong> to create custom practice passages, assign reading tasks, and view real-time student recordings and submission progress.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">What notifications do I receive on my dashboard?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      You will receive real-time alerts for student Phil-IRI oral reading assessment completions, class progress alerts, and school announcements.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do Faculty-in-Charge (FIC) grade-level permissions work?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      If designated as Faculty-in-Charge for a grade level, you can view summary reading statistics, section performance, and faculty records across all sections in your assigned grade level.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">Need additional support?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Contact your school administrator or reach out to DepEd IT support at <span className="font-semibold text-brand-blue">support.salintinig@deped.gov.ph</span>.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="mt-6 flex justify-end pt-4 border-t border-ink/10">
+            {/* Modal Fixed Footer */}
+            <div className="shrink-0 pt-3 border-t border-ink/10 mt-3">
               <button
                 type="button"
                 onClick={() => setIsHelpOpen(false)}
-                className="rounded-full bg-brand-blue px-6 py-2.5 text-xs font-semibold text-cream transition-colors hover:bg-blue-700 cursor-pointer"
+                className="w-full rounded-full bg-brand-blue px-6 py-2.5 text-xs font-semibold text-cream hover:bg-blue-700 transition-colors cursor-pointer"
               >
-                Close
+                Got It
               </button>
             </div>
           </div>

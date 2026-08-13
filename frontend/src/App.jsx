@@ -84,8 +84,10 @@ export default function App() {
         <Route path="reports" element={<AdminPhilIriReports />} />
         <Route path="activities" element={<Navigate to="/admin/reports" replace />} />
         <Route path="notifications" element={<AdminNotifications />} />
-        <Route path="settings" element={<AdminSettings />} />
-        <Route path="profile" element={<Navigate to="/admin/settings" replace />} />
+        <Route path="account" element={<AdminSettings />} />
+        <Route path="account/:tab" element={<AdminSettings />} />
+        <Route path="settings" element={<Navigate to="/admin/account" replace />} />
+        <Route path="profile" element={<Navigate to="/admin/account" replace />} />
       </Route>
 
       <Route
@@ -147,6 +149,7 @@ export default function App() {
         <Route path="class-activities/:id/edit" element={<ActivityFormPage />} />
 
         <Route path="account" element={<AccountSettings />} />
+        <Route path="account/:tab" element={<AccountSettings />} />
         <Route path="account/avatar" element={<EditAvatar />} />
         <Route path="notifications" element={<TeacherNotifications />} />
         <Route path="grade-level" element={<Navigate to="sections" replace />} />

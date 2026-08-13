@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react';
+import { useNavigate } from 'react-router-dom';
 
 const ICONS = {
   usersThree: 'ph:users-three',
@@ -14,10 +15,20 @@ const COLOR_STYLE = {
 };
 
 export default function FormCard({ form }) {
+  const navigate = useNavigate();
   const iconName = ICONS[form.icon] || 'ph:file';
 
+  const handleClick = () => {
+    if (form.path) {
+      navigate(form.path);
+    }
+  };
+
   return (
-    <div className="flex w-full items-center gap-4 rounded-2xl border border-ink/5 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.08)] sm:gap-5 sm:px-6 sm:py-5">
+    <div
+      onClick={handleClick}
+      className="flex w-full items-center gap-4 rounded-2xl border border-ink/5 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.08)] sm:gap-5 sm:px-6 sm:py-5 cursor-pointer hover:border-ink/20 hover:shadow-md transition-all"
+    >
       <div className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${COLOR_STYLE[form.color]}`}>
         <Icon icon={iconName} className="size-[30px]" />
       </div>
@@ -29,7 +40,11 @@ export default function FormCard({ form }) {
       </div>
       <button
         type="button"
-        className="shrink-0 rounded-full bg-brand-blue px-5 py-2 text-sm font-semibold text-cream transition-colors hover:bg-blue-700"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClick();
+        }}
+        className="shrink-0 rounded-full bg-brand-blue px-5 py-2 text-sm font-semibold text-cream transition-colors hover:bg-blue-700 cursor-pointer"
       >
         View
       </button>
