@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { House, PresentationChart, Article, FlagPennant, Bell, List, X } from '@phosphor-icons/react';
+import { House, PresentationChart, Article, FlagPennant, Bell, List, X, CaretRight } from '@phosphor-icons/react';
 import logo from '../../../assets/logo/logo.webp';
 import ProfileDropdown from './ProfileDropdown.jsx';
+import { getToken } from '../../../lib/auth.js';
 
 const NAV_ITEMS = [
   { to: '/teacher/overview', label: 'Overview', icon: House },
@@ -11,16 +12,45 @@ const NAV_ITEMS = [
   { to: '/teacher/class-activities', label: 'Class Activities', icon: FlagPennant },
 ];
 
-const sampleNotifications = [
-  { id: 1, title: 'New Assessment Result', time: '5m ago', desc: 'Adrian completed Phil-IRI Passage 2 assessment.' },
-  { id: 2, title: 'Class Activity Due', time: '1h ago', desc: 'Oral Reading Practice deadline tomorrow at 5:00 PM.' },
-];
-
 export default function TopNav() {
   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.warn('Teacher TopNav notifications fetch notice:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+
+    const handleNotifUpdate = () => fetchNotifications();
+    window.addEventListener('notificationsUpdated', handleNotifUpdate);
+
+    // Silent background poll every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+
+    return () => {
+      window.removeEventListener('notificationsUpdated', handleNotifUpdate);
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -80,27 +110,58 @@ export default function TopNav() {
               title="Notifications"
             >
               <Bell size={20} weight="bold" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-red" />
+              {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-red animate-pulse" />}
             </button>
 
             {showNotifPopover && (
-              <div className="absolute right-0 top-11 z-50 w-80 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3">
+              <div className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3 animate-in fade-in duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-ink/10">
-                  <h4 className="text-xs font-bold text-ink">Notifications</h4>
-                  <span className="rounded-full bg-brand-red/10 px-2 py-0.2 text-[9px] font-bold text-brand-red">
-                    {sampleNotifications.length} New
-                  </span>
+                  <h4 className="text-sm font-bold text-ink">Notifications</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifPopover(false);
+                      navigate('/teacher/notifications');
+                    }}
+                    className="text-xs font-bold text-brand-blue hover:underline cursor-pointer"
+                  >
+                    View All
+                  </button>
                 </div>
-                <div className="divide-y divide-ink/10 max-h-60 overflow-y-auto">
-                  {sampleNotifications.map((n) => (
-                    <div key={n.id} className="py-2 px-1 text-xs">
-                      <div className="flex justify-between font-bold text-ink">
-                        <span>{n.title}</span>
-                        <span className="text-[9px] text-ink/40">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-ink/60 mt-0.5">{n.desc}</p>
+
+                <div className="divide-y divide-ink/10 max-h-72 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <Bell size={36} weight="regular" className="text-ink/30 mb-2" />
+                      <h4 className="text-sm font-bold text-ink tracking-tight">All caught up!</h4>
+                      <p className="text-xs text-ink/50 mt-0.5">No unread notifications at the moment.</p>
                     </div>
-                  ))}
+                  ) : (
+                    notifications.slice(0, 5).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          if (!n.is_read) handleMarkAsRead(n.id);
+                          setShowNotifPopover(false);
+                          navigate('/teacher/notifications');
+                        }}
+                        className={`py-2.5 px-2 hover:bg-ink/[0.03] rounded-xl transition-colors cursor-pointer ${
+                          !n.is_read ? 'bg-brand-blue/[0.04]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 truncate">
+                            {!n.is_read && <span className="size-1.5 rounded-full bg-brand-red shrink-0" />}
+                            <h5 className="text-xs font-bold text-ink truncate">{n.title}</h5>
+                          </div>
+                          <span className="text-[9px] text-ink/40 shrink-0">
+                            {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ink/60 mt-0.5 leading-snug line-clamp-2">{n.message}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

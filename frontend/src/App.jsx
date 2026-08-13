@@ -16,6 +16,7 @@ import OverviewForms from './pages/dashboard/overview/OverviewForms.jsx';
 import OverviewPeople from './pages/dashboard/overview/OverviewPeople.jsx';
 import AccountSettings from './pages/dashboard/settings/AccountSettings.jsx';
 import EditAvatar from './pages/dashboard/settings/EditAvatar.jsx';
+import TeacherNotifications from './pages/dashboard/notifications/TeacherNotifications.jsx';
 import StudentDashboardLayout from './pages/dashboard/student/StudentDashboardLayout.jsx';
 import StudentMasterlist from './pages/dashboard/student/StudentMasterlist.jsx';
 import StudentProfile from './pages/dashboard/student/StudentProfile.jsx';
@@ -147,6 +148,7 @@ export default function App() {
 
         <Route path="account" element={<AccountSettings />} />
         <Route path="account/avatar" element={<EditAvatar />} />
+        <Route path="notifications" element={<TeacherNotifications />} />
         <Route path="grade-level" element={<Navigate to="sections" replace />} />
         <Route path="grade-level/sections" element={<GradeLevelPage />} />
         <Route path="grade-level/faculty" element={<GradeLevelPage />} />
