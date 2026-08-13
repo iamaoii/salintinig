@@ -114,57 +114,54 @@ export default function TopNav() {
             </button>
 
             {showNotifPopover && (
-              <div className="absolute right-0 top-11 z-50 w-80 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3 animate-in fade-in duration-150">
+              <div className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3 animate-in fade-in duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-ink/10">
-                  <h4 className="text-xs font-bold text-ink">Notifications</h4>
-                  {unreadCount > 0 ? (
-                    <span className="rounded-full bg-brand-red/10 px-2 py-0.5 text-[9px] font-bold text-brand-red">
-                      {unreadCount} Unread
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[9px] font-bold text-ink/50">
-                      All Read
-                    </span>
-                  )}
-                </div>
-
-                <div className="divide-y divide-ink/10 max-h-60 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-ink/50">
-                      No notifications at the moment.
-                    </div>
-                  ) : (
-                    notifications.slice(0, 4).map((n) => (
-                      <div
-                        key={n.id}
-                        onClick={() => {
-                          setShowNotifPopover(false);
-                          navigate('/teacher/notifications');
-                        }}
-                        className={`py-2 px-1 text-xs cursor-pointer hover:bg-ink/5 rounded-lg transition-colors ${!n.is_read ? 'font-semibold' : ''}`}
-                      >
-                        <div className="flex items-center justify-between text-ink">
-                          <span className="truncate pr-2 font-bold">{n.title}</span>
-                          {!n.is_read && <span className="size-1.5 rounded-full bg-brand-red shrink-0" />}
-                        </div>
-                        <p className="text-[11px] text-ink/60 mt-0.5 line-clamp-2">{n.message}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="pt-2 border-t border-ink/10 text-center">
+                  <h4 className="text-sm font-bold text-ink">Notifications</h4>
                   <button
                     type="button"
                     onClick={() => {
                       setShowNotifPopover(false);
                       navigate('/teacher/notifications');
                     }}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-brand-blue hover:text-blue-700 cursor-pointer"
+                    className="text-xs font-bold text-brand-blue hover:underline cursor-pointer"
                   >
-                    <span>View All Notifications</span>
-                    <CaretRight size={12} weight="bold" />
+                    View All
                   </button>
+                </div>
+
+                <div className="divide-y divide-ink/10 max-h-72 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <Bell size={36} weight="regular" className="text-ink/30 mb-2" />
+                      <h4 className="text-sm font-bold text-ink tracking-tight">All caught up!</h4>
+                      <p className="text-xs text-ink/50 mt-0.5">No unread notifications at the moment.</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 5).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          if (!n.is_read) handleMarkAsRead(n.id);
+                          setShowNotifPopover(false);
+                          navigate('/teacher/notifications');
+                        }}
+                        className={`py-2.5 px-2 hover:bg-ink/[0.03] rounded-xl transition-colors cursor-pointer ${
+                          !n.is_read ? 'bg-brand-blue/[0.04]' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 truncate">
+                            {!n.is_read && <span className="size-1.5 rounded-full bg-brand-red shrink-0" />}
+                            <h5 className="text-xs font-bold text-ink truncate">{n.title}</h5>
+                          </div>
+                          <span className="text-[9px] text-ink/40 shrink-0">
+                            {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ink/60 mt-0.5 leading-snug line-clamp-2">{n.message}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
