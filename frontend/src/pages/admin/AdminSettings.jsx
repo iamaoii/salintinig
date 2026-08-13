@@ -20,6 +20,9 @@ import {
   X,
   Warning,
   CheckCircle,
+  PencilSimple,
+  Eye,
+  EyeSlash,
 } from '@phosphor-icons/react';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import logo from '../../assets/logo/logo.webp';
@@ -58,6 +61,7 @@ export default function AdminSettings() {
   });
 
   // Modal states
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
@@ -65,7 +69,7 @@ export default function AdminSettings() {
 
   // Lock body scroll when any modal is open (using position:fixed to avoid breaking sticky navbar)
   useEffect(() => {
-    const anyOpen = isPasswordModalOpen || isAboutModalOpen || isHelpModalOpen || isDeactivateModalOpen || Boolean(cropSrc);
+    const anyOpen = isEditProfileModalOpen || isPasswordModalOpen || isAboutModalOpen || isHelpModalOpen || isDeactivateModalOpen || Boolean(cropSrc);
     if (anyOpen) {
       const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
@@ -85,7 +89,7 @@ export default function AdminSettings() {
       document.body.style.width = '';
       if (scrollY) window.scrollTo(0, scrollY);
     };
-  }, [isPasswordModalOpen, isAboutModalOpen, isHelpModalOpen, isDeactivateModalOpen, cropSrc]);
+  }, [isEditProfileModalOpen, isPasswordModalOpen, isAboutModalOpen, isHelpModalOpen, isDeactivateModalOpen, cropSrc]);
 
   // Password form state
   const [passwordForm, setPasswordForm] = useState({
@@ -94,13 +98,14 @@ export default function AdminSettings() {
     confirmPassword: '',
   });
 
-  const [copiedId, setCopiedId] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg, type = 'success') => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setToastMessage({ text: msg, type });
   };
 
   const compressImageToWebP = (file, size = 256, quality = 0.8) => {
@@ -225,22 +230,50 @@ export default function AdminSettings() {
 
   const adminName = currentUser?.name || 'Administrator';
   const adminEmail = currentUser?.email || schoolProfile.contactEmail;
-  const activeSchoolYear = adminInfo?.activeSchoolYear || '2026-2027';
+  const activeSchoolYear = adminInfo?.activeSchoolYear || '';
 
-  const handleCopyId = () => {
-    if (!schoolProfile.schoolId) return;
-    navigator.clipboard?.writeText(schoolProfile.schoolId);
-    setCopiedId(true);
-    showToast('School ID copied to clipboard!');
-    setTimeout(() => setCopiedId(false), 2000);
+  const safeCopy = (text, message, e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (!text) return;
+
+    let copied = false;
+    try {
+      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(text).catch(() => {});
+        copied = true;
+      }
+    } catch (err) {
+      console.warn('Clipboard write error:', err);
+    }
+
+    if (!copied) {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        copied = true;
+      } catch (fallbackErr) {
+        console.warn('Fallback copy error:', fallbackErr);
+      }
+    }
+
+    showToast(message);
   };
 
-  const handleCopyEmail = () => {
-    if (!adminEmail) return;
-    navigator.clipboard?.writeText(adminEmail);
-    setCopiedEmail(true);
-    showToast('Email address copied to clipboard!');
-    setTimeout(() => setCopiedEmail(false), 2000);
+  const handleCopyId = (e) => {
+    safeCopy(schoolProfile.schoolId, 'School ID copied to clipboard!', e);
+  };
+
+  const handleCopyEmail = (e) => {
+    safeCopy(adminEmail, 'Email address copied to clipboard!', e);
   };
 
   const handleSaveProfile = async (e) => {
@@ -267,6 +300,7 @@ export default function AdminSettings() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast('School profile saved successfully!');
+        setIsEditProfileModalOpen(false);
         window.dispatchEvent(new Event('schoolYearChanged'));
         fetchAdminInfo();
       } else {
@@ -287,7 +321,7 @@ export default function AdminSettings() {
     showToast('Security policy updated.');
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       showToast('New passwords do not match.', 'error');
@@ -297,9 +331,32 @@ export default function AdminSettings() {
       showToast('Password must be at least 6 characters.', 'error');
       return;
     }
-    setIsPasswordModalOpen(false);
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    showToast('Password updated successfully!');
+    try {
+      const token = getToken();
+      if (token) {
+        const res = await fetch('http://localhost:5000/api/auth/change-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            currentPassword: passwordForm.currentPassword,
+            newPassword: passwordForm.newPassword,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showToast(data.error || 'Failed to update password.', 'error');
+          return;
+        }
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      showToast('Password updated successfully!');
+    } catch (err) {
+      showToast('Failed to update password.', 'error');
+    }
   };
 
   const handleConfirmDeactivate = () => {
@@ -309,7 +366,11 @@ export default function AdminSettings() {
 
   return (
     <>
-      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+      <ToastNotification
+        message={toastMessage?.text}
+        type={toastMessage?.type}
+        onClose={() => setToastMessage(null)}
+      />
       {cropSrc && (
         <AvatarCropModal
           imageSrc={cropSrc}
@@ -339,7 +400,7 @@ export default function AdminSettings() {
         </div>
 
         {/* Administrator Profile Summary Header Card matching SalinTinig branding */}
-        <div id="profile-details-section" className="relative flex items-center justify-between overflow-hidden rounded-2xl bg-brand-red p-5 sm:p-6 text-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
+        <div id="profile-details-section" className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between overflow-hidden rounded-2xl bg-brand-red px-6 py-8 sm:px-8 sm:py-10 text-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)] gap-6">
           <img
             src={logoBg}
             alt=""
@@ -377,7 +438,7 @@ export default function AdminSettings() {
               </span>
 
               <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
-                {loading ? <span className="inline-block h-6 w-48 animate-pulse rounded bg-white/20" /> : adminName}
+                {loading ? <span className="inline-block h-6 w-48 animate-pulse rounded bg-white/20" /> : (schoolProfile.schoolName || adminName)}
               </h2>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm font-semibold text-white">
@@ -394,7 +455,6 @@ export default function AdminSettings() {
                       <Copy size={14} />
                     </button>
                   )}
-                  {copiedEmail && <span className="text-xs font-bold text-green-300">Copied!</span>}
                 </div>
 
                 <span className="text-white/40 hidden sm:inline">•</span>
@@ -412,188 +472,217 @@ export default function AdminSettings() {
                       <Copy size={14} />
                     </button>
                   )}
-                  {copiedId && <span className="text-xs font-bold text-green-300">Copied!</span>}
                 </div>
 
-                <span className="text-white/40 hidden sm:inline">•</span>
-
-                <div className="flex items-center gap-1.5">
-                  <CalendarBlank size={16} className="shrink-0 text-white/90" />
-                  <span>Active S.Y.: <strong className="font-bold text-white">{loading ? '...' : activeSchoolYear}</strong></span>
-                </div>
+                {activeSchoolYear && (
+                  <>
+                    <span className="text-white/40 hidden sm:inline">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <CalendarBlank size={16} className="shrink-0 text-white/90" />
+                      <span>Active S.Y.: <strong className="font-bold text-white">{loading ? '...' : activeSchoolYear}</strong></span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Edit Profile Action Button on Banner Header */}
+          <button
+            type="button"
+            onClick={() => setIsEditProfileModalOpen(true)}
+            className="relative z-10 flex items-center gap-2 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 px-4 py-2 text-xs font-bold text-white transition-all cursor-pointer shrink-0"
+          >
+            <PencilSimple size={16} weight="bold" />
+            <span>Edit Profile</span>
+          </button>
         </div>
 
-        {/* School Institutional Profile Form */}
-        <form onSubmit={handleSaveProfile} className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-6">
-          <div className="flex items-center gap-2 pb-3 border-b border-ink/10">
-            <Building size={20} className="text-brand-blue" />
-            <h3 className="text-base font-bold text-ink">School Institutional Profile</h3>
-          </div>
+        {/* Other Settings Section */}
+        <div>
+          <h2 className="mb-3 text-sm font-bold text-ink">Other Settings</h2>
+          <div className="overflow-hidden rounded-2xl border border-ink/10 bg-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="font-semibold text-ink">School Name</label>
-              <input
-                type="text"
-                required
-                disabled={loading}
-                value={schoolProfile.schoolName}
-                onChange={(e) => setSchoolProfile({ ...schoolProfile, schoolName: e.target.value })}
-                placeholder="Enter School Name"
-                className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-ink">School ID (DepEd Code)</label>
-                <span className="text-[10px] font-semibold text-ink/40">Read-Only</span>
-              </div>
-              <input
-                type="text"
-                readOnly
-                value={schoolProfile.schoolId}
-                className="mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70 outline-none cursor-not-allowed font-mono select-none"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-ink">Division Office</label>
-                <span className="text-[10px] font-semibold text-ink/40">Read-Only</span>
-              </div>
-              <input
-                type="text"
-                readOnly
-                value={schoolProfile.division}
-                className="mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70 outline-none cursor-not-allowed select-none"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-ink">Region</label>
-                <span className="text-[10px] font-semibold text-ink/40">Read-Only</span>
-              </div>
-              <input
-                type="text"
-                readOnly
-                value={schoolProfile.region}
-                className="mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70 outline-none cursor-not-allowed select-none"
-              />
-            </div>
-
-            <div>
-              <label className="font-semibold text-ink">School Head / Principal Name</label>
-              <input
-                type="text"
-                required
-                disabled={loading}
-                value={schoolProfile.principalName}
-                onChange={(e) => setSchoolProfile({ ...schoolProfile, principalName: e.target.value })}
-                placeholder="Enter Principal Name"
-                className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
-              />
-            </div>
-
-            <div>
-              <label className="font-semibold text-ink">Official Contact Email</label>
-              <input
-                type="email"
-                required
-                disabled={loading}
-                value={schoolProfile.contactEmail}
-                onChange={(e) => setSchoolProfile({ ...schoolProfile, contactEmail: e.target.value })}
-                placeholder="Enter Contact Email"
-                className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end pt-3 border-t border-ink/10">
-            <button
-              type="submit"
-              disabled={loading || isSaving}
-              className="flex items-center gap-2 rounded-full bg-brand-blue px-6 py-2.5 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <FloppyDisk size={16} />
-              <span>{isSaving ? 'Saving...' : 'Save School Profile'}</span>
-            </button>
-          </div>
-        </form>
-
-        {/* Other Settings Section matching exact layout design */}
-        <div className="space-y-4 pt-2">
-          <h2 className="text-lg font-bold text-ink">Other Settings</h2>
-
-          {/* Unified Settings Card */}
-          <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] overflow-hidden divide-y divide-ink/10">
             <button
               type="button"
               onClick={() => setIsPasswordModalOpen(true)}
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition-colors hover:bg-ink/5 cursor-pointer group"
+              className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <LockKey size={20} className="text-ink/80 group-hover:text-ink shrink-0" />
-                <span className="text-sm font-semibold text-ink">Password</span>
-              </div>
-              <CaretRight size={18} className="text-ink/40 group-hover:text-ink transition-colors shrink-0" />
+              <span className="flex items-center gap-3">
+                <LockKey size={18} className="text-ink/70" />
+                Password
+              </span>
+              <CaretRight size={16} className="text-ink/40" />
             </button>
 
             <button
               type="button"
               onClick={() => navigate('/admin/notifications')}
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition-colors hover:bg-ink/5 cursor-pointer group"
+              className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <Bell size={20} className="text-ink/80 group-hover:text-ink shrink-0" />
-                <span className="text-sm font-semibold text-ink">Notifications</span>
-              </div>
-              <CaretRight size={18} className="text-ink/40 group-hover:text-ink transition-colors shrink-0" />
+              <span className="flex items-center gap-3">
+                <Bell size={18} className="text-ink/70" />
+                Notifications
+              </span>
+              <CaretRight size={16} className="text-ink/40" />
             </button>
 
             <button
               type="button"
               onClick={() => setIsAboutModalOpen(true)}
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition-colors hover:bg-ink/5 cursor-pointer group"
+              className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <Info size={20} className="text-ink/80 group-hover:text-ink shrink-0" />
-                <span className="text-sm font-semibold text-ink">About application</span>
-              </div>
-              <CaretRight size={18} className="text-ink/40 group-hover:text-ink transition-colors shrink-0" />
+              <span className="flex items-center gap-3">
+                <Info size={18} className="text-ink/70" />
+                About application
+              </span>
+              <CaretRight size={16} className="text-ink/40" />
             </button>
 
             <button
               type="button"
               onClick={() => setIsHelpModalOpen(true)}
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition-colors hover:bg-ink/5 cursor-pointer group"
+              className="flex w-full items-center justify-between border-b border-ink/10 px-5 py-3.5 text-left text-xs font-bold text-ink hover:bg-ink/5 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <ChatText size={20} className="text-ink/80 group-hover:text-ink shrink-0" />
-                <span className="text-sm font-semibold text-ink">Help / FAQ</span>
-              </div>
-              <CaretRight size={18} className="text-ink/40 group-hover:text-ink transition-colors shrink-0" />
+              <span className="flex items-center gap-3">
+                <ChatText size={18} className="text-ink/70" />
+                Help / FAQ
+              </span>
+              <CaretRight size={16} className="text-ink/40" />
             </button>
 
             <button
               type="button"
               onClick={() => setIsDeactivateModalOpen(true)}
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition-colors hover:bg-red-500/10 cursor-pointer group"
+              className="flex w-full items-center justify-between px-5 py-3.5 text-left text-xs font-bold text-brand-red hover:bg-brand-red/5 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <Trash size={20} className="text-brand-red shrink-0" />
-                <span className="text-sm font-semibold text-brand-red">Deactivate my account</span>
-              </div>
-              <CaretRight size={18} className="text-brand-red/60 group-hover:text-brand-red transition-colors shrink-0" />
+              <span className="flex items-center gap-3">
+                <Trash size={18} className="text-brand-red" />
+                Deactivate my account
+              </span>
+              <CaretRight size={16} className="text-brand-red/60" />
             </button>
           </div>
         </div>
 
       </div>
+
+      {/* Edit School Profile Modal (Popping up on Edit Profile click) */}
+      {isEditProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
+              <div className="flex items-center gap-2">
+                <Building size={22} className="text-brand-blue" />
+                <h3 className="text-base font-bold text-ink">School Institutional Profile</h3>
+              </div>
+              <button type="button" onClick={() => setIsEditProfileModalOpen(false)} className="text-ink/40 hover:text-ink cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-ink">School Name</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={loading}
+                    value={schoolProfile.schoolName}
+                    onChange={(e) => setSchoolProfile({ ...schoolProfile, schoolName: e.target.value })}
+                    placeholder="Enter School Name"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">School ID (DepEd Code)</label>
+                  <div className="flex items-center justify-between mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70">
+                    <input
+                      type="text"
+                      readOnly
+                      value={schoolProfile.schoolId}
+                      className="bg-transparent outline-none w-full cursor-not-allowed font-mono font-bold text-ink"
+                    />
+                    <span className="text-[10px] font-semibold text-ink/40 uppercase tracking-wider shrink-0 ml-2">Read-Only</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">Division Office</label>
+                  <div className="flex items-center justify-between mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70">
+                    <input
+                      type="text"
+                      readOnly
+                      value={schoolProfile.division}
+                      className="bg-transparent outline-none w-full cursor-not-allowed font-bold text-ink"
+                    />
+                    <span className="text-[10px] font-semibold text-ink/40 uppercase tracking-wider shrink-0 ml-2">Read-Only</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">Region</label>
+                  <div className="flex items-center justify-between mt-1 w-full rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 text-xs text-ink/70">
+                    <input
+                      type="text"
+                      readOnly
+                      value={schoolProfile.region}
+                      className="bg-transparent outline-none w-full cursor-not-allowed font-bold text-ink"
+                    />
+                    <span className="text-[10px] font-semibold text-ink/40 uppercase tracking-wider shrink-0 ml-2">Read-Only</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">School Head / Principal Name</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={loading}
+                    value={schoolProfile.principalName}
+                    onChange={(e) => setSchoolProfile({ ...schoolProfile, principalName: e.target.value })}
+                    placeholder="Enter Principal Name"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">Official Contact Email</label>
+                  <input
+                    type="email"
+                    required
+                    disabled={loading}
+                    value={schoolProfile.contactEmail}
+                    onChange={(e) => setSchoolProfile({ ...schoolProfile, contactEmail: e.target.value })}
+                    placeholder="Enter Contact Email"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-ink/10">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileModalOpen(false)}
+                  className="rounded-full bg-ink/10 px-4 py-2 text-xs font-semibold text-ink hover:bg-ink/20 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || isSaving}
+                  className="flex items-center gap-2 rounded-full bg-brand-blue px-6 py-2 text-xs font-bold text-cream transition-colors hover:bg-blue-700 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <FloppyDisk size={16} weight="bold" />
+                  <span>{isSaving ? 'Saving...' : 'Save School Profile'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Password Change Modal */}
       {isPasswordModalOpen && (
@@ -616,38 +705,68 @@ export default function AdminSettings() {
             <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="font-semibold text-ink">Current Password</label>
-                <input
-                  type="password"
-                  required
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                  placeholder="Enter current password"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    required
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    placeholder="Enter current password"
+                    className="w-full rounded-xl border border-ink/20 bg-white pl-3 pr-10 py-2 text-ink outline-none focus:border-brand-blue"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink transition-colors cursor-pointer"
+                    title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showCurrentPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="font-semibold text-ink">New Password</label>
-                <input
-                  type="password"
-                  required
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  placeholder="Enter new password (min. 6 characters)"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    placeholder="Enter new password (min. 6 characters)"
+                    className="w-full rounded-xl border border-ink/20 bg-white pl-3 pr-10 py-2 text-ink outline-none focus:border-brand-blue"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink transition-colors cursor-pointer"
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="font-semibold text-ink">Confirm New Password</label>
-                <input
-                  type="password"
-                  required
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                  placeholder="Confirm new password"
-                  className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-xs text-ink outline-none focus:border-brand-blue"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    placeholder="Confirm new password"
+                    className="w-full rounded-xl border border-ink/20 bg-white pl-3 pr-10 py-2 text-ink outline-none focus:border-brand-blue"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink transition-colors cursor-pointer"
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

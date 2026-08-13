@@ -43,9 +43,9 @@ export default function AdminLayout() {
   const notifRef = useRef(null);
 
   // Fetch live notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isInitial = false) => {
     try {
-      setLoadingNotifs(true);
+      if (isInitial) setLoadingNotifs(true);
       const token = getToken();
       const res = await fetch('http://localhost:5000/api/notifications', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -58,7 +58,7 @@ export default function AdminLayout() {
     } catch (err) {
       console.warn('Failed to fetch notifications:', err.message);
     } finally {
-      setLoadingNotifs(false);
+      if (isInitial) setLoadingNotifs(false);
     }
   };
 
@@ -72,7 +72,7 @@ export default function AdminLayout() {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications();
+      fetchNotifications(false);
     } catch (err) {
       console.warn('Error marking notification as read:', err.message);
     }
@@ -88,7 +88,7 @@ export default function AdminLayout() {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications();
+      fetchNotifications(false);
     } catch (err) {
       console.warn('Error marking all notifications as read:', err.message);
     }
@@ -106,21 +106,21 @@ export default function AdminLayout() {
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(true);
   }, [location.pathname]);
 
   useEffect(() => {
     const handleNotifUpdate = () => {
-      fetchNotifications();
+      fetchNotifications(false);
     };
     window.addEventListener('notificationsUpdated', handleNotifUpdate);
     return () => window.removeEventListener('notificationsUpdated', handleNotifUpdate);
   }, []);
 
-  // Poll every 30 seconds for new notifications
+  // Poll every 30 seconds silently for new notifications
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchNotifications();
+      fetchNotifications(false);
     }, 30000);
     return () => clearInterval(interval);
   }, []);

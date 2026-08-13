@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { FlagPennant, Plus } from '@phosphor-icons/react';
 import ActivityRow from '../../../components/dashboard/activity/ActivityRow.jsx';
 import ActivityDetailPanel from '../../../components/dashboard/activity/ActivityDetailPanel.jsx';
@@ -7,19 +7,16 @@ import ActivityDetailPanel from '../../../components/dashboard/activity/Activity
 import { philIriActivities, practiceActivities } from '../../../data/classActivities.js';
 
 const TABS = [
-  { key: 'phil-iri', label: 'Phil -IRI Assessments', activities: philIriActivities },
-  { key: 'practice', label: 'Practice Mode', activities: practiceActivities },
+  { key: 'phil-iri', to: '/teacher/class-activities/phil-iri', label: 'Phil-IRI Assessments', activities: philIriActivities },
+  { key: 'practice', to: '/teacher/class-activities/practice', label: 'Practice Mode', activities: practiceActivities },
 ];
 
 export default function ClassActivities() {
-  const [activeTab, setActiveTab] = useState('phil-iri');
-  const currentTab = TABS.find((tab) => tab.key === activeTab);
+  const location = useLocation();
+  const isPractice = location.pathname.includes('/practice');
+  const activeTabKey = isPractice ? 'practice' : 'phil-iri';
+  const currentTab = TABS.find((tab) => tab.key === activeTabKey) || TABS[0];
   const [selectedId, setSelectedId] = useState(null);
-
-  const handleTabChange = (key) => {
-    setActiveTab(key);
-    setSelectedId(null);
-  };
 
   const selectedActivity = currentTab.activities.find((a) => a.id === selectedId);
 
@@ -30,20 +27,22 @@ export default function ClassActivities() {
         <h1 className="text-3xl font-bold text-ink">Activities</h1>
       </div>
 
+      {/* Tabs with dedicated routes */}
       <div className="mt-4 flex items-center gap-4 border-b border-ink/10">
         {TABS.map((tab) => (
-          <button
+          <NavLink
             key={tab.key}
-            type="button"
-            onClick={() => handleTabChange(tab.key)}
-            className={`border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? 'border-brand-red text-brand-red'
-                : 'border-transparent text-ink hover:bg-ink/5'
-            }`}
+            to={tab.to}
+            className={({ isActive }) =>
+              `border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'border-brand-red text-brand-red'
+                  : 'border-transparent text-ink hover:bg-ink/5'
+              }`
+            }
           >
             {tab.label}
-          </button>
+          </NavLink>
         ))}
       </div>
 
@@ -62,7 +61,7 @@ export default function ClassActivities() {
           </div>
 
           <Link
-            to="/dashboard/class-activities/new"
+            to="/teacher/class-activities/new"
             aria-label="Add activity"
             className="fixed bottom-8 right-8 z-50 flex size-12 items-center justify-center rounded-full bg-brand-red text-cream shadow-lg transition-transform hover:scale-105 hover:bg-[#b8331b] active:scale-95"
           >

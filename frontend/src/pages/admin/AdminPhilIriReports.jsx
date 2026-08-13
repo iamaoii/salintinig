@@ -11,6 +11,7 @@ import { getToken } from '../../lib/auth.js';
 
 export default function AdminPhilIriReports() {
   const { globalSearch } = useOutletContext() || {};
+  const [students, setStudents] = useState([]);
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -162,13 +163,11 @@ export default function AdminPhilIriReports() {
 
   // SVG Donut Chart Calculation
   const donutSlices = useMemo(() => {
-    const total = (summaryData.totalEvaluated + summaryData.pending) || 1;
+    const total = summaryData.totalEvaluated || 1;
     const segments = [
-      { label: 'Independent', count: summaryData.independent, color: '#22c55e' }, // green-500
-      { label: 'Instructional', count: summaryData.instructional, color: '#3b82f6' }, // blue-500
-      { label: 'Frustration', count: summaryData.frustration, color: '#f59e0b' }, // amber-500
-      { label: 'Non-Reader', count: summaryData.nonReader, color: '#ef4444' }, // red-500
-      { label: 'Pending Evaluation', count: summaryData.pending, color: '#8b5cf6' }, // violet-500
+      { label: 'Independent', count: summaryData.independent, color: '#00a652' },
+      { label: 'Instructional', count: summaryData.instructional, color: '#ffc300' },
+      { label: 'Frustration', count: summaryData.frustration, color: '#d53f24' },
     ];
 
     let cumulativePercent = 0;
@@ -440,19 +439,20 @@ export default function AdminPhilIriReports() {
                 ))
               ) : (
                 Object.entries(gradeBreakdown).map(([grade, data]) => {
-                  const maxVal = Math.max(data.total, 1);
+                  const assessedCount = data.independent + data.instructional + data.frustration;
+                  const maxVal = Math.max(assessedCount, 1);
                   return (
                     <div key={grade} className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-ink">
                         <span>{grade}</span>
-                        <span className="text-ink/50 text-[11px]">{data.total} Students Assessed</span>
+                        <span className="text-ink/50 text-[11px]">{assessedCount} Students Assessed</span>
                       </div>
 
                       <div className="h-6 w-full rounded-xl bg-white border border-ink/10 overflow-hidden flex p-0.5 gap-0.5">
                         {data.independent > 0 && (
                           <div
                             style={{ width: `${(data.independent / maxVal) * 100}%` }}
-                            className="bg-green-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            className="bg-[#00a652] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
                             title={`Grade ${grade} Independent: ${data.independent}`}
                           >
                             {data.independent}
@@ -461,7 +461,7 @@ export default function AdminPhilIriReports() {
                         {data.instructional > 0 && (
                           <div
                             style={{ width: `${(data.instructional / maxVal) * 100}%` }}
-                            className="bg-blue-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            className="bg-[#ffc300] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
                             title={`Grade ${grade} Instructional: ${data.instructional}`}
                           >
                             {data.instructional}
@@ -470,28 +470,10 @@ export default function AdminPhilIriReports() {
                         {data.frustration > 0 && (
                           <div
                             style={{ width: `${(data.frustration / maxVal) * 100}%` }}
-                            className="bg-amber-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
+                            className="bg-[#d53f24] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
                             title={`Grade ${grade} Frustration: ${data.frustration}`}
                           >
                             {data.frustration}
-                          </div>
-                        )}
-                        {data.nonReader > 0 && (
-                          <div
-                            style={{ width: `${(data.nonReader / maxVal) * 100}%` }}
-                            className="bg-red-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                            title={`Grade ${grade} Non-Reader: ${data.nonReader}`}
-                          >
-                            {data.nonReader}
-                          </div>
-                        )}
-                        {data.pending > 0 && (
-                          <div
-                            style={{ width: `${(data.pending / maxVal) * 100}%` }}
-                            className="bg-purple-500 h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                            title={`Grade ${grade} Pending Evaluation: ${data.pending}`}
-                          >
-                            {data.pending}
                           </div>
                         )}
                       </div>
@@ -502,26 +484,18 @@ export default function AdminPhilIriReports() {
             </div>
 
             {/* Bar Legend */}
-            <div className="pt-3 border-t border-ink/10 flex flex-wrap items-center justify-between text-xs gap-2">
+            <div className="pt-3 border-t border-ink/10 flex flex-wrap items-center justify-start gap-6 text-xs font-semibold">
               <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-green-500" />
+                <span className="size-3 rounded bg-[#00a652]" />
                 <span className="text-ink/70">Independent</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-blue-500" />
+                <span className="size-3 rounded bg-[#ffc300]" />
                 <span className="text-ink/70">Instructional</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-amber-500" />
+                <span className="size-3 rounded bg-[#d53f24]" />
                 <span className="text-ink/70">Frustration</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-red-500" />
-                <span className="text-ink/70">Non-Reader</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-purple-500" />
-                <span className="text-ink/70">Pending Evaluation</span>
               </div>
             </div>
           </div>

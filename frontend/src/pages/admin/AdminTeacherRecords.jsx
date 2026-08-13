@@ -814,7 +814,9 @@ export default function AdminTeacherRecords() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-ink/60 mt-1">S.Y. 2026-2027</p>
+                  {viewingTeacher.schoolYear ? (
+                    <p className="text-[10px] text-ink/60 mt-1">S.Y. {viewingTeacher.schoolYear}</p>
+                  ) : null}
                 </div>
                 <div className="rounded-xl border border-ink/10 bg-white p-3 text-center">
                   <p className="text-[10px] font-semibold text-ink/50 uppercase tracking-wider">Account Status</p>

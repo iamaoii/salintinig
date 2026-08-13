@@ -5,10 +5,10 @@ import logo from '../../../assets/logo/logo.webp';
 import ProfileDropdown from './ProfileDropdown.jsx';
 
 const NAV_ITEMS = [
-  { to: '/dashboard/overview', label: 'Overview', icon: House },
-  { to: '/dashboard/student-dashboard', label: 'Student Dashboard', icon: PresentationChart },
-  { to: '/dashboard/phil-iri-records', label: 'Phil - IRI Records', icon: Article },
-  { to: '/dashboard/class-activities', label: 'Class Activities', icon: FlagPennant },
+  { to: '/teacher/overview', label: 'Overview', icon: House },
+  { to: '/teacher/student-dashboard', label: 'Student Dashboard', icon: PresentationChart },
+  { to: '/teacher/phil-iri-records', label: 'Phil - IRI Records', icon: Article },
+  { to: '/teacher/class-activities', label: 'Class Activities', icon: FlagPennant },
 ];
 
 const sampleNotifications = [
@@ -36,7 +36,7 @@ export default function TopNav() {
     <header className="sticky top-0 z-30 border-b border-ink/10 bg-cream/95 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] backdrop-blur-md">
       <div className="mx-auto flex h-14 sm:h-16 max-w-[1480px] items-center justify-between px-6 sm:px-8 lg:px-10">
         {/* Clickable Logo Branding */}
-        <Link to="/dashboard/overview" className="flex shrink-0 items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer">
+        <Link to="/teacher/overview" className="flex shrink-0 items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer">
           <img src={logo} alt="SalinTinig" className="h-8 w-auto" />
           <span className="text-lg sm:text-xl font-bold tracking-tight text-ink font-sans">
             SalinTinig

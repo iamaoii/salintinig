@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-const { supabase } = require('../config/supabase.js');
+const { supabase, uploadImageToSupabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
 const { sendPasswordResetEmail, sendTeacherAccountRequestEmail } = require('../services/emailService.js');
 
@@ -79,9 +79,11 @@ async function login(req, res) {
       try {
         // A. Match strictly by Email
         const userQuery = `
-          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, s.school_name
+          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, s.school_name,
+                 t.first_name, t.last_name, t.teacher_no
           FROM users u
           LEFT JOIN schools s ON u.school_id = s.school_id
+          LEFT JOIN teachers t ON u.user_id = t.user_id
           WHERE LOWER(u.email) = $1
           LIMIT 1;
         `;
@@ -254,7 +256,7 @@ async function login(req, res) {
         schoolId,
         employeeId: empId,
         mustChangePassword: Boolean(matchedUser.must_change_password),
-        defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/dashboard',
+        defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/teacher',
         source: 'database',
       };
 
@@ -296,6 +298,31 @@ async function getMe(req, res) {
 
     if (process.env.DATABASE_URL && userId) {
       try {
+        let activeSchoolYear = null;
+        try {
+          const syRes = await db.query(
+            `SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`
+          );
+          if (syRes.rows && syRes.rows[0] && syRes.rows[0].school_year) {
+            activeSchoolYear = syRes.rows[0].school_year;
+          }
+        } catch (syErr) {
+          console.warn('getMe active SY notice:', syErr.message);
+        }
+
+        let dbProfileImage = null;
+        try {
+          const uRes = await db.query(
+            `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          );
+          if (uRes.rows && uRes.rows[0] && uRes.rows[0].profile_image) {
+            dbProfileImage = uRes.rows[0].profile_image;
+          }
+        } catch (uErr) {
+          console.warn('getMe profile_image notice:', uErr.message);
+        }
+
         if (user.role === 'student') {
           const stRes = await db.query(
             `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
@@ -323,10 +350,70 @@ async function getMe(req, res) {
                 lrn: stRow.lrn || user.lrn,
                 gradeLevel: stRow.grade_level ? String(stRow.grade_level) : (user.gradeLevel || '4'),
                 sectionName: stRow.section_name || user.sectionName || '',
+                profileImage: dbProfileImage || user.profileImage || user.profile_image || null,
+                profile_image: dbProfileImage || user.profileImage || user.profile_image || null,
+                activeSchoolYear,
+                schoolYear: activeSchoolYear,
+              },
+            });
+          }
+        } else if (user.role === 'teacher') {
+          const tRes = await db.query(
+            `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image, c.grade_level, c.section_name,
+                    EXISTS(
+                      SELECT 1 FROM faculty_in_charge fic
+                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+                      WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
+                    ) AS is_faculty_in_charge,
+                    (
+                      SELECT fic2.grade_level FROM faculty_in_charge fic2
+                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
+                      WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
+                      LIMIT 1
+                    ) AS fic_grade_level
+             FROM teachers t
+             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id
+             WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
+             LIMIT 1`,
+            [userId, user.employeeId || '']
+          );
+          if (tRes.rows && tRes.rows.length > 0) {
+            const tRow = tRes.rows[0];
+            const fullName = [tRow.first_name, tRow.middle_name, tRow.last_name].filter(Boolean).join(' ');
+            const secLabel = tRow.section_name ? `${tRow.grade_level || 'Grade 4'} - ${tRow.section_name}` : (user.section || '');
+            const finalAvatar = tRow.teacher_profile_image || dbProfileImage || user.profileImage || user.profile_image || null;
+
+            return res.json({
+              success: true,
+              user: {
+                ...user,
+                name: fullName || user.name || 'Teacher',
+                firstName: tRow.first_name || user.firstName,
+                lastName: tRow.last_name || user.lastName,
+                teacherNo: tRow.teacher_no || user.teacherNo,
+                section: secLabel,
+                assigned_section: secLabel,
+                isFacultyInCharge: tRow.is_faculty_in_charge === true,
+                ficGradeLevel: tRow.fic_grade_level || null,
+                profileImage: finalAvatar,
+                profile_image: finalAvatar,
+                activeSchoolYear,
+                schoolYear: activeSchoolYear,
               },
             });
           }
         }
+
+        return res.json({
+          success: true,
+          user: {
+            ...user,
+            profileImage: dbProfileImage || user.profileImage || user.profile_image || null,
+            profile_image: dbProfileImage || user.profileImage || user.profile_image || null,
+            activeSchoolYear,
+            schoolYear: activeSchoolYear,
+          },
+        });
       } catch (dbErr) {
         console.warn('getMe enrichment notice:', dbErr.message);
       }
@@ -334,7 +421,120 @@ async function getMe(req, res) {
 
     return res.json({ success: true, user });
   } catch (error) {
+    console.error('Error getting current user:', error);
     return res.status(500).json({ success: false, error: 'Failed to fetch user profile.' });
+  }
+}
+
+/**
+ * Update authenticated user profile / avatar in database & Supabase Storage
+ */
+async function updateProfile(req, res) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    }
+
+    const userId = user.id || user.user_id;
+    const { profileImage, avatarUrl, fullName, name, email } = req.body;
+    const rawImage = profileImage || avatarUrl;
+
+    let finalImageUrl = null;
+
+    if (process.env.DATABASE_URL && userId) {
+      if (rawImage) {
+        finalImageUrl = rawImage;
+        try {
+          // Delete old avatar from Supabase Storage using old URL from DB if exists
+          if (supabase) {
+            const oldUrlRes = await db.query(
+              `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
+              [userId]
+            );
+            const oldUrl = oldUrlRes.rows?.[0]?.profile_image;
+            if (oldUrl && oldUrl.includes('supabase')) {
+              const urlPath = oldUrl.split('/avatars/')[1]?.split('?')[0];
+              if (urlPath) {
+                const { error: removeError } = await supabase.storage.from('avatars').remove([urlPath]);
+                if (removeError) {
+                  console.warn('Could not delete old user avatar:', removeError.message);
+                } else {
+                  console.log('🗑️ Old user avatar deleted from Supabase Storage:', urlPath);
+                }
+              }
+            }
+          }
+
+          const fileName = `avatar_${userId}_${Date.now()}.webp`;
+          const supabaseUrl = await uploadImageToSupabase(rawImage, fileName, 'avatars');
+          if (supabaseUrl) {
+            finalImageUrl = supabaseUrl;
+            console.log('✅ Avatar uploaded to Supabase Storage:', finalImageUrl);
+          }
+        } catch (imgErr) {
+          console.warn('Avatar Supabase upload notice:', imgErr.message);
+        }
+
+        try {
+          await db.query(
+            `UPDATE users SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+            [finalImageUrl, userId]
+          );
+        } catch (uErr) {
+          console.warn('DB users profile_image update notice:', uErr.message);
+        }
+
+        try {
+          await db.query(
+            `UPDATE teachers SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+            [finalImageUrl, userId]
+          );
+        } catch (tErr) {
+          console.warn('DB teachers profile_image update notice:', tErr.message);
+        }
+      }
+
+      if (fullName || name) {
+        const full = (fullName || name).trim();
+        const parts = full.split(' ');
+        const firstName = parts[0] || full;
+        const lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+        try {
+          await db.query(
+            `UPDATE teachers SET first_name = $1, last_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3`,
+            [firstName, lastName, userId]
+          );
+        } catch (tErr) {}
+      }
+
+      if (email) {
+        try {
+          await db.query(
+            `UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+            [email, userId]
+          );
+        } catch (eErr) {}
+      }
+    }
+
+    const activeImage = finalImageUrl || user.profileImage || user.profile_image || null;
+
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: {
+        ...user,
+        profileImage: activeImage,
+        profile_image: activeImage,
+        name: fullName || name || user.name,
+        email: email || user.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update profile.' });
   }
 }
 
@@ -1001,6 +1201,7 @@ async function changePassword(req, res) {
 module.exports = {
   login,
   getMe,
+  updateProfile,
   logout,
   contactAdmin,
   forgotPassword,

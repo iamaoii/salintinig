@@ -38,7 +38,7 @@ export default function PhilIriForm3List({ formKey, label }) {
                 <td className="px-4 py-3 text-ink/70">{student.section}</td>
                 <td className="px-4 py-3 text-right">
                   <Link
-                    to={`/dashboard/phil-iri-records/${formKey}/${student.lrn}`}
+                    to={`/teacher/phil-iri-records/${formKey}/${student.lrn}`}
                     className="inline-block rounded-full bg-brand-blue px-4 py-1.5 text-xs font-medium text-cream transition-colors hover:bg-blue-700"
                   >
                     {label}

@@ -2,12 +2,12 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Article } from '@phosphor-icons/react';
 
 const TABS = [
-  { to: '/dashboard/phil-iri-records/form-1a', label: 'FORM 1A' },
-  { to: '/dashboard/phil-iri-records/form-1b', label: 'FORM 1B' },
-  { to: '/dashboard/phil-iri-records/form-2', label: 'FORM 2' },
-  { to: '/dashboard/phil-iri-records/form-3a', label: 'FORM 3A' },
-  { to: '/dashboard/phil-iri-records/form-3b', label: 'FORM 3B' },
-  { to: '/dashboard/phil-iri-records/form-4', label: 'FORM 4' },
+  { to: '/teacher/phil-iri-records/form-1a', label: 'FORM 1A' },
+  { to: '/teacher/phil-iri-records/form-1b', label: 'FORM 1B' },
+  { to: '/teacher/phil-iri-records/form-2', label: 'FORM 2' },
+  { to: '/teacher/phil-iri-records/form-3a', label: 'FORM 3A' },
+  { to: '/teacher/phil-iri-records/form-3b', label: 'FORM 3B' },
+  { to: '/teacher/phil-iri-records/form-4', label: 'FORM 4' },
 ];
 
 export default function PhilIriLayout() {

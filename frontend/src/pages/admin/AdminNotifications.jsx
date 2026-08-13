@@ -23,9 +23,9 @@ export default function AdminNotifications() {
   const [filter, setFilter] = useState('All');
   const [toastMessage, setToastMessage] = useState(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       const token = getToken();
       if (!token) return;
       const res = await fetch('http://localhost:5000/api/notifications', {
@@ -38,12 +38,18 @@ export default function AdminNotifications() {
     } catch (err) {
       console.warn('Failed to fetch notifications:', err);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(true);
+
+    const handleNotifUpdate = () => {
+      fetchNotifications(false);
+    };
+    window.addEventListener('notificationsUpdated', handleNotifUpdate);
+    return () => window.removeEventListener('notificationsUpdated', handleNotifUpdate);
   }, []);
 
   const handleMarkAllRead = async () => {
@@ -58,7 +64,7 @@ export default function AdminNotifications() {
       });
       if (res.ok) {
         setToastMessage('All notifications marked as read.');
-        fetchNotifications();
+        fetchNotifications(false);
       }
     } catch (err) {
       console.warn('Failed to mark all as read:', err);
@@ -75,7 +81,7 @@ export default function AdminNotifications() {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications();
+      fetchNotifications(false);
     } catch (err) {
       console.warn('Failed to mark notification as read:', err);
     }
@@ -94,7 +100,7 @@ export default function AdminNotifications() {
       });
       if (res.ok) {
         setToastMessage('Notification removed.');
-        fetchNotifications();
+        fetchNotifications(false);
       }
     } catch (err) {
       console.warn('Failed to delete notification:', err);

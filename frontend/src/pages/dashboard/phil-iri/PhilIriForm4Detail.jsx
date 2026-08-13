@@ -39,7 +39,7 @@ export default function PhilIriForm4Detail() {
 
   return (
     <div>
-      <BackButton to="/dashboard/phil-iri-records/form-4" size={20} />
+      <BackButton to="/teacher/phil-iri-records/form-4" size={20} />
 
       <div className="relative mt-6 rounded-[10px] border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
         {showToast && (

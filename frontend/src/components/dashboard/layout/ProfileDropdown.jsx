@@ -8,6 +8,7 @@ import {
   SignOut,
   CaretDown,
   X,
+  GraduationCap,
 } from '@phosphor-icons/react';
 import Avatar from '../student/Avatar.jsx';
 import { getUser, getUserRole, getToken, logout } from '../../../lib/auth.js';
@@ -20,11 +21,65 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
   const user = getUser();
   const currentRole = propRole || getUserRole() || 'teacher';
-  const name = customName || user?.name || (currentRole === 'admin' ? 'Antoinette Jadaone' : 'Ted Mosby');
-  const email = user?.email || (currentRole === 'admin' ? 'antoinette.j@deped.gov.ph' : 'mosbyTed@edu.org.ph');
 
-  const profilePath = currentRole === 'admin' ? '/admin/settings' : '/dashboard/account';
-  const settingsPath = currentRole === 'admin' ? '/admin/settings' : '/dashboard/account';
+  // FIC state (teacher-only)
+  const [isFic, setIsFic] = useState(false);
+  const [ficGradeLevel, setFicGradeLevel] = useState(null);
+  const [isGradeLevelMode, setIsGradeLevelMode] = useState(false);
+  const [profileName, setProfileName] = useState(() => {
+    if (customName) return customName;
+    if (user?.name) return user.name;
+    if (user?.displayName && user.displayName !== 'Teacher Account') return user.displayName;
+    if (user?.firstName) return `${user.firstName} ${user.lastName || ''}`.trim();
+    return currentRole === 'admin' ? 'Antoinette Jadaone' : 'Teacher';
+  });
+
+  const [profileEmail, setProfileEmail] = useState(() => user?.email || '');
+
+  useEffect(() => {
+    async function fetchMeInfo() {
+      try {
+        const token = getToken();
+        if (!token) return;
+        const res = await fetch('http://localhost:5000/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.user) {
+          const freshUser = data.user;
+          const freshName = freshUser.name || `${freshUser.firstName || ''} ${freshUser.lastName || ''}`.trim();
+          if (freshName && freshName !== 'Teacher Account') {
+            setProfileName(freshName);
+          }
+          if (freshUser.email) {
+            setProfileEmail(freshUser.email);
+          }
+          // FIC check
+          if (currentRole === 'teacher') {
+            setIsFic(freshUser.isFacultyInCharge === true);
+            setFicGradeLevel(freshUser.ficGradeLevel || null);
+          }
+          if (freshUser.profileImage || freshUser.profile_image) {
+            const img = freshUser.profileImage || freshUser.profile_image;
+            setAvatarUrl(img);
+            localStorage.setItem('teacherAvatarCache', img);
+          }
+          const existingUser = getUser() || {};
+          const updatedUser = { ...existingUser, ...freshUser, name: freshName || existingUser.name };
+          localStorage.setItem('salintinig_user', JSON.stringify(updatedUser));
+        }
+      } catch (e) {
+        console.warn('ProfileDropdown me fetch notice:', e);
+      }
+    }
+    fetchMeInfo();
+  }, [currentRole]);
+
+  const name = customName || profileName;
+  const email = profileEmail || user?.email || '';
+
+  const profilePath = currentRole === 'admin' ? '/admin/settings' : '/teacher/account';
+  const settingsPath = currentRole === 'admin' ? '/admin/settings' : '/teacher/account';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -93,7 +148,40 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     setIsHelpOpen(true);
   };
 
-  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
+  const handleManageGradeLevel = () => {
+    setIsOpen(false);
+    navigate('/teacher/grade-level');
+  };
+
+  const handleExitGradeLevel = () => {
+    setIsOpen(false);
+    window.dispatchEvent(new CustomEvent('exitGradeLevelMode'));
+    setIsGradeLevelMode(false);
+  };
+
+  // Listen for mode changes from context
+  useEffect(() => {
+    const onEnter = () => setIsGradeLevelMode(true);
+    const onExit = () => setIsGradeLevelMode(false);
+    window.addEventListener('enterGradeLevelMode', onEnter);
+    window.addEventListener('exitGradeLevelMode', onExit);
+    return () => {
+      window.removeEventListener('enterGradeLevelMode', onEnter);
+      window.removeEventListener('exitGradeLevelMode', onExit);
+    };
+  }, []);
+
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    if (currentRole === 'admin') {
+      return localStorage.getItem('adminAvatarCache') || null;
+    }
+    return (
+      localStorage.getItem('teacherAvatarCache') ||
+      user?.profileImage ||
+      user?.profile_image ||
+      null
+    );
+  });
 
   useEffect(() => {
     if (currentRole === 'admin') {
@@ -118,14 +206,30 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     }
 
     const handleAvatarUpdate = (e) => {
-      if (currentRole === 'admin' && e?.detail) {
+      if (e?.detail) {
         setAvatarUrl(e.detail);
-        localStorage.setItem('adminAvatarCache', e.detail);
+        if (currentRole === 'admin') {
+          localStorage.setItem('adminAvatarCache', e.detail);
+        } else {
+          localStorage.setItem('teacherAvatarCache', e.detail);
+          const existingUser = getUser() || {};
+          localStorage.setItem(
+            'salintinig_user',
+            JSON.stringify({
+              ...existingUser,
+              profileImage: e.detail,
+              profile_image: e.detail,
+            })
+          );
+        }
       }
     };
+
     window.addEventListener('adminAvatarChanged', handleAvatarUpdate);
+    window.addEventListener('userAvatarChanged', handleAvatarUpdate);
     return () => {
       window.removeEventListener('adminAvatarChanged', handleAvatarUpdate);
+      window.removeEventListener('userAvatarChanged', handleAvatarUpdate);
     };
   }, [currentRole]);
 
@@ -158,15 +262,33 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
           {/* Menu Items */}
           <div className="flex flex-col text-sm font-medium text-ink">
-            {currentRole !== 'admin' && (
-              <button
-                type="button"
-                onClick={handleProfileClick}
-                className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-ink transition-colors hover:bg-ink/5 cursor-pointer"
-              >
-                <User size={20} className="text-ink shrink-0" />
-                <span>Profile</span>
-              </button>
+
+            {/* FIC: Manage Grade Level — only for Faculty In Charge teachers */}
+            {currentRole === 'teacher' && isFic && ficGradeLevel && (
+              <>
+                <button
+                  type="button"
+                  onClick={isGradeLevelMode ? handleExitGradeLevel : handleManageGradeLevel}
+                  className={`flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-xs font-bold transition-colors cursor-pointer ${
+                    isGradeLevelMode
+                      ? 'bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/15'
+                      : 'text-ink hover:bg-ink/5'
+                  }`}
+                >
+                  <GraduationCap
+                    size={20}
+                    className={isGradeLevelMode ? 'text-brand-blue shrink-0' : 'text-ink shrink-0'}
+                    weight={isGradeLevelMode ? 'fill' : 'regular'}
+                  />
+                  <div className="flex flex-col items-start">
+                    <span>{isGradeLevelMode ? 'Exit Grade Level Mode' : `Manage ${ficGradeLevel}`}</span>
+                    {!isGradeLevelMode && (
+                      <span className="text-[10px] font-normal text-ink/50">Faculty In Charge</span>
+                    )}
+                  </div>
+                </button>
+                <div className="my-1 border-t border-ink/10" />
+              </>
             )}
 
             <button
@@ -175,7 +297,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
               className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left text-ink transition-colors hover:bg-ink/5 cursor-pointer"
             >
               <Gear size={20} className="text-ink shrink-0" />
-              <span>{currentRole === 'admin' ? 'Account Settings' : 'Account Settings'}</span>
+              <span>Account Settings</span>
             </button>
 
             <button

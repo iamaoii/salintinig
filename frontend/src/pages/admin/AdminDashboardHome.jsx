@@ -200,7 +200,7 @@ export default function AdminDashboardHome() {
     {
       title: 'Total Sections',
       value: (stats?.totalSections ?? 0).toLocaleString(),
-      subtitle: `S.Y. ${stats?.activeSchoolYear || '2026-2027'}`,
+      subtitle: stats?.activeSchoolYear ? `S.Y. ${stats.activeSchoolYear}` : '',
       icon: GridFour,
       link: '/admin/faculty-assignment',
       bgIcon: 'bg-amber-100 text-amber-700',
@@ -439,13 +439,11 @@ export default function AdminDashboardHome() {
             </div>
           </div>
         ) : (() => {
-          const summary = analytics?.summary || { totalEvaluated: 0, independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0 };
-          const total = (summary.totalEvaluated + summary.pending) || 1;
+          const summary = analytics?.summary || { totalEvaluated: 0, independent: 0, instructional: 0, frustration: 0 };
+          const total = summary.totalEvaluated || 1;
           const indPct = Math.round((summary.independent / total) * 100);
           const instPct = Math.round((summary.instructional / total) * 100);
           const frustPct = Math.round((summary.frustration / total) * 100);
-          const nonRPct = Math.round((summary.nonReader / total) * 100);
-          const pendPct = Math.round((summary.pending / total) * 100);
 
           return (
             <div className="mt-4 space-y-4">
@@ -454,105 +452,65 @@ export default function AdminDashboardHome() {
                 {indPct > 0 && (
                   <div
                     style={{ width: isMounted ? `${indPct}%` : '0%' }}
-                    className="bg-emerald-500 h-full rounded-l-full transition-all duration-1000 ease-out"
+                    className="bg-[#00a652] h-full rounded-l-full transition-all duration-1000 ease-out"
                     title={`Independent: ${summary.independent}`}
                   />
                 )}
                 {instPct > 0 && (
                   <div
                     style={{ width: isMounted ? `${instPct}%` : '0%' }}
-                    className="bg-blue-500 h-full transition-all duration-1000 ease-out"
+                    className="bg-[#ffc300] h-full transition-all duration-1000 ease-out"
                     title={`Instructional: ${summary.instructional}`}
                   />
                 )}
                 {frustPct > 0 && (
                   <div
                     style={{ width: isMounted ? `${frustPct}%` : '0%' }}
-                    className="bg-amber-500 h-full transition-all duration-1000 ease-out"
+                    className="bg-[#d53f24] h-full rounded-r-full transition-all duration-1000 ease-out"
                     title={`Frustration: ${summary.frustration}`}
-                  />
-                )}
-                {nonRPct > 0 && (
-                  <div
-                    style={{ width: isMounted ? `${nonRPct}%` : '0%' }}
-                    className="bg-rose-500 h-full transition-all duration-1000 ease-out"
-                    title={`Non-Reader: ${summary.nonReader}`}
-                  />
-                )}
-                {pendPct > 0 && (
-                  <div
-                    style={{ width: isMounted ? `${pendPct}%` : '0%' }}
-                    className="bg-purple-500 h-full rounded-r-full transition-all duration-1000 ease-out"
-                    title={`Pending Evaluation: ${summary.pending}`}
                   />
                 )}
               </div>
 
-              {/* Clean Metric Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+              {/* Clean 3-Metric Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
                 {/* Independent */}
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="size-2.5 rounded-full bg-[#00a652] shrink-0" />
                     <span className="text-xs font-bold text-ink">Independent</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5 pl-3">
-                    <span className="text-lg font-bold text-ink">{summary.independent}</span>
-                    <span className="text-xs font-semibold text-emerald-700">({indPct}%)</span>
+                  <div className="flex items-baseline gap-1.5 pl-4">
+                    <span className="text-xl font-extrabold text-ink">{summary.independent}</span>
+                    <span className="text-xs font-bold text-[#00a652]">({indPct}%)</span>
                   </div>
-                  <span className="text-[10px] text-ink/50 block pl-3">Proficient readers</span>
+                  <span className="text-[10px] text-ink/50 block pl-4 font-medium">Proficient readers</span>
                 </div>
 
                 {/* Instructional */}
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="size-2.5 rounded-full bg-[#ffc300] shrink-0" />
                     <span className="text-xs font-bold text-ink">Instructional</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5 pl-3">
-                    <span className="text-lg font-bold text-ink">{summary.instructional}</span>
-                    <span className="text-xs font-semibold text-blue-700">({instPct}%)</span>
+                  <div className="flex items-baseline gap-1.5 pl-4">
+                    <span className="text-xl font-extrabold text-ink">{summary.instructional}</span>
+                    <span className="text-xs font-bold text-[#d97706]">({instPct}%)</span>
                   </div>
-                  <span className="text-[10px] text-ink/50 block pl-3">Guided learners</span>
+                  <span className="text-[10px] text-ink/50 block pl-4 font-medium">Guided learners</span>
                 </div>
 
                 {/* Frustration */}
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="size-2.5 rounded-full bg-[#d53f24] shrink-0" />
                     <span className="text-xs font-bold text-ink">Frustration</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5 pl-3">
-                    <span className="text-lg font-bold text-ink">{summary.frustration}</span>
-                    <span className="text-xs font-semibold text-amber-700">({frustPct}%)</span>
+                  <div className="flex items-baseline gap-1.5 pl-4">
+                    <span className="text-xl font-extrabold text-ink">{summary.frustration}</span>
+                    <span className="text-xs font-bold text-[#d53f24]">({frustPct}%)</span>
                   </div>
-                  <span className="text-[10px] text-ink/50 block pl-3">Needs intervention</span>
-                </div>
-
-                {/* Non-Reader */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs font-bold text-ink">Non-Reader</span>
-                  </div>
-                  <div className="flex items-baseline gap-1.5 pl-3">
-                    <span className="text-lg font-bold text-ink">{summary.nonReader}</span>
-                    <span className="text-xs font-semibold text-rose-700">({nonRPct}%)</span>
-                  </div>
-                  <span className="text-[10px] text-ink/50 block pl-3">Priority remediation</span>
-                </div>
-
-                {/* Pending Evaluation */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-purple-500 shrink-0" />
-                    <span className="text-xs font-bold text-ink">Pending</span>
-                  </div>
-                  <div className="flex items-baseline gap-1.5 pl-3">
-                    <span className="text-lg font-bold text-ink">{summary.pending}</span>
-                    <span className="text-xs font-semibold text-purple-700">({pendPct}%)</span>
-                  </div>
-                  <span className="text-[10px] text-ink/50 block pl-3">Awaiting screening</span>
+                  <span className="text-[10px] text-ink/50 block pl-4 font-medium">Needs intervention</span>
                 </div>
               </div>
             </div>

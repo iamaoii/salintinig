@@ -103,7 +103,7 @@ export default function ActivityDetailPanel({ activity }) {
       {/* Action Buttons */}
       <div className="flex gap-3">
         <Link
-          to={`/dashboard/class-activities/${activity.id}/edit`}
+          to={`/teacher/class-activities/${activity.id}/edit`}
           className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-sm font-semibold text-cream transition-colors hover:bg-blue-700"
         >
           <PencilSimple size={16} />

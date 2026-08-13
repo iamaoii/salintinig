@@ -10,14 +10,14 @@ export default function PhilIriExportSuccess() {
     <div className="-m-8 flex min-h-[calc(100vh-71px)] bg-brand-blue">
       <div className="flex flex-1 flex-col justify-center gap-4 p-8 sm:p-12">
         <div className="-mb-4">
-          <BackButton to="/dashboard/phil-iri-records" light size={20} />
+          <BackButton to="/teacher/phil-iri-records" light size={20} />
         </div>
         <h1 className="text-3xl font-bold text-cream">Export Successful!</h1>
         <p className="-mt-2 text-sm text-cream/70">Record downloaded as PDF.</p>
         <div>
           <button
             type="button"
-            onClick={() => navigate('/dashboard/phil-iri-records')}
+            onClick={() => navigate('/teacher/phil-iri-records')}
             className="inline-flex items-center gap-2 rounded-[10px] bg-brand-red px-5 py-3 text-sm font-medium text-cream transition-colors hover:bg-red-700"
           >
             <DownloadSimple size={18} weight="bold" />
