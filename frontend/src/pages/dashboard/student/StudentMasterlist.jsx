@@ -1,46 +1,85 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
-import { getToken } from '../../../lib/auth.js';
+import { getToken, getUser } from '../../../lib/auth.js';
 
 const TABS = [
-  { to: '/dashboard/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
-  { to: '/dashboard/student-dashboard/independent', label: 'Independent', level: 'Independent', activeColor: '#00a652' },
-  { to: '/dashboard/student-dashboard/instructional', label: 'Instructional', level: 'Instructional', activeColor: '#ffc300' },
-  { to: '/dashboard/student-dashboard/frustrational', label: 'Frustrational', level: 'Frustrational', activeColor: '#d53f24' },
+  { to: '/teacher/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
+  { to: '/teacher/student-dashboard/independent', label: 'Independent', level: 'Independent', activeColor: '#00a652' },
+  { to: '/teacher/student-dashboard/instructional', label: 'Instructional', level: 'Instructional', activeColor: '#ffc300' },
+  { to: '/teacher/student-dashboard/frustrational', label: 'Frustrational', level: 'Frustrational', activeColor: '#d53f24' },
+  { to: '/teacher/student-dashboard/pending', label: 'Pending Evaluation', level: 'Pending', activeColor: '#8b5cf6' },
 ];
 
 const COL = 'border-r border-ink/10 last:border-r-0';
 
 export default function StudentMasterlist({ level }) {
   const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStudents = async () => {
       try {
+        setLoading(true);
         const token = getToken();
+
+        // 1. Get active section from /api/auth/me or user
+        let targetSection = '';
+        try {
+          const meRes = await fetch('http://localhost:5000/api/auth/me', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          const meData = await meRes.json();
+          if (meRes.ok && meData.success && meData.user) {
+            targetSection = meData.user.section || meData.user.assigned_section || '';
+          }
+        } catch (e) {}
+
+        if (!targetSection) {
+          const u = getUser();
+          targetSection = u?.section || u?.assigned_section || '';
+        }
+
+        // 2. Fetch students and filter by section
         const res = await fetch('http://localhost:5000/api/admin/students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
-          setStudents(data.students);
+          const filtered = data.students.filter((s) => {
+            if (!targetSection || targetSection.toLowerCase().includes('unassigned')) return false;
+            const sSec = (s.section || '').toLowerCase().trim();
+            const targetSec = targetSection.toLowerCase().trim();
+            const targetSecNameOnly = targetSec.replace(/^grade\s*\d+\s*-\s*/i, '').trim();
+            return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));
+          });
+          setStudents(filtered);
         }
+        setLoading(false);
       } catch (err) {
         console.warn('Error fetching students:', err);
+        setLoading(false);
       }
     };
     fetchStudents();
   }, []);
 
-  const filtered = level === 'All' ? students : students.filter((s) => s.level === level);
+  const filtered = level === 'All'
+    ? students
+    : level.toLowerCase() === 'pending'
+    ? students.filter((s) => !s.level || s.level.toLowerCase().includes('pending') || s.level.toLowerCase().includes('unassessed'))
+    : students.filter((s) => (s.level || s.readingLevel || '').toLowerCase().includes(level.toLowerCase()));
   const headerColor = TABS.find((tab) => tab.level === level)?.activeColor ?? '#165fd5';
 
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink">Students</h2>
-        <p className="text-sm font-medium text-ink/60">Total no. of learners: {filtered.length}</p>
+        {loading ? (
+          <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10" />
+        ) : (
+          <p className="text-sm font-medium text-ink/60">Total no. of learners: {filtered.length}</p>
+        )}
       </div>
 
       <div className="mt-4 flex items-center gap-4 overflow-x-auto border-b border-ink/10 sm:gap-6">
@@ -77,7 +116,18 @@ export default function StudentMasterlist({ level }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((student, i) => (
+            {loading && (
+              <tr>
+                <td colSpan={6} className="px-4 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="size-6 animate-spin rounded-full border-2 border-brand-red border-t-transparent" />
+                    <span className="text-xs font-semibold text-ink/50">Loading section masterlist...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {!loading && filtered.map((student, i) => (
               <tr key={student.lrn} className="border-b border-ink/10 transition-colors hover:bg-ink/[0.02] last:border-b-0">
                 <td className={`px-4 py-3.5 font-semibold text-ink/80 ${COL}`}>{i + 1}</td>
                 <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.lrn}</td>
@@ -89,21 +139,22 @@ export default function StudentMasterlist({ level }) {
                 </td>
                 <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.gender}</td>
                 <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.section}</td>
-                <td className="w-24 px-2 py-3.5 text-center">
+                <td className="px-4 py-3.5 text-right whitespace-nowrap">
                   <Link
-                    to={`/dashboard/student-dashboard/students/${student.lrn}`}
-                    className="inline-block rounded-full bg-brand-blue px-3 py-1 text-xs font-semibold text-cream transition-colors hover:bg-blue-700"
+                    to={`/teacher/student-dashboard/students/${student.lrn}`}
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-brand-blue/10 px-3.5 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
                   >
-                    Profile
+                    View Profile
                   </Link>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center font-medium text-ink/50">
                   {students.length === 0
-                    ? 'No student records found in database.'
+                    ? 'No enrolled students found in this section.'
                     : 'No students found at this reading level.'}
                 </td>
               </tr>

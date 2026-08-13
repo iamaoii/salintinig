@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children, allowedRole }) {
   if (allowedRole && role !== allowedRole) {
     if (allowedRole === 'admin' && role !== 'admin') {
       // Teachers cannot access Admin Portal -> redirect to Teacher Dashboard
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to="/teacher" replace />;
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { ChartLineUp, Prohibit, UserSwitch } from '@phosphor-icons/react';
@@ -9,14 +9,17 @@ import AccuracyTrendChart from '../../../components/dashboard/progress/AccuracyT
 import AchievementActivityRow from '../../../components/dashboard/activity/AchievementActivityRow.jsx';
 import BadgeCard from '../../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
+import { getToken } from '../../../lib/auth.js';
 
-import { students } from '../../../data/students.js';
+import { students as mockStudentsData } from '../../../data/students.js';
 import { badgesByLrn, storiesByLrn } from '../../../data/studentAchievements.js';
 
 const LEVEL_BADGE = {
   Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
   Instructional: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
   Independent: 'bg-[#D1FAE5] text-[#047857] font-bold border border-[#047857]/20',
+  Pending: 'bg-purple-100 text-purple-700 font-bold border border-purple-300',
+  'Pending Evaluation': 'bg-purple-100 text-purple-700 font-bold border border-purple-300',
 };
 
 const ACHIEVEMENT_TABS = ['Activities', 'Badges', 'Stories'];
@@ -47,7 +50,39 @@ export default function StudentProfile() {
   const { lrn } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Activities');
-  const student = students.find((s) => s.lrn === lrn) ?? students[0];
+  const [dbStudent, setDbStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudent = async () => {
+      try {
+        setLoading(true);
+        const token = getToken();
+        const res = await fetch(`http://localhost:5000/api/teacher/students/${lrn}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.student) {
+          setDbStudent(data.student);
+        }
+      } catch (err) {
+        console.warn('Fetch student details notice:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStudent();
+  }, [lrn]);
+
+  const fallbackStudent = mockStudentsData.find((s) => s.lrn === lrn);
+  const student = dbStudent || fallbackStudent || {
+    name: `Student (${lrn})`,
+    lrn: lrn,
+    grade: 'Grade 4',
+    section: 'Unassigned',
+    level: 'Pending Evaluation',
+  };
+
   const rawBadges = (badgesByLrn[student.lrn] && badgesByLrn[student.lrn].length > 0)
     ? badgesByLrn[student.lrn]
     : (badgesByLrn['136670100091'] || []);
@@ -64,16 +99,20 @@ export default function StudentProfile() {
   return (
     <div>
       {/* Top Back Navigation */}
-      <button
-        type="button"
-        onClick={() => navigate('/dashboard/student-dashboard/all')}
-        className="group inline-flex items-center gap-2.5 text-xs font-semibold text-ink/70 hover:text-ink transition-colors cursor-pointer"
-      >
-        <BackButton to="/dashboard/student-dashboard/all" size={20} />
-        <span className="group-hover:underline">Back to Students</span>
-      </button>
+      <div className="mb-4">
+        <BackButton onClick={() => navigate(-1)} label="Back to Previous Page" size={20} />
+      </div>
 
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-4 py-2">
+      {loading ? (
+        <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+          <div className="flex flex-col items-center justify-center gap-2">
+            <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+            <span className="text-xs font-semibold text-ink/60">Loading student profile...</span>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-4 py-2">
         <div className="flex items-center gap-5">
           <Avatar name={student.name} size={96} className="text-2xl" />
           <div className="flex flex-col gap-2.5">
@@ -82,18 +121,18 @@ export default function StudentProfile() {
                 <p className="text-xs font-semibold text-ink/70">Full name</p>
                 <p className="text-xl font-bold text-ink">{student.name}</p>
               </div>
-              <span className={`rounded-lg px-3 py-1 text-xs font-bold ${LEVEL_BADGE[student.level]}`}>
-                {student.level}
+              <span className={`rounded-lg px-3 py-1 text-xs font-bold ${LEVEL_BADGE[student.level] || LEVEL_BADGE['Pending']}`}>
+                {student.level || 'Pending Evaluation'}
               </span>
             </div>
             <div className="flex flex-wrap gap-6">
               <div>
                 <p className="text-xs font-semibold text-ink/70">Grade Level</p>
-                <p className="text-base font-bold text-ink">Grade 4</p>
+                <p className="text-base font-bold text-ink">{student.grade || 'Grade 4'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-ink/70">Section</p>
-                <p className="text-base font-bold text-ink">Fyang</p>
+                <p className="text-base font-bold text-ink">{student.section || 'Unassigned'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-ink/70">LRN</p>
@@ -209,6 +248,8 @@ export default function StudentProfile() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

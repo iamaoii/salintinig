@@ -30,7 +30,7 @@ export default function Login() {
       setPendingUser(user);
       setIsFirstTimeLogin(true);
     } else if (isLoggedIn() && user && !user.mustChangePassword) {
-      navigate(user.defaultPath || '/dashboard', { replace: true });
+      navigate(user.defaultPath || '/teacher', { replace: true });
     }
   }, [navigate]);
 
@@ -86,7 +86,7 @@ export default function Login() {
       const res = await changePasswordAsync(newPassword);
       if (res.success) {
         setIsFirstTimeLogin(false);
-        navigate(pendingUser?.defaultPath || '/dashboard');
+        navigate(pendingUser?.defaultPath || '/teacher');
       } else {
         setModalError(res.error || 'Failed to update password.');
       }

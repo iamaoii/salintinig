@@ -22,6 +22,7 @@ app.use('/api/auth', require('./routes/auth.routes.js'))
 app.use('/api/students', require('./routes/student.routes.js'))
 app.use('/api/admin/students', require('./routes/student.routes.js'))
 app.use('/api/admin', require('./routes/admin.routes.js'))
+app.use('/api/teacher', require('./routes/teacher.routes.js'))
 app.use('/api/notifications', require('./routes/notification.routes.js'))
 
 // Health check

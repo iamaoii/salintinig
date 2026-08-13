@@ -3,9 +3,9 @@ import { NavLink, Outlet } from 'react-router-dom';
 import Sidebar from '../../../components/dashboard/layout/Sidebar.jsx';
 
 const TABS = [
-  { to: '/dashboard/overview/forms', label: 'Forms' },
-  { to: '/dashboard/overview/activities', label: 'Activities' },
-  { to: '/dashboard/overview/people', label: 'People' },
+  { to: '/teacher/overview/forms', label: 'Forms' },
+  { to: '/teacher/overview/activities', label: 'Activities' },
+  { to: '/teacher/overview/people', label: 'People' },
 ];
 
 export default function OverviewLayout() {

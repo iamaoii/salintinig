@@ -37,7 +37,7 @@ export default function RecordActions({ isEditing = false, onEdit, onSave, onCan
 
       <button
         type="button"
-        onClick={() => navigate('/dashboard/phil-iri-records/export-success')}
+        onClick={() => navigate('/teacher/phil-iri-records/export-success')}
         className="flex items-center gap-2 rounded-[10px] bg-brand-red px-4 py-2.5 text-sm font-medium text-cream shadow-sm transition-colors hover:bg-red-700 cursor-pointer"
       >
         <DownloadSimple size={16} />

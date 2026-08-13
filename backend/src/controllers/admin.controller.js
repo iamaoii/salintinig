@@ -1013,7 +1013,7 @@ async function getSystemStats(req, res) {
     let totalParentAccounts = 0;
     let totalSections = 0;
     let totalGradeLevels = 3;
-    let activeSchoolYear = '2026-2027';
+    let activeSchoolYear = null;
 
     if (process.env.DATABASE_URL) {
       try {
@@ -1488,14 +1488,14 @@ async function getSchoolYears(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
-        const { rows } = await db.query(`
+        let { rows } = await db.query(`
           SELECT 
             school_year_id AS id,
             school_year AS "schoolYear",
             is_active AS "isActive",
             TO_CHAR(created_at, 'YYYY-MM-DD') AS "createdAt"
           FROM school_years
-          ORDER BY created_at DESC
+          ORDER BY is_active DESC, created_at DESC
         `);
 
         return res.json({ success: true, schoolYears: rows || [] });
@@ -1506,9 +1506,7 @@ async function getSchoolYears(req, res) {
 
     return res.json({
       success: true,
-      schoolYears: [
-        { id: 'default-sy', schoolYear: '2026-2027', isActive: true, createdAt: '2026-08-01' }
-      ]
+      schoolYears: []
     });
   } catch (error) {
     console.error('Error fetching school years:', error);

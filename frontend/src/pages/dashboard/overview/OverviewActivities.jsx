@@ -11,7 +11,7 @@ export default function OverviewActivities() {
       ))}
 
       <Link
-        to="/dashboard/class-activities/new"
+        to="/teacher/class-activities/new"
         aria-label="Add activity"
         className="fixed bottom-8 right-8 z-50 flex size-12 items-center justify-center rounded-full bg-brand-red text-cream shadow-lg transition-transform hover:scale-105 hover:bg-[#b8331b] active:scale-95"
       >

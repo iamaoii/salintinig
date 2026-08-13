@@ -2,30 +2,65 @@ import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import Pagination from '../../../components/dashboard/records/Pagination.jsx';
-import { getToken } from '../../../lib/auth.js';
+import { getToken, getUser } from '../../../lib/auth.js';
 
 const PAGE_SIZE = 10;
 
 export default function OverviewPeople() {
   const [page, setPage] = useState(1);
   const [students, setStudents] = useState([]);
+  const [teacherInfo, setTeacherInfo] = useState(() => {
+    const u = getUser();
+    return {
+      name: u?.name || u?.displayName || 'Teacher',
+      section: u?.section || u?.assigned_section || '',
+    };
+  });
 
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchOverviewData = async () => {
       try {
         const token = getToken();
+        let targetSection = teacherInfo.section;
+
+        // 1. Fetch user info from /api/auth/me
+        try {
+          const meRes = await fetch('http://localhost:5000/api/auth/me', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          const meData = await meRes.json();
+          if (meRes.ok && meData.success && meData.user) {
+            const freshName = meData.user.name || `${meData.user.firstName || ''} ${meData.user.lastName || ''}`.trim();
+            targetSection = meData.user.section || meData.user.assigned_section || targetSection;
+            setTeacherInfo({
+              name: freshName || 'Teacher',
+              section: targetSection,
+            });
+          }
+        } catch (meErr) {
+          console.warn('Teacher me fetch notice:', meErr.message);
+        }
+
+        // 2. Fetch students and filter by teacher's active section
         const res = await fetch('http://localhost:5000/api/admin/students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
-          setStudents(data.students);
+          const filteredStudents = data.students.filter((s) => {
+            if (!targetSection || targetSection.toLowerCase().includes('unassigned')) return false;
+            const sSec = (s.section || '').toLowerCase().trim();
+            const targetSec = targetSection.toLowerCase().trim();
+            const targetSecNameOnly = targetSec.replace(/^grade\s*\d+\s*-\s*/i, '').trim();
+            return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));
+          });
+          setStudents(filteredStudents);
         }
       } catch (err) {
         console.warn('Could not fetch students for overview:', err);
       }
     };
-    fetchStudents();
+    fetchOverviewData();
   }, []);
 
   const totalStudents = students.length;
@@ -40,8 +75,13 @@ export default function OverviewPeople() {
           <h2 className="text-base font-bold uppercase tracking-wider text-ink">Teacher</h2>
         </div>
         <div className="flex items-center gap-3.5 rounded-xl border border-ink/5 bg-cream px-4 py-3.5 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
-          <Avatar name="Antoinette Jadaone" size={34} />
-          <span className="text-sm font-semibold text-ink">Antoinette Jadaone</span>
+          <Avatar name={teacherInfo.name} size={34} />
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-ink">{teacherInfo.name}</span>
+            {teacherInfo.section && (
+              <span className="text-xs text-ink/50 font-medium">{teacherInfo.section}</span>
+            )}
+          </div>
         </div>
       </section>
 

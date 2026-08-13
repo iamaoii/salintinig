@@ -141,7 +141,7 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuOpen(false);
-                    navigate(`/dashboard/class-activities/${activity.id}/edit`);
+                    navigate(`/teacher/class-activities/${activity.id}/edit`);
                   }}
                   className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-ink transition-colors hover:bg-ink/5"
                 >
