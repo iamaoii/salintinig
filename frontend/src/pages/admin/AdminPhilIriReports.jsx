@@ -1,16 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useLocation } from 'react-router-dom';
 import {
   ChartBar,
   ChartPie,
   DownloadSimple,
   MagnifyingGlass,
+  BookOpen,
+  Plus,
+  ArrowRight,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 
 export default function AdminPhilIriReports() {
   const { globalSearch } = useOutletContext() || {};
+  const location = useLocation();
+  const isAssessmentTab = location.pathname.includes('/assessment');
+
   const [students, setStudents] = useState([]);
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -243,263 +250,235 @@ export default function AdminPhilIriReports() {
     <>
       <ToastNotification message={toast?.message} onClose={() => setToast(null)} />
       <div className="space-y-6">
-        {/* Header Title */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <ChartPie size={24} className="text-brand-red" />
-              <h1 className="text-3xl font-bold text-ink">Phil-IRI Analytics & Graphs</h1>
-            </div>
-            <p className="mt-1 text-xs text-ink/50">
-              Visual reading profile distribution charts, grade comparison analytics, and exportable Form 1 summary reports
-            </p>
-          </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAssignModalOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors cursor-pointer shrink-0"
-            >
-              <span>Assign Phil-IRI Set</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportForm1}
-              className="flex items-center gap-2 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
-            >
-              <DownloadSimple size={16} />
-              <span>Export Phil-IRI Form 1 (CSV)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Top Visual Graphs Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Graph 1: Donut Chart — Overall Reading Profile Distribution */}
-          <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] flex flex-col justify-between">
-            <div className="flex items-center justify-between pb-3 border-b border-ink/10">
-              <div className="flex items-center gap-2">
-                <ChartPie size={20} className="text-brand-red" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-ink">Reading Profile Distribution (Donut Graph)</h3>
-                    {loadingAnalytics ? (
-                      <div className="h-4 w-20 animate-pulse rounded-full bg-ink/10" />
-                    ) : (
-                      <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                        {summaryData.proficiencyRate}% Proficient
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-ink/50">Proportion of learners by Phil-IRI reading category</p>
+        {/* ----------------- ASSESSMENT TAB ----------------- */}
+        {isAssessmentTab ? (
+          <>
+            {/* Header Title */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ChartPie size={22} className="text-brand-red shrink-0" />
+                  <h2 className="text-xl font-bold text-ink">Phil-IRI Test Packages &amp; Assignments</h2>
                 </div>
+                <p className="mt-0.5 text-xs text-ink/50">
+                  Manage active Phil-IRI assessment packages across grade levels and monitor student evaluation progress
+                </p>
               </div>
-            </div>
 
-            <div className="my-6 flex flex-col sm:flex-row items-center justify-center gap-8">
-              {/* SVG Donut Chart with Dynamic Slice Scale & Load Animations */}
-              <div className="relative size-44 shrink-0">
-                <svg
-                  viewBox="0 0 100 100"
-                  className={`size-full transition-all duration-1000 ease-out ${
-                    isMounted
-                      ? 'rotate-[-90deg] scale-100 opacity-100'
-                      : 'rotate-[-270deg] scale-50 opacity-0'
-                  }`}
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
                 >
-                  {donutSlices.map((slice, i) => {
-                    const isHovered = hoveredSlice === i;
-                    const isAnyHovered = hoveredSlice !== null;
-                    const opacityStyle = isAnyHovered && !isHovered ? 0.35 : 1;
-                    const scaleTransform = isHovered ? 'scale(1.06)' : 'scale(1)';
+                  <Plus size={15} weight="bold" />
+                  <span>Assign Test Package</span>
+                </button>
+              </div>
+            </div>
 
-                    return (
-                      <path
-                        key={i}
-                        d={slice.pathData}
-                        fill={slice.color}
-                        style={{
-                          opacity: opacityStyle,
-                          transform: scaleTransform,
-                          transformOrigin: '50px 50px',
-                          transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease',
-                        }}
-                        onMouseEnter={() => setHoveredSlice(i)}
-                        onMouseLeave={() => setHoveredSlice(null)}
-                        className="cursor-pointer"
-                      />
-                    );
-                  })}
-                  {/* Donut Hole */}
-                  <circle cx="50" cy="50" r="28" fill="#F7F5F0" />
-                </svg>
-
-                {/* Animated Center Display */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none transition-all duration-300 px-3">
-                  {loadingAnalytics ? (
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
-                      <div className="h-2 w-12 animate-pulse rounded bg-ink/10" />
-                    </div>
-                  ) : hoveredSlice !== null ? (
-                    <>
-                      <span className="text-xl font-extrabold leading-none animate-fade-in" style={{ color: donutSlices[hoveredSlice].color }}>
-                        {donutSlices[hoveredSlice].count}
-                      </span>
-                      <div className="flex flex-col items-center justify-center my-0.5 leading-tight text-[9px] font-bold text-ink/80">
-                        {donutSlices[hoveredSlice].label.split(' ').map((word, idx) => (
-                          <span key={idx} className="block">{word}</span>
-                        ))}
+            {/* Active Test Packages Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {['Grade 4', 'Grade 5', 'Grade 6'].map((grade) => {
+                const count = students.filter((s) => s.grade === grade).length;
+                return (
+                  <div
+                    key={grade}
+                    className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between space-y-4"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                        <span className="text-sm font-bold text-ink">{grade}</span>
+                        <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                          Active Pre-Test
+                        </span>
                       </div>
-                      <span className="text-[8px] font-bold text-ink/50 leading-none">
-                        ({donutSlices[hoveredSlice].percent}%)
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-2xl font-extrabold text-ink leading-none">{students.length || summaryData.totalEvaluated}</span>
-                      <span className="text-[9px] font-semibold text-ink/50 uppercase tracking-wider mt-0.5">Learners</span>
-                    </>
-                  )}
+
+                      <div className="mt-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-ink/50">Active Package:</span>
+                          <span className="font-mono font-bold text-xs text-brand-blue">Set A (Oral)</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-ink/50">Enrolled Learners:</span>
+                          <span className="font-semibold text-xs text-ink">{count} Students</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssignGrade(grade);
+                        setIsAssignModalOpen(true);
+                      }}
+                      className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-2 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <BookOpen size={14} />
+                      <span>Change Test Package</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          /* ----------------- REPORTS TAB ----------------- */
+          <>
+            {/* Header Title */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ChartBar size={22} className="text-brand-red shrink-0" />
+                  <h2 className="text-xl font-bold text-ink">Phil-IRI Reports &amp; Analytics</h2>
                 </div>
+                <p className="mt-0.5 text-xs text-ink/50">
+                  Visual reading profile distribution charts, grade comparison analytics, and exportable Form 1 summary reports
+                </p>
               </div>
 
-              {/* Legend & Interactive Hover Rows */}
-              <div className="space-y-2.5 w-full max-w-xs text-xs">
-                {loadingAnalytics ? (
-                  [1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-9 w-full animate-pulse rounded-xl bg-ink/10" />
-                  ))
-                ) : (
-                  donutSlices.map((slice, i) => (
-                    <div
-                      key={i}
-                      onMouseEnter={() => setHoveredSlice(i)}
-                      onMouseLeave={() => setHoveredSlice(null)}
-                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
-                        hoveredSlice === i
-                          ? 'bg-white border-brand-blue shadow-md translate-x-1'
-                          : 'bg-white border-ink/10 hover:border-ink/20'
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleExportForm1}
+                  className="flex items-center gap-2 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
+                >
+                  <DownloadSimple size={16} />
+                  <span>Export Phil-IRI Form 1 (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Top Visual Graphs Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Graph 1: Donut Chart — Overall Reading Profile Distribution */}
+              <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+                  <div className="flex items-center gap-2">
+                    <ChartPie size={20} className="text-brand-red" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-ink">Reading Profile Distribution (Donut Graph)</h3>
+                        {loadingAnalytics ? (
+                          <div className="h-4 w-20 animate-pulse rounded-full bg-ink/10" />
+                        ) : (
+                          <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                            {summaryData.proficiencyRate}% Proficient
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-ink/50">Proportion of learners by Phil-IRI reading category</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="my-6 flex flex-col sm:flex-row items-center justify-center gap-8">
+                  {/* SVG Donut Chart */}
+                  <div className="relative size-44 shrink-0">
+                    <svg
+                      viewBox="0 0 100 100"
+                      className={`size-full transition-all duration-1000 ease-out ${
+                        isMounted
+                          ? 'rotate-[-90deg] scale-100 opacity-100'
+                          : 'rotate-[-270deg] scale-50 opacity-0'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="size-3 rounded-full shrink-0 transition-transform duration-200" style={{ backgroundColor: slice.color, transform: hoveredSlice === i ? 'scale(1.25)' : 'scale(1)' }} />
-                        <span className="font-bold text-ink">{slice.label}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-ink">{slice.count}</span>
-                        <span className="text-ink/40 text-[11px]">({slice.percent}%)</span>
-                      </div>
+                      {donutSlices.map((slice, i) => {
+                        const isHovered = hoveredSlice === i;
+                        const isAnyHovered = hoveredSlice !== null;
+                        const opacityStyle = isAnyHovered && !isHovered ? 0.35 : 1;
+                        const scaleTransform = isHovered ? 'scale(1.06)' : 'scale(1)';
+
+                        return (
+                          <path
+                            key={i}
+                            d={slice.pathData}
+                            fill={slice.color}
+                            style={{
+                              opacity: opacityStyle,
+                              transform: scaleTransform,
+                              transformOrigin: '50px 50px',
+                              transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease',
+                            }}
+                            onMouseEnter={() => setHoveredSlice(i)}
+                            onMouseLeave={() => setHoveredSlice(null)}
+                            className="cursor-pointer"
+                          />
+                        );
+                      })}
+                      <circle cx="50" cy="50" r="28" fill="#F7F5F0" />
+                    </svg>
+
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none transition-all duration-300 px-3">
+                      {loadingAnalytics ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
+                          <div className="h-2 w-12 animate-pulse rounded bg-ink/10" />
+                        </div>
+                      ) : hoveredSlice !== null ? (
+                        <>
+                          <span className="text-xl font-extrabold leading-none animate-fade-in" style={{ color: donutSlices[hoveredSlice].color }}>
+                            {donutSlices[hoveredSlice].count}
+                          </span>
+                          <span className="text-[10px] font-semibold text-ink/70 leading-tight line-clamp-1 mt-0.5">
+                            {donutSlices[hoveredSlice].label}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xl font-extrabold leading-none text-ink">
+                            {summaryData.totalEvaluated}
+                          </span>
+                          <span className="text-[10px] font-semibold text-ink/50 uppercase tracking-wider mt-0.5">
+                            Evaluated
+                          </span>
+                        </>
+                      )}
                     </div>
-                  ))
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="pt-3 border-t border-ink/10 flex items-center justify-between text-[11px] text-ink/60">
-              {loadingAnalytics ? (
-                <>
-                  <div className="h-3 w-32 animate-pulse rounded bg-ink/10" />
-                  <div className="h-3 w-28 animate-pulse rounded bg-ink/10" />
-                </>
-              ) : (
-                <>
-                  <span>Total Assessed Learners: <strong>{summaryData.totalEvaluated}</strong></span>
-                  <span>Pending Evaluation: <strong>{summaryData.pending}</strong></span>
-                </>
-              )}
-            </div>
-          </div>
+              {/* Graph 2: Grade Level Performance Breakdown Bar Chart */}
+              <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+                  <div className="flex items-center gap-2">
+                    <ChartBar size={20} className="text-brand-red" />
+                    <div>
+                      <h3 className="text-sm font-bold text-ink">Grade Level Comparison</h3>
+                      <p className="text-xs text-ink/50">Reading level distribution across Grade 4, 5, and 6</p>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Graph 2: Bar Graph — Grade Level Comparison */}
-          <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] flex flex-col justify-between">
-            <div className="flex items-center justify-between pb-3 border-b border-ink/10">
-              <div className="flex items-center gap-2">
-                <ChartBar size={20} className="text-brand-red" />
-                <div>
-                  <h3 className="text-sm font-bold text-ink">Grade-Level Reading Level Comparison (Bar Graph)</h3>
-                  <p className="text-xs text-ink/50">Comparative learner count across Grade 4, Grade 5, and Grade 6</p>
+                <div className="my-4 space-y-4">
+                  {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => {
+                    const data = gradeBreakdown[g] || { independent: 0, instructional: 0, frustration: 0, total: 0 };
+                    const tot = data.total || 1;
+                    const indP = Math.round((data.independent / tot) * 100);
+                    const instP = Math.round((data.instructional / tot) * 100);
+                    const frustP = Math.round((data.frustration / tot) * 100);
+
+                    return (
+                      <div key={g} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-ink">
+                          <span>{g}</span>
+                          <span className="text-ink/50 text-[11px] font-normal">{data.total} Learners</span>
+                        </div>
+                        <div className="h-3.5 w-full rounded-full bg-ink/10 overflow-hidden flex">
+                          <div style={{ width: `${indP}%` }} className="bg-[#00a652] transition-all duration-500" title={`Independent: ${data.independent}`} />
+                          <div style={{ width: `${instP}%` }} className="bg-[#ffc300] transition-all duration-500" title={`Instructional: ${data.instructional}`} />
+                          <div style={{ width: `${frustP}%` }} className="bg-[#d53f24] transition-all duration-500" title={`Frustration: ${data.frustration}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
-
-            {/* Vertical Bar Graph Visual */}
-            <div className="my-6 space-y-5">
-              {loadingAnalytics ? (
-                [1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex justify-between">
-                      <div className="h-3 w-16 animate-pulse rounded bg-ink/10" />
-                      <div className="h-3 w-24 animate-pulse rounded bg-ink/10" />
-                    </div>
-                    <div className="h-6 w-full animate-pulse rounded-xl bg-ink/10" />
-                  </div>
-                ))
-              ) : (
-                Object.entries(gradeBreakdown).map(([grade, data]) => {
-                  const assessedCount = data.independent + data.instructional + data.frustration;
-                  const maxVal = Math.max(assessedCount, 1);
-                  return (
-                    <div key={grade} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-bold text-ink">
-                        <span>{grade}</span>
-                        <span className="text-ink/50 text-[11px]">{assessedCount} Students Assessed</span>
-                      </div>
-
-                      <div className="h-6 w-full rounded-xl bg-white border border-ink/10 overflow-hidden flex p-0.5 gap-0.5">
-                        {data.independent > 0 && (
-                          <div
-                            style={{ width: `${(data.independent / maxVal) * 100}%` }}
-                            className="bg-[#00a652] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                            title={`Grade ${grade} Independent: ${data.independent}`}
-                          >
-                            {data.independent}
-                          </div>
-                        )}
-                        {data.instructional > 0 && (
-                          <div
-                            style={{ width: `${(data.instructional / maxVal) * 100}%` }}
-                            className="bg-[#ffc300] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                            title={`Grade ${grade} Instructional: ${data.instructional}`}
-                          >
-                            {data.instructional}
-                          </div>
-                        )}
-                        {data.frustration > 0 && (
-                          <div
-                            style={{ width: `${(data.frustration / maxVal) * 100}%` }}
-                            className="bg-[#d53f24] h-full rounded-md transition-all duration-500 flex items-center justify-center text-[10px] font-bold text-white"
-                            title={`Grade ${grade} Frustration: ${data.frustration}`}
-                          >
-                            {data.frustration}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Bar Legend */}
-            <div className="pt-3 border-t border-ink/10 flex flex-wrap items-center justify-start gap-6 text-xs font-semibold">
-              <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-[#00a652]" />
-                <span className="text-ink/70">Independent</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-[#ffc300]" />
-                <span className="text-ink/70">Instructional</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-3 rounded bg-[#d53f24]" />
-                <span className="text-ink/70">Frustration</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Filter & Student Masterlist Section */}
         <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)]">

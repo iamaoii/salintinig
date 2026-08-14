@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   Plus,
@@ -11,12 +12,19 @@ import {
   UserSwitch,
   IdentificationCard,
   Calendar,
+  Check,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
 import { getToken } from '../../lib/auth.js';
 
 export default function AdminFacultyAssignment() {
+  const location = useLocation();
+  const isFacultyTab = location.pathname.endsWith('/faculty');
+  const isSchoolYearsTab = location.pathname.endsWith('/school-years');
+  const isSectionsTab = !isFacultyTab && !isSchoolYearsTab;
+
   const [assignments, setAssignments] = useState([
     { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
     { id: '2', gradeLevel: 'Grade 5', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
@@ -33,6 +41,11 @@ export default function AdminFacultyAssignment() {
   // School Year State
   const [activeSchoolYear, setActiveSchoolYear] = useState(null);
   const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
+  const [schoolYearsList, setSchoolYearsList] = useState([]);
+  const [syLoading, setSyLoading] = useState(false);
+  const [newSyInput, setNewSyInput] = useState('');
+  const [newSyActive, setNewSyActive] = useState(true);
+  const [sySubmitting, setSySubmitting] = useState(false);
 
   // Filters & Search
   const [selectedGradeTab, setSelectedGradeTab] = useState('All');
@@ -141,13 +154,109 @@ export default function AdminFacultyAssignment() {
     }
   };
 
+  const fetchSchoolYears = async () => {
+    try {
+      setSyLoading(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/school-years', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSchoolYearsList(data.schoolYears || []);
+        const active = (data.schoolYears || []).find((s) => s.isActive);
+        if (active) setActiveSchoolYear(active.schoolYear);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch school years:', err);
+    } finally {
+      setSyLoading(false);
+    }
+  };
+
+  const handleCreateSyInline = async (e) => {
+    e.preventDefault();
+    const cleanSy = newSyInput.trim();
+    if (!cleanSy) return;
+
+    const syRegex = /^\d{4}-\d{4}$/;
+    if (!syRegex.test(cleanSy)) {
+      showToast('Invalid format! Must follow YYYY-YYYY format (e.g. 2027-2028).');
+      return;
+    }
+
+    const [startYear, endYear] = cleanSy.split('-').map(Number);
+    if (endYear !== startYear + 1) {
+      showToast(`Invalid year sequence! End year must be ${startYear + 1} (e.g. ${startYear}-${startYear + 1}).`);
+      return;
+    }
+
+    try {
+      setSySubmitting(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/school-years', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          schoolYear: cleanSy,
+          setAsActive: newSyActive,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`School Year S.Y. ${cleanSy} created successfully!`);
+        setNewSyInput('');
+        fetchSchoolYears();
+        fetchAssignmentData();
+        window.dispatchEvent(new Event('schoolYearChanged'));
+      } else {
+        showToast(data.error || 'Failed to create school year.');
+      }
+    } catch (err) {
+      showToast('Error creating new school year.');
+    } finally {
+      setSySubmitting(false);
+    }
+  };
+
+  const handleActivateSyInline = async (sy) => {
+    try {
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/admin/school-years/${sy.id}/activate`, {
+        method: 'PUT',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`S.Y. ${sy.schoolYear} set as Active Academic Year.`);
+        fetchSchoolYears();
+        fetchAssignmentData();
+        window.dispatchEvent(new Event('schoolYearChanged'));
+      } else {
+        showToast(data.error || 'Failed to activate school year.');
+      }
+    } catch (err) {
+      showToast('Error updating active school year.');
+    }
+  };
+
   useEffect(() => {
     fetchAssignmentData();
+    if (isSchoolYearsTab) {
+      fetchSchoolYears();
+    }
 
-    const handleSYChange = () => fetchAssignmentData();
+    const handleSYChange = () => {
+      fetchAssignmentData();
+      fetchSchoolYears();
+    };
     window.addEventListener('schoolYearChanged', handleSYChange);
     return () => window.removeEventListener('schoolYearChanged', handleSYChange);
-  }, []);
+  }, [isSchoolYearsTab]);
 
   // All unique teachers for Faculty-in-Charge assignment (allows advisers to also be faculty-in-charge)
   const allTeachers = useMemo(() => {
@@ -380,12 +489,12 @@ export default function AdminFacultyAssignment() {
       <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
       <div className="space-y-6">
 
-      {/* Standard Page Header */}
+      {/* Original Main Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <IdentificationCard size={24} className="text-brand-red" />
-            <h1 className="text-3xl font-bold text-ink">Section & Faculty Management</h1>
+          <div className="flex items-center gap-3">
+            <IdentificationCard size={32} weight="regular" className="text-brand-red shrink-0" />
+            <h1 className="text-3xl font-bold text-ink">Sections &amp; Faculty</h1>
           </div>
           <p className="mt-1 text-xs text-ink/50">
             Manage school sections, class assignments, and grade-level Faculty-in-Charge supervisors
@@ -414,7 +523,7 @@ export default function AdminFacultyAssignment() {
             type="button"
             onClick={() => {
               setEditingSectionData(null);
-              setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '' });
+              setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '', adviserId: '' });
               setShowAddSectionModal(true);
             }}
             className="flex items-center gap-1.5 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
@@ -465,7 +574,7 @@ export default function AdminFacultyAssignment() {
         ))}
       </div>
 
-      {/* Sections Table & Controls */}
+      {/* Class Sections Table & Controls */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
         {/* Section Header */}
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
@@ -473,7 +582,7 @@ export default function AdminFacultyAssignment() {
             <ChalkboardTeacher size={20} className="text-brand-red" />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-ink">Class Sections & Advisers</h2>
+                <h2 className="text-sm font-bold text-ink">Class Sections &amp; Advisers</h2>
                 <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
                   {filteredSections.length} Sections Listed
                 </span>
@@ -482,6 +591,7 @@ export default function AdminFacultyAssignment() {
             </div>
           </div>
         </div>
+
         {/* Filter Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ink/10 pb-4">
           {/* Grade Level Tabs */}

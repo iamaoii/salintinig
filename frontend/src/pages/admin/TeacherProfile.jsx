@@ -288,7 +288,7 @@ export default function TeacherProfile() {
                       <td className="border border-ink/10 p-2 text-right">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/students/${std.lrn}`)}
+                          onClick={() => navigate(`/admin/records/students/${std.lrn}`)}
                           className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         >
                           View Profile

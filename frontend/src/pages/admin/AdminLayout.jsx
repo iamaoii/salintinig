@@ -12,18 +12,24 @@ import {
   ChartBar,
   List,
   X,
+  Users,
+  BookOpen,
+  CalendarDots,
+  FlagPennant,
+  Article,
+  ChartPie,
 } from '@phosphor-icons/react';
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import ProfileDropdown from '../../components/dashboard/layout/ProfileDropdown.jsx';
 import { getUser, getToken } from '../../lib/auth.js';
 
+// Top-level nav groups
 const NAV_ITEMS = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: House },
-  { to: '/admin/students', label: 'Student Records', icon: Student },
-  { to: '/admin/teachers', label: 'Teacher Records', icon: ChalkboardTeacher },
-  { to: '/admin/faculty-assignment', label: 'Sections & Faculty', icon: IdentificationCard },
-  { to: '/admin/reports', label: 'Phil-IRI Reports', icon: ChartBar },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: House, exact: true },
+  { to: '/admin/records', label: 'School Records', icon: Users, group: 'records' },
+  { to: '/admin/sections', label: 'Sections & Faculty', icon: IdentificationCard, group: 'sections' },
+  { to: '/admin/phil-iri', label: 'Phil-IRI', icon: BookOpen, group: 'phil-iri' },
 ];
 
 
@@ -170,27 +176,35 @@ export default function AdminLayout() {
 
           {/* Desktop Navigation Tabs (Visible on lg screens 1024px+) */}
           <nav className="hidden lg:flex h-full items-center justify-center gap-4 lg:gap-6">
-            {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `relative flex h-full shrink-0 items-center gap-2 px-3 text-sm font-semibold transition-colors ${
-                    isActive ? 'text-brand-red' : 'text-ink/70 hover:text-ink'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon size={20} weight="regular" className="shrink-0" />
-                    <span>{label}</span>
-                    {isActive && (
-                      <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-t-full bg-brand-red" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
+            {NAV_ITEMS.map(({ to, label, icon: Icon, group, exact }) => {
+              const groupActive = group ? location.pathname.startsWith(`/admin/${group}`) : false;
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={exact}
+                  className={({ isActive }) => {
+                    const active = groupActive || (exact ? isActive : false) || (!group && !exact && isActive);
+                    return `relative flex h-full shrink-0 items-center gap-2 px-3 text-sm font-semibold transition-colors ${
+                      active ? 'text-brand-red' : 'text-ink/70 hover:text-ink'
+                    }`;
+                  }}
+                >
+                  {({ isActive }) => {
+                    const active = groupActive || (exact ? isActive : false) || (!group && !exact && isActive);
+                    return (
+                      <>
+                        <Icon size={20} weight="regular" className="shrink-0" />
+                        <span>{label}</span>
+                        {active && (
+                          <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-t-full bg-brand-red" />
+                        )}
+                      </>
+                    );
+                  }}
+                </NavLink>
+              );
+            })}
           </nav>
 
           {/* Right Account Profile & Notification Popover & Mobile Menu Button */}
@@ -295,22 +309,43 @@ export default function AdminLayout() {
         {/* Mobile / Tablet Dropdown Navigation Drawer (< 1024px) */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-ink/10 bg-cream p-4 space-y-1.5 shadow-lg animate-fade-in">
-            {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                    isActive
-                      ? 'bg-brand-red text-cream shadow-xs'
-                      : 'text-ink/80 hover:bg-ink/5 hover:text-ink'
-                  }`
-                }
-              >
-                <Icon size={18} weight="regular" />
-                <span>{label}</span>
-              </NavLink>
+            {NAV_ITEMS.map(({ to, label, icon: Icon, group }) => (
+              <div key={to}>
+                <NavLink
+                  to={to}
+                  onClick={() => !group && setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                      isActive || (group && location.pathname.startsWith(`/admin/${group}`))
+                        ? 'bg-brand-red text-cream shadow-xs'
+                        : 'text-ink/80 hover:bg-ink/5 hover:text-ink'
+                    }`
+                  }
+                >
+                  <Icon size={18} weight="regular" />
+                  <span>{label}</span>
+                </NavLink>
+                {/* Mobile sub-items */}
+                {group && location.pathname.startsWith(`/admin/${group}`) && SUB_NAV[group] && (
+                  <div className="ml-6 mt-1 flex flex-col gap-1">
+                    {SUB_NAV[group].map(({ to: subTo, label: subLabel, icon: SubIcon }) => (
+                      <NavLink
+                        key={subTo}
+                        to={subTo}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={({ isActive }) =>
+                          `flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                            isActive ? 'bg-brand-red/10 text-brand-red' : 'text-ink/70 hover:bg-ink/5'
+                          }`
+                        }
+                      >
+                        <SubIcon size={14} weight="bold" />
+                        <span>{subLabel}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
