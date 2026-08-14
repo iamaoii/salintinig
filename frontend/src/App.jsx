@@ -42,8 +42,13 @@ import TeacherProfile from './pages/admin/TeacherProfile.jsx';
 import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
 import AdminAccountRequests from './pages/admin/AdminAccountRequests.jsx';
 import AdminPhilIriReports from './pages/admin/AdminPhilIriReports.jsx';
+import AdminPhilIriPassages from './pages/admin/AdminPhilIriPassages.jsx';
+import AdminPhilIriAssessment from './pages/admin/AdminPhilIriAssessment.jsx';
 import AdminNotifications from './pages/admin/AdminNotifications.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
+import AdminRecordsLayout from './pages/admin/AdminRecordsLayout.jsx';
+import AdminSectionsLayout from './pages/admin/AdminSectionsLayout.jsx';
+import AdminPhilIriLayout from './pages/admin/AdminPhilIriLayout.jsx';
 
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -73,19 +78,41 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardHome />} />
-        <Route path="students" element={<AdminStudentRecords />} />
-        <Route path="students/:lrn" element={<AdminStudentProfile />} />
-        <Route path="teachers" element={<AdminTeacherRecords />} />
-        <Route path="teachers/:id" element={<TeacherProfile />} />
-        <Route path="faculty-assignment" element={<AdminFacultyAssignment />} />
+
+        {/* Records Group — layout with sub-tabs inside */}
+        <Route path="records" element={<AdminRecordsLayout />}>
+          <Route index element={<Navigate to="students" replace />} />
+          <Route path="students" element={<AdminStudentRecords />} />
+          <Route path="teachers" element={<AdminTeacherRecords />} />
+        </Route>
+        <Route path="records/students/:lrn" element={<AdminStudentProfile />} />
+        <Route path="records/teachers/:id" element={<TeacherProfile />} />
+
+        <Route path="sections" element={<AdminFacultyAssignment />} />
+        <Route path="sections/*" element={<Navigate to="/admin/sections" replace />} />
+
+        {/* Phil-IRI Group — layout with sub-tabs inside */}
+        <Route path="phil-iri" element={<AdminPhilIriLayout />}>
+          <Route index element={<Navigate to="assessment" replace />} />
+          <Route path="assessment" element={<AdminPhilIriAssessment />} />
+          <Route path="passages" element={<AdminPhilIriPassages />} />
+          <Route path="reports" element={<AdminPhilIriReports />} />
+        </Route>
+
+        {/* Other */}
         <Route path="requests" element={<AdminAccountRequests />} />
-        <Route path="reports" element={<AdminPhilIriReports />} />
-        <Route path="activities" element={<Navigate to="/admin/reports" replace />} />
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="account" element={<AdminSettings />} />
         <Route path="account/:tab" element={<AdminSettings />} />
+
+        {/* Legacy redirects */}
+        <Route path="students" element={<Navigate to="/admin/records/students" replace />} />
+        <Route path="teachers" element={<Navigate to="/admin/records/teachers" replace />} />
+        <Route path="faculty-assignment" element={<Navigate to="/admin/sections/list" replace />} />
+        <Route path="reports" element={<Navigate to="/admin/phil-iri/reports" replace />} />
+        <Route path="activities" element={<Navigate to="/admin/phil-iri/assessment" replace />} />
         <Route path="settings" element={<Navigate to="/admin/account" replace />} />
         <Route path="profile" element={<Navigate to="/admin/account" replace />} />
       </Route>

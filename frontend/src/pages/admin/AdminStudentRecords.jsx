@@ -528,14 +528,14 @@ export default function AdminStudentRecords() {
       <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
       <div className="space-y-6">
 
-      {/* Header */}
+      {/* Section Header & Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Student size={28} className="text-brand-red" />
-            <h1 className="text-3xl font-bold text-ink">Student Records</h1>
+            <Student size={22} className="text-brand-red shrink-0" />
+            <h2 className="text-xl font-bold text-ink">Student Records</h2>
           </div>
-          <p className="mt-1 text-xs text-ink/50">
+          <p className="mt-0.5 text-xs text-ink/50">
             Manage official student masterlists and automated portal accounts
           </p>
         </div>
@@ -677,7 +677,7 @@ export default function AdminStudentRecords() {
                 paginatedStudents.map((std) => (
                   <tr key={std.id} className="hover:bg-ink/[0.02] transition-colors">
                     <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{std.lrn}</td>
-                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/students/${std.lrn}`)}>{std.name}</td>
+                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${std.lrn}`)}>{std.name}</td>
                     <td className="border border-ink/10 p-2 text-ink/80">
                       <span className="font-semibold">{std.grade}</span> - {std.section}
                     </td>
@@ -728,7 +728,7 @@ export default function AdminStudentRecords() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/students/${std.lrn}`)}
+                          onClick={() => navigate(`/admin/records/students/${std.lrn}`)}
                           className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         >
                           View Profile

@@ -493,14 +493,14 @@ export default function AdminTeacherRecords() {
       <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
       <div className="space-y-6">
 
-      {/* Header */}
+      {/* Section Header & Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <ChalkboardTeacher size={28} className="text-brand-red" />
-            <h1 className="text-3xl font-bold text-ink">Teacher Records</h1>
+            <ChalkboardTeacher size={22} className="text-brand-red shrink-0" />
+            <h2 className="text-xl font-bold text-ink">Teacher Records</h2>
           </div>
-          <p className="mt-1 text-xs text-ink/50">
+          <p className="mt-0.5 text-xs text-ink/50">
             Manage official DepEd faculty records, class assignments, and portal access
           </p>
         </div>
@@ -614,7 +614,7 @@ export default function AdminTeacherRecords() {
                     <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{tch.employeeId}</td>
                     <td
                       className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer"
-                      onClick={() => navigate(`/admin/teachers/${tch.employeeId || tch.id}`)}
+                      onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
                     >
                       {tch.name}
                     </td>
@@ -674,7 +674,7 @@ export default function AdminTeacherRecords() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/teachers/${tch.employeeId || tch.id}`)}
+                          onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
                           className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         >
                           View Profile
