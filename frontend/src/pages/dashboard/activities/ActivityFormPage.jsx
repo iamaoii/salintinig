@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Ear,
@@ -16,7 +16,7 @@ import {
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { allClassActivities } from '../../../data/classActivities.js';
-import { students } from '../../../data/students.js';
+import { getToken } from '../../../lib/auth.js';
 
 const ASSESSMENT_TYPES = [
   { key: 'listening', label: 'Listening Assessment', icon: Ear, color: 'bg-[#ffc300]/10 text-[#b38600]' },
@@ -36,6 +36,7 @@ export default function ActivityFormPage() {
   const isEditing = Boolean(id);
   const existing = useMemo(() => allClassActivities.find((a) => a.id === id), [id]);
 
+  const [students, setStudents] = useState([]);
   const [name, setName] = useState(existing?.title ?? '');
   const [date, setDate] = useState('05/25/26');
   const [time, setTime] = useState('11:59 PM');
@@ -43,12 +44,31 @@ export default function ActivityFormPage() {
   const [assessmentType, setAssessmentType] = useState(existing?.assessmentType ?? 'listening');
   const [instructions, setInstructions] = useState(existing?.instructions?.join('\n') ?? '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState(() => new Set(students.map((s) => s.lrn)));
+  const [selectedStudents, setSelectedStudents] = useState(new Set());
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const token = getToken();
+        const res = await fetch('http://localhost:5000/api/admin/students', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.students)) {
+          setStudents(data.students);
+          setSelectedStudents(new Set(data.students.map((s) => s.lrn)));
+        }
+      } catch (err) {
+        console.warn('Fetch activity form students error:', err);
+      }
+    };
+    fetchStudents();
+  }, []);
 
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
     return students.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [searchQuery]);
+  }, [students, searchQuery]);
 
   const toggleStudent = (lrn) => {
     setSelectedStudents((prev) => {

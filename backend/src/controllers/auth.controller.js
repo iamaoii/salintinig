@@ -117,7 +117,7 @@ async function login(req, res) {
         // C. Match by Student LRN (lrn) or LRN identifier
         if (!matchedUser) {
           const studentQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, st.first_name, st.last_name, st.lrn, st.parent_access_code
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, st.first_name, st.last_name, st.lrn
             FROM students st
             JOIN users u ON st.user_id = u.user_id
             WHERE LOWER(st.lrn) = $1 OR LOWER(u.username) = $1
@@ -126,8 +126,7 @@ async function login(req, res) {
           const { rows: studentRows } = await db.query(studentQuery, [cleanId]);
           if (studentRows && studentRows.length > 0) {
             const u = studentRows[0];
-            // Allow matching password_hash or parent_access_code
-            if (checkPasswordMatch(cleanPass, u.password_hash) || (u.parent_access_code && u.parent_access_code.trim() === cleanPass)) {
+            if (checkPasswordMatch(cleanPass, u.password_hash)) {
               matchedUser = u;
             }
           }

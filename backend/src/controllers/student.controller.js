@@ -1,7 +1,5 @@
 const db = require('../config/db.js');
 
-// In-Memory Fallback Store (Empty by default)
-let mockStudents = [];
 
 function generateParentAccessCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Upper case alphanumeric excluding confusing 0/O, 1/I
@@ -295,11 +293,6 @@ async function getStudentByLrn(req, res) {
       }
     }
 
-    const foundMock = mockStudents.find((s) => s.lrn === lrn || s.id === lrn);
-    if (foundMock) {
-      return res.json({ success: true, student: foundMock });
-    }
-
     return res.status(404).json({ success: false, error: 'Student record not found.' });
   } catch (err) {
     console.error('Error fetching student by LRN:', err);
@@ -515,7 +508,6 @@ async function createStudent(req, res) {
       }
     }
 
-    mockStudents.unshift({ ...newStudentObj, tempPassword });
     return res.status(201).json({
       success: true,
       message: `Student record created. Temporary password sent to ${newStudentObj.personalEmail}.`,
@@ -630,13 +622,6 @@ async function toggleStudentStatus(req, res) {
     const { status: targetStatus } = req.body || {};
     let newStatus = targetStatus || 'Disabled';
 
-    mockStudents = mockStudents.map((s) => {
-      if (s.lrn === lrn || s.id === lrn) {
-        newStatus = targetStatus || (s.status === 'Disabled' ? 'Active' : 'Disabled');
-        return { ...s, status: newStatus };
-      }
-      return s;
-    });
 
     if (isDbConfigured()) {
       try {
@@ -712,7 +697,6 @@ async function toggleStudentStatus(req, res) {
 async function deleteStudent(req, res) {
   try {
     const { lrn } = req.params;
-    mockStudents = mockStudents.filter((s) => s.lrn !== lrn && s.id !== lrn);
 
     if (isDbConfigured()) {
       await db.query('BEGIN');
@@ -1059,10 +1043,6 @@ async function checkExistingStudent(req, res) {
       }
     }
 
-    const foundMock = mockStudents.find((s) => s.lrn === lrn);
-    if (foundMock) {
-      return res.json({ success: true, exists: true, student: foundMock });
-    }
 
     return res.json({ success: true, exists: false });
   } catch (err) {
@@ -1165,13 +1145,6 @@ async function transferInStudent(req, res) {
       }
     }
 
-    // Update in mock array if present
-    mockStudents = mockStudents.map((s) => {
-      if (s.lrn === lrn) {
-        return { ...s, grade, section, status: 'Active' };
-      }
-      return s;
-    });
 
     return res.json({
       success: true,
