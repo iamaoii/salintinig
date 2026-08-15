@@ -110,81 +110,84 @@ export default function AdminPhilIriAssessment() {
       <ToastNotification message={toast?.message} onClose={() => setToast(null)} />
 
       <div className="w-full space-y-6">
-        {/* Integrated Embedded Header Bar */}
-        <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-ink/10 pb-4">
-            {/* Title & Description */}
-            <div>
-              <div className="flex items-center gap-2">
-                <BookOpen size={24} className="text-brand-red shrink-0" />
-                <h2 className="text-xl font-bold text-ink">Phil-IRI Assessment Management</h2>
-              </div>
-              <p className="mt-0.5 text-xs text-ink/60">
-                Track student reading evaluation progress across Oral, Silent, and Listening assessment types.
-              </p>
+        {/* 1. Page Header (Outside container box) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <BookOpen size={24} className="text-brand-red shrink-0" />
+              <h2 className="text-xl font-bold text-ink">Phil-IRI Assessment Management</h2>
+            </div>
+            <p className="mt-0.5 text-xs text-ink/60">
+              Track student reading evaluation progress across Oral, Silent, and Listening assessment types.
+            </p>
+          </div>
+
+          {/* Metric Stats Pills */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 rounded-full border border-ink/15 bg-cream px-3.5 py-1 text-xs font-semibold text-ink/70">
+              <Users size={14} className="text-brand-blue" />
+              <span>Total:</span>
+              <span className="font-bold text-ink">
+                {loading ? <span className="inline-block w-4 h-3 rounded bg-ink/10 animate-pulse" /> : metrics.total}
+              </span>
             </div>
 
-            {/* Metric Stats Pills */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <div className="flex items-center gap-2 rounded-full border border-brand-blue/20 bg-brand-blue/10 px-3.5 py-1.5 shadow-2xs">
-                <Users size={15} className="text-brand-blue" />
-                <span className="text-xs font-semibold text-brand-blue/80">Total:</span>
-                <span className="text-xs font-extrabold text-brand-blue">{metrics.total}</span>
-              </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-[#00a652]/25 bg-[#00a652]/10 px-3.5 py-1 text-xs font-semibold text-[#00a652]">
+              <CheckCircle size={14} className="text-[#00a652]" />
+              <span>Completed:</span>
+              <span className="font-bold text-[#00a652]">
+                {loading ? <span className="inline-block w-4 h-3 rounded bg-[#00a652]/20 animate-pulse" /> : metrics.completed}
+              </span>
+            </div>
 
-              <div className="flex items-center gap-2 rounded-full border border-[#00a652]/30 bg-[#00a652]/10 px-3.5 py-1.5 shadow-2xs">
-                <CheckCircle size={15} className="text-[#00a652]" />
-                <span className="text-xs font-semibold text-[#00a652]">Completed:</span>
-                <span className="text-xs font-extrabold text-[#00a652]">{metrics.completed}</span>
-              </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-[#ffc300]/30 bg-[#ffc300]/15 px-3.5 py-1 text-xs font-semibold text-[#b38600]">
+              <Clock size={14} className="text-[#b38600]" />
+              <span>Pending:</span>
+              <span className="font-bold text-[#b38600]">
+                {loading ? <span className="inline-block w-4 h-3 rounded bg-[#ffc300]/30 animate-pulse" /> : metrics.pending}
+              </span>
+            </div>
+          </div>
+        </div>
 
-              <div className="flex items-center gap-2 rounded-full border border-[#ffc300]/40 bg-[#ffc300]/15 px-3.5 py-1.5 shadow-2xs">
-                <Clock size={15} className="text-[#b38600]" />
-                <span className="text-xs font-semibold text-[#b38600]">Pending:</span>
-                <span className="text-xs font-extrabold text-[#b38600]">{metrics.pending}</span>
-              </div>
+        {/* 2. Active Screening Period Configuration Card */}
+        <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] space-y-3">
+          <div className="flex items-center gap-2">
+            <CalendarBlank size={18} className="text-brand-red shrink-0" />
+            <div>
+              <h3 className="text-sm font-bold text-ink">Active Screening Period Configuration</h3>
+              <p className="text-[11px] text-ink/50">Select active testing period per grade level (Pre-Test baseline or Post-Test evaluation)</p>
             </div>
           </div>
 
-          {/* Active Screening Period Section */}
-          <div className="border-t border-ink/10 pt-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <CalendarBlank size={18} className="text-brand-red shrink-0" />
-              <div>
-                <h3 className="text-sm font-bold text-ink">Active Screening Period Configuration</h3>
-                <p className="text-[11px] text-ink/50">Select active testing period per grade level (Pre-Test baseline or Post-Test evaluation)</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => {
-                const current = periods[g];
-                return (
-                  <div key={g} className="rounded-xl border border-ink/12 bg-white p-3.5 shadow-xs flex flex-col justify-between space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-ink">{g}</span>
-                      <span className="rounded-full bg-brand-blue/10 border border-brand-blue/20 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                        Active: {current}
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-ink/50 uppercase tracking-wider block mb-1">
-                        Screening Period
-                      </label>
-                      <select
-                        value={current}
-                        onChange={(e) => handleSavePeriod(g, e.target.value)}
-                        className="w-full rounded-xl border border-ink/20 bg-cream/50 px-3 py-2 text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue cursor-pointer transition-colors"
-                      >
-                        <option value="Pre-Test">Pre-Test (Baseline Period)</option>
-                        <option value="Post-Test">Post-Test (Evaluation Period)</option>
-                      </select>
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => {
+              const current = periods[g];
+              return (
+                <div key={g} className="rounded-xl border border-ink/12 bg-white p-3.5 shadow-xs flex flex-col justify-between space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-ink">{g}</span>
+                    <span className="rounded-full bg-brand-blue/10 border border-brand-blue/20 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                      Active: {current}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-ink/50 uppercase tracking-wider block mb-1">
+                      Screening Period
+                    </label>
+                    <select
+                      value={current}
+                      onChange={(e) => handleSavePeriod(g, e.target.value)}
+                      className="w-full rounded-xl border border-ink/20 bg-cream/50 px-3 py-2 text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue cursor-pointer transition-colors"
+                    >
+                      <option value="Pre-Test">Pre-Test (Baseline Period)</option>
+                      <option value="Post-Test">Post-Test (Evaluation Period)</option>
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
