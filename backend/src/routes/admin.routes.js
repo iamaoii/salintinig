@@ -50,6 +50,17 @@ router.patch('/students/:lrn/status', studentController.toggleStudentStatus);
 router.delete('/students/:lrn', studentController.deleteStudent);
 router.post('/students/import-csv', studentController.importStudentsCSV);
 
+// Phil-IRI Passages Management Endpoints
+router.get('/phil-iri/passages', adminController.getPassages);
+router.post('/phil-iri/passages', adminController.createPassage);
+router.put('/phil-iri/passages/:id', adminController.updatePassage);
+router.delete('/phil-iri/passages/:id', adminController.deletePassage);
+
+// Phil-IRI Assessment Monitoring & Screening Periods
+router.get('/phil-iri/assessments', adminController.getPhilIriAssessments);
+router.get('/phil-iri/periods', adminController.getPhilIriPeriods);
+router.post('/phil-iri/periods', adminController.updatePhilIriPeriods);
+
 // Account Requests Management
 router.get('/account-requests', teacherController.getAccountRequests);
 router.post('/account-requests/:id/approve', teacherController.approveAccountRequest);

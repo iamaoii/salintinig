@@ -174,18 +174,50 @@ CREATE TABLE IF NOT EXISTS question_choices (
 );
 
 -- -----------------------------------------------------------------------------
+-- 5B. DEDICATED PHIL-IRI PASSAGES & QUESTIONS (Formal Assessment Schema)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS phil_iri_passages (
+    passage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    grade_level VARCHAR(50) NOT NULL DEFAULT 'Grade 4',
+    passage_set VARCHAR(50) NOT NULL DEFAULT 'Set A',
+    language VARCHAR(20) DEFAULT 'fil',
+    status VARCHAR(50) DEFAULT 'published',
+    content_text TEXT NOT NULL,
+    word_count INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS phil_iri_questions (
+    question_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    passage_id UUID REFERENCES phil_iri_passages(passage_id) ON DELETE CASCADE,
+    question_text TEXT NOT NULL,
+    question_type VARCHAR(50) DEFAULT 'Multiple Choice',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS phil_iri_question_choices (
+    choice_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    question_id UUID REFERENCES phil_iri_questions(question_id) ON DELETE CASCADE,
+    choice_text TEXT NOT NULL,
+    is_correct BOOLEAN DEFAULT FALSE
+);
+
+-- -----------------------------------------------------------------------------
 -- 6. PHIL-IRI ASSESSMENTS & RESULTS
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assessments (
     assessment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    passage_id UUID REFERENCES phil_iri_passages(passage_id) ON DELETE SET NULL,
     material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
     assessment_type VARCHAR(50) NOT NULL, -- 'oral' or 'silent'
     assessment_period VARCHAR(50) NOT NULL, -- 'pre_test' or 'post_test'
     date_assigned TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) DEFAULT 'assigned',
-    reading_level_result VARCHAR(50), -- 'Independent', 'Instructional', 'Frustrational'
+    reading_level_result VARCHAR(50), -- 'Independent', 'Instructional', 'Frustration'
     remarks TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

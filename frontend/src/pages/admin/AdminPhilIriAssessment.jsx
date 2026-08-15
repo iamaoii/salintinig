@@ -39,9 +39,30 @@ export default function AdminPhilIriAssessment() {
   const [periods, setPeriods] = useState(DEFAULT_PERIODS);
   const [editingGrade, setEditingGrade] = useState(null);
 
-  const fetchStudents = async () => {
+  const fetchAssessments = async () => {
     try {
       setLoading(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/phil-iri/assessments', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.assessments) && data.assessments.length > 0) {
+        setStudents(data.assessments);
+        if (data.periods) setPeriods(data.periods);
+      } else {
+        fetchStudentsFallback();
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Phil-IRI assessments, falling back:', err);
+      fetchStudentsFallback();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStudentsFallback = async () => {
+    try {
       const token = getToken();
       const res = await fetch('http://localhost:5000/api/admin/students', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -51,14 +72,12 @@ export default function AdminPhilIriAssessment() {
         setStudents(data.students || []);
       }
     } catch (err) {
-      console.warn('Failed to fetch students:', err);
-    } finally {
-      setLoading(false);
+      console.warn('Failed to fetch fallback students:', err);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    fetchAssessments();
   }, []);
 
   // Overview metrics
@@ -77,8 +96,21 @@ export default function AdminPhilIriAssessment() {
     return { total, completed, pending };
   }, [students]);
 
-  const handleSavePeriod = (grade, newPeriod) => {
+  const handleSavePeriod = async (grade, newPeriod) => {
     setPeriods((prev) => ({ ...prev, [grade]: newPeriod }));
+    try {
+      const token = getToken();
+      await fetch('http://localhost:5000/api/admin/phil-iri/periods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ grade, period: newPeriod }),
+      });
+    } catch (err) {
+      console.warn('Failed to persist screening period:', err);
+    }
     setToast({ message: `${grade} active period set to ${newPeriod}.` });
     setEditingGrade(null);
   };

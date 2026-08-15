@@ -19,111 +19,14 @@ import {
   GraduationCap,
   ArrowLeft,
   ArrowRight,
+  DotsThreeVertical,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
-
-const INITIAL_PASSAGES = [
-  {
-    id: 1,
-    title: 'Ang Masikhay na Magsasaka',
-    grade: 'Grade 4',
-    set: 'Set A',
-    language: 'Filipino',
-    status: 'Published',
-    words: 120,
-    text: 'Si Mang Juan ay isang masikhay na magsasaka sa lalawigan ng Bulacan. Araw-araw, bago pa man sumikat ang araw, siya ay nasa bukid na upang mag-araro at magtanim ng palay. Dahil sa kanyang sipag at tiyaga, palaging masagana ang kanyang ani. Ipinagmamalaki niya ang kanyang propesyon dahil ito ang nagpapakain sa kanyang pamilya at sa maraming mamamayan.',
-    questions: [
-      {
-        id: 1,
-        question: 'Sino ang pangunahing tauhan sa kuwento?',
-        options: ['Si Mang Juan', 'Si Mang Pedro', 'Si Mang Jose', 'Si Mang Kulas'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-      {
-        id: 2,
-        question: 'Saan matatagpuan ang bukid ni Mang Juan?',
-        options: ['Bulacan', 'Pampanga', 'Laguna', 'Nueva Ecija'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-      {
-        id: 3,
-        question: 'Bakit masagana ang ani ni Mang Juan?',
-        options: ['Dahil sa sipag at tiyaga', 'Dahil sa ulan', 'Dahil sa swerte', 'Dahil sa tulong ng kapitbahay'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: 'The Diligent Farmer',
-    grade: 'Grade 4',
-    set: 'Set A',
-    language: 'English',
-    status: 'Published',
-    words: 118,
-    text: 'Mang Juan is a hardworking farmer from Bulacan. Every day, before the sun rises, he is already in the field plowing and planting rice. Because of his diligence and perseverance, his harvest is always bountiful. He takes pride in his profession because it feeds his family and many citizens.',
-    questions: [
-      {
-        id: 1,
-        question: 'Who is the main character in the story?',
-        options: ['Mang Juan', 'Mang Pedro', 'Mang Jose', 'Mang Kulas'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-      {
-        id: 2,
-        question: 'Where is Mang Juan from?',
-        options: ['Bulacan', 'Pampanga', 'Laguna', 'Cavite'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Ang Puso ng Kabundukan',
-    grade: 'Grade 5',
-    set: 'Set B',
-    language: 'Filipino',
-    status: 'Published',
-    words: 145,
-    text: 'Sa gitna ng serye ng matatayog na kabundukan ng Cordillera, may isang malinis na batis na siyang pinagmumulan ng tubig para sa buong nayon. Ang mga katutubong mamamayan doon ay maingat na inaalagaan ang kagubatan sapagkat naniniwala silang ang kalikasan ang buhay ng kanilang komunidad.',
-    questions: [
-      {
-        id: 1,
-        question: 'Saan matatagpuan ang malinis na batis?',
-        options: ['Sa Cordillera', 'Sa Sierra Madre', 'Sa Banahaw', 'Sa Apo'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: 'The Light of Tomorrow',
-    grade: 'Grade 6',
-    set: 'Set D',
-    language: 'English',
-    status: 'Draft',
-    words: 165,
-    text: 'Education has always been hailed as the great equalizer of opportunities. In a remote village in the Philippines, young learners travel miles on foot just to reach the nearest elementary school. Their unwavering spirit demonstrates that hope burns brightest when fueled by passion for learning.',
-    questions: [
-      {
-        id: 1,
-        question: 'What is described as the great equalizer?',
-        options: ['Education', 'Hard work', 'Wealth', 'Friendship'],
-        correctAnswer: 0,
-        type: 'Multiple Choice',
-      },
-    ],
-  },
-];
+import { getToken } from '../../lib/auth.js';
 
 export default function AdminPhilIriPassages() {
-  const [passages, setPassages] = useState(INITIAL_PASSAGES);
+  const [passages, setPassages] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [selectedLanguage, setSelectedLanguage] = useState('All');
@@ -137,6 +40,8 @@ export default function AdminPhilIriPassages() {
 
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingPassageId, setEditingPassageId] = useState(null);
+  const [deletingPassage, setDeletingPassage] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [modalTab, setModalTab] = useState('details'); // 'details' | 'questions'
 
   // Add/Edit Form State
@@ -149,6 +54,31 @@ export default function AdminPhilIriPassages() {
     text: '',
     questions: [],
   });
+
+  const fetchPassages = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/admin/phil-iri/passages', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.passages)) {
+        setPassages(data.passages);
+      } else {
+        setPassages([]);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch backend passages:', err);
+      setPassages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPassages();
+  }, []);
 
   // Filtered passages list
   const filteredPassages = useMemo(() => {
@@ -207,45 +137,130 @@ export default function AdminPhilIriPassages() {
     setIsAddEditOpen(true);
   };
 
-  // Archive / Delete Passage
-  const handleArchive = (id) => {
+  // Archive / Toggle Status Passage
+  const handleArchive = async (passage) => {
+    let newStatus;
+    let prevStatus = passage.prevStatus || (passage.status !== 'Archived' ? passage.status : 'Published');
+
+    if (passage.status === 'Archived') {
+      newStatus = prevStatus || 'Published';
+    } else {
+      prevStatus = passage.status; // 'Draft' or 'Published'
+      newStatus = 'Archived';
+    }
+
+    const payload = {
+      ...passage,
+      status: newStatus,
+      prevStatus: prevStatus,
+    };
+
+    try {
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/admin/phil-iri/passages/${passage.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setToast({ message: `Passage status updated to ${newStatus}.` });
+        fetchPassages();
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend archive notice:', err);
+    }
+
     setPassages((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: p.status === 'Archived' ? 'Published' : 'Archived' } : p))
+      prev.map((p) => (p.id === passage.id ? { ...p, status: newStatus, prevStatus } : p))
     );
-    setToast({ message: 'Passage status updated.' });
+    setToast({ message: `Passage status updated to ${newStatus}.` });
+  };
+
+  // Delete Passage Permanently
+  const handleDeletePassage = async (passage) => {
+    if (!passage) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/admin/phil-iri/passages/${passage.id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        setToast({ message: `Passage "${passage.title}" deleted successfully.` });
+        fetchPassages();
+        setDeletingPassage(null);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend delete notice:', err);
+    }
+
+    setPassages((prev) => prev.filter((p) => p.id !== passage.id));
+    setToast({ message: `Passage "${passage.title}" deleted.` });
+    setDeletingPassage(null);
   };
 
   // Save Add/Edit form
-  const handleSaveForm = (e, statusOverride) => {
+  const handleSaveForm = async (e, statusOverride) => {
     if (e) e.preventDefault();
+
     if (!formData.title.trim() || !formData.text.trim()) {
-      setToast({ message: 'Please enter a passage title and body text.' });
+      setToast({ message: 'Title and Passage Text are required.', type: 'error' });
       return;
     }
 
-    const targetStatus = statusOverride || formData.status || 'Published';
-    const wordCount = formData.text.trim().split(/\s+/).filter(Boolean).length;
+    const finalStatus = statusOverride || formData.status || 'Published';
+    const wordsCount = formData.text.trim().split(/\s+/).filter(Boolean).length;
+    const passagePayload = {
+      ...formData,
+      status: finalStatus,
+      words: wordsCount,
+    };
 
+    try {
+      const token = getToken();
+      const url = editingPassageId
+        ? `http://localhost:5000/api/admin/phil-iri/passages/${editingPassageId}`
+        : 'http://localhost:5000/api/admin/phil-iri/passages';
+      const method = editingPassageId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(passagePayload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: `Passage ${editingPassageId ? 'updated' : 'created'} successfully.` });
+        fetchPassages();
+        setIsAddEditOpen(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend save notice, saving to local state:', err);
+    }
+
+    // Local fallback
     if (editingPassageId) {
-      // Edit
       setPassages((prev) =>
-        prev.map((p) =>
-          p.id === editingPassageId
-            ? { ...p, ...formData, status: targetStatus, words: wordCount }
-            : p
-        )
+        prev.map((p) => (p.id === editingPassageId ? { ...p, ...passagePayload } : p))
       );
-      setToast({ message: targetStatus === 'Draft' ? 'Passage saved as draft.' : 'Passage updated successfully.' });
+      setToast({ message: 'Passage updated successfully.' });
     } else {
-      // Add
       const newPassage = {
         id: Date.now(),
-        ...formData,
-        status: targetStatus,
-        words: wordCount,
+        ...passagePayload,
       };
       setPassages((prev) => [newPassage, ...prev]);
-      setToast({ message: targetStatus === 'Draft' ? 'Passage saved as draft.' : 'New passage published successfully.' });
+      setToast({ message: 'Passage created successfully.' });
     }
 
     setIsAddEditOpen(false);
@@ -310,6 +325,14 @@ export default function AdminPhilIriPassages() {
       document.documentElement.style.overflow = '';
     };
   }, [isPreviewOpen, isAddEditOpen]);
+
+  // Close 3-dot dropdown menu when clicking anywhere outside
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handleClickOutside = () => setOpenMenuId(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [openMenuId]);
 
   return (
     <>
@@ -427,7 +450,14 @@ export default function AdminPhilIriPassages() {
 
         {/* ── Passage Cards Grid (Matching User Wireframe Card Layout) ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPassages.length === 0 ? (
+          {loading ? (
+            <div className="col-span-full py-16 text-center rounded-2xl border border-ink/10 bg-white">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+                <span className="text-xs font-semibold text-ink/70">Loading Phil-IRI Passage Records...</span>
+              </div>
+            </div>
+          ) : filteredPassages.length === 0 ? (
             <div className="col-span-full py-16 text-center rounded-2xl border border-ink/10 bg-white">
               <Article size={40} className="text-ink/20 mx-auto mb-2" />
               <h3 className="text-sm font-bold text-ink/60">No passages found</h3>
@@ -494,7 +524,7 @@ export default function AdminPhilIriPassages() {
                       Questions: {questionCount}
                     </span>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 relative">
                       {/* Preview Button */}
                       <button
                         type="button"
@@ -502,10 +532,10 @@ export default function AdminPhilIriPassages() {
                           setPreviewPassage(passage);
                           setIsPreviewOpen(true);
                         }}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue/10 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2.5 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
                         title="Preview Passage"
                       >
-                        <Eye size={14} weight="bold" />
+                        <Eye size={13} weight="bold" />
                         <span>Preview</span>
                       </button>
 
@@ -513,23 +543,59 @@ export default function AdminPhilIriPassages() {
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(passage)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-ink/70 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/70 hover:bg-ink/10 hover:text-ink transition-colors cursor-pointer"
                         title="Edit Passage"
                       >
-                        <Pencil size={14} weight="bold" />
+                        <Pencil size={13} weight="bold" />
                         <span>Edit</span>
                       </button>
 
-                      {/* Archive Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleArchive(passage.id)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-red hover:bg-brand-red/10 transition-colors cursor-pointer"
-                        title={passage.status === 'Archived' ? 'Restore Passage' : 'Archive Passage'}
-                      >
-                        <Archive size={14} weight="bold" />
-                        <span>{passage.status === 'Archived' ? 'Restore' : 'Archive'}</span>
-                      </button>
+                      {/* 3-Dot More Actions Menu */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(openMenuId === passage.id ? null : passage.id);
+                          }}
+                          className="rounded-full p-1 text-ink/50 hover:bg-ink/10 hover:text-ink transition-colors cursor-pointer"
+                          title="More Options"
+                        >
+                          <DotsThreeVertical size={16} weight="bold" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {openMenuId === passage.id && (
+                          <div
+                            className="absolute right-0 bottom-full mb-1 z-30 w-36 rounded-xl border border-ink/10 bg-white p-1.5 shadow-lg space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                handleArchive(passage);
+                              }}
+                              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer text-left"
+                            >
+                              <Archive size={14} weight="bold" />
+                              <span>{passage.status === 'Archived' ? 'Restore' : 'Archive'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                setDeletingPassage(passage);
+                              }}
+                              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-red hover:bg-brand-red/10 transition-colors cursor-pointer text-left"
+                            >
+                              <Trash size={14} weight="bold" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -538,6 +604,46 @@ export default function AdminPhilIriPassages() {
           )}
         </div>
       </div>
+
+      {/* ── DELETE CONFIRMATION MODAL ── */}
+      {deletingPassage && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-3 text-brand-red">
+              <div className="rounded-full bg-brand-red/10 p-2.5">
+                <Trash size={24} weight="bold" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-ink">Delete Reading Passage</h3>
+                <p className="text-xs text-ink/60">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-ink/70 leading-relaxed bg-white p-3 rounded-xl border border-ink/10">
+              Are you sure you want to permanently delete <strong className="text-ink">"{deletingPassage.title}"</strong> ({deletingPassage.grade}, {deletingPassage.language})? All associated questions will also be removed.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink/10">
+              <button
+                type="button"
+                onClick={() => setDeletingPassage(null)}
+                className="rounded-full border border-ink/20 bg-cream px-4 py-2 text-xs font-bold text-ink/70 hover:bg-ink/10 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeletePassage(deletingPassage)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-brand-red/90 transition-colors cursor-pointer"
+              >
+                <Trash size={15} weight="bold" />
+                <span>Delete Permanently</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── PREVIEW MODAL ── */}
       {isPreviewOpen && previewPassage && createPortal(

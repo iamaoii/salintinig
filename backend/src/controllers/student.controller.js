@@ -1402,31 +1402,49 @@ async function completeActivityProgress(req, res) {
 // ---------------------------------------------------------------------------
 async function getPhilIriPassages(req, res) {
   try {
-    const { grade, set, type, language, period } = req.query;
-    const passagesSeed = require('../data/phil_iri_passages.json');
+    const { grade, set, language } = req.query;
 
-    let filtered = [...passagesSeed];
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, count: 0, passages: [] });
+    }
+
+    let query = `
+      SELECT 
+        passage_id AS id,
+        title,
+        grade_level AS "gradeLevel",
+        passage_set AS set,
+        language,
+        status,
+        content_text AS text,
+        word_count AS words
+      FROM phil_iri_passages
+      WHERE status != 'archived'
+    `;
+    const params = [];
 
     if (grade) {
-      filtered = filtered.filter((p) => p.gradeLevel.toLowerCase() === String(grade).toLowerCase());
+      params.push(grade);
+      query += ` AND LOWER(grade_level) = LOWER($${params.length})`;
     }
     if (set) {
-      filtered = filtered.filter((p) => p.set.toLowerCase() === String(set).toLowerCase());
-    }
-    if (type) {
-      filtered = filtered.filter((p) => p.assessmentType.toLowerCase() === String(type).toLowerCase());
+      params.push(set);
+      query += ` AND LOWER(passage_set) = LOWER($${params.length})`;
     }
     if (language) {
-      filtered = filtered.filter((p) => p.language.toLowerCase() === String(language).toLowerCase());
+      const langCode = String(language).toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
+      params.push(langCode);
+      query += ` AND LOWER(language) = LOWER($${params.length})`;
     }
-    if (period) {
-      filtered = filtered.filter((p) => p.assessmentPeriod.toLowerCase() === String(period).toLowerCase());
-    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows: passages } = await db.query(query, params);
 
     return res.json({
       success: true,
-      count: filtered.length,
-      passages: filtered,
+      count: passages.length,
+      passages,
     });
   } catch (error) {
     console.error('Error fetching Phil-IRI passages:', error);
@@ -1504,14 +1522,29 @@ async function getStudentActiveAssignment(req, res) {
       };
     }
 
-    // Fetch the matching passage details
-    const passagesSeed = require('../data/phil_iri_passages.json');
-    const matchedPassage = passagesSeed.find(
-      (p) =>
-        p.gradeLevel.toLowerCase() === assignment.gradeLevel.toLowerCase() &&
-        p.set.toLowerCase() === assignment.set.toLowerCase() &&
-        p.assessmentPeriod.toLowerCase() === assignment.period.toLowerCase()
-    ) || passagesSeed[0];
+    // Fetch matching passage details from database
+    let matchedPassage = null;
+    if (process.env.DATABASE_URL) {
+      const { rows } = await db.query(`
+        SELECT 
+          passage_id AS id,
+          title,
+          grade_level AS "gradeLevel",
+          passage_set AS set,
+          language,
+          content_text AS text,
+          word_count AS words
+        FROM phil_iri_passages
+        WHERE status != 'archived'
+          AND LOWER(grade_level) = LOWER($1)
+          AND LOWER(passage_set) = LOWER($2)
+        LIMIT 1
+      `, [assignment.gradeLevel, assignment.set]);
+
+      if (rows && rows.length > 0) {
+        matchedPassage = rows[0];
+      }
+    }
 
     return res.json({
       success: true,

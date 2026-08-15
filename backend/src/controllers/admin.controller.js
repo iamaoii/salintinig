@@ -1852,6 +1852,277 @@ async function getPhilIriAnalytics(req, res) {
   }
 }
 
+// Memory store for active screening period per grade
+let memoryPeriods = {
+  'Grade 4': 'Pre-Test',
+  'Grade 5': 'Pre-Test',
+  'Grade 6': 'Pre-Test',
+};
+
+/**
+ * GET /api/admin/phil-iri/passages — Fetch all Phil-IRI passages with questions
+ */
+async function getPassages(req, res) {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, passages: [] });
+    }
+
+    const { rows: materials } = await db.query(`
+      SELECT 
+        passage_id AS id,
+        title,
+        grade_level AS grade,
+        passage_set AS set,
+        language,
+        status,
+        COALESCE(prev_status, 'published') AS prev_status,
+        content_text AS text,
+        word_count AS words,
+        created_at
+      FROM phil_iri_passages
+      ORDER BY created_at DESC
+    `);
+
+    const passages = await Promise.all(
+      materials.map(async (m) => {
+        const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
+        const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
+        const statusDisplay = (m.status || 'published').charAt(0).toUpperCase() + (m.status || 'published').slice(1);
+        const prevStatusDisplay = (m.prev_status || 'published').charAt(0).toUpperCase() + (m.prev_status || 'published').slice(1);
+
+        const { rows: qRows } = await db.query(`
+          SELECT question_id, question_text, question_type
+          FROM phil_iri_questions
+          WHERE passage_id = $1
+          ORDER BY created_at ASC
+        `, [m.id]);
+
+        const questions = await Promise.all(
+          qRows.map(async (q) => {
+            const { rows: cRows } = await db.query(`
+              SELECT choice_id, choice_text, is_correct
+              FROM phil_iri_question_choices
+              WHERE question_id = $1
+            `, [q.question_id]);
+
+            const options = cRows.map((c) => c.choice_text);
+            const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+            return {
+              id: q.question_id,
+              question: q.question_text,
+              type: q.question_type || 'Multiple Choice',
+              options,
+              correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+            };
+          })
+        );
+
+        return {
+          id: m.id,
+          title: m.title,
+          grade: m.grade || 'Grade 4',
+          set: m.set || 'Set A',
+          language: langDisplay,
+          status: statusDisplay,
+          prevStatus: prevStatusDisplay,
+          words,
+          text: m.text,
+          questions,
+        };
+      })
+    );
+
+    return res.json({ success: true, passages });
+  } catch (error) {
+    console.error('Error fetching passages:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch passages.' });
+  }
+}
+
+/**
+ * POST /api/admin/phil-iri/passages — Create new Phil-IRI passage with questions
+ */
+async function createPassage(req, res) {
+  try {
+    const { title, grade, set, language, status, text, questions } = req.body;
+    if (!title || !text) {
+      return res.status(400).json({ success: false, error: 'Title and content text are required.' });
+    }
+
+    const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
+    const statusVal = (status || 'published').toLowerCase();
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
+    const { rows } = await db.query(`
+      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, prev_status, content_text, word_count)
+      VALUES ($1, $2, $3, $4, $5, $5, $6, $7)
+      RETURNING passage_id AS id
+    `, [title, grade || 'Grade 4', set || 'Set A', langCode, statusVal, text, wordCount]);
+
+    const materialId = rows[0].id;
+
+    if (Array.isArray(questions)) {
+      for (const q of questions) {
+        if (!q.question) continue;
+        const qRes = await db.query(`
+          INSERT INTO phil_iri_questions (passage_id, question_text, question_type)
+          VALUES ($1, $2, $3)
+          RETURNING question_id
+        `, [materialId, q.question, q.type || 'Multiple Choice']);
+
+        const qId = qRes.rows[0].question_id;
+
+        if (Array.isArray(q.options)) {
+          for (let i = 0; i < q.options.length; i++) {
+            const optText = q.options[i];
+            const isCorrect = i === (Number(q.correctAnswer) || 0);
+            await db.query(`
+              INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
+              VALUES ($1, $2, $3)
+            `, [qId, optText, isCorrect]);
+          }
+        }
+      }
+    }
+
+    return res.status(201).json({ success: true, message: 'Passage created successfully.', passageId: materialId });
+  } catch (error) {
+    console.error('Error creating passage:', error);
+    return res.status(500).json({ success: false, error: 'Failed to create passage.' });
+  }
+}
+
+/**
+ * PUT /api/admin/phil-iri/passages/:id — Update existing Phil-IRI passage
+ */
+async function updatePassage(req, res) {
+  try {
+    const { id } = req.params;
+    const { title, grade, set, language, status, prevStatus, text, questions } = req.body;
+
+    const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
+    const statusVal = (status || 'published').toLowerCase();
+    const prevStatusVal = (prevStatus || 'published').toLowerCase();
+    const wordCount = (text || '').trim().split(/\s+/).filter(Boolean).length;
+
+    await db.query(`
+      UPDATE phil_iri_passages
+      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5, prev_status = $6, content_text = $7, word_count = $8, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $9
+    `, [title, grade, set, langCode, statusVal, prevStatusVal, text, wordCount, id]);
+
+    if (Array.isArray(questions)) {
+      await db.query(`DELETE FROM phil_iri_questions WHERE passage_id = $1`, [id]);
+      for (const q of questions) {
+        if (!q.question) continue;
+        const qRes = await db.query(`
+          INSERT INTO phil_iri_questions (passage_id, question_text, question_type)
+          VALUES ($1, $2, $3)
+          RETURNING question_id
+        `, [id, q.question, q.type || 'Multiple Choice']);
+
+        const qId = qRes.rows[0].question_id;
+        if (Array.isArray(q.options)) {
+          for (let i = 0; i < q.options.length; i++) {
+            const optText = q.options[i];
+            const isCorrect = i === (Number(q.correctAnswer) || 0);
+            await db.query(`
+              INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
+              VALUES ($1, $2, $3)
+            `, [qId, optText, isCorrect]);
+          }
+        }
+      }
+    }
+
+    return res.json({ success: true, message: 'Passage updated successfully.' });
+  } catch (error) {
+    console.error('Error updating passage:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update passage.' });
+  }
+}
+
+/**
+ * DELETE /api/admin/phil-iri/passages/:id — Delete Phil-IRI passage
+ */
+async function deletePassage(req, res) {
+  try {
+    const { id } = req.params;
+    await db.query(`DELETE FROM phil_iri_passages WHERE passage_id = $1`, [id]);
+    return res.json({ success: true, message: 'Passage deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting passage:', error);
+    return res.status(500).json({ success: false, error: 'Failed to delete passage.' });
+  }
+}
+
+/**
+ * GET /api/admin/phil-iri/assessments — Fetch Phil-IRI Assessment status records
+ */
+async function getPhilIriAssessments(req, res) {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, assessments: [], periods: memoryPeriods });
+    }
+
+    const schoolId = await getAdminSchoolId(req);
+    const { rows } = await db.query(`
+      SELECT 
+        s.student_id AS id,
+        s.lrn,
+        COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
+        COALESCE(c.grade_level, 'Grade 4') AS grade,
+        COALESCE(c.section_name, 'Unassigned') AS section,
+        COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+        COALESCE(a.assessment_type, 'Oral Reading') AS type,
+        COALESCE(a.assessment_period, 'Pre-Test') AS period,
+        COALESCE(a.status, 'assigned') AS status,
+        TO_CHAR(a.date_assigned, 'YYYY-MM-DD') AS date_assigned
+      FROM students s
+      JOIN users u ON s.user_id = u.user_id
+      LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+      LEFT JOIN classes c ON sgh.class_id = c.class_id
+      LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+      LEFT JOIN (
+        SELECT DISTINCT ON (student_id) student_id, assessment_type, assessment_period, status, date_assigned
+        FROM assessments
+        ORDER BY student_id, created_at DESC
+      ) a ON a.student_id = s.student_id
+      WHERE u.school_id = $1
+      ORDER BY COALESCE(s.last_name, s.lrn) ASC
+    `, [schoolId]);
+
+    return res.json({ success: true, assessments: rows, periods: memoryPeriods });
+  } catch (error) {
+    console.error('Error fetching Phil-IRI assessments:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch assessments.' });
+  }
+}
+
+/**
+ * GET /api/admin/phil-iri/periods — Fetch screening periods
+ */
+async function getPhilIriPeriods(req, res) {
+  return res.json({ success: true, periods: memoryPeriods });
+}
+
+/**
+ * POST /api/admin/phil-iri/periods — Update active screening period per grade
+ */
+async function updatePhilIriPeriods(req, res) {
+  try {
+    const { grade, period } = req.body;
+    if (grade && period) {
+      memoryPeriods[grade] = period;
+    }
+    return res.json({ success: true, message: `${grade} active period updated to ${period}.`, periods: memoryPeriods });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to update screening period.' });
+  }
+}
+
 module.exports = {
   getSections,
   createSection,
@@ -1869,4 +2140,11 @@ module.exports = {
   getAdminInfo,
   updateAdminInfo,
   getPhilIriAnalytics,
+  getPassages,
+  createPassage,
+  updatePassage,
+  deletePassage,
+  getPhilIriAssessments,
+  getPhilIriPeriods,
+  updatePhilIriPeriods,
 };
