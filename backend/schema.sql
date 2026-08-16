@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS student_grade_history (
 );
 
 -- -----------------------------------------------------------------------------
--- 5. READING MATERIALS & QUESTION BANK
+-- 5. READING MATERIALS & QUESTION BANK (Practice Story Library)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reading_materials (
     material_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -149,9 +149,10 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     language VARCHAR(20) DEFAULT 'fil', -- 'fil' or 'en'
     difficulty_level VARCHAR(50),
     category VARCHAR(50),
-    material_type VARCHAR(50),
+    material_type VARCHAR(50) DEFAULT 'practice_story',
     grade_level_target VARCHAR(50),
     status VARCHAR(50) DEFAULT 'active',
+    cover_image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS phil_iri_passages (
     passage_set VARCHAR(50) NOT NULL DEFAULT 'Set A',
     language VARCHAR(20) DEFAULT 'fil',
     status VARCHAR(50) DEFAULT 'published',
+    prev_status VARCHAR(50) DEFAULT 'published',
     content_text TEXT NOT NULL,
     word_count INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -205,13 +207,12 @@ CREATE TABLE IF NOT EXISTS phil_iri_question_choices (
 );
 
 -- -----------------------------------------------------------------------------
--- 6. PHIL-IRI ASSESSMENTS & RESULTS
+-- 6. PHIL-IRI ASSESSMENTS & RESULTS (Phil-IRI Assessment Only)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assessments (
     assessment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     passage_id UUID REFERENCES phil_iri_passages(passage_id) ON DELETE SET NULL,
-    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
     assessment_type VARCHAR(50) NOT NULL, -- 'oral' or 'silent'
     assessment_period VARCHAR(50) NOT NULL, -- 'pre_test' or 'post_test'
@@ -242,6 +243,8 @@ CREATE TABLE IF NOT EXISTS oral_reading_results (
     reading_time_seconds INT,
     words_read INT,
     correct_words INT,
+    reading_rate_wpm DECIMAL(6,2),
+    accuracy_percentage DECIMAL(5,2),
     self_corrections_count INT DEFAULT 0,
     fluency_score DECIMAL(5,2),
     pronunciation_score DECIMAL(5,2),
@@ -269,8 +272,8 @@ CREATE TABLE IF NOT EXISTS silent_reading_results (
 CREATE TABLE IF NOT EXISTS assessment_answers (
     answer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
-    question_id UUID REFERENCES questions(question_id) ON DELETE CASCADE,
-    selected_choice_id UUID REFERENCES question_choices(choice_id) ON DELETE SET NULL,
+    phil_iri_question_id UUID REFERENCES phil_iri_questions(question_id) ON DELETE CASCADE,
+    selected_choice_id UUID REFERENCES phil_iri_question_choices(choice_id) ON DELETE SET NULL,
     answer_text TEXT,
     is_correct BOOLEAN DEFAULT FALSE,
     score DECIMAL(5,2),
@@ -354,7 +357,7 @@ CREATE TABLE IF NOT EXISTS activity_answers (
 );
 
 -- -----------------------------------------------------------------------------
--- 8. BADGES, PROGRESS & PROFILES
+-- 8. BADGES, PRACTICE STORY ATTEMPTS & READING PROFILES
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS badges (
     badge_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -392,15 +395,36 @@ CREATE TABLE IF NOT EXISTS student_story_progress (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Detailed Practice Story Attempts (Analytics)
+CREATE TABLE IF NOT EXISTS story_attempts (
+    attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    score DECIMAL(5,2),
+    total_questions INT DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'in_progress'
+);
+
+CREATE TABLE IF NOT EXISTS story_answers (
+    answer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    attempt_id UUID REFERENCES story_attempts(attempt_id) ON DELETE CASCADE,
+    question_id UUID REFERENCES questions(question_id) ON DELETE CASCADE,
+    selected_choice_id UUID REFERENCES question_choices(choice_id) ON DELETE SET NULL,
+    is_correct BOOLEAN DEFAULT FALSE,
+    answered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS reading_profiles (
     profile_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    student_id UUID UNIQUE REFERENCES students(student_id) ON DELETE CASCADE,
     reading_speed_wpm INT,
     comprehension_level VARCHAR(50),
     fluency_level VARCHAR(50),
     pronunciation_level VARCHAR(50),
     miscue_pattern TEXT,
-    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustrational'
+    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustration'
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -454,3 +478,8 @@ CREATE INDEX IF NOT EXISTS idx_classes_grade_section ON classes(grade_level, sec
 CREATE INDEX IF NOT EXISTS idx_student_grade_history_class ON student_grade_history(class_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id);
 CREATE INDEX IF NOT EXISTS idx_reading_profiles_student ON reading_profiles(student_id);
+CREATE INDEX IF NOT EXISTS idx_story_attempts_student ON story_attempts(student_id);
+CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(material_id);
+CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_assessment_answers_attempt ON assessment_answers(assessment_attempt_id);
+CREATE INDEX IF NOT EXISTS idx_oral_results_attempt ON oral_reading_results(assessment_attempt_id);
