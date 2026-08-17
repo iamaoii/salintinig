@@ -955,21 +955,21 @@ async function getPhilIriActivities(req, res) {
     if (process.env.DATABASE_URL) {
       const query = `
         SELECT 
-          a.passage_id AS "id",
+          a.passage_id AS "passageId",
           p.title,
           'Phil-IRI' AS "tag",
           'phil-iri' AS "type",
-          a.assessment_type AS "assessmentType",
-          a.assessment_period AS "period",
+          LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
+          LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
           p.grade_level AS "gradeLevel",
           p.passage_set AS "passageSet",
           COUNT(DISTINCT a.assessment_id)::int AS "totalAssigned",
-          COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.assessment_id END)::int AS "done",
-          COUNT(DISTINCT CASE WHEN a.status != 'completed' THEN a.assessment_id END)::int AS "pending",
+          COUNT(DISTINCT CASE WHEN LOWER(a.status) = 'completed' THEN a.assessment_id END)::int AS "done",
+          COUNT(DISTINCT CASE WHEN LOWER(a.status) != 'completed' THEN a.assessment_id END)::int AS "pending",
           MAX(a.created_at) AS "created_at"
         FROM assessments a
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
-        GROUP BY a.passage_id, p.title, a.assessment_type, a.assessment_period, p.grade_level, p.passage_set
+        GROUP BY a.passage_id, p.title, LOWER(COALESCE(a.assessment_type, 'oral')), LOWER(COALESCE(a.assessment_period, 'pre_test')), p.grade_level, p.passage_set
         ORDER BY MAX(a.created_at) DESC
       `;
       const { rows } = await db.query(query);
@@ -979,8 +979,10 @@ async function getPhilIriActivities(req, res) {
           : r.assessmentType === 'listening'
             ? 'Listening'
             : 'Silent Reading';
+        const uniqueId = `${r.passageId}_${r.assessmentType}_${r.period}`;
         return {
-          id: r.id,
+          id: uniqueId,
+          passageId: r.passageId,
           title: `${r.title} (${typeLabel} - ${r.passageSet || 'Set A'})`,
           tag: 'Phil-IRI',
           type: 'phil-iri',
@@ -991,9 +993,12 @@ async function getPhilIriActivities(req, res) {
           status: r.pending === 0 ? 'completed' : 'pending',
           done: r.done,
           pending: r.pending,
+          totalAssigned: r.totalAssigned,
           action: r.pending === 0 ? 'View result' : 'Open',
           dueDate: 'Active',
           stars: 100,
+          studentsUnder14Gst: r.done,
+          studentsAbove14Gst: r.pending,
           lastUpdate: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today',
           instructions: [
             `Complete the ${typeLabel} assessment for ${r.title}.`,
@@ -1028,16 +1033,149 @@ async function getPhilIriPassages(req, res) {
 async function deleteAssessment(req, res) {
   try {
     const { id } = req.params;
+    const cleanId = String(id || '').trim();
+
     if (process.env.DATABASE_URL) {
+      let passageId = cleanId;
+      let assessmentType = null;
+      let period = null;
+
+      if (cleanId.includes('_')) {
+        const parts = cleanId.split('_');
+        passageId = parts[0];
+        if (parts.length > 1) assessmentType = parts[1];
+        if (parts.length > 2) period = parts.slice(2).join('_');
+      }
+
+      // Build conditions
+      let whereClause = `(a.passage_id::text = $1 OR a.assessment_id::text = $1)`;
+      const params = [passageId];
+
+      if (assessmentType) {
+        params.push(assessmentType);
+        whereClause += ` AND LOWER(COALESCE(a.assessment_type, 'oral')) = LOWER($${params.length})`;
+      }
+
+      if (period) {
+        params.push(period);
+        whereClause += ` AND LOWER(COALESCE(a.assessment_period, 'pre_test')) = LOWER($${params.length})`;
+      }
+
+      // 1. Delete child records in oral_reading_results
       await db.query(
-        `DELETE FROM assessments WHERE passage_id::text = $1 OR assessment_id::text = $1`,
-        [id]
+        `DELETE FROM oral_reading_results 
+         WHERE assessment_attempt_id IN (
+           SELECT aa.attempt_id FROM assessment_attempts aa
+           JOIN assessments a ON aa.assessment_id = a.assessment_id
+           WHERE ${whereClause}
+         )`,
+        params
       );
+
+      // 2. Delete child records in assessment_attempts
+      await db.query(
+        `DELETE FROM assessment_attempts 
+         WHERE assessment_id IN (SELECT a.assessment_id FROM assessments a WHERE ${whereClause})`,
+        params
+      );
+
+      // 3. Delete target records from assessments
+      const result = await db.query(
+        `DELETE FROM assessments a WHERE ${whereClause}`,
+        params
+      );
+
+      console.log(`Successfully deleted ${result.rowCount} assessment record(s) for query: ${cleanId}`);
     }
+
     return res.json({ success: true, message: 'Assessment deleted successfully.' });
   } catch (err) {
     console.error('Error deleting assessment:', err);
     return res.status(500).json({ success: false, error: 'Failed to delete assessment.' });
+  }
+}
+
+// GET /api/teacher/class-students — Get students enrolled strictly in the teacher's section
+async function getTeacherClassStudents(req, res) {
+  try {
+    const userId = req.user?.userId || req.user?.user_id || req.user?.id;
+
+    if (process.env.DATABASE_URL) {
+      // 1. Fetch students enrolled in the teacher's assigned section
+      const sectionQuery = `
+        SELECT 
+          s.student_id AS id,
+          s.student_id AS "studentId",
+          s.lrn,
+          CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+          s.first_name AS "firstName",
+          s.middle_name AS "middleName",
+          s.last_name AS "lastName",
+          s.sex AS gender,
+          c.section_name AS "sectionName",
+          c.grade_level AS "gradeLevel",
+          c.class_id AS "classId",
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
+        FROM students s
+        JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+        JOIN classes c ON sgh.class_id = c.class_id
+        JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+        JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
+        LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+        LEFT JOIN (
+          SELECT DISTINCT ON (student_id) student_id, reading_level_result
+          FROM assessments
+          WHERE reading_level_result IS NOT NULL
+          ORDER BY student_id, created_at DESC
+        ) a ON a.student_id = s.student_id
+        WHERE t.user_id = $1
+        ORDER BY s.last_name ASC, s.first_name ASC
+      `;
+      const { rows } = await db.query(sectionQuery, [userId]);
+
+      if (rows && rows.length > 0) {
+        return res.json({ success: true, students: rows });
+      }
+
+      // 2. Fallback for FIC teacher (grade-level students)
+      const ficQuery = `
+        SELECT 
+          s.student_id AS id,
+          s.student_id AS "studentId",
+          s.lrn,
+          CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+          s.first_name AS "firstName",
+          s.middle_name AS "middleName",
+          s.last_name AS "lastName",
+          s.sex AS gender,
+          c.section_name AS "sectionName",
+          c.grade_level AS "gradeLevel",
+          c.class_id AS "classId",
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
+        FROM students s
+        JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+        JOIN classes c ON sgh.class_id = c.class_id
+        JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+        JOIN faculty_in_charge fic ON fic.grade_level = c.grade_level AND fic.school_year_id = sy.school_year_id AND fic.status = 'active'
+        JOIN teachers t ON fic.teacher_id = t.teacher_id
+        LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+        LEFT JOIN (
+          SELECT DISTINCT ON (student_id) student_id, reading_level_result
+          FROM assessments
+          WHERE reading_level_result IS NOT NULL
+          ORDER BY student_id, created_at DESC
+        ) a ON a.student_id = s.student_id
+        WHERE t.user_id = $1
+        ORDER BY c.section_name ASC, s.last_name ASC
+      `;
+      const ficRes = await db.query(ficQuery, [userId]);
+      return res.json({ success: true, students: ficRes.rows || [] });
+    }
+
+    return res.json({ success: true, students: [] });
+  } catch (err) {
+    console.error('Error fetching teacher class students:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch class students.' });
   }
 }
 
@@ -1058,4 +1196,5 @@ module.exports = {
   getPhilIriActivities,
   getPhilIriPassages,
   deleteAssessment,
+  getTeacherClassStudents,
 };

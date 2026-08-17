@@ -15,6 +15,8 @@ import {
   ArrowSquareOut,
 } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
+import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
 
 const ASSESSMENT_TYPES = [
@@ -70,6 +72,7 @@ export default function PhilIriAssignPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewPassage, setPreviewPassage] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
 
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
@@ -121,33 +124,24 @@ export default function PhilIriAssignPage() {
     };
     fetchPassages();
 
-    // Fetch enrolled students
-    fetch('/api/students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    // Fetch enrolled section students for this teacher
+    fetch('/api/teacher/class-students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.students) && data.students.length > 0) {
           initStudents(data.students);
         } else {
-          fetch('/api/teacher/grade-level', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          fetch('/api/students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
             .then((res) => res.json())
-            .then((gData) => {
-              if (gData.success && Array.isArray(gData.students)) {
-                initStudents(gData.students);
+            .then((sData) => {
+              if (sData.success && Array.isArray(sData.students)) {
+                initStudents(sData.students);
               }
             })
             .catch(() => {});
         }
       })
-      .catch(() => {
-        fetch('/api/teacher/grade-level', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-          .then((res) => res.json())
-          .then((gData) => {
-            if (gData.success && Array.isArray(gData.students)) {
-              initStudents(gData.students);
-            }
-          })
-          .catch(() => {});
-      });
+      .catch(() => {});
   }, []);
 
   const initStudents = (stdList) => {
@@ -182,8 +176,17 @@ export default function PhilIriAssignPage() {
   const toggleStudent = (id) => {
     setSelectedStudents((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        setSelectedPassages((sp) => {
+          const cp = { ...sp };
+          delete cp[id];
+          return cp;
+        });
+      } else {
+        next.add(id);
+        setSelectedPassages((sp) => ({ ...sp, [id]: '' }));
+      }
       return next;
     });
   };
@@ -191,22 +194,50 @@ export default function PhilIriAssignPage() {
   const toggleAll = () => {
     if (selectedStudents.size === students.length) {
       setSelectedStudents(new Set());
+      setSelectedPassages({});
     } else {
-      setSelectedStudents(new Set(students.map((s) => s.student_id || s.id)));
+      const allIds = students.map((s) => s.student_id || s.id);
+      setSelectedStudents(new Set(allIds));
+      const emptyMap = {};
+      allIds.forEach((id) => {
+        emptyMap[id] = '';
+      });
+      setSelectedPassages(emptyMap);
     }
   };
 
   const handleAutoDistributeSets = () => {
-    const updated = { ...selectedPassages };
-    const sets = ['Set A', 'Set B', 'Set C', 'Set D'];
+    if (!selectedLanguage) {
+      setToastMessage({ text: 'Please select an Assessment Language (Filipino or English) first.', type: 'warning' });
+      return;
+    }
+
     const availablePassages = filteredPassages.length > 0 ? filteredPassages : passages;
-    students.forEach((std, idx) => {
+    if (availablePassages.length === 0) {
+      setToastMessage({ text: 'No passages available for the selected criteria.', type: 'warning' });
+      return;
+    }
+
+    if (selectedStudents.size === 0) {
+      setToastMessage({ text: 'Please select at least one student before auto-distributing passage sets.', type: 'warning' });
+      return;
+    }
+
+    const targetStudentList = students.filter((s) => selectedStudents.has(s.student_id || s.id));
+
+    const updated = { ...selectedPassages };
+
+    targetStudentList.forEach((std) => {
       const stdId = std.student_id || std.id;
-      const setChoice = sets[idx % sets.length];
-      const match = availablePassages.find((p) => p.passage_set === setChoice) || availablePassages[0];
-      if (match) updated[stdId] = match.passage_id;
+      const randomPassage = availablePassages[Math.floor(Math.random() * availablePassages.length)];
+
+      if (randomPassage) {
+        updated[stdId] = randomPassage.passage_id;
+      }
     });
+
     setSelectedPassages(updated);
+    setToastMessage({ text: `Auto-distributed passage sets to ${targetStudentList.length} student(s).`, type: 'success' });
   };
 
   const handleSetChange = (studentId, passageId) => {
@@ -216,25 +247,25 @@ export default function PhilIriAssignPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!period) {
-      alert('Please select an Assessment Period (Pre-Test or Post-Test).');
+      setToastMessage({ text: 'Please select an Assessment Period (Pre-Test or Post-Test).', type: 'warning' });
       return;
     }
     if (!selectedLanguage) {
-      alert('Please select an Assessment Language (Filipino or English).');
+      setToastMessage({ text: 'Please select an Assessment Language (Filipino or English).', type: 'warning' });
       return;
     }
     if (!assessmentType) {
-      alert('Please select an Assessment Type (Listening, Oral, or Silent).');
+      setToastMessage({ text: 'Please select an Assessment Type (Listening, Oral, or Silent).', type: 'warning' });
       return;
     }
     if (selectedStudents.size === 0) {
-      alert('Please select at least one student to assign.');
+      setToastMessage({ text: 'Please select at least one student to assign.', type: 'warning' });
       return;
     }
 
     const unassignedStudentId = Array.from(selectedStudents).find((sId) => !selectedPassages[sId]);
     if (unassignedStudentId) {
-      alert('Please select a passage set for all selected students (or click "Auto-Distribute Sets").');
+      setToastMessage({ text: 'Please select a passage set for all selected students (or click "Auto-Distribute Sets").', type: 'warning' });
       return;
     }
 
@@ -263,10 +294,11 @@ export default function PhilIriAssignPage() {
       if (data.success) {
         navigate('/teacher/class-activities/phil-iri');
       } else {
-        alert(data.error || 'Failed to publish Phil-IRI assignments.');
+        setToastMessage({ text: data.error || 'Failed to publish Phil-IRI assignments.', type: 'error' });
       }
     } catch (err) {
       console.error('Failed to assign Phil-IRI:', err);
+      setToastMessage({ text: 'Failed to publish Phil-IRI assignments.', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -518,9 +550,7 @@ export default function PhilIriAssignPage() {
                     >
                       {/* Left: Avatar + Name + Level Badge */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg}`}>
-                          {getInitials(name)}
-                        </div>
+                        <Avatar name={name} src={std.profileImage || std.profile_image} size={32} />
 
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate text-xs font-bold text-ink">{name}</h3>
@@ -535,25 +565,18 @@ export default function PhilIriAssignPage() {
                         {isChecked && (
                           <select
                             value={selectedPassages[stdId] || ''}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleSetChange(stdId, e.target.value)}
                             className="w-44 truncate rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs font-bold text-ink outline-none focus:border-brand-blue focus:bg-white cursor-pointer"
                           >
                             <option value="" disabled>-- Select Set --</option>
-                            {filteredPassages.length > 0 ? (
+                            {filteredPassages.length > 0 &&
                               filteredPassages.map((p) => (
                                 <option key={p.passage_id} value={p.passage_id}>
                                   {p.passage_set ? `${p.passage_set}: ${p.title}` : p.title}
                                 </option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="set_a">Set A: Ang Masikhay na Magsasaka</option>
-                                <option value="set_b">Set B: Ang Pambansang Watawat</option>
-                                <option value="set_c">Set C: Si Basa</option>
-                                <option value="set_d">Set D: Ang Ating Paaralan</option>
-                              </>
-                            )}
+                              ))}
                           </select>
                         )}
 
@@ -648,6 +671,8 @@ export default function PhilIriAssignPage() {
         </div>,
         document.body
       )}
+      {/* Toast Notification */}
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
     </div>
   );
 }
