@@ -15,12 +15,16 @@ function consolidateActivities(rawList) {
   const map = new Map();
 
   rawList.forEach((act) => {
-    const key = `${act.passageId || act.id || ''}_${act.assessmentType || act.type || ''}_${act.title || ''}`.toLowerCase().trim();
+    const type = (act.assessmentType || act.type || 'oral').toLowerCase();
+    const period = (act.period || act.assessmentPeriod || 'pre_test').toLowerCase();
+    const lang = (act.language || 'fil').toLowerCase();
+
+    const key = act.id && act.id.includes('_') ? act.id : `${type}_${period}_${lang}`;
 
     if (!map.has(key)) {
       map.set(key, {
         ...act,
-        id: act.id || key,
+        id: key,
         done: Number(act.done || 0),
         pending: Number(act.pending || 0),
         totalAssigned: Number(act.totalAssigned || (Number(act.done || 0) + Number(act.pending || 0))),

@@ -191,12 +191,26 @@ export default function PhilIriAssignPage() {
     });
   };
 
+  const checkAlreadyHasAssessment = (student, typeKey, periodKey, langKey) => {
+    if (!student || !Array.isArray(student.existingAssessments) || !typeKey || !periodKey) return null;
+    return student.existingAssessments.find((a) => {
+      const matchesType = a.type?.toLowerCase() === typeKey.toLowerCase();
+      const matchesPeriod = a.period?.toLowerCase() === periodKey.toLowerCase();
+      if (!langKey) return matchesType && matchesPeriod;
+      const aLang = (a.language || 'fil').toLowerCase();
+      const targetLang = (langKey || 'fil').toLowerCase();
+      const matchesLang = aLang === targetLang || aLang.startsWith(targetLang[0]);
+      return matchesType && matchesPeriod && matchesLang;
+    });
+  };
+
   const toggleAll = () => {
-    if (selectedStudents.size === students.length) {
+    const eligibleStudents = students.filter((s) => !checkAlreadyHasAssessment(s, assessmentType, period, selectedLanguage));
+    if (selectedStudents.size === eligibleStudents.length && eligibleStudents.length > 0) {
       setSelectedStudents(new Set());
       setSelectedPassages({});
     } else {
-      const allIds = students.map((s) => s.student_id || s.id);
+      const allIds = eligibleStudents.map((s) => s.student_id || s.id);
       setSelectedStudents(new Set(allIds));
       const emptyMap = {};
       allIds.forEach((id) => {
@@ -525,35 +539,51 @@ export default function PhilIriAssignPage() {
             {/* Student Roster List */}
             <div className="mt-3.5 flex max-h-[520px] flex-1 flex-col gap-2 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-ink/20 hover:scrollbar-thumb-ink/40">
               {filteredStudents.length > 0 ? (
-                filteredStudents.map((std, idx) => {
+                filteredStudents.map((std) => {
                   const stdId = std.student_id || std.id;
                   const isChecked = selectedStudents.has(stdId);
                   const name = std.name || `${std.firstName || ''} ${std.lastName || ''}`.trim() || 'Student';
                   const level = std.level || 'Pending Evaluation';
                   const badgeStyle = LEVEL_TAG[level] || LEVEL_TAG['Pending Evaluation'];
-                  const avatarBg = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+
+                  const existingRec = checkAlreadyHasAssessment(std, assessmentType, period, selectedLanguage);
+                  const isAlreadyAssigned = Boolean(existingRec);
 
                   return (
                     <div
                       key={stdId}
                       onClick={() => {
-                        if (!isLeftPanelComplete) return;
+                        if (!isLeftPanelComplete || isAlreadyAssigned) return;
                         toggleStudent(stdId);
                       }}
+                      title={
+                        isAlreadyAssigned
+                          ? `Student already has an official ${selectedLanguage === 'en' ? 'English' : 'Filipino'} ${period === 'pre_test' ? 'Pre-test' : 'Post-test'} for this assessment type.`
+                          : undefined
+                      }
                       className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-all ${
-                        !isLeftPanelComplete
-                          ? 'border-ink/10 bg-white/40 opacity-40 cursor-not-allowed'
-                          : isChecked
-                            ? 'border-ink/15 bg-white shadow-xs cursor-pointer'
-                            : 'border-ink/10 bg-white/40 opacity-50 hover:opacity-80 cursor-pointer'
+                        isAlreadyAssigned
+                          ? 'border-ink/15 bg-slate-50/60 opacity-80 cursor-not-allowed'
+                          : !isLeftPanelComplete
+                            ? 'border-ink/10 bg-white/40 opacity-40 cursor-not-allowed'
+                            : isChecked
+                              ? 'border-ink/15 bg-white shadow-xs cursor-pointer'
+                              : 'border-ink/10 bg-white/40 opacity-50 hover:opacity-80 cursor-pointer'
                       }`}
                     >
-                      {/* Left: Avatar + Name + Level Badge */}
+                      {/* Left: Avatar + Name + Level Badge / Locked Badge */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar name={name} src={std.profileImage || std.profile_image} size={32} />
 
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-xs font-bold text-ink">{name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate text-xs font-bold text-ink">{name}</h3>
+                            {isAlreadyAssigned && (
+                              <span className="rounded bg-ink/10 px-1.5 py-0.5 text-[9px] font-bold text-ink/70 border border-ink/10 shrink-0">
+                                {selectedLanguage === 'en' ? 'ENG' : 'FIL'} {period === 'pre_test' ? 'Pre-test' : 'Post-test'} Assigned ({existingRec?.passageSet || 'Set A'})
+                              </span>
+                            )}
+                          </div>
                           <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
                             {level}
                           </span>
@@ -562,7 +592,7 @@ export default function PhilIriAssignPage() {
 
                       {/* Right: Phil-IRI Set Dropdown + Checkbox */}
                       <div className="flex items-center gap-2 shrink-0">
-                        {isChecked && (
+                        {isChecked && !isAlreadyAssigned && (
                           <select
                             value={selectedPassages[stdId] || ''}
                             onMouseDown={(e) => e.stopPropagation()}
@@ -583,12 +613,18 @@ export default function PhilIriAssignPage() {
                         {/* Selection Checkbox indicator */}
                         <div
                           className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition-all ${
-                            isChecked
-                              ? 'border-brand-blue bg-brand-blue text-white'
-                              : 'border-ink/20 bg-white hover:border-ink/40'
+                            isAlreadyAssigned
+                              ? 'border-ink/20 bg-ink/10 text-ink/60'
+                              : isChecked
+                                ? 'border-brand-blue bg-brand-blue text-white'
+                                : 'border-ink/20 bg-white hover:border-ink/40'
                           }`}
                         >
-                          {isChecked && <Check size={14} weight="bold" />}
+                          {isAlreadyAssigned ? (
+                            <Check size={12} weight="bold" />
+                          ) : isChecked ? (
+                            <Check size={12} weight="bold" />
+                          ) : null}
                         </div>
                       </div>
                     </div>

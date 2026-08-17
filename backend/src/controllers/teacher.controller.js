@@ -832,26 +832,73 @@ async function assignPhilIriToStudents(req, res) {
       return res.status(400).json({ success: false, error: 'Assignments array is required.' });
     }
 
-    const teacherUserId = req.user?.userId || req.user?.user_id;
+    const teacherUserId = req.user?.teacherId || req.user?.teacher_id || req.user?.userId || req.user?.user_id || req.user?.id;
+
+    let successfulCount = 0;
+    const skippedDuplicates = [];
 
     if (process.env.DATABASE_URL) {
-      // Find teacher_id
-      const tRes = await db.query(`SELECT teacher_id FROM teachers WHERE user_id = $1 LIMIT 1`, [teacherUserId]);
+      // Find teacher_id from teachers table
+      const tRes = await db.query(
+        `SELECT teacher_id FROM teachers WHERE user_id::text = $1::text OR teacher_id::text = $1::text LIMIT 1`,
+        [teacherUserId]
+      );
       const teacherId = tRes.rows[0]?.teacher_id || null;
 
       for (const item of assignments) {
-        if (!item.studentId || !item.passageId) continue;
+        // Fetch passage language first
+        const pRes = await db.query(`SELECT language, title FROM phil_iri_passages WHERE passage_id::text = $1 LIMIT 1`, [String(item.passageId)]);
+        const passageLang = (pRes.rows[0]?.language || 'fil').toLowerCase();
+        const langLabel = passageLang.startsWith('en') ? 'English' : 'Filipino';
+
+        // Check if student already has an official assessment for this (assessment_type, assessment_period, language)
+        const dupCheck = await db.query(
+          `SELECT a.assessment_id, p.title 
+           FROM assessments a
+           LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+           WHERE a.student_id = $1
+             AND LOWER(COALESCE(a.assessment_type, 'oral')) = LOWER($2)
+             AND LOWER(COALESCE(a.assessment_period, 'pre_test')) = LOWER($3)
+             AND LOWER(COALESCE(p.language, 'fil')) = LOWER($4)
+           LIMIT 1`,
+          [item.studentId, assessmentType, assessmentPeriod, passageLang]
+        );
+
+        if (dupCheck.rows && dupCheck.rows.length > 0) {
+          const existingTitle = dupCheck.rows[0].title || 'an existing passage';
+          skippedDuplicates.push({
+            studentId: item.studentId,
+            reason: `Already has an official ${langLabel} ${assessmentPeriod === 'pre_test' ? 'Pre-test' : 'Post-test'} for ${assessmentType} (${existingTitle}).`
+          });
+          continue;
+        }
+
         await db.query(
           `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, status)
            VALUES ($1, $2, $3, $4, $5, 'assigned')`,
           [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod]
         );
+        successfulCount++;
       }
+    } else {
+      successfulCount = assignments.length;
+    }
+
+    if (successfulCount === 0 && skippedDuplicates.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Selected student(s) already have an official ${assessmentPeriod === 'pre_test' ? 'Pre-test' : 'Post-test'} assigned for ${assessmentType}. Only ONE official Pre-test and Post-test per assessment cycle is allowed.`,
+        skippedDuplicates,
+      });
     }
 
     return res.json({
       success: true,
-      message: `Successfully assigned Phil-IRI passages to ${assignments.length} student(s).`
+      message: `Successfully assigned Phil-IRI passages to ${successfulCount} student(s).` +
+        (skippedDuplicates.length > 0 ? ` (${skippedDuplicates.length} student(s) skipped as they already have an official ${assessmentPeriod} assigned).` : ''),
+      assignedCount: successfulCount,
+      skippedCount: skippedDuplicates.length,
+      skippedDuplicates,
     });
   } catch (err) {
     console.error('Error in assignPhilIriToStudents:', err);
@@ -925,14 +972,16 @@ async function verifyOralReadingResult(req, res) {
         [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
       );
 
-      // Update main assessment record status & reading profile
+      // Update main assessment record status, reading profile, and remarks
+      const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
       await db.query(
         `UPDATE assessments
          SET status = 'completed',
              reading_level_result = $1,
+             remarks = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $2)`,
-        [profileLabel, attemptId]
+         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $3)`,
+        [profileLabel, remarksText, attemptId]
       );
     }
 
@@ -955,21 +1004,18 @@ async function getPhilIriActivities(req, res) {
     if (process.env.DATABASE_URL) {
       const query = `
         SELECT 
-          a.passage_id AS "passageId",
-          p.title,
-          'Phil-IRI' AS "tag",
-          'phil-iri' AS "type",
           LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
-          p.grade_level AS "gradeLevel",
-          p.passage_set AS "passageSet",
+          LOWER(COALESCE(p.language, 'fil')) AS "language",
+          MAX(p.grade_level) AS "gradeLevel",
+          STRING_AGG(DISTINCT p.passage_set, ', ' ORDER BY p.passage_set) AS "setsIncluded",
           COUNT(DISTINCT a.assessment_id)::int AS "totalAssigned",
           COUNT(DISTINCT CASE WHEN LOWER(a.status) = 'completed' THEN a.assessment_id END)::int AS "done",
           COUNT(DISTINCT CASE WHEN LOWER(a.status) != 'completed' THEN a.assessment_id END)::int AS "pending",
           MAX(a.created_at) AS "created_at"
         FROM assessments a
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
-        GROUP BY a.passage_id, p.title, LOWER(COALESCE(a.assessment_type, 'oral')), LOWER(COALESCE(a.assessment_period, 'pre_test')), p.grade_level, p.passage_set
+        GROUP BY LOWER(COALESCE(a.assessment_type, 'oral')), LOWER(COALESCE(a.assessment_period, 'pre_test')), LOWER(COALESCE(p.language, 'fil'))
         ORDER BY MAX(a.created_at) DESC
       `;
       const { rows } = await db.query(query);
@@ -979,17 +1025,22 @@ async function getPhilIriActivities(req, res) {
           : r.assessmentType === 'listening'
             ? 'Listening'
             : 'Silent Reading';
-        const uniqueId = `${r.passageId}_${r.assessmentType}_${r.period}`;
+        
+        const periodLabel = r.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+        const langLabel = r.language.startsWith('en') ? 'English' : 'Filipino';
+        const masterTitle = `${typeLabel} Assessment (${periodLabel} - ${langLabel})`;
+        const uniqueId = `${r.assessmentType}_${r.period}_${r.language}`;
+
         return {
           id: uniqueId,
-          passageId: r.passageId,
-          title: `${r.title} (${typeLabel} - ${r.passageSet || 'Set A'})`,
+          title: masterTitle,
           tag: 'Phil-IRI',
           type: 'phil-iri',
           assessmentType: r.assessmentType,
           period: r.period,
-          gradeLevel: r.gradeLevel,
-          passageSet: r.passageSet,
+          language: r.language,
+          gradeLevel: r.gradeLevel || 'Grade 4',
+          passageSet: r.setsIncluded ? `Sets ${r.setsIncluded}` : 'All Sets',
           status: r.pending === 0 ? 'completed' : 'pending',
           done: r.done,
           pending: r.pending,
@@ -1001,8 +1052,8 @@ async function getPhilIriActivities(req, res) {
           studentsAbove14Gst: r.pending,
           lastUpdate: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today',
           instructions: [
-            `Complete the ${typeLabel} assessment for ${r.title}.`,
-            'Answer comprehension questions accurately.',
+            `Complete the ${typeLabel} (${periodLabel}) assessment for ${langLabel}.`,
+            'Includes assigned passage sets for your section students.',
           ],
         };
       });
@@ -1036,20 +1087,40 @@ async function deleteAssessment(req, res) {
     const cleanId = String(id || '').trim();
 
     if (process.env.DATABASE_URL) {
-      let passageId = cleanId;
+      let passageId = null;
       let assessmentType = null;
       let period = null;
+      let language = null;
 
-      if (cleanId.includes('_')) {
+      const knownTypes = ['oral', 'listening', 'silent'];
+      const matchingType = knownTypes.find((t) => cleanId.toLowerCase().startsWith(t + '_'));
+
+      if (matchingType) {
+        assessmentType = matchingType;
+        const remainder = cleanId.substring(matchingType.length + 1).toLowerCase(); // e.g. 'pre_test_fil' or 'post_test_en'
+        if (remainder.endsWith('_fil') || remainder.endsWith('_en')) {
+          language = remainder.endsWith('_en') ? 'en' : 'fil';
+          period = remainder.substring(0, remainder.lastIndexOf('_')); // e.g. 'pre_test'
+        } else {
+          period = remainder;
+        }
+      } else if (cleanId.includes('_')) {
         const parts = cleanId.split('_');
         passageId = parts[0];
         if (parts.length > 1) assessmentType = parts[1];
         if (parts.length > 2) period = parts.slice(2).join('_');
+      } else {
+        passageId = cleanId;
       }
 
       // Build conditions
-      let whereClause = `(a.passage_id::text = $1 OR a.assessment_id::text = $1)`;
-      const params = [passageId];
+      let whereClause = `1=1`;
+      const params = [];
+
+      if (passageId) {
+        params.push(passageId);
+        whereClause += ` AND (a.passage_id::text = $${params.length} OR a.assessment_id::text = $${params.length})`;
+      }
 
       if (assessmentType) {
         params.push(assessmentType);
@@ -1059,6 +1130,11 @@ async function deleteAssessment(req, res) {
       if (period) {
         params.push(period);
         whereClause += ` AND LOWER(COALESCE(a.assessment_period, 'pre_test')) = LOWER($${params.length})`;
+      }
+
+      if (language) {
+        params.push(language);
+        whereClause += ` AND EXISTS (SELECT 1 FROM phil_iri_passages p WHERE p.passage_id = a.passage_id AND (LOWER(COALESCE(p.language, 'fil')) = LOWER($${params.length}) OR LOWER(COALESCE(p.language, 'fil')) LIKE LOWER($${params.length}) || '%'))`;
       }
 
       // 1. Delete child records in oral_reading_results
@@ -1132,44 +1208,99 @@ async function getTeacherClassStudents(req, res) {
         ORDER BY s.last_name ASC, s.first_name ASC
       `;
       const { rows } = await db.query(sectionQuery, [userId]);
+      let students = rows && rows.length > 0 ? rows : [];
 
-      if (rows && rows.length > 0) {
-        return res.json({ success: true, students: rows });
+      if (students.length === 0) {
+        const ficQuery = `
+          SELECT 
+            s.student_id AS id,
+            s.student_id AS "studentId",
+            s.lrn,
+            CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+            s.first_name AS "firstName",
+            s.middle_name AS "middleName",
+            s.last_name AS "lastName",
+            s.sex AS gender,
+            c.section_name AS "sectionName",
+            c.grade_level AS "gradeLevel",
+            c.class_id AS "classId",
+            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
+          FROM students s
+          JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+          JOIN classes c ON sgh.class_id = c.class_id
+          JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+          JOIN faculty_in_charge fic ON fic.grade_level = c.grade_level AND fic.school_year_id = sy.school_year_id AND fic.status = 'active'
+          JOIN teachers t ON fic.teacher_id = t.teacher_id
+          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            WHERE reading_level_result IS NOT NULL
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = s.student_id
+          WHERE t.user_id = $1
+          ORDER BY c.section_name ASC, s.last_name ASC
+        `;
+        const ficRes = await db.query(ficQuery, [userId]);
+        students = ficRes.rows || [];
       }
 
-      // 2. Fallback for FIC teacher (grade-level students)
-      const ficQuery = `
-        SELECT 
-          s.student_id AS id,
-          s.student_id AS "studentId",
-          s.lrn,
-          CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-          s.first_name AS "firstName",
-          s.middle_name AS "middleName",
-          s.last_name AS "lastName",
-          s.sex AS gender,
-          c.section_name AS "sectionName",
-          c.grade_level AS "gradeLevel",
-          c.class_id AS "classId",
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
-        FROM students s
-        JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-        JOIN classes c ON sgh.class_id = c.class_id
-        JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
-        JOIN faculty_in_charge fic ON fic.grade_level = c.grade_level AND fic.school_year_id = sy.school_year_id AND fic.status = 'active'
-        JOIN teachers t ON fic.teacher_id = t.teacher_id
-        LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
-        LEFT JOIN (
-          SELECT DISTINCT ON (student_id) student_id, reading_level_result
-          FROM assessments
-          WHERE reading_level_result IS NOT NULL
-          ORDER BY student_id, created_at DESC
-        ) a ON a.student_id = s.student_id
-        WHERE t.user_id = $1
-        ORDER BY c.section_name ASC, s.last_name ASC
-      `;
-      const ficRes = await db.query(ficQuery, [userId]);
-      return res.json({ success: true, students: ficRes.rows || [] });
+      // If still empty (e.g. teacher with no class or demo data), query all students
+      if (students.length === 0) {
+        const fallbackQuery = `
+          SELECT 
+            s.student_id AS id,
+            s.student_id AS "studentId",
+            s.lrn,
+            CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+            s.first_name AS "firstName",
+            s.middle_name AS "middleName",
+            s.last_name AS "lastName",
+            s.sex AS gender,
+            'Section 1' AS "sectionName",
+            'Grade 4' AS "gradeLevel",
+            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS "readingLevel"
+          FROM students s
+          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          ORDER BY s.last_name ASC, s.first_name ASC
+        `;
+        const fbRes = await db.query(fallbackQuery);
+        students = fbRes.rows || [];
+      }
+
+      if (students.length > 0) {
+        const studentIds = students.map((s) => String(s.id || s.studentId)).filter(Boolean);
+        if (studentIds.length > 0) {
+          const assRes = await db.query(
+            `SELECT 
+               a.student_id::text AS "studentId",
+               LOWER(COALESCE(a.assessment_type, 'oral')) AS type,
+               LOWER(COALESCE(a.assessment_period, 'pre_test')) AS period,
+               LOWER(COALESCE(p.language, 'fil')) AS language,
+               a.status,
+               p.title AS "passageTitle",
+               p.passage_set AS "passageSet"
+             FROM assessments a
+             LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+             WHERE a.student_id::text = ANY($1::text[])`,
+            [studentIds]
+          );
+
+          const assMap = new Map();
+          (assRes.rows || []).forEach((row) => {
+            const sidStr = String(row.studentId);
+            if (!assMap.has(sidStr)) assMap.set(sidStr, []);
+            assMap.get(sidStr).push(row);
+          });
+
+          students.forEach((s) => {
+            const sidStr = String(s.id || s.studentId);
+            s.existingAssessments = assMap.get(sidStr) || [];
+          });
+        }
+      }
+
+      return res.json({ success: true, students });
     }
 
     return res.json({ success: true, students: [] });

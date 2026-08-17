@@ -60,13 +60,31 @@ function getAssessmentTheme(activity) {
 }
 
 function TitleBlock({ activity, theme, className = '' }) {
+  const lang = (activity.language || activity.title || '').toLowerCase();
+  const isEn = lang.includes('english') || lang.includes('en');
+  const langBadge = isEn ? 'ENG' : 'FIL';
+
   return (
     <div className={`flex flex-col items-start gap-1 ${className}`}>
       <p className="text-sm font-bold text-ink leading-snug">{activity.title}</p>
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${theme.badgeBg}`}>
           {activity.tag || 'Phil-IRI'}
         </span>
+        <span
+          className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+            isEn
+              ? 'bg-blue-100 text-blue-950 border border-blue-200'
+              : 'bg-emerald-100 text-emerald-950 border border-emerald-200'
+          }`}
+        >
+          {langBadge}
+        </span>
+        {activity.passageSet && (
+          <span className="rounded-md bg-ink/5 px-1.5 py-0.5 text-[9px] font-bold text-ink/70 border border-ink/10">
+            {activity.passageSet}
+          </span>
+        )}
       </div>
     </div>
   );
