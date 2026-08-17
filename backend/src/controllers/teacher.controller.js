@@ -1245,7 +1245,7 @@ async function getTeacherClassStudents(req, res) {
         students = ficRes.rows || [];
       }
 
-      // If still empty (e.g. teacher with no class or demo data), query all students
+      // If still empty (e.g. general fallback), query all enrolled students from database
       if (students.length === 0) {
         const fallbackQuery = `
           SELECT 
@@ -1257,10 +1257,12 @@ async function getTeacherClassStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             s.sex AS gender,
-            'Section 1' AS "sectionName",
-            'Grade 4' AS "gradeLevel",
+            COALESCE(c.section_name, 'General') AS "sectionName",
+            COALESCE(c.grade_level, 'Grade 4') AS "gradeLevel",
             COALESCE(rp.current_profile_label, 'Pending Evaluation') AS "readingLevel"
           FROM students s
+          LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+          LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
           ORDER BY s.last_name ASC, s.first_name ASC
         `;

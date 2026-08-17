@@ -167,7 +167,7 @@ export default function ClassActivities() {
         onVerified={() => {
           setActiveReviewData(null);
           // refresh pending list
-          const token = localStorage.getItem('token');
+          const token = getToken();
           fetch('/api/teacher/assessments/pending-reviews', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
             .then(res => res.json())
             .then(data => {
