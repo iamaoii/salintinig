@@ -240,6 +240,9 @@ CREATE TABLE IF NOT EXISTS oral_reading_results (
     assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
     audio_recording_url TEXT,
     transcript_text TEXT,
+    ai_miscues_json JSONB,
+    verified_miscues_json JSONB,
+    verification_status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'verified'
     reading_time_seconds INT,
     words_read INT,
     correct_words INT,
@@ -248,7 +251,9 @@ CREATE TABLE IF NOT EXISTS oral_reading_results (
     self_corrections_count INT DEFAULT 0,
     fluency_score DECIMAL(5,2),
     pronunciation_score DECIMAL(5,2),
-    comprehension_score DECIMAL(5,2)
+    comprehension_score DECIMAL(5,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS oral_reading_miscues (

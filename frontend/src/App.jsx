@@ -30,6 +30,8 @@ import PhilIriForm3List from './pages/dashboard/phil-iri/PhilIriForm3List.jsx';
 import PhilIriForm3Detail from './pages/dashboard/phil-iri/PhilIriForm3Detail.jsx';
 import PhilIriForm4Detail from './pages/dashboard/phil-iri/PhilIriForm4Detail.jsx';
 import PhilIriExportSuccess from './pages/dashboard/phil-iri/PhilIriExportSuccess.jsx';
+import PhilIriAssignPage from './pages/dashboard/phil-iri/PhilIriAssignPage.jsx';
+import PhilIriPassageBank from './pages/dashboard/phil-iri/PhilIriPassageBank.jsx';
 import GradeLevelPage from './pages/dashboard/grade-level/GradeLevelPage.jsx';
 import FicTeacherProfilePage from './pages/dashboard/grade-level/FicTeacherProfilePage.jsx';
 
@@ -167,10 +169,12 @@ export default function App() {
         />
         <Route path="phil-iri-records/form-4/:lrn" element={<PhilIriForm4Detail />} />
         <Route path="phil-iri-records/export-success" element={<PhilIriExportSuccess />} />
+        <Route path="phil-iri-passages" element={<PhilIriPassageBank />} />
 
         <Route path="class-activities" element={<Navigate to="phil-iri" replace />} />
         <Route path="class-activities/phil-iri" element={<ClassActivities />} />
         <Route path="class-activities/practice" element={<ClassActivities />} />
+        <Route path="class-activities/assign-phil-iri" element={<PhilIriAssignPage />} />
         <Route path="class-activities/new" element={<ActivityFormPage />} />
         <Route path="class-activities/success" element={<ActivitySuccess />} />
         <Route path="class-activities/:id/edit" element={<ActivityFormPage />} />

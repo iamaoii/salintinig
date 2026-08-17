@@ -315,4 +315,14 @@ router.delete('/grade-level/sections/:id', async (req, res) => {
   }
 });
 
+/**
+ * Phil-IRI Per-Student Assignment & Oral Review Verification Routes
+ */
+router.post('/assessments/assign-phil-iri-students', teacherController.assignPhilIriToStudents);
+router.get('/assessments/pending-reviews', teacherController.getPendingOralReviews);
+router.put('/assessments/:attemptId/verify-oral', teacherController.verifyOralReadingResult);
+router.get('/assessments/phil-iri-activities', teacherController.getPhilIriActivities);
+router.get('/assessments/passages', teacherController.getPhilIriPassages);
+router.delete('/assessments/:id', teacherController.deleteAssessment);
+
 module.exports = router;

@@ -14,6 +14,7 @@ const {
   getStudentActiveAssignment,
   completeStoryProgress,
   completeActivityProgress,
+  submitStudentOralAudio,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
@@ -22,6 +23,7 @@ router.get('/assessment/passages', getPhilIriPassages);
 router.get('/assessment/my-assignment', getStudentActiveAssignment);
 router.post('/assessment/assign', assignPhilIriToStudent);
 router.post('/assessment/submit', submitPhilIriAssessment);
+router.post('/assessment/submit-oral-audio', submitStudentOralAudio);
 router.post('/story/complete', completeStoryProgress);
 router.post('/activity/complete', completeActivityProgress);
 router.get('/:lrn', getStudentByLrn);

@@ -1558,6 +1558,96 @@ async function getStudentActiveAssignment(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/students/assessment/submit-oral-audio — Submit Oral Audio & Speech-to-Text Miscue Analysis
+// ---------------------------------------------------------------------------
+async function submitStudentOralAudio(req, res) {
+  try {
+    const { studentId, assessmentId, passageId, audioUrl, transcriptText, readingTimeSeconds = 60 } = req.body;
+
+    if (!passageId || !transcriptText) {
+      return res.status(400).json({ success: false, error: 'Passage ID and transcript text are required.' });
+    }
+
+    const { analyzeOralReading } = require('../services/miscueEngine.js');
+
+    if (process.env.DATABASE_URL) {
+      // 1. Fetch passage text
+      const pRes = await db.query(`SELECT content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
+      if (!pRes.rows?.[0]) {
+        return res.status(404).json({ success: false, error: 'Passage not found.' });
+      }
+      const passageText = pRes.rows[0].content_text;
+
+      // 2. Perform AI miscue diff analysis
+      const analysis = analyzeOralReading(passageText, transcriptText, readingTimeSeconds);
+
+      // 3. Insert or update assessment attempt
+      let activeAssessmentId = assessmentId;
+      if (!activeAssessmentId) {
+        const aRes = await db.query(
+          `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
+           VALUES ($1, $2, 'oral', 'pre_test', 'submitted') RETURNING assessment_id`,
+          [studentId, passageId]
+        );
+        activeAssessmentId = aRes.rows[0].assessment_id;
+      }
+
+      const attemptRes = await db.query(
+        `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
+         VALUES ($1, 'completed', CURRENT_TIMESTAMP) RETURNING attempt_id`,
+        [activeAssessmentId]
+      );
+      const attemptId = attemptRes.rows[0].attempt_id;
+
+      // 4. Store oral reading result with pending verification status
+      await db.query(
+        `INSERT INTO oral_reading_results (
+           assessment_attempt_id, audio_recording_url, transcript_text,
+           ai_miscues_json, verification_status, reading_time_seconds,
+           words_read, correct_words, reading_rate_wpm, accuracy_percentage
+         ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)`,
+        [
+          attemptId,
+          audioUrl || '',
+          transcriptText,
+          JSON.stringify(analysis.miscues),
+          readingTimeSeconds,
+          analysis.wordsRead,
+          analysis.correctWords,
+          analysis.readingRateWPM,
+          analysis.accuracyPercentage
+        ]
+      );
+
+      // Update assessment status to pending teacher review
+      await db.query(
+        `UPDATE assessments SET status = 'pending_review' WHERE assessment_id = $1`,
+        [activeAssessmentId]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Oral reading audio submitted successfully! Awaiting teacher review.',
+        analysis: {
+          attemptId,
+          wordsRead: analysis.wordsRead,
+          correctWords: analysis.correctWords,
+          wpm: analysis.readingRateWPM,
+          accuracyPct: analysis.accuracyPercentage,
+          miscuesCount: analysis.miscuesCount,
+          miscues: analysis.miscues
+        }
+      });
+    }
+
+    return res.json({ success: true, message: 'Oral assessment submitted (mock mode).' });
+  } catch (err) {
+    console.error('Error in submitStudentOralAudio:', err);
+    return res.status(500).json({ success: false, error: 'Failed to submit oral assessment audio.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -1574,4 +1664,5 @@ module.exports = {
   getStudentActiveAssignment,
   completeStoryProgress,
   completeActivityProgress,
+  submitStudentOralAudio,
 };

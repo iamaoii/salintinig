@@ -20,9 +20,20 @@ import {
   ArrowLeft,
   ArrowRight,
   DotsThreeVertical,
+  SquaresFour,
+  ListBullets,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+
+const SET_COLORS = {
+  'Set A': 'bg-purple-100/90 text-purple-900 border border-purple-200/80',
+  'Set B': 'bg-amber-100/90 text-amber-950 border border-amber-200/80',
+  'Set C': 'bg-rose-100/90 text-rose-900 border border-rose-200/80',
+  'Set D': 'bg-orange-100/90 text-orange-950 border border-orange-200/80',
+};
 
 export default function AdminPhilIriPassages() {
   const [passages, setPassages] = useState([]);
@@ -32,7 +43,11 @@ export default function AdminPhilIriPassages() {
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [selectedSet, setSelectedSet] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+  const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState(null);
+
+  const ITEMS_PER_PAGE = 6;
 
   // Modals state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -96,6 +111,18 @@ export default function AdminPhilIriPassages() {
       return true;
     });
   }, [passages, selectedGrade, selectedLanguage, selectedSet, selectedStatus, searchQuery]);
+
+  // Reset page number on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedGrade, selectedLanguage, selectedSet, selectedStatus, searchQuery]);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredPassages.length / ITEMS_PER_PAGE) || 1;
+  const paginatedPassages = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredPassages.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredPassages, currentPage]);
 
   // Open modal for adding new passage
   const handleOpenAdd = () => {
@@ -366,7 +393,6 @@ export default function AdminPhilIriPassages() {
         <div className="rounded-2xl border border-ink/10 bg-white p-4 space-y-3 shadow-xs">
           {/* Top Control Bar: Search & Dropdown Filters */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-3 border-b border-ink/10">
-            
             {/* System Standard Search Bar */}
             <div className="relative w-full md:w-80">
               <MagnifyingGlass size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
@@ -379,7 +405,7 @@ export default function AdminPhilIriPassages() {
               />
             </div>
 
-            {/* Dropdown Filters */}
+            {/* Dropdown Filters & View Switcher */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <div className="flex items-center gap-1.5 text-xs text-ink/60 font-semibold mr-0.5">
                 <Funnel size={16} />
@@ -421,50 +447,77 @@ export default function AdminPhilIriPassages() {
                 <option value="Draft">Draft</option>
                 <option value="Archived">Archived</option>
               </select>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center gap-0.5 rounded-full border border-ink/20 bg-cream p-0.5 ml-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-full text-xs transition-colors cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-white text-brand-blue shadow-2xs' : 'text-ink/60 hover:text-ink'
+                  }`}
+                  title="Grid View"
+                >
+                  <SquaresFour size={16} weight="bold" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-full text-xs transition-colors cursor-pointer ${
+                    viewMode === 'list' ? 'bg-white text-brand-blue shadow-2xs' : 'text-ink/60 hover:text-ink'
+                  }`}
+                  title="Compact List View"
+                >
+                  <ListBullets size={16} weight="bold" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Grade Level Filter Tabs (Matching User Wireframe: Grade 4 | Grade 5 | Grade 6) */}
-          <div className="flex items-center gap-1.5 pt-1">
-            <span className="text-xs font-bold text-ink/50 mr-2">Grade Level:</span>
-            {['All', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setSelectedGrade(g)}
-                className={`rounded-full px-4 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  selectedGrade === g
-                    ? 'bg-brand-blue text-white shadow-2xs'
-                    : 'bg-ink/5 text-ink/70 hover:bg-ink/10'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
+          {/* Grade Level Filter Tabs & Results Info */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-ink/50 mr-1">Grade Level:</span>
+              {['All', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setSelectedGrade(g)}
+                  className={`rounded-full px-3.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                    selectedGrade === g
+                      ? 'bg-brand-blue text-white shadow-2xs'
+                      : 'bg-ink/5 text-ink/70 hover:bg-ink/10'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
 
-            <span className="text-[11px] font-semibold text-ink/40 ml-auto">
-              {filteredPassages.length} passages found
+            <span className="text-xs font-semibold text-ink/50">
+              Showing {filteredPassages.length > 0 ? Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredPassages.length) : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
             </span>
           </div>
         </div>
 
-        {/* ── Passage Cards Grid (Matching User Wireframe Card Layout) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {loading ? (
-            <div className="col-span-full py-16 text-center rounded-2xl border border-ink/10 bg-white">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                <span className="text-xs font-semibold text-ink/70">Loading Phil-IRI Passage Records...</span>
-              </div>
+        {/* ── Passage Cards / List View ── */}
+        {loading ? (
+          <div className="py-16 text-center rounded-2xl border border-ink/10 bg-white">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
+              <span className="text-xs font-semibold text-ink/70">Loading Phil-IRI Passage Records...</span>
             </div>
-          ) : filteredPassages.length === 0 ? (
-            <div className="col-span-full py-16 text-center rounded-2xl border border-ink/10 bg-white">
-              <Article size={40} className="text-ink/20 mx-auto mb-2" />
-              <h3 className="text-sm font-bold text-ink/60">No passages found</h3>
-              <p className="text-xs text-ink/40 mt-0.5">Try adjusting search or filter settings.</p>
-            </div>
-          ) : (
-            filteredPassages.map((passage) => {
+          </div>
+        ) : paginatedPassages.length === 0 ? (
+          <div className="py-16 text-center rounded-2xl border border-ink/10 bg-white">
+            <Article size={40} className="text-ink/20 mx-auto mb-2" />
+            <h3 className="text-sm font-bold text-ink/60">No passages found</h3>
+            <p className="text-xs text-ink/40 mt-0.5">Try adjusting search or filter settings.</p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          /* GRID VIEW */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedPassages.map((passage) => {
               const questionCount = passage.questions ? passage.questions.length : 0;
 
               let statusBadge = (
@@ -507,7 +560,9 @@ export default function AdminPhilIriPassages() {
                       <span>•</span>
                       <span>{passage.language}</span>
                       <span>•</span>
-                      <span className="font-semibold text-ink/70 bg-ink/5 px-2 py-0.5 rounded-md">{passage.set}</span>
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5 text-ink/70'}`}>
+                        {passage.set}
+                      </span>
                     </div>
 
                     {/* Excerpt with Natural Text Mask Fade */}
@@ -600,9 +655,136 @@ export default function AdminPhilIriPassages() {
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        ) : (
+          /* COMPACT LIST VIEW */
+          <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-ink/10 bg-cream/70 text-[11px] font-bold text-ink/60 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3">Passage Title</th>
+                    <th className="px-4 py-3">Grade</th>
+                    <th className="px-4 py-3">Language</th>
+                    <th className="px-4 py-3">Set</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Questions</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink/5 bg-white">
+                  {paginatedPassages.map((passage) => {
+                    const qCount = passage.questions ? passage.questions.length : 0;
+                    return (
+                      <tr key={passage.id} className="hover:bg-cream/40 transition-colors">
+                        <td className="px-4 py-3 font-bold text-ink">{passage.title}</td>
+                        <td className="px-4 py-3 font-semibold text-brand-blue">{passage.grade}</td>
+                        <td className="px-4 py-3 font-medium text-ink/70">{passage.language}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5 text-ink/80'}`}>
+                            {passage.set}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            passage.status === 'Published'
+                              ? 'bg-[#00a652]/10 text-[#00a652]'
+                              : passage.status === 'Draft'
+                                ? 'bg-[#ffc300]/20 text-[#b38600]'
+                                : 'bg-ink/5 text-ink/50'
+                          }`}>
+                            {passage.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-ink/60">{qCount} Qs</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewPassage(passage);
+                                setIsPreviewOpen(true);
+                              }}
+                              className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
+                              title="Preview Passage"
+                            >
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(passage)}
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                              title="Edit Passage"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleArchive(passage)}
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                              title={passage.status === 'Archived' ? 'Restore Passage' : 'Archive Passage'}
+                            >
+                              <Archive size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingPassage(passage)}
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
+                              title="Delete Passage"
+                            >
+                              <Trash size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Pagination Controls ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              className="flex items-center gap-1 rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-ink/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+            >
+              <CaretLeft size={14} weight="bold" /> Previous
+            </button>
+
+            <div className="flex items-center gap-1 px-2">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                <button
+                  key={pg}
+                  type="button"
+                  onClick={() => setCurrentPage(pg)}
+                  className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    currentPage === pg
+                      ? 'bg-brand-blue text-white shadow-xs'
+                      : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                  }`}
+                >
+                  {pg}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              className="flex items-center gap-1 rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-ink/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+            >
+              Next <CaretRight size={14} weight="bold" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── DELETE CONFIRMATION MODAL ── */}

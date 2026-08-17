@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ChartPieSlice, ArrowRight, PencilSimple, Trash, UsersThree } from '@phosphor-icons/react';
 
-export default function ActivityDetailPanel({ activity }) {
+export default function ActivityDetailPanel({ activity, onDelete }) {
   return (
     <div className="flex w-full flex-col gap-3">
       {/* Overview Stat Card */}
@@ -111,7 +111,8 @@ export default function ActivityDetailPanel({ activity }) {
         </Link>
         <button
           type="button"
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-red px-4 text-sm font-semibold text-cream transition-colors hover:bg-red-700"
+          onClick={() => onDelete?.(activity.id)}
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-red px-4 text-sm font-semibold text-cream transition-colors hover:bg-red-700 cursor-pointer"
         >
           <Trash size={16} />
           Delete Activity

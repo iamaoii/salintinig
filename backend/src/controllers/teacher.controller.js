@@ -821,6 +821,226 @@ async function assignPhilIriSetToClass(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/teacher/assessments/assign-phil-iri-students — Per-Student Set Assignment
+// ---------------------------------------------------------------------------
+async function assignPhilIriToStudents(req, res) {
+  try {
+    const { assignments, assessmentType = 'oral', assessmentPeriod = 'pre_test' } = req.body;
+    // assignments: array of { studentId, passageId }
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({ success: false, error: 'Assignments array is required.' });
+    }
+
+    const teacherUserId = req.user?.userId || req.user?.user_id;
+
+    if (process.env.DATABASE_URL) {
+      // Find teacher_id
+      const tRes = await db.query(`SELECT teacher_id FROM teachers WHERE user_id = $1 LIMIT 1`, [teacherUserId]);
+      const teacherId = tRes.rows[0]?.teacher_id || null;
+
+      for (const item of assignments) {
+        if (!item.studentId || !item.passageId) continue;
+        await db.query(
+          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, status)
+           VALUES ($1, $2, $3, $4, $5, 'assigned')`,
+          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod]
+        );
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully assigned Phil-IRI passages to ${assignments.length} student(s).`
+    });
+  } catch (err) {
+    console.error('Error in assignPhilIriToStudents:', err);
+    return res.status(500).json({ success: false, error: 'Failed to assign Phil-IRI to students.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/teacher/assessments/pending-reviews — Get student oral assessments awaiting teacher review
+// ---------------------------------------------------------------------------
+async function getPendingOralReviews(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      const query = `
+        SELECT 
+          a.assessment_id AS "assessmentId",
+          aa.attempt_id AS "attemptId",
+          s.student_id AS "studentId",
+          CONCAT(s.first_name, ' ', s.last_name) AS "studentName",
+          s.lrn,
+          p.passage_id AS "passageId",
+          p.title AS "passageTitle",
+          p.grade_level AS "gradeLevel",
+          p.passage_set AS "passageSet",
+          p.language,
+          orr.oral_result_id AS "oralResultId",
+          orr.audio_recording_url AS "audioUrl",
+          orr.reading_rate_wpm AS "wpm",
+          orr.accuracy_percentage AS "accuracyPct",
+          orr.verification_status AS "verificationStatus",
+          aa.completed_at AS "submittedAt"
+        FROM assessments a
+        JOIN students s ON a.student_id = s.student_id
+        JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
+        JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        ORDER BY aa.completed_at DESC
+      `;
+      const { rows } = await db.query(query);
+      return res.json({ success: true, pendingReviews: rows });
+    }
+
+    return res.json({ success: true, pendingReviews: [] });
+  } catch (err) {
+    console.error('Error in getPendingOralReviews:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch pending reviews.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PUT /api/teacher/assessments/:attemptId/verify-oral — Save Verified Miscues
+// ---------------------------------------------------------------------------
+async function verifyOralReadingResult(req, res) {
+  try {
+    const { attemptId } = req.params;
+    const { verifiedMiscues, verifiedWpm, verifiedAccuracyPct, comprehensionScore } = req.body;
+
+    const { getPhilIriProfile } = require('../services/miscueEngine.js');
+    const profileLabel = getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0);
+
+    if (process.env.DATABASE_URL) {
+      await db.query(
+        `UPDATE oral_reading_results
+         SET verified_miscues_json = $1,
+             reading_rate_wpm = $2,
+             accuracy_percentage = $3,
+             comprehension_score = $4,
+             verification_status = 'verified',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE assessment_attempt_id = $5`,
+        [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
+      );
+
+      // Update main assessment record status & reading profile
+      await db.query(
+        `UPDATE assessments
+         SET status = 'completed',
+             reading_level_result = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $2)`,
+        [profileLabel, attemptId]
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: 'Phil-IRI oral reading result verified successfully!',
+      profileLabel
+    });
+  } catch (err) {
+    console.error('Error in verifyOralReadingResult:', err);
+    return res.status(500).json({ success: false, error: 'Failed to verify oral reading result.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/teacher/assessments/phil-iri-activities — Get real DB Phil-IRI assessment activities
+// ---------------------------------------------------------------------------
+async function getPhilIriActivities(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      const query = `
+        SELECT 
+          a.passage_id AS "id",
+          p.title,
+          'Phil-IRI' AS "tag",
+          'phil-iri' AS "type",
+          a.assessment_type AS "assessmentType",
+          a.assessment_period AS "period",
+          p.grade_level AS "gradeLevel",
+          p.passage_set AS "passageSet",
+          COUNT(DISTINCT a.assessment_id)::int AS "totalAssigned",
+          COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.assessment_id END)::int AS "done",
+          COUNT(DISTINCT CASE WHEN a.status != 'completed' THEN a.assessment_id END)::int AS "pending",
+          MAX(a.created_at) AS "created_at"
+        FROM assessments a
+        JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        GROUP BY a.passage_id, p.title, a.assessment_type, a.assessment_period, p.grade_level, p.passage_set
+        ORDER BY MAX(a.created_at) DESC
+      `;
+      const { rows } = await db.query(query);
+      const activities = rows.map((r) => {
+        const typeLabel = r.assessmentType === 'oral'
+          ? 'Oral Reading'
+          : r.assessmentType === 'listening'
+            ? 'Listening'
+            : 'Silent Reading';
+        return {
+          id: r.id,
+          title: `${r.title} (${typeLabel} - ${r.passageSet || 'Set A'})`,
+          tag: 'Phil-IRI',
+          type: 'phil-iri',
+          assessmentType: r.assessmentType,
+          period: r.period,
+          gradeLevel: r.gradeLevel,
+          passageSet: r.passageSet,
+          status: r.pending === 0 ? 'completed' : 'pending',
+          done: r.done,
+          pending: r.pending,
+          action: r.pending === 0 ? 'View result' : 'Open',
+          dueDate: 'Active',
+          stars: 100,
+          lastUpdate: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today',
+          instructions: [
+            `Complete the ${typeLabel} assessment for ${r.title}.`,
+            'Answer comprehension questions accurately.',
+          ],
+        };
+      });
+      return res.json({ success: true, activities });
+    }
+
+    return res.json({ success: true, activities: [] });
+  } catch (err) {
+    console.error('Error in getPhilIriActivities:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch Phil-IRI activities.' });
+  }
+}
+
+async function getPhilIriPassages(req, res) {
+  try {
+    const { rows } = await db.query(
+      `SELECT passage_id, title, grade_level, passage_set, language, status, content_text, word_count 
+       FROM phil_iri_passages 
+       ORDER BY passage_set ASC, title ASC`
+    );
+    return res.json({ success: true, count: rows.length, passages: rows });
+  } catch (error) {
+    console.error('Error fetching teacher passages:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch passages.' });
+  }
+}
+
+async function deleteAssessment(req, res) {
+  try {
+    const { id } = req.params;
+    if (process.env.DATABASE_URL) {
+      await db.query(
+        `DELETE FROM assessments WHERE passage_id::text = $1 OR assessment_id::text = $1`,
+        [id]
+      );
+    }
+    return res.json({ success: true, message: 'Assessment deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting assessment:', err);
+    return res.status(500).json({ success: false, error: 'Failed to delete assessment.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,
@@ -832,4 +1052,10 @@ module.exports = {
   approveAccountRequest,
   rejectAccountRequest,
   assignPhilIriSetToClass,
+  assignPhilIriToStudents,
+  getPendingOralReviews,
+  verifyOralReadingResult,
+  getPhilIriActivities,
+  getPhilIriPassages,
+  deleteAssessment,
 };
