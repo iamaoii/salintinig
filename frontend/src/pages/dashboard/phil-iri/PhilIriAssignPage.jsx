@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import {
   Ear,
   UserSound,
@@ -56,6 +56,9 @@ const SET_COLORS = {
 };
 
 export default function PhilIriAssignPage() {
+  const { editId } = useParams();
+  const isEditMode = Boolean(editId);
+
   const navigate = useNavigate();
   const user = getUser();
   const teacherGrade = user?.grade || user?.grade_level || user?.assigned_grade || 'Grade 4';
@@ -143,6 +146,40 @@ export default function PhilIriAssignPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Preload existing assessment detail when editing
+  useEffect(() => {
+    if (editId) {
+      const token = getToken();
+      fetch(`/api/teacher/assessments/activity-detail/${editId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.activity) {
+            const act = data.activity;
+            setPeriod(act.period || 'pre_test');
+            setAssessmentType(act.assessmentType || 'oral');
+            setSelectedLanguage(act.language || 'fil');
+
+            if (Array.isArray(act.students) && act.students.length > 0) {
+              const assignedIds = new Set();
+              const passagesMap = {};
+              act.students.forEach((std) => {
+                const sid = std.studentId || std.id;
+                if (sid) {
+                  assignedIds.add(sid);
+                  if (std.passageId) passagesMap[sid] = std.passageId;
+                }
+              });
+              setSelectedStudents(assignedIds);
+              setSelectedPassages(passagesMap);
+            }
+          }
+        })
+        .catch((err) => console.error('Error preloading edit activity data:', err));
+    }
+  }, [editId]);
 
   const initStudents = (stdList) => {
     setStudents(stdList);
@@ -301,6 +338,7 @@ export default function PhilIriAssignPage() {
           assignments: assignmentList,
           assessmentType,
           assessmentPeriod: period,
+          isEdit: isEditMode,
         }),
       });
 
@@ -323,7 +361,9 @@ export default function PhilIriAssignPage() {
       {/* Top Header Bar */}
       <div className="flex items-center gap-3">
         <BackButton size={22} />
-        <h1 className="text-3xl font-bold text-ink">Assign Phil-IRI Assessment</h1>
+        <h1 className="text-3xl font-bold text-ink">
+          {isEditMode ? 'Edit Phil-IRI Assessment Assignment' : 'Assign Phil-IRI Assessment'}
+        </h1>
       </div>
 
       <div className="mt-4 flex items-center justify-between border-b border-ink/10">

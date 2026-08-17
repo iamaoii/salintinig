@@ -85,7 +85,7 @@ export default function ActivityFormPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    navigate('/teacher/class-activities/success');
+    navigate('/teacher/class-activities/practice/success');
   };
 
   return (

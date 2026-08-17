@@ -225,7 +225,7 @@ export default function ClassActivities() {
 
           {activeTabKey === 'phil-iri' ? (
             <Link
-              to="/teacher/class-activities/assign-phil-iri"
+              to="/teacher/class-activities/phil-iri/assign"
               className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
             >
               <Plus size={16} weight="bold" />
@@ -233,7 +233,7 @@ export default function ClassActivities() {
             </Link>
           ) : (
             <Link
-              to="/teacher/class-activities/new"
+              to="/teacher/class-activities/practice/create"
               className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
             >
               <Plus size={16} weight="bold" />
@@ -407,7 +407,7 @@ export default function ClassActivities() {
                 You have not assigned any Phil-IRI passage sets to your class students yet.
               </p>
               <Link
-                to="/teacher/class-activities/assign-phil-iri"
+                to="/teacher/class-activities/phil-iri/assign"
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition-all cursor-pointer"
               >
                 <UserCheck size={18} /> Assign Phil-IRI Sets to Students Now
@@ -422,6 +422,8 @@ export default function ClassActivities() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal Popup */}
 
       {/* Delete Confirmation Modal Popup */}
       {deleteTargetId && createPortal(

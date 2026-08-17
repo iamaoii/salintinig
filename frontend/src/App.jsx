@@ -23,6 +23,7 @@ import StudentProfile from './pages/dashboard/student/StudentProfile.jsx';
 import ClassActivities from './pages/dashboard/activities/ClassActivities.jsx';
 import ActivityFormPage from './pages/dashboard/activities/ActivityFormPage.jsx';
 import ActivitySuccess from './pages/dashboard/activities/ActivitySuccess.jsx';
+import ActivityDetailPage from './pages/dashboard/activities/ActivityDetailPage.jsx';
 import PhilIriLayout from './pages/dashboard/phil-iri/PhilIriLayout.jsx';
 import PhilIriForm1 from './pages/dashboard/phil-iri/PhilIriForm1.jsx';
 import PhilIriForm2 from './pages/dashboard/phil-iri/PhilIriForm2.jsx';
@@ -171,10 +172,25 @@ export default function App() {
         <Route path="phil-iri-records/export-success" element={<PhilIriExportSuccess />} />
         <Route path="phil-iri-passages" element={<PhilIriPassageBank />} />
 
+        {/* Class Activities Sub-System */}
         <Route path="class-activities" element={<Navigate to="phil-iri" replace />} />
         <Route path="class-activities/phil-iri" element={<ClassActivities />} />
         <Route path="class-activities/practice" element={<ClassActivities />} />
+
+        {/* Phil-IRI Assessment Routes */}
+        <Route path="class-activities/phil-iri/assign" element={<PhilIriAssignPage />} />
+        <Route path="class-activities/phil-iri/edit/:editId" element={<PhilIriAssignPage />} />
+        <Route path="class-activities/phil-iri/view/:id" element={<ActivityDetailPage />} />
+
+        {/* Practice Activity Routes */}
+        <Route path="class-activities/practice/create" element={<ActivityFormPage />} />
+        <Route path="class-activities/practice/edit/:id" element={<ActivityFormPage />} />
+        <Route path="class-activities/practice/success" element={<ActivitySuccess />} />
+
+        {/* Backwards-Compatible Route Aliases */}
         <Route path="class-activities/assign-phil-iri" element={<PhilIriAssignPage />} />
+        <Route path="class-activities/assign-phil-iri/:editId" element={<PhilIriAssignPage />} />
+        <Route path="class-activities/detail/:id" element={<ActivityDetailPage />} />
         <Route path="class-activities/new" element={<ActivityFormPage />} />
         <Route path="class-activities/success" element={<ActivitySuccess />} />
         <Route path="class-activities/:id/edit" element={<ActivityFormPage />} />

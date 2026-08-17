@@ -130,7 +130,7 @@ export default function PhilIriPassageBank() {
         </p>
 
         <Link
-          to="/teacher/class-activities/assign-phil-iri"
+          to="/teacher/class-activities/phil-iri/assign"
           className="flex items-center gap-2 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 hover:shadow-md transition-all cursor-pointer shrink-0"
         >
           <span>Assign Phil-IRI Sets Now</span>

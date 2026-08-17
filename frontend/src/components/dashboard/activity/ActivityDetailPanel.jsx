@@ -101,20 +101,20 @@ export default function ActivityDetailPanel({ activity, onDelete }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-2.5">
         <Link
-          to={`/teacher/class-activities/${activity.id}/edit`}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-sm font-semibold text-cream transition-colors hover:bg-blue-700"
+          to={`/teacher/class-activities/phil-iri/view/${activity.id}`}
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-sm font-bold text-white shadow-2xs transition-colors hover:bg-blue-700"
         >
-          <PencilSimple size={16} />
-          Edit Activity
+          <ArrowRight size={16} weight="bold" />
+          Open Full Activity & Roster
         </Link>
         <button
           type="button"
           onClick={() => onDelete?.(activity.id)}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-red px-4 text-sm font-semibold text-cream transition-colors hover:bg-red-700 cursor-pointer"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer"
         >
-          <Trash size={16} />
+          <Trash size={15} />
           Delete Activity
         </button>
       </div>

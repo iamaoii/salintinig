@@ -14,7 +14,7 @@ export default function ActivitySuccess() {
         <p className="-mt-2 text-sm text-cream/70">Activity published.</p>
         <div>
           <Link
-            to="/teacher/class-activities/new"
+            to="/teacher/class-activities/practice/create"
             className="inline-flex items-center gap-2 rounded-[10px] bg-brand-red px-5 py-3 text-sm font-medium text-cream transition-colors hover:bg-red-700"
           >
             <Plus size={18} weight="bold" />

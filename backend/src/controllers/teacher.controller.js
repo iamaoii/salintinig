@@ -826,10 +826,9 @@ async function assignPhilIriSetToClass(req, res) {
 // ---------------------------------------------------------------------------
 async function assignPhilIriToStudents(req, res) {
   try {
-    const { assignments, assessmentType = 'oral', assessmentPeriod = 'pre_test' } = req.body;
-    // assignments: array of { studentId, passageId }
-    if (!Array.isArray(assignments) || assignments.length === 0) {
-      return res.status(400).json({ success: false, error: 'Assignments array is required.' });
+    const { assignments, assessmentType, assessmentPeriod, isEdit } = req.body;
+    if (!Array.isArray(assignments) || !assessmentType || !assessmentPeriod) {
+      return res.status(400).json({ success: false, error: 'Assignments array, assessmentType, and assessmentPeriod are required.' });
     }
 
     const teacherUserId = req.user?.teacherId || req.user?.teacher_id || req.user?.userId || req.user?.user_id || req.user?.id;
@@ -846,6 +845,8 @@ async function assignPhilIriToStudents(req, res) {
       const teacherId = tRes.rows[0]?.teacher_id || null;
 
       for (const item of assignments) {
+        if (!item.studentId || !item.passageId) continue;
+
         // Fetch passage language first
         const pRes = await db.query(`SELECT language, title FROM phil_iri_passages WHERE passage_id::text = $1 LIMIT 1`, [String(item.passageId)]);
         const passageLang = (pRes.rows[0]?.language || 'fil').toLowerCase();
@@ -865,12 +866,26 @@ async function assignPhilIriToStudents(req, res) {
         );
 
         if (dupCheck.rows && dupCheck.rows.length > 0) {
-          const existingTitle = dupCheck.rows[0].title || 'an existing passage';
-          skippedDuplicates.push({
-            studentId: item.studentId,
-            reason: `Already has an official ${langLabel} ${assessmentPeriod === 'pre_test' ? 'Pre-test' : 'Post-test'} for ${assessmentType} (${existingTitle}).`
-          });
-          continue;
+          const existingId = dupCheck.rows[0].assessment_id;
+          if (isEdit) {
+            await db.query(
+              `UPDATE assessments 
+               SET passage_id = $1, 
+                   assigned_by_teacher_id = COALESCE($2, assigned_by_teacher_id),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE assessment_id = $3`,
+              [item.passageId, teacherId, existingId]
+            );
+            successfulCount++;
+            continue;
+          } else {
+            const existingTitle = dupCheck.rows[0].title || 'an existing passage';
+            skippedDuplicates.push({
+              studentId: item.studentId,
+              reason: `Already has an official ${langLabel} ${assessmentPeriod === 'pre_test' ? 'Pre-test' : 'Post-test'} for ${assessmentType} (${existingTitle}).`
+            });
+            continue;
+          }
         }
 
         await db.query(
@@ -1312,6 +1327,152 @@ async function getTeacherClassStudents(req, res) {
   }
 }
 
+// GET /api/teacher/assessments/activity-detail/:id — Get full detail for a master activity
+async function getActivityDetail(req, res) {
+  try {
+    const { id } = req.params;
+    const cleanId = String(id || '').trim();
+
+    if (process.env.DATABASE_URL) {
+      let assessmentType = null;
+      let period = null;
+      let language = null;
+      let passageId = null;
+
+      const knownTypes = ['oral', 'listening', 'silent'];
+      const matchingType = knownTypes.find((t) => cleanId.toLowerCase().startsWith(t + '_'));
+
+      if (matchingType) {
+        assessmentType = matchingType;
+        const remainder = cleanId.substring(matchingType.length + 1).toLowerCase();
+        if (remainder.endsWith('_fil') || remainder.endsWith('_en')) {
+          language = remainder.endsWith('_en') ? 'en' : 'fil';
+          period = remainder.substring(0, remainder.lastIndexOf('_'));
+        } else {
+          period = remainder;
+        }
+      } else if (cleanId.includes('_')) {
+        const parts = cleanId.split('_');
+        passageId = parts[0];
+        if (parts.length > 1) assessmentType = parts[1];
+        if (parts.length > 2) period = parts.slice(2).join('_');
+      } else {
+        passageId = cleanId;
+      }
+
+      // Build WHERE conditions
+      let whereClause = `1=1`;
+      const params = [];
+
+      if (passageId) {
+        params.push(passageId);
+        whereClause += ` AND (a.passage_id::text = $${params.length} OR a.assessment_id::text = $${params.length})`;
+      }
+
+      if (assessmentType) {
+        params.push(assessmentType);
+        whereClause += ` AND LOWER(COALESCE(a.assessment_type, 'oral')) = LOWER($${params.length})`;
+      }
+
+      if (period) {
+        params.push(period);
+        whereClause += ` AND LOWER(COALESCE(a.assessment_period, 'pre_test')) = LOWER($${params.length})`;
+      }
+
+      if (language) {
+        params.push(language);
+        whereClause += ` AND EXISTS (SELECT 1 FROM phil_iri_passages p WHERE p.passage_id = a.passage_id AND (LOWER(COALESCE(p.language, 'fil')) = LOWER($${params.length}) OR LOWER(COALESCE(p.language, 'fil')) LIKE LOWER($${params.length}) || '%'))`;
+      }
+
+      // Query 1: Fetch passages included in this activity
+      const passagesQuery = `
+        SELECT DISTINCT
+          p.passage_id AS "passageId",
+          p.title,
+          p.passage_set AS "passageSet",
+          p.grade_level AS "gradeLevel",
+          p.language,
+          p.word_count AS "wordCount",
+          COUNT(DISTINCT a.assessment_id)::int AS "assignedCount"
+        FROM assessments a
+        JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        WHERE ${whereClause}
+        GROUP BY p.passage_id, p.title, p.passage_set, p.grade_level, p.language, p.word_count
+        ORDER BY p.passage_set ASC, p.title ASC
+      `;
+      const pRes = await db.query(passagesQuery, params);
+
+      // Query 2: Fetch student roster and attempt details
+      const studentRosterQuery = `
+        SELECT 
+          a.assessment_id AS "assessmentId",
+          s.student_id AS "studentId",
+          s.lrn,
+          CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS "studentName",
+          s.sex AS gender,
+          c.section_name AS "sectionName",
+          c.grade_level AS "gradeLevel",
+          p.passage_id AS "passageId",
+          p.title AS "passageTitle",
+          p.passage_set AS "passageSet",
+          p.language AS "passageLanguage",
+          LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
+          LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
+          a.status,
+          COALESCE(a.reading_level_result, 'Pending Evaluation') AS "readingLevelResult",
+          a.remarks,
+          aa.attempt_id AS "attemptId",
+          aa.completed_at AS "completedAt",
+          orr.oral_result_id AS "oralResultId",
+          orr.audio_recording_url AS "audioUrl",
+          orr.reading_rate_wpm AS "wpm",
+          orr.accuracy_percentage AS "accuracyPct",
+          orr.comprehension_score AS "comprehensionScore",
+          orr.verification_status AS "verificationStatus"
+        FROM assessments a
+        JOIN students s ON a.student_id = s.student_id
+        LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+        LEFT JOIN classes c ON sgh.class_id = c.class_id
+        JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
+        LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        WHERE ${whereClause}
+        ORDER BY s.last_name ASC, s.first_name ASC
+      `;
+      const sRes = await db.query(studentRosterQuery, params);
+
+      const typeLabel = (assessmentType || 'oral') === 'oral'
+        ? 'Oral Reading'
+        : (assessmentType || 'oral') === 'listening'
+          ? 'Listening'
+          : 'Silent Reading';
+      const periodLabel = (period || 'pre_test') === 'post_test' ? 'Post-Test' : 'Pre-Test';
+      const langLabel = (language || 'fil').startsWith('en') ? 'English' : 'Filipino';
+
+      return res.json({
+        success: true,
+        activity: {
+          id: cleanId,
+          title: `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
+          assessmentType: assessmentType || 'oral',
+          period: period || 'pre_test',
+          language: language || 'fil',
+          typeLabel,
+          periodLabel,
+          langLabel,
+          passages: pRes.rows || [],
+          students: sRes.rows || [],
+        },
+      });
+    }
+
+    return res.json({ success: false, error: 'Database connection not available.' });
+  } catch (err) {
+    console.error('Error fetching activity detail:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch activity detail.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,
@@ -1330,4 +1491,5 @@ module.exports = {
   getPhilIriPassages,
   deleteAssessment,
   getTeacherClassStudents,
+  getActivityDetail,
 };

@@ -162,7 +162,14 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
           <TitleBlock activity={activity} theme={theme} className="min-w-0 flex-1 pl-1 pr-2" />
           <StatsBlock activity={activity} />
           <div className="flex shrink-0 sm:ml-4">
-            <ActionButton activity={activity} theme={theme} onClick={stopPropagation} />
+            <ActionButton
+              activity={activity}
+              theme={theme}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/teacher/class-activities/phil-iri/view/${activity.id}`);
+              }}
+            />
           </div>
         </div>
 
@@ -193,7 +200,10 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuOpen(false);
-                    navigate(`/teacher/class-activities/${activity.id}/edit`);
+                    const editPath = (activity.type === 'phil-iri' || activity.tag === 'Phil-IRI' || activity.id.includes('_'))
+                      ? `/teacher/class-activities/phil-iri/edit/${activity.id}`
+                      : `/teacher/class-activities/practice/edit/${activity.id}`;
+                    navigate(editPath);
                   }}
                   className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-ink transition-colors hover:bg-ink/5 cursor-pointer"
                 >
