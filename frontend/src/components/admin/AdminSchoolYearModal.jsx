@@ -166,8 +166,8 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
         </div>
 
         {errorMsg && (
-          <div className="mt-3 flex items-center gap-2 rounded-xl bg-brand-red/10 border border-brand-red/20 p-2.5 text-brand-red font-semibold">
-            <WarningCircle size={16} />
+          <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-brand-red/10 border border-brand-red/20 p-3 text-brand-red font-semibold text-xs leading-relaxed">
+            <WarningCircle size={22} weight="fill" className="shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}

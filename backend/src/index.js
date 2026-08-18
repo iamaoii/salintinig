@@ -57,6 +57,13 @@ async function initDatabase() {
       await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);");
       await db.query("ALTER TABLE account_requests ADD COLUMN IF NOT EXISTS sex VARCHAR(20) DEFAULT 'Male';");
       await db.query("ALTER TABLE phil_iri_passages ADD COLUMN IF NOT EXISTS prev_status VARCHAR(50) DEFAULT 'published';");
+      await db.query("ALTER TABLE student_grade_history ADD COLUMN IF NOT EXISTS school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE;");
+      await db.query("ALTER TABLE student_grade_history ADD COLUMN IF NOT EXISTS grade_level VARCHAR(50);");
+      try {
+        await db.query("ALTER TABLE student_grade_history ADD CONSTRAINT unique_student_sy UNIQUE (student_id, school_year_id);");
+      } catch (cErr) {
+        // Ignore if constraint unique_student_sy already exists
+      }
 
       // Auto-hash any existing plain-text passwords in database with bcrypt salt rounds 10
       try {

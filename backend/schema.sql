@@ -130,11 +130,13 @@ CREATE TABLE IF NOT EXISTS student_parents (
 CREATE TABLE IF NOT EXISTS student_grade_history (
     history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
+    grade_level VARCHAR(50), -- e.g. 'Grade 4', 'Grade 5', 'Grade 6'
     class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
-    promotion_status VARCHAR(50) DEFAULT 'active', -- 'active', 'disabled', 'dropped', 'transferred'
+    promotion_status VARCHAR(50) DEFAULT 'promoted', -- 'promoted', 'retained', 'active', 'dropped', 'transferred', 'graduated'
     promoted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_student_class UNIQUE (student_id, class_id)
+    CONSTRAINT unique_student_sy UNIQUE (student_id, school_year_id)
 );
 
 -- -----------------------------------------------------------------------------

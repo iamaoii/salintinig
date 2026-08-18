@@ -84,12 +84,8 @@ async function getStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            CASE 
-              WHEN c.grade_level IS NULL OR c.grade_level = '' THEN 'Grade 4'
-              WHEN c.grade_level ILIKE 'Grade%' THEN c.grade_level
-              ELSE CONCAT('Grade ', c.grade_level)
-            END AS grade,
-            COALESCE(c.section_name, '') AS section,
+            COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade,
+            COALESCE(c.section_name, 'Unassigned') AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
@@ -105,7 +101,21 @@ async function getStudents(req, res) {
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
-          LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+          LEFT JOIN (
+            SELECT DISTINCT ON (sgh_inner.student_id) 
+              sgh_inner.student_id, 
+              sgh_inner.class_id, 
+              sgh_inner.grade_level, 
+              sgh_inner.promotion_status
+            FROM student_grade_history sgh_inner
+            LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
+            LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
+            LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
+            ORDER BY 
+              sgh_inner.student_id, 
+              (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
+              sgh_inner.created_at DESC
+          ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
@@ -153,8 +163,8 @@ async function getStudentByLrn(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            COALESCE(c.grade_level, '') AS grade,
-            COALESCE(c.section_name, '') AS section,
+            COALESCE(c.grade_level, sgh.grade_level, '') AS grade,
+            COALESCE(c.section_name, 'Unassigned') AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
@@ -171,9 +181,19 @@ async function getStudentByLrn(req, res) {
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
           LEFT JOIN (
-            SELECT DISTINCT ON (student_id) student_id, class_id, promotion_status
-            FROM student_grade_history
-            ORDER BY student_id, created_at DESC
+            SELECT DISTINCT ON (sgh_inner.student_id) 
+              sgh_inner.student_id, 
+              sgh_inner.class_id, 
+              sgh_inner.grade_level, 
+              sgh_inner.promotion_status
+            FROM student_grade_history sgh_inner
+            LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
+            LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
+            LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
+            ORDER BY 
+              sgh_inner.student_id, 
+              (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
+              sgh_inner.created_at DESC
           ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
@@ -475,14 +495,15 @@ async function createStudent(req, res) {
               if (newClass && newClass[0]) classId = newClass[0].class_id;
             }
 
-            if (classId) {
-              await db.query(
-                `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-                 VALUES ($1, $2, 'active')
-                 ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
-                [studentId, classId]
-              );
-            }
+            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+            await db.query(
+              `INSERT INTO student_grade_history (student_id, school_year_id, grade_level, class_id, promotion_status)
+               VALUES ($1, $2, $3, $4, 'promoted')
+               ON CONFLICT (student_id, school_year_id) DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level`,
+              [studentId, activeSyId, targetGrade, classId || null]
+            );
 
             // Send welcome email with temporary password
             sendWelcomeEmailWithTempPassword({
@@ -579,23 +600,35 @@ async function updateStudent(req, res) {
           }
 
           if (classId) {
-            // Check if active history row exists
-            const { rows: activeHist } = await db.query(
-              `SELECT history_id FROM student_grade_history WHERE student_id = $1 AND promotion_status = 'active' LIMIT 1`,
-              [studentId]
+            // Find active school year
+            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+            // Check if history row exists for the active school year or latest history record
+            const { rows: latestHist } = await db.query(
+              `SELECT sgh.history_id, sgh.promotion_status 
+               FROM student_grade_history sgh
+               LEFT JOIN classes c ON sgh.class_id = c.class_id
+               WHERE sgh.student_id = $1 
+                 AND ($2::uuid IS NULL OR sgh.school_year_id = $2 OR c.school_year_id = $2)
+               ORDER BY sgh.created_at DESC LIMIT 1`,
+              [studentId, activeSyId]
             );
 
-            if (activeHist && activeHist[0]) {
+            if (latestHist && latestHist[0]) {
+              // Update the existing history record in place preserving promotion_status and updating class_id & grade_level
               await db.query(
-                `UPDATE student_grade_history SET class_id = $1 WHERE history_id = $2`,
-                [classId, activeHist[0].history_id]
+                `UPDATE student_grade_history 
+                 SET class_id = $1, 
+                     grade_level = $2
+                 WHERE history_id = $3`,
+                [classId, targetGrade, latestHist[0].history_id]
               );
             } else {
               await db.query(
-                `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-                 VALUES ($1, $2, 'active')
-                 ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
-                [studentId, classId]
+                `INSERT INTO student_grade_history (student_id, school_year_id, class_id, grade_level, promotion_status)
+                 VALUES ($1, $2, $3, $4, 'pending')`,
+                [studentId, activeSyId, classId, targetGrade]
               );
             }
           }
@@ -626,7 +659,6 @@ async function toggleStudentStatus(req, res) {
     if (isDbConfigured()) {
       try {
         const dbUserStatus = (newStatus === 'Disabled' || newStatus === 'Dropped' || newStatus === 'Transferred') ? 'disabled' : 'active';
-        const promotionStatus = newStatus.toLowerCase();
 
         // 1. Update student user account login access
         await db.query(
@@ -634,13 +666,25 @@ async function toggleStudentStatus(req, res) {
           [dbUserStatus, lrn]
         );
 
-        // 2. Update student grade history enrollment status
-        await db.query(
-          `UPDATE student_grade_history 
-           SET promotion_status = $1 
-           WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)`,
-          [promotionStatus, lrn]
-        );
+        // 2. Update enrollment status for Dropped / Transferred or restore to Pending/Active if re-activated
+        const lowerStatus = newStatus.toLowerCase();
+        if (lowerStatus === 'dropped' || lowerStatus === 'transferred') {
+          await db.query(
+            `UPDATE student_grade_history 
+             SET promotion_status = $1 
+             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)`,
+            [lowerStatus, lrn]
+          );
+        } else if (newStatus === 'Active') {
+          // If restoring back to Active from Dropped or Transferred, reset status back to pending so adviser can re-evaluate
+          await db.query(
+            `UPDATE student_grade_history 
+             SET promotion_status = 'pending' 
+             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)
+               AND promotion_status IN ('dropped', 'transferred')`,
+            [lrn]
+          );
+        }
 
         // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)
         const isParentAccessActive = (newStatus === 'Active');

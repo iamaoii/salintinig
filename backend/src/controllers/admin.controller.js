@@ -1515,11 +1515,132 @@ async function getSchoolYears(req, res) {
 }
 
 /**
+ * Helper to perform DepEd student rollover to a new active school year
+ */
+async function performStudentRollover(newSchoolYearId) {
+  try {
+    // 1. Get the previous school year ID (the most recently active or created school year before newSchoolYearId)
+    const prevSyRes = await db.query(
+      `SELECT school_year_id FROM school_years 
+       WHERE school_year_id != $1 
+       ORDER BY created_at DESC LIMIT 1`,
+      [newSchoolYearId]
+    );
+
+    const prevSchoolYearId = prevSyRes.rows[0]?.school_year_id || null;
+
+    // 2. Fetch all student enrollments from previous school year or latest enrollments if no prev school year ID
+    let studentsToRollover = [];
+    if (prevSchoolYearId) {
+      const { rows } = await db.query(
+        `SELECT DISTINCT ON (sgh.student_id) 
+           sgh.student_id, 
+           COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade_level, 
+           COALESCE(sgh.promotion_status, 'pending') AS promotion_status
+         FROM student_grade_history sgh
+         LEFT JOIN classes c ON sgh.class_id = c.class_id
+         WHERE c.school_year_id = $1 OR sgh.school_year_id = $1
+         ORDER BY sgh.student_id, (c.grade_level IS NOT NULL) DESC, sgh.created_at DESC`,
+        [prevSchoolYearId]
+      );
+      studentsToRollover = rows;
+    } else {
+      const { rows } = await db.query(
+        `SELECT DISTINCT ON (s.student_id) 
+           s.student_id, 
+           COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade_level, 
+           COALESCE(sgh.promotion_status, 'pending') AS promotion_status
+         FROM students s
+         LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id
+         LEFT JOIN classes c ON sgh.class_id = c.class_id
+         ORDER BY s.student_id, (c.grade_level IS NOT NULL) DESC, sgh.created_at DESC`
+      );
+      studentsToRollover = rows;
+    }
+
+    // 3. For each student, check if an entry already exists for this school_year_id before performing rollover
+    for (const std of studentsToRollover) {
+      // Check if student already has a record for this school year (via school_year_id OR via class in this school year)
+      const existingRes = await db.query(
+        `SELECT sgh.history_id 
+         FROM student_grade_history sgh
+         LEFT JOIN classes c ON sgh.class_id = c.class_id
+         WHERE sgh.student_id = $1 
+           AND (sgh.school_year_id = $2 OR c.school_year_id = $2) 
+         LIMIT 1`,
+        [std.student_id, newSchoolYearId]
+      );
+
+      if (existingRes.rows && existingRes.rows.length > 0) {
+        continue; // Student already has a record for this Academic Year!
+      }
+
+      const status = (std.promotion_status || 'pending').toLowerCase();
+
+      // Only roll over students who have been evaluated as 'promoted' or 'retained'.
+      // Skip 'pending' (unevaluated), 'dropped', or 'transferred' students completely.
+      if (status !== 'promoted' && status !== 'retained') {
+        continue;
+      }
+
+      const currentGrade = std.grade_level || 'Grade 4';
+      let nextGrade = currentGrade;
+      if (status === 'retained') {
+        nextGrade = currentGrade; // Stay in same grade level
+      } else {
+        // Promoted
+        if (currentGrade.includes('4')) nextGrade = 'Grade 5';
+        else if (currentGrade.includes('5')) nextGrade = 'Grade 6';
+        else if (currentGrade.includes('6')) nextGrade = 'Grade 6 (Graduated)';
+        else nextGrade = currentGrade;
+      }
+
+      try {
+        await db.query(
+          `INSERT INTO student_grade_history (student_id, school_year_id, grade_level, class_id, promotion_status)
+           VALUES ($1, $2, $3, NULL, 'pending')`,
+          [std.student_id, newSchoolYearId, nextGrade]
+        );
+      } catch (insErr) {
+        // Safe catch if duplicate or constraint notice
+      }
+    }
+  } catch (err) {
+    console.error('Error during student rollover:', err);
+  }
+}
+
+/**
+ * Helper to check if there are pending student evaluations in the currently active school year
+ */
+async function getPendingEvaluationsCount() {
+  try {
+    const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+    const activeSyId = activeSyRes.rows[0]?.school_year_id;
+    if (!activeSyId) return 0;
+
+    const { rows } = await db.query(
+      `SELECT COUNT(*)::int AS count 
+       FROM student_grade_history sgh
+       LEFT JOIN classes c ON sgh.class_id = c.class_id
+       WHERE (c.school_year_id = $1 OR sgh.school_year_id = $1)
+         AND (sgh.promotion_status = 'pending' OR sgh.promotion_status IS NULL)`,
+      [activeSyId]
+    );
+
+    return Number(rows[0]?.count || 0);
+  } catch (err) {
+    console.warn('Check pending count notice:', err.message);
+    return 0;
+  }
+}
+
+/**
  * POST /api/admin/school-years — Create new school year
  */
 async function createSchoolYear(req, res) {
   try {
-    const { schoolYear, setAsActive } = req.body;
+    const { schoolYear, setAsActive, allowOverride } = req.body;
     if (!schoolYear || !schoolYear.trim()) {
       return res.status(400).json({ success: false, error: 'School year is required (e.g. 2027-2028).' });
     }
@@ -1539,6 +1660,18 @@ async function createSchoolYear(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        if (setAsActive !== false && !allowOverride) {
+          const pendingCount = await getPendingEvaluationsCount();
+          if (pendingCount > 0) {
+            return res.status(400).json({
+              success: false,
+              requiresConfirmation: true,
+              pendingCount,
+              error: `Cannot activate S.Y. ${cleanSy}: There are still ${pendingCount} unevaluated (Pending) learner(s) in the current school year. Please ask class advisers to complete EOSY evaluations first.`,
+            });
+          }
+        }
+
         if (setAsActive !== false) {
           await db.query('UPDATE school_years SET is_active = false');
         }
@@ -1551,9 +1684,14 @@ async function createSchoolYear(req, res) {
           [cleanSy, setAsActive !== false]
         );
 
+        const newSyId = rows[0]?.id;
+        if (newSyId && setAsActive !== false) {
+          await performStudentRollover(newSyId);
+        }
+
         return res.status(201).json({
           success: true,
-          message: `School Year S.Y. ${cleanSy} created successfully.`,
+          message: `School Year S.Y. ${cleanSy} created successfully with student rollover.`,
           schoolYear: rows[0],
         });
       } catch (dbErr) {
@@ -1578,23 +1716,188 @@ async function createSchoolYear(req, res) {
 async function activateSchoolYear(req, res) {
   try {
     const { id } = req.params;
+    const { allowOverride } = req.body || {};
 
     if (process.env.DATABASE_URL) {
       try {
+        if (!allowOverride) {
+          const pendingCount = await getPendingEvaluationsCount();
+          if (pendingCount > 0) {
+            return res.status(400).json({
+              success: false,
+              requiresConfirmation: true,
+              pendingCount,
+              error: `Cannot activate new school year: There are still ${pendingCount} unevaluated (Pending) learner(s) in the active school year. Please ensure class advisers complete EOSY evaluations first.`,
+            });
+          }
+        }
+
         await db.query('UPDATE school_years SET is_active = false');
-        await db.query(
-          'UPDATE school_years SET is_active = true WHERE school_year_id::text = $1 OR school_year = $1',
+        const { rows } = await db.query(
+          'UPDATE school_years SET is_active = true WHERE school_year_id::text = $1 OR school_year = $1 RETURNING school_year_id',
           [id]
         );
+        const activeSyId = rows[0]?.school_year_id;
+        if (activeSyId) {
+          await performStudentRollover(activeSyId);
+        }
       } catch (dbErr) {
         console.warn('DB activate school year notice:', dbErr.message);
       }
     }
 
-    return res.json({ success: true, message: 'Active school year updated.' });
+    return res.json({ success: true, message: 'Active school year updated and students rolled over as Unassigned.' });
   } catch (error) {
     console.error('Error setting active school year:', error);
     return res.status(500).json({ success: false, error: 'Failed to activate school year.' });
+  }
+}
+
+/**
+ * GET /api/admin/student-sectioning — List students for sectioning (Unassigned vs Assigned)
+ */
+async function getStudentSectioning(req, res) {
+  try {
+    if (process.env.DATABASE_URL) {
+      try {
+        const schoolId = await getAdminSchoolId(req);
+        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true LIMIT 1');
+        const activeSy = syRes.rows[0];
+
+        const { rows } = await db.query(
+          `SELECT 
+             s.student_id AS "studentId",
+             s.lrn,
+             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+             COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS "gradeLevel",
+             COALESCE(c.section_name, 'Unassigned') AS "sectionName",
+             c.class_id AS "classId",
+             COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus"
+           FROM students s
+           JOIN users u ON s.user_id = u.user_id
+           LEFT JOIN (
+             SELECT DISTINCT ON (sgh_inner.student_id) 
+               sgh_inner.student_id, 
+               sgh_inner.class_id, 
+               sgh_inner.grade_level, 
+               sgh_inner.promotion_status
+             FROM student_grade_history sgh_inner
+             LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
+             LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
+             LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
+             ORDER BY 
+               sgh_inner.student_id, 
+               (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
+               sgh_inner.created_at DESC
+           ) sgh ON s.student_id = sgh.student_id
+           LEFT JOIN classes c ON sgh.class_id = c.class_id
+           WHERE (u.school_id = $1 OR u.school_id IS NULL OR $1 IS NULL)
+           ORDER BY COALESCE(c.section_name, 'Unassigned') ASC, s.last_name ASC`,
+          [schoolId]
+        );
+
+        return res.json({
+          success: true,
+          activeSchoolYear: activeSy?.school_year || '',
+          students: rows || [],
+        });
+      } catch (dbErr) {
+        console.warn('DB fetch student sectioning notice:', dbErr.message);
+      }
+    }
+    return res.json({ success: true, activeSchoolYear: '', students: [] });
+  } catch (error) {
+    console.error('Error fetching student sectioning:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch student sectioning.' });
+  }
+}
+
+/**
+ * POST /api/admin/assign-students-section — Assign one or more students to a class section
+ */
+async function assignStudentsToSection(req, res) {
+  try {
+    const { studentIds, classId, sectionName, gradeLevel } = req.body;
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'Please select at least one student.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+        let targetClassId = classId;
+        if (!targetClassId && sectionName && gradeLevel) {
+          const { rows } = await db.query(
+            `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
+            [gradeLevel, sectionName]
+          );
+          targetClassId = rows[0]?.class_id || null;
+        }
+
+        for (const sid of studentIds) {
+          await db.query(
+            `INSERT INTO student_grade_history (student_id, class_id, grade_level)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (student_id, class_id) DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level`,
+            [sid, targetClassId, gradeLevel]
+          );
+        }
+
+        return res.json({
+          success: true,
+          message: `Successfully assigned ${studentIds.length} student(s) to section.`,
+        });
+      } catch (dbErr) {
+        console.warn('DB assign students notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: `Assigned ${studentIds.length} student(s) to section.` });
+  } catch (error) {
+    console.error('Error assigning students to section:', error);
+    return res.status(500).json({ success: false, error: 'Failed to assign students to section.' });
+  }
+}
+
+/**
+ * PUT /api/admin/student-promotion — Update a student's promotion status (promoted vs retained)
+ */
+async function updateStudentPromotionStatus(req, res) {
+  try {
+    const { studentId, promotionStatus } = req.body;
+    if (!studentId || !promotionStatus) {
+      return res.status(400).json({ success: false, error: 'Student ID and promotion status are required.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+        if (activeSyId) {
+          await db.query(
+            `UPDATE student_grade_history SET promotion_status = $1 WHERE student_id = $2 AND school_year_id = $3`,
+            [promotionStatus.toLowerCase(), studentId, activeSyId]
+          );
+        } else {
+          await db.query(
+            `UPDATE student_grade_history SET promotion_status = $1 WHERE student_id = $2`,
+            [promotionStatus.toLowerCase(), studentId]
+          );
+        }
+
+        return res.json({ success: true, message: `Student status set to ${promotionStatus}.` });
+      } catch (dbErr) {
+        console.warn('DB update promotion status notice:', dbErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: `Student status updated.` });
+  } catch (error) {
+    console.error('Error updating promotion status:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update promotion status.' });
   }
 }
 
@@ -2137,6 +2440,9 @@ module.exports = {
   getSchoolYears,
   createSchoolYear,
   activateSchoolYear,
+  getStudentSectioning,
+  assignStudentsToSection,
+  updateStudentPromotionStatus,
   getAdminInfo,
   updateAdminInfo,
   getPhilIriAnalytics,

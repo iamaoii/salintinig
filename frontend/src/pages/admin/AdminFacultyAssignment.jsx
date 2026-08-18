@@ -5,15 +5,11 @@ import {
   Plus,
   Pencil,
   Trash,
-  CheckCircle,
   X,
   MagnifyingGlass,
   ChalkboardTeacher,
   UserSwitch,
-  IdentificationCard,
   Calendar,
-  Check,
-  WarningCircle,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
@@ -21,9 +17,15 @@ import { getToken } from '../../lib/auth.js';
 
 export default function AdminFacultyAssignment() {
   const location = useLocation();
-  const isFacultyTab = location.pathname.endsWith('/faculty');
-  const isSchoolYearsTab = location.pathname.endsWith('/school-years');
-  const isSectionsTab = !isFacultyTab && !isSchoolYearsTab;
+  const isSectioningTab = location.pathname.endsWith('/sectioning');
+
+  // Student Sectioning State
+  const [sectioningStudents, setSectioningStudents] = useState([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [targetAssignSection, setTargetAssignSection] = useState('');
+  const [sectioningGradeFilter, setSectioningGradeFilter] = useState('All');
+  const [sectioningStatusFilter, setSectioningStatusFilter] = useState('Unassigned');
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
 
   const [assignments, setAssignments] = useState([
     { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
@@ -41,11 +43,6 @@ export default function AdminFacultyAssignment() {
   // School Year State
   const [activeSchoolYear, setActiveSchoolYear] = useState(null);
   const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
-  const [schoolYearsList, setSchoolYearsList] = useState([]);
-  const [syLoading, setSyLoading] = useState(false);
-  const [newSyInput, setNewSyInput] = useState('');
-  const [newSyActive, setNewSyActive] = useState(true);
-  const [sySubmitting, setSySubmitting] = useState(false);
 
   // Filters & Search
   const [selectedGradeTab, setSelectedGradeTab] = useState('All');
@@ -154,109 +151,93 @@ export default function AdminFacultyAssignment() {
     }
   };
 
-  const fetchSchoolYears = async () => {
+  const fetchStudentSectioning = async () => {
     try {
-      setSyLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/school-years', {
+      const res = await fetch('http://localhost:5000/api/admin/student-sectioning', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSchoolYearsList(data.schoolYears || []);
-        const active = (data.schoolYears || []).find((s) => s.isActive);
-        if (active) setActiveSchoolYear(active.schoolYear);
+        setSectioningStudents(data.students || []);
       }
     } catch (err) {
-      console.warn('Failed to fetch school years:', err);
-    } finally {
-      setSyLoading(false);
+      console.warn('Failed to fetch student sectioning:', err);
     }
   };
 
-  const handleCreateSyInline = async (e) => {
-    e.preventDefault();
-    const cleanSy = newSyInput.trim();
-    if (!cleanSy) return;
-
-    const syRegex = /^\d{4}-\d{4}$/;
-    if (!syRegex.test(cleanSy)) {
-      showToast('Invalid format! Must follow YYYY-YYYY format (e.g. 2027-2028).');
-      return;
-    }
-
-    const [startYear, endYear] = cleanSy.split('-').map(Number);
-    if (endYear !== startYear + 1) {
-      showToast(`Invalid year sequence! End year must be ${startYear + 1} (e.g. ${startYear}-${startYear + 1}).`);
-      return;
-    }
-
+  const handleBulkAssignStudents = async () => {
+    if (selectedStudentIds.length === 0 || !targetAssignSection) return;
     try {
-      setSySubmitting(true);
+      setIsBulkAssigning(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/school-years', {
+      const res = await fetch('http://localhost:5000/api/admin/assign-students-section', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          schoolYear: cleanSy,
-          setAsActive: newSyActive,
+          studentIds: selectedStudentIds,
+          sectionName: targetAssignSection,
+          gradeLevel: sectioningGradeFilter !== 'All' ? sectioningGradeFilter : 'Grade 4',
         }),
       });
-
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`School Year S.Y. ${cleanSy} created successfully!`);
-        setNewSyInput('');
-        fetchSchoolYears();
+        showToast(data.message || 'Students assigned to section.');
+        setSelectedStudentIds([]);
+        setTargetAssignSection('');
+        fetchStudentSectioning();
         fetchAssignmentData();
-        window.dispatchEvent(new Event('schoolYearChanged'));
       } else {
-        showToast(data.error || 'Failed to create school year.');
+        showToast(data.error || 'Failed to assign students.');
       }
     } catch (err) {
-      showToast('Error creating new school year.');
+      showToast('Error assigning students.');
     } finally {
-      setSySubmitting(false);
+      setIsBulkAssigning(false);
     }
   };
 
-  const handleActivateSyInline = async (sy) => {
+  const handleTogglePromotion = async (studentId, currentStatus) => {
+    const nextStatus = currentStatus === 'retained' ? 'promoted' : 'retained';
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/school-years/${sy.id}/activate`, {
+      const res = await fetch('http://localhost:5000/api/admin/student-promotion', {
         method: 'PUT',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          studentId,
+          promotionStatus: nextStatus,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`S.Y. ${sy.schoolYear} set as Active Academic Year.`);
-        fetchSchoolYears();
-        fetchAssignmentData();
-        window.dispatchEvent(new Event('schoolYearChanged'));
-      } else {
-        showToast(data.error || 'Failed to activate school year.');
+        showToast(`Student promotion status updated to ${nextStatus.toUpperCase()}.`);
+        fetchStudentSectioning();
       }
     } catch (err) {
-      showToast('Error updating active school year.');
+      showToast('Error updating promotion status.');
     }
   };
 
   useEffect(() => {
     fetchAssignmentData();
-    if (isSchoolYearsTab) {
-      fetchSchoolYears();
+    if (isSectioningTab) {
+      fetchStudentSectioning();
     }
 
     const handleSYChange = () => {
       fetchAssignmentData();
-      fetchSchoolYears();
+      fetchStudentSectioning();
     };
     window.addEventListener('schoolYearChanged', handleSYChange);
     return () => window.removeEventListener('schoolYearChanged', handleSYChange);
-  }, [isSchoolYearsTab]);
+  }, [isSectioningTab]);
 
   // All unique teachers for Faculty-in-Charge assignment (allows advisers to also be faculty-in-charge)
   const allTeachers = useMemo(() => {
@@ -489,15 +470,19 @@ export default function AdminFacultyAssignment() {
       <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
       <div className="space-y-6">
 
-      {/* Original Main Header */}
+      {/* Page Content Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <IdentificationCard size={32} weight="regular" className="text-brand-red shrink-0" />
-            <h1 className="text-3xl font-bold text-ink">Sections &amp; Faculty</h1>
+          <div className="flex items-center gap-2">
+            <ChalkboardTeacher size={22} className="text-brand-red shrink-0" />
+            <h2 className="text-xl font-bold text-ink">
+              {isSectioningTab ? 'Student Sectioning' : 'Sections & Faculty'}
+            </h2>
           </div>
-          <p className="mt-1 text-xs text-ink/50">
-            Manage school sections, class assignments, and grade-level Faculty-in-Charge supervisors
+          <p className="mt-0.5 text-xs text-ink/50">
+            {isSectioningTab
+              ? 'Assign unassigned students to new Academic Year sections and set promotion statuses'
+              : 'Manage school sections, assigned class advisers, and grade-level Faculty-in-Charge supervisors'}
           </p>
         </div>
 
@@ -519,78 +504,279 @@ export default function AdminFacultyAssignment() {
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setEditingSectionData(null);
-              setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '', adviserId: '' });
-              setShowAddSectionModal(true);
-            }}
-            className="flex items-center gap-1.5 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
-          >
-            <Plus size={15} weight="bold" />
-            <span>Add New Section</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Grade Level Faculty-in-Charge Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {assignments.map((item) => (
-          <div
-            key={item.gradeLevel}
-            className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
-                <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
-                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                  {sections[item.gradeLevel]?.length || 0} Sections
-                </span>
-              </div>
-
-              <div className="mt-3 space-y-1">
-                <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
-                {loading ? (
-                  <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10 my-0.5" />
-                ) : (
-                  <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
-                )}
-              </div>
-            </div>
-
+          {!isSectioningTab && (
             <button
               type="button"
               onClick={() => {
-                setAssigningFacultyGrade(item.gradeLevel);
-                setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
+                setEditingSectionData(null);
+                setSectionFormData({ gradeLevel: 'Grade 4', sectionName: '', adviserId: '' });
+                setShowAddSectionModal(true);
               }}
-              className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-full bg-brand-blue px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
             >
-              <UserSwitch size={14} />
-              <span>Change Faculty-in-Charge</span>
+              <Plus size={15} weight="bold" />
+              <span>Add New Section</span>
             </button>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
 
-      {/* Class Sections Table & Controls */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
-        {/* Section Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-ink/10">
-          <div className="flex items-center gap-2">
-            <ChalkboardTeacher size={20} className="text-brand-red" />
+      {/* Render Student Sectioning View if on /sectioning */}
+      {isSectioningTab ? (
+        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-ink/10">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-ink">Class Sections &amp; Advisers</h2>
-                <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                  {filteredSections.length} Sections Listed
+                <span className="text-sm font-bold text-ink font-mono bg-brand-blue/10 text-brand-blue px-2.5 py-0.5 rounded-full">
+                  Active Academic Year: S.Y. {activeSchoolYear || 'Active'}
                 </span>
               </div>
-              <p className="text-xs text-ink/50">Manage school sections and assigned class advisers</p>
+            </div>
+
+            {/* Bulk Sectioning Controls */}
+            {selectedStudentIds.length > 0 && (
+              <div className="flex items-center gap-2 bg-brand-blue/10 border border-brand-blue/20 p-2 rounded-xl animate-in fade-in">
+                <span className="text-xs font-bold text-brand-blue px-1">
+                  {selectedStudentIds.length} Selected
+                </span>
+                <select
+                  value={targetAssignSection}
+                  onChange={(e) => setTargetAssignSection(e.target.value)}
+                  className="rounded-lg border border-ink/20 bg-white px-2.5 py-1 text-xs text-ink font-semibold outline-none focus:border-brand-blue"
+                >
+                  <option value="">-- Select Target Section --</option>
+                  {(allSectionsList || [])
+                    .filter((s) => sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter)
+                    .map((s) => (
+                      <option key={s.id} value={s.sectionName}>
+                        {s.gradeLevel} - {s.sectionName}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!targetAssignSection || isBulkAssigning}
+                  onClick={handleBulkAssignStudents}
+                  className="rounded-lg bg-brand-blue px-3 py-1 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {isBulkAssigning ? 'Assigning...' : 'Assign Selected'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Sectioning Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ink/10 pb-4">
+            <div className="flex items-center gap-1.5 bg-ink/5 p-1 rounded-xl">
+              {['All', 'Grade 4', 'Grade 5', 'Grade 6'].map((grade) => (
+                <button
+                  key={grade}
+                  type="button"
+                  onClick={() => setSectioningGradeFilter(grade)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                    sectioningGradeFilter === grade ? 'bg-white text-ink shadow-xs' : 'text-ink/60 hover:text-ink'
+                  }`}
+                >
+                  {grade}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-ink/5 p-1 rounded-xl">
+                {['Unassigned', 'Assigned', 'All'].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setSectioningStatusFilter(status)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                      sectioningStatusFilter === status ? 'bg-white text-ink shadow-xs' : 'text-ink/60 hover:text-ink'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+
+          {/* Sectioning Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="text-xs text-ink/70">
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-center w-[4%]">
+                    <input
+                      type="checkbox"
+                      checked={
+                        sectioningStudents.length > 0 &&
+                        selectedStudentIds.length ===
+                          sectioningStudents.filter((s) =>
+                            (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
+                            (sectioningStatusFilter === 'All' ||
+                              (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
+                              (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
+                          ).length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const ids = sectioningStudents
+                            .filter((s) =>
+                              (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
+                              (sectioningStatusFilter === 'All' ||
+                                (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
+                                (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
+                            )
+                            .map((s) => s.studentId);
+                          setSelectedStudentIds(ids);
+                        } else {
+                          setSelectedStudentIds([]);
+                        }
+                      }}
+                      className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                    />
+                  </th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[12%]">LRN</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[25%]">Student Name</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[15%]">Grade Level</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[18%]">Current Section</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[14%]">End-of-Year Status</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-right w-[12%]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sectioningStudents
+                  .filter((s) =>
+                    (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
+                    (sectioningStatusFilter === 'All' ||
+                      (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
+                      (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
+                  )
+                  .map((std) => (
+                    <tr key={std.studentId} className="hover:bg-ink/[0.02] border-b border-ink/10 text-xs">
+                      <td className="border border-ink/10 p-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.includes(std.studentId)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedStudentIds([...selectedStudentIds, std.studentId]);
+                            } else {
+                              setSelectedStudentIds(selectedStudentIds.filter((id) => id !== std.studentId));
+                            }
+                          }}
+                          className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                        />
+                      </td>
+                      <td className="border border-ink/10 p-3 font-mono font-semibold text-ink/80">{std.lrn}</td>
+                      <td className="border border-ink/10 p-3 font-bold text-ink">{std.name}</td>
+                      <td className="border border-ink/10 p-3 font-semibold text-ink/80">{std.gradeLevel}</td>
+                      <td className="border border-ink/10 p-3">
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            std.sectionName === 'Unassigned'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          }`}
+                        >
+                          {std.sectionName}
+                        </span>
+                      </td>
+                      <td className="border border-ink/10 p-3">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePromotion(std.studentId, std.promotionStatus)}
+                          className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                            std.promotionStatus === 'retained'
+                              ? 'bg-brand-red/10 text-brand-red border-brand-red/30 hover:bg-brand-red/20'
+                              : 'bg-brand-blue/10 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/20'
+                          }`}
+                          title="Click to toggle Promoted vs Retained status"
+                        >
+                          {std.promotionStatus === 'retained' ? 'Retained' : 'Promoted'}
+                        </button>
+                      </td>
+                      <td className="border border-ink/10 p-3 text-right">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setTargetAssignSection(e.target.value);
+                              setSelectedStudentIds([std.studentId]);
+                            }
+                          }}
+                          className="rounded-lg border border-ink/20 bg-white px-2 py-1 text-[11px] font-semibold text-ink outline-none focus:border-brand-blue cursor-pointer"
+                        >
+                          <option value="">Assign Section...</option>
+                          {(allSectionsList || [])
+                            .filter((sec) => sec.gradeLevel === std.gradeLevel)
+                            .map((sec) => (
+                              <option key={sec.id} value={sec.sectionName}>
+                                {sec.sectionName}
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+      ) : (
+        /* Class Sections & Faculty-in-Charge View (Sections Tab) */
+        <div className="space-y-6">
+        {/* Grade Level Faculty-in-Charge Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {assignments.map((item) => (
+            <div
+              key={item.gradeLevel}
+              className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                  <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
+                  <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                    {sections[item.gradeLevel]?.length || 0} Sections
+                  </span>
+                </div>
+
+                <div className="mt-3 space-y-1">
+                  <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
+                  {loading ? (
+                    <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10 my-0.5" />
+                  ) : (
+                    <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAssigningFacultyGrade(item.gradeLevel);
+                  setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
+                }}
+                className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+              >
+                <UserSwitch size={14} />
+                <span>Change Faculty-in-Charge</span>
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Class Sections Table & Controls */}
+        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
+          {/* Section Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-ink/10">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-ink">Active Class Sections Masterlist</span>
+              <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                {filteredSections.length} Sections Listed
+              </span>
+            </div>
+          </div>
 
         {/* Filter Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ink/10 pb-4">
@@ -722,6 +908,8 @@ export default function AdminFacultyAssignment() {
           <span>Showing {filteredSections.length} section records</span>
         </div>
       </div>
+      </div>
+      )}
 
       {/* Add / Edit Section Modal */}
       {showAddSectionModal && createPortal(

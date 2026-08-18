@@ -40,6 +40,11 @@ router.get('/school-years', adminController.getSchoolYears);
 router.post('/school-years', adminController.createSchoolYear);
 router.put('/school-years/:id/activate', adminController.activateSchoolYear);
 
+// Student Sectioning & Promotion endpoints
+router.get('/student-sectioning', adminController.getStudentSectioning);
+router.post('/assign-students-section', adminController.assignStudentsToSection);
+router.put('/student-promotion', adminController.updateStudentPromotionStatus);
+
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
 router.get('/students/check/:lrn', studentController.checkExistingStudent);

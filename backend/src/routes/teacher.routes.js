@@ -319,6 +319,7 @@ router.delete('/grade-level/sections/:id', async (req, res) => {
  * Phil-IRI Per-Student Assignment & Oral Review Verification Routes
  */
 router.get('/class-students', teacherController.getTeacherClassStudents);
+router.put('/students/:studentId/promotion', teacherController.updateStudentPromotionByTeacher);
 router.post('/assessments/assign-phil-iri-students', teacherController.assignPhilIriToStudents);
 router.get('/assessments/pending-reviews', teacherController.getPendingOralReviews);
 router.put('/assessments/:attemptId/verify-oral', teacherController.verifyOralReadingResult);

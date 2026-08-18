@@ -2,9 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { IdentificationCard } from '@phosphor-icons/react';
 
 const TABS = [
-  { to: '/admin/sections/list', label: 'Sections' },
-  { to: '/admin/sections/faculty', label: 'Faculty' },
-  { to: '/admin/sections/school-years', label: 'School Years' },
+  { to: '/admin/sections/list', label: 'Sections & Faculty' },
+  { to: '/admin/sections/sectioning', label: 'Student Sectioning' },
 ];
 
 export default function AdminSectionsLayout() {

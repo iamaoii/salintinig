@@ -1206,6 +1206,7 @@ async function getTeacherClassStudents(req, res) {
           c.section_name AS "sectionName",
           c.grade_level AS "gradeLevel",
           c.class_id AS "classId",
+          COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
           COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
         FROM students s
         JOIN student_grade_history sgh ON sgh.student_id = s.student_id
@@ -1239,6 +1240,7 @@ async function getTeacherClassStudents(req, res) {
             c.section_name AS "sectionName",
             c.grade_level AS "gradeLevel",
             c.class_id AS "classId",
+            COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
             COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
           FROM students s
           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
@@ -1473,6 +1475,59 @@ async function getActivityDetail(req, res) {
   }
 }
 
+async function updateStudentPromotionByTeacher(req, res) {
+  try {
+    const userId = req.user?.userId || req.user?.user_id || req.user?.id;
+    const { studentId } = req.params;
+    const { promotionStatus } = req.body;
+
+    if (!['promoted', 'retained', 'dropped', 'transferred', 'pending'].includes(promotionStatus)) {
+      return res.status(400).json({ success: false, error: 'Invalid promotion status.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      if (!activeSyRes.rows || activeSyRes.rows.length === 0) {
+        return res.status(400).json({ success: false, error: 'No active school year found.' });
+      }
+      const activeSyId = activeSyRes.rows[0].school_year_id;
+
+      // Verify that the teacher is the class adviser or FIC for this student's class
+      const verifyRes = await db.query(
+        `SELECT sgh.student_id
+         FROM student_grade_history sgh
+         JOIN classes c ON sgh.class_id = c.class_id
+         JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
+           SELECT fic.teacher_id FROM faculty_in_charge fic WHERE fic.grade_level = c.grade_level AND fic.school_year_id = $1 AND fic.status = 'active'
+         ))
+         WHERE sgh.student_id::text = $2 AND t.user_id = $3 AND c.school_year_id = $1
+         LIMIT 1`,
+        [activeSyId, String(studentId), userId]
+      );
+
+      if (!verifyRes.rows || verifyRes.rows.length === 0) {
+        return res.status(403).json({ success: false, error: 'Not authorized to update promotion status for this student.' });
+      }
+
+      await db.query(
+        `UPDATE student_grade_history
+         SET promotion_status = $1::varchar,
+             promoted_at = CASE WHEN $1::text = 'promoted' THEN CURRENT_TIMESTAMP ELSE NULL END
+         WHERE (student_id::text = $2 OR student_id IN (SELECT student_id FROM students WHERE student_id::text = $2))
+           AND class_id IN (SELECT class_id FROM classes WHERE school_year_id = $3)`,
+        [promotionStatus, String(studentId), activeSyId]
+      );
+
+      return res.json({ success: true, message: `Student promotion status updated to ${promotionStatus.toUpperCase()}.` });
+    }
+
+    return res.json({ success: true, message: 'Updated promotion status.' });
+  } catch (error) {
+    console.error('Error updating promotion status by teacher:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update promotion status.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,
@@ -1492,4 +1547,5 @@ module.exports = {
   deleteAssessment,
   getTeacherClassStudents,
   getActivityDetail,
+  updateStudentPromotionByTeacher,
 };

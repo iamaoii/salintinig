@@ -700,24 +700,16 @@ export default function AdminStudentRecords() {
                       <div className="relative inline-flex items-center">
                         <span
                           className={`absolute left-3 size-2 rounded-full pointer-events-none z-10 ${
-                            std.status === 'Active'
-                              ? 'bg-[#00a652]'
-                              : std.status === 'Dropped'
-                              ? 'bg-amber-500'
-                              : std.status === 'Transferred'
-                              ? 'bg-purple-500'
-                              : 'bg-brand-red'
+                            std.status === 'Active' ? 'bg-[#00a652]' : 'bg-brand-red'
                           }`}
                         />
                         <select
-                          value={std.status || 'Active'}
+                          value={std.status === 'Disabled' ? 'Disabled' : 'Active'}
                           onChange={(e) => handleToggleStatus(std, e.target.value)}
                           className="appearance-none rounded-full bg-white/90 hover:bg-white border border-ink/15 pl-7 pr-6 py-1 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
                         >
                           <option value="Active">Active</option>
                           <option value="Disabled">Disabled</option>
-                          <option value="Dropped">Dropped Out</option>
-                          <option value="Transferred">Transferred Out</option>
                         </select>
                         <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink/40">
                           <CaretDown size={10} weight="bold" />

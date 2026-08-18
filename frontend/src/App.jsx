@@ -93,8 +93,13 @@ export default function App() {
         <Route path="records/students/:lrn" element={<AdminStudentProfile />} />
         <Route path="records/teachers/:id" element={<TeacherProfile />} />
 
-        <Route path="sections" element={<AdminFacultyAssignment />} />
-        <Route path="sections/*" element={<Navigate to="/admin/sections" replace />} />
+        <Route path="sections" element={<AdminSectionsLayout />}>
+          <Route index element={<Navigate to="list" replace />} />
+          <Route path="list" element={<AdminFacultyAssignment />} />
+          <Route path="sectioning" element={<AdminFacultyAssignment />} />
+          <Route path="faculty" element={<AdminFacultyAssignment />} />
+          <Route path="school-years" element={<AdminFacultyAssignment />} />
+        </Route>
 
         {/* Phil-IRI Group — layout with sub-tabs inside */}
         <Route path="phil-iri" element={<AdminPhilIriLayout />}>
