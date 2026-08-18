@@ -192,14 +192,6 @@ export default function App() {
         <Route path="class-activities/practice/edit/:id" element={<ActivityFormPage />} />
         <Route path="class-activities/practice/success" element={<ActivitySuccess />} />
 
-        {/* Backwards-Compatible Route Aliases */}
-        <Route path="class-activities/assign-phil-iri" element={<PhilIriAssignPage />} />
-        <Route path="class-activities/assign-phil-iri/:editId" element={<PhilIriAssignPage />} />
-        <Route path="class-activities/detail/:id" element={<ActivityDetailPage />} />
-        <Route path="class-activities/new" element={<ActivityFormPage />} />
-        <Route path="class-activities/success" element={<ActivitySuccess />} />
-        <Route path="class-activities/:id/edit" element={<ActivityFormPage />} />
-
         <Route path="account" element={<AccountSettings />} />
         <Route path="account/:tab" element={<AccountSettings />} />
         <Route path="account/avatar" element={<EditAvatar />} />

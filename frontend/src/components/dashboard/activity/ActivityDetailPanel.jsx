@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { ChartPieSlice, ArrowRight, PencilSimple, Trash, UsersThree } from '@phosphor-icons/react';
+import { ChartPieSlice, ArrowRight, PencilSimple, Trash, UsersThree, LockKey, CheckCircle } from '@phosphor-icons/react';
 
-export default function ActivityDetailPanel({ activity, onDelete }) {
+export default function ActivityDetailPanel({ activity, onDelete, onToggleStatus }) {
   return (
     <div className="flex w-full flex-col gap-3">
       {/* Overview Stat Card */}
@@ -37,39 +37,39 @@ export default function ActivityDetailPanel({ activity, onDelete }) {
           </div>
         </div>
 
-        {/* GST Grid Cards */}
+        {/* Roster Completion Summary Cards */}
         <div className="mt-3.5 grid grid-cols-2 gap-2.5">
-          {/* Under 14 GST */}
-          <div className="flex flex-col justify-between rounded-lg border border-ink/10 bg-cream p-3 shadow-sm">
+          {/* Done / Evaluated */}
+          <div className="flex flex-col justify-between rounded-lg border border-emerald-200/80 bg-emerald-50/40 p-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold text-ink">{activity.studentsUnder14Gst}</span>
-              <div className="flex size-6 items-center justify-center rounded-full border border-brand-red text-brand-red">
+              <span className="text-2xl font-bold text-emerald-700">{activity.done}</span>
+              <div className="flex size-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                 <ArrowRight size={12} weight="bold" />
               </div>
             </div>
             <div className="mt-2.5 flex items-end justify-between gap-1.5">
-              <span className="max-w-[80px] text-[11px] font-medium leading-tight text-ink/80">
-                Student under 14 GST
+              <span className="max-w-[85px] text-[11px] font-semibold leading-tight text-emerald-800">
+                Completed Students
               </span>
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-ink/10 text-ink/40">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
                 <UsersThree size={16} weight="bold" />
               </div>
             </div>
           </div>
 
-          {/* Above 14 GST */}
-          <div className="flex flex-col justify-between rounded-lg border border-ink/10 bg-cream p-3 shadow-sm">
+          {/* Pending */}
+          <div className="flex flex-col justify-between rounded-lg border border-amber-200/80 bg-amber-50/40 p-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold text-ink">{activity.studentsAbove14Gst}</span>
-              <div className="flex size-6 items-center justify-center rounded-full border border-brand-red text-brand-red">
+              <span className="text-2xl font-bold text-amber-700">{activity.pending}</span>
+              <div className="flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-700">
                 <ArrowRight size={12} weight="bold" />
               </div>
             </div>
             <div className="mt-2.5 flex items-end justify-between gap-1.5">
-              <span className="max-w-[80px] text-[11px] font-medium leading-tight text-ink/80">
-                Student above 14 GST
+              <span className="max-w-[85px] text-[11px] font-semibold leading-tight text-amber-800">
+                Pending Evaluation
               </span>
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-ink/10 text-ink/40">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700">
                 <UsersThree size={16} weight="bold" />
               </div>
             </div>
@@ -82,15 +82,29 @@ export default function ActivityDetailPanel({ activity, onDelete }) {
         </p>
       </div>
 
-      {/* Instructions Card */}
-      <div className="rounded-xl border border-ink/10 bg-cream p-4 shadow-sm">
-        <p className="text-[11px] text-ink/50">Due: {activity.dueDate}</p>
-        <p className="mt-0.5 text-sm font-semibold text-ink">{activity.title}</p>
-        <span className="mt-1 inline-block rounded-full bg-green-600/10 px-2 py-0.5 text-[11px] font-medium text-green-700">
-          {activity.stars} Stars
-        </span>
+      {/* Instructions & Activity Control Card */}
+      <div className="rounded-xl border border-ink/10 bg-cream p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+            activity.activityStatus === 'closed' || activity.action === 'Closed'
+              ? 'bg-ink/10 text-ink/60 border border-ink/20'
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+          }`}>
+            Status: {activity.activityStatus === 'closed' || activity.action === 'Closed' ? 'Closed' : 'Open'}
+          </span>
+          <span className="text-[11px] font-semibold text-ink/60">
+            Due: {activity.formattedDueDate || (activity.dueDate ? activity.dueDate : 'No Deadline')}
+          </span>
+        </div>
 
-        <div className="mt-2.5 border-t border-ink/10 pt-2.5">
+        <div>
+          <p className="text-sm font-bold text-ink">{activity.title}</p>
+          <span className="mt-1 inline-block rounded-full bg-green-600/10 px-2 py-0.5 text-[11px] font-medium text-green-700">
+            {activity.stars} Stars
+          </span>
+        </div>
+
+        <div className="border-t border-ink/10 pt-2.5">
           <p className="text-xs font-semibold text-ink">Instructions:</p>
           <ol className="mt-1.5 list-decimal space-y-0.5 pl-4 text-xs text-ink/70 leading-normal">
             {activity.instructions.map((line, i) => (
@@ -101,22 +115,49 @@ export default function ActivityDetailPanel({ activity, onDelete }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5 pt-1">
+        {/* Primary Action: Open Roster */}
         <Link
           to={`/teacher/class-activities/phil-iri/view/${activity.id}`}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-sm font-bold text-white shadow-2xs transition-colors hover:bg-blue-700"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 active:scale-[0.99] cursor-pointer"
         >
           <ArrowRight size={16} weight="bold" />
-          Open Full Activity & Roster
+          <span>Open Full Activity & Roster</span>
         </Link>
-        <button
-          type="button"
-          onClick={() => onDelete?.(activity.id)}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer"
-        >
-          <Trash size={15} />
-          Delete Activity
-        </button>
+
+        {/* Secondary Grid: Toggle Status & Delete */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onToggleStatus?.(activity)}
+            className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold text-white shadow-2xs transition-all hover:brightness-105 active:scale-[0.98] cursor-pointer ${
+              activity.activityStatus === 'closed' || activity.action === 'Closed'
+                ? 'bg-emerald-600 hover:bg-emerald-700'
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
+          >
+            {activity.activityStatus === 'closed' || activity.action === 'Closed' ? (
+              <>
+                <CheckCircle size={15} weight="bold" />
+                <span>Re-Open</span>
+              </>
+            ) : (
+              <>
+                <LockKey size={15} weight="bold" />
+                <span>Close Activity</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDelete?.(activity.id)}
+            className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-red text-xs font-bold text-white shadow-2xs transition-all hover:bg-red-700 active:scale-[0.98] cursor-pointer"
+          >
+            <Trash size={15} weight="bold" />
+            <span>Delete Activity</span>
+          </button>
+        </div>
       </div>
     </div>
   );

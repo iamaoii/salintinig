@@ -115,13 +115,19 @@ function StatsBlock({ activity }) {
 }
 
 function ActionButton({ activity, theme, onClick }) {
+  const isClosed = activity.activityStatus === 'closed' || activity.action === 'Closed';
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold shadow-2xs transition-colors cursor-pointer ${theme.buttonBg}`}
+      className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold shadow-2xs transition-colors cursor-pointer ${
+        isClosed
+          ? 'bg-ink/10 text-ink/50 hover:bg-ink/15'
+          : theme.buttonBg
+      }`}
     >
-      {activity.action || 'Open'}
+      {isClosed ? 'Closed' : activity.action || 'Open'}
     </button>
   );
 }
@@ -200,7 +206,8 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuOpen(false);
-                    const editPath = (activity.type === 'phil-iri' || activity.tag === 'Phil-IRI' || activity.id.includes('_'))
+                    const isPhilIri = activity.type === 'phil-iri' || activity.tag === 'Phil-IRI' || activity.id.startsWith('act-') || activity.id.includes('_');
+                    const editPath = isPhilIri
                       ? `/teacher/class-activities/phil-iri/edit/${activity.id}`
                       : `/teacher/class-activities/practice/edit/${activity.id}`;
                     navigate(editPath);

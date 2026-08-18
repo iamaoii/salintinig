@@ -16,6 +16,7 @@ import {
 } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import CustomDatePicker from '../../../components/common/CustomDatePicker.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
 
@@ -68,6 +69,7 @@ export default function PhilIriAssignPage() {
   const [assessmentType, setAssessmentType] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [selectedGrade, setSelectedGrade] = useState(initialGrade);
+  const [dueDate, setDueDate] = useState('');
   const [students, setStudents] = useState([]);
   const [passages, setPassages] = useState([]);
   const [selectedPassages, setSelectedPassages] = useState({});
@@ -76,6 +78,13 @@ export default function PhilIriAssignPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewPassage, setPreviewPassage] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
 
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
@@ -161,6 +170,8 @@ export default function PhilIriAssignPage() {
             setPeriod(act.period || 'pre_test');
             setAssessmentType(act.assessmentType || 'oral');
             setSelectedLanguage(act.language || 'fil');
+
+            if (act.dueDate) setDueDate(act.dueDate.split('T')[0]);
 
             if (Array.isArray(act.students) && act.students.length > 0) {
               const assignedIds = new Set();
@@ -309,6 +320,10 @@ export default function PhilIriAssignPage() {
       setToastMessage({ text: 'Please select an Assessment Type (Listening, Oral, or Silent).', type: 'warning' });
       return;
     }
+    if (dueDate && dueDate < todayStr) {
+      setToastMessage({ text: 'Due date cannot be a past date. Please select today or a future date.', type: 'warning' });
+      return;
+    }
     if (selectedStudents.size === 0) {
       setToastMessage({ text: 'Please select at least one student to assign.', type: 'warning' });
       return;
@@ -338,6 +353,7 @@ export default function PhilIriAssignPage() {
           assignments: assignmentList,
           assessmentType,
           assessmentPeriod: period,
+          dueDate: dueDate || null,
           isEdit: isEditMode,
         }),
       });
@@ -381,24 +397,25 @@ export default function PhilIriAssignPage() {
             <h2 className="mb-3 text-base font-bold text-ink">General Details</h2>
 
             <div className="flex flex-col gap-3.5">
-              {/* Grid: Assessment Period & Language */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs sm:text-sm font-semibold text-ink/80">
-                    Assessment Period <span className="text-brand-red">*</span>
-                  </label>
-                  <select
-                    required
-                    value={period}
-                    onChange={(e) => setPeriod(e.target.value)}
-                    className="w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink outline-none focus:border-brand-blue"
-                  >
-                    <option value="" disabled>-- Select Assessment Period --</option>
-                    <option value="pre_test">Pre-Test (GST / Screening)</option>
-                    <option value="post_test">Post-Test (Year-End Evaluation)</option>
-                  </select>
-                </div>
+              {/* Assessment Period - Full Width */}
+              <div>
+                <label className="mb-1 block text-xs sm:text-sm font-semibold text-ink/80">
+                  Assessment Period <span className="text-brand-red">*</span>
+                </label>
+                <select
+                  required
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink outline-none focus:border-brand-blue"
+                >
+                  <option value="" disabled>-- Select Assessment Period --</option>
+                  <option value="pre_test">Pre-Test (GST / Screening)</option>
+                  <option value="post_test">Post-Test (Year-End Evaluation)</option>
+                </select>
+              </div>
 
+              {/* Grid: Language & Due Date */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs sm:text-sm font-semibold text-ink/80">
                     Assessment Language <span className="text-brand-red">*</span>
@@ -407,12 +424,24 @@ export default function PhilIriAssignPage() {
                     required
                     value={selectedLanguage}
                     onChange={(e) => setSelectedLanguage(e.target.value)}
-                    className="w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink outline-none focus:border-brand-blue"
+                    className="w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink outline-none focus:border-brand-blue"
                   >
                     <option value="" disabled>-- Select Language (Filipino or English) --</option>
                     <option value="fil">Filipino (FIL)</option>
                     <option value="en">English (ENG)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs sm:text-sm font-semibold text-ink/80">
+                    Due Date / Deadline <span className="text-ink/40 font-normal">(Optional)</span>
+                  </label>
+                  <CustomDatePicker
+                    value={dueDate}
+                    onChange={(val) => setDueDate(val)}
+                    minDate={todayStr}
+                    placeholder="Select due date..."
+                  />
                 </div>
               </div>
             </div>

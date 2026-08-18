@@ -59,6 +59,8 @@ async function initDatabase() {
       await db.query("ALTER TABLE phil_iri_passages ADD COLUMN IF NOT EXISTS prev_status VARCHAR(50) DEFAULT 'published';");
       await db.query("ALTER TABLE student_grade_history ADD COLUMN IF NOT EXISTS school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE;");
       await db.query("ALTER TABLE student_grade_history ADD COLUMN IF NOT EXISTS grade_level VARCHAR(50);");
+      await db.query("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS due_date TIMESTAMP WITH TIME ZONE;");
+      await db.query("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'open';");
       try {
         await db.query("ALTER TABLE student_grade_history ADD CONSTRAINT unique_student_sy UNIQUE (student_id, school_year_id);");
       } catch (cErr) {

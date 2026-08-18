@@ -19,12 +19,12 @@ function consolidateActivities(rawList) {
     const period = (act.period || act.assessmentPeriod || 'pre_test').toLowerCase();
     const lang = (act.language || 'fil').toLowerCase();
 
-    const key = act.id && act.id.includes('_') ? act.id : `${type}_${period}_${lang}`;
+    const key = act.id || `${type}_${period}_${lang}`;
 
     if (!map.has(key)) {
       map.set(key, {
         ...act,
-        id: key,
+        id: act.id || key,
         done: Number(act.done || 0),
         pending: Number(act.pending || 0),
         totalAssigned: Number(act.totalAssigned || (Number(act.done || 0) + Number(act.pending || 0))),
@@ -98,6 +98,41 @@ export default function ClassActivities() {
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  const handleToggleActivityStatus = async (activity) => {
+    if (!activity) return;
+    const currentIsClosed = activity.activityStatus === 'closed' || activity.action === 'Closed';
+    const nextStatus = currentIsClosed ? 'open' : 'closed';
+
+    try {
+      const token = getToken();
+      const res = await fetch('/api/teacher/assessments/toggle-status', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          activityId: activity.id,
+          status: nextStatus,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToastMessage({
+          text: `Assessment has been marked as ${nextStatus.toUpperCase()}.`,
+          type: 'success',
+        });
+        fetchPhilIriActivities();
+      } else {
+        setToastMessage({ text: data.error || 'Failed to update status.', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error toggling status:', err);
+      setToastMessage({ text: 'Failed to update status.', type: 'error' });
+    }
   };
 
   const handleDeleteActivity = (activityId) => {
@@ -418,7 +453,11 @@ export default function ClassActivities() {
 
         <div className="w-full xl:w-[380px] xl:shrink-0 xl:border-l xl:border-ink/10 xl:pl-8">
           {selectedActivity && (
-            <ActivityDetailPanel activity={selectedActivity} onDelete={handleDeleteActivity} />
+            <ActivityDetailPanel
+              activity={selectedActivity}
+              onDelete={handleDeleteActivity}
+              onToggleStatus={handleToggleActivityStatus}
+            />
           )}
         </div>
       </div>

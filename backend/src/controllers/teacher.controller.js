@@ -1,4 +1,5 @@
 const db = require('../config/db.js');
+const { encodeActivityId, decodeActivityId } = require('../utils/activityIdHelper.js');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -826,7 +827,7 @@ async function assignPhilIriSetToClass(req, res) {
 // ---------------------------------------------------------------------------
 async function assignPhilIriToStudents(req, res) {
   try {
-    const { assignments, assessmentType, assessmentPeriod, isEdit } = req.body;
+    const { assignments, assessmentType, assessmentPeriod, dueDate, isEdit } = req.body;
     if (!Array.isArray(assignments) || !assessmentType || !assessmentPeriod) {
       return res.status(400).json({ success: false, error: 'Assignments array, assessmentType, and assessmentPeriod are required.' });
     }
@@ -843,6 +844,8 @@ async function assignPhilIriToStudents(req, res) {
         [teacherUserId]
       );
       const teacherId = tRes.rows[0]?.teacher_id || null;
+
+      const cleanDueDate = dueDate ? new Date(dueDate) : null;
 
       for (const item of assignments) {
         if (!item.studentId || !item.passageId) continue;
@@ -872,9 +875,10 @@ async function assignPhilIriToStudents(req, res) {
               `UPDATE assessments 
                SET passage_id = $1, 
                    assigned_by_teacher_id = COALESCE($2, assigned_by_teacher_id),
+                   due_date = $3,
                    updated_at = CURRENT_TIMESTAMP
-               WHERE assessment_id = $3`,
-              [item.passageId, teacherId, existingId]
+               WHERE assessment_id = $4`,
+              [item.passageId, teacherId, cleanDueDate, existingId]
             );
             successfulCount++;
             continue;
@@ -889,9 +893,9 @@ async function assignPhilIriToStudents(req, res) {
         }
 
         await db.query(
-          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, status)
-           VALUES ($1, $2, $3, $4, $5, 'assigned')`,
-          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod]
+          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
+          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod, cleanDueDate]
         );
         successfulCount++;
       }
@@ -1016,7 +1020,13 @@ async function verifyOralReadingResult(req, res) {
 // ---------------------------------------------------------------------------
 async function getPhilIriActivities(req, res) {
   try {
+    const userId = req.user?.userId || req.user?.user_id || req.user?.id;
+
     if (process.env.DATABASE_URL) {
+      // Fetch active school year
+      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      const activeSyId = activeSyRes.rows[0]?.school_year_id;
+
       const query = `
         SELECT 
           LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
@@ -1025,15 +1035,26 @@ async function getPhilIriActivities(req, res) {
           MAX(p.grade_level) AS "gradeLevel",
           STRING_AGG(DISTINCT p.passage_set, ', ' ORDER BY p.passage_set) AS "setsIncluded",
           COUNT(DISTINCT a.assessment_id)::int AS "totalAssigned",
-          COUNT(DISTINCT CASE WHEN LOWER(a.status) = 'completed' THEN a.assessment_id END)::int AS "done",
-          COUNT(DISTINCT CASE WHEN LOWER(a.status) != 'completed' THEN a.assessment_id END)::int AS "pending",
-          MAX(a.created_at) AS "created_at"
+          COUNT(DISTINCT CASE WHEN LOWER(aa.status) = 'completed' THEN a.assessment_id END)::int AS "done",
+          COUNT(DISTINCT CASE WHEN COALESCE(LOWER(aa.status), 'pending') != 'completed' THEN a.assessment_id END)::int AS "pending",
+          MAX(a.created_at) AS "created_at",
+          MAX(a.due_date) AS "dueDate",
+          BOOL_OR(LOWER(a.status) = 'closed') AS "isClosed"
         FROM assessments a
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
+        JOIN student_grade_history sgh ON sgh.student_id = a.student_id
+        JOIN classes c ON sgh.class_id = c.class_id
+        JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
+          SELECT fic.teacher_id FROM faculty_in_charge fic 
+          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
+        ))
+        WHERE t.user_id = $1
+          AND ($2::uuid IS NULL OR c.school_year_id = $2 OR sgh.school_year_id = $2)
         GROUP BY LOWER(COALESCE(a.assessment_type, 'oral')), LOWER(COALESCE(a.assessment_period, 'pre_test')), LOWER(COALESCE(p.language, 'fil'))
         ORDER BY MAX(a.created_at) DESC
       `;
-      const { rows } = await db.query(query);
+      const { rows } = await db.query(query, [userId, activeSyId || null]);
       const activities = rows.map((r) => {
         const typeLabel = r.assessmentType === 'oral'
           ? 'Oral Reading'
@@ -1044,7 +1065,10 @@ async function getPhilIriActivities(req, res) {
         const periodLabel = r.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
         const langLabel = r.language.startsWith('en') ? 'English' : 'Filipino';
         const masterTitle = `${typeLabel} Assessment (${periodLabel} - ${langLabel})`;
-        const uniqueId = `${r.assessmentType}_${r.period}_${r.language}`;
+
+        const uniqueId = encodeActivityId(r.assessmentType, r.period, r.language);
+        const isClosed = Boolean(r.isClosed);
+        const formattedDueDate = r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'No Deadline';
 
         return {
           id: uniqueId,
@@ -1056,12 +1080,14 @@ async function getPhilIriActivities(req, res) {
           language: r.language,
           gradeLevel: r.gradeLevel || 'Grade 4',
           passageSet: r.setsIncluded ? `Sets ${r.setsIncluded}` : 'All Sets',
-          status: r.pending === 0 ? 'completed' : 'pending',
+          activityStatus: isClosed ? 'closed' : 'open',
+          status: isClosed ? 'closed' : r.pending === 0 ? 'completed' : 'pending',
           done: r.done,
           pending: r.pending,
           totalAssigned: r.totalAssigned,
-          action: r.pending === 0 ? 'View result' : 'Open',
-          dueDate: 'Active',
+          action: isClosed ? 'Closed' : r.pending === 0 ? 'View result' : 'Open',
+          dueDate: r.dueDate ? new Date(r.dueDate).toISOString().split('T')[0] : '',
+          formattedDueDate: isClosed ? 'Closed' : formattedDueDate,
           stars: 100,
           studentsUnder14Gst: r.done,
           studentsAbove14Gst: r.pending,
@@ -1099,36 +1125,9 @@ async function getPhilIriPassages(req, res) {
 async function deleteAssessment(req, res) {
   try {
     const { id } = req.params;
-    const cleanId = String(id || '').trim();
+    const { passageId, assessmentType, period, language } = decodeActivityId(id);
 
     if (process.env.DATABASE_URL) {
-      let passageId = null;
-      let assessmentType = null;
-      let period = null;
-      let language = null;
-
-      const knownTypes = ['oral', 'listening', 'silent'];
-      const matchingType = knownTypes.find((t) => cleanId.toLowerCase().startsWith(t + '_'));
-
-      if (matchingType) {
-        assessmentType = matchingType;
-        const remainder = cleanId.substring(matchingType.length + 1).toLowerCase(); // e.g. 'pre_test_fil' or 'post_test_en'
-        if (remainder.endsWith('_fil') || remainder.endsWith('_en')) {
-          language = remainder.endsWith('_en') ? 'en' : 'fil';
-          period = remainder.substring(0, remainder.lastIndexOf('_')); // e.g. 'pre_test'
-        } else {
-          period = remainder;
-        }
-      } else if (cleanId.includes('_')) {
-        const parts = cleanId.split('_');
-        passageId = parts[0];
-        if (parts.length > 1) assessmentType = parts[1];
-        if (parts.length > 2) period = parts.slice(2).join('_');
-      } else {
-        passageId = cleanId;
-      }
-
-      // Build conditions
       let whereClause = `1=1`;
       const params = [];
 
@@ -1333,13 +1332,27 @@ async function getTeacherClassStudents(req, res) {
 async function getActivityDetail(req, res) {
   try {
     const { id } = req.params;
-    const cleanId = String(id || '').trim();
+    let cleanId = String(id || '').trim();
+
+    // Decode base64url encoded activity token if prefixed with 'act-'
+    if (cleanId.startsWith('act-')) {
+      try {
+        const hash = cleanId.replace(/^act-/, '');
+        cleanId = Buffer.from(hash, 'base64url').toString('utf-8');
+      } catch (e) {
+        // Fallback to raw string if decoding fails
+      }
+    }
 
     if (process.env.DATABASE_URL) {
+      const userId = req.user?.userId || req.user?.user_id || req.user?.id;
+      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      const activeSyId = activeSyRes.rows[0]?.school_year_id;
+
+      let passageId = null;
       let assessmentType = null;
       let period = null;
       let language = null;
-      let passageId = null;
 
       const knownTypes = ['oral', 'listening', 'silent'];
       const matchingType = knownTypes.find((t) => cleanId.toLowerCase().startsWith(t + '_'));
@@ -1362,9 +1375,23 @@ async function getActivityDetail(req, res) {
         passageId = cleanId;
       }
 
-      // Build WHERE conditions
+      // Build WHERE conditions scoped to teacher & active school year
       let whereClause = `1=1`;
       const params = [];
+
+      params.push(userId);
+      whereClause += ` AND EXISTS (
+        SELECT 1 FROM student_grade_history sgh
+        JOIN classes c ON sgh.class_id = c.class_id
+        JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
+          SELECT fic.teacher_id FROM faculty_in_charge fic 
+          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
+        ))
+        WHERE sgh.student_id = a.student_id
+          AND t.user_id = $${params.length}
+          AND ($${params.length + 1}::uuid IS NULL OR c.school_year_id = $${params.length + 1} OR sgh.school_year_id = $${params.length + 1})
+      )`;
+      params.push(activeSyId || null);
 
       if (passageId) {
         params.push(passageId);
@@ -1421,6 +1448,7 @@ async function getActivityDetail(req, res) {
           LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
           a.status,
+          a.due_date AS "dueDate",
           COALESCE(a.reading_level_result, 'Pending Evaluation') AS "readingLevelResult",
           a.remarks,
           aa.attempt_id AS "attemptId",
@@ -1451,6 +1479,8 @@ async function getActivityDetail(req, res) {
       const periodLabel = (period || 'pre_test') === 'post_test' ? 'Post-Test' : 'Pre-Test';
       const langLabel = (language || 'fil').startsWith('en') ? 'English' : 'Filipino';
 
+      const firstDueDate = sRes.rows.find((r) => r.dueDate)?.dueDate || null;
+
       return res.json({
         success: true,
         activity: {
@@ -1459,6 +1489,7 @@ async function getActivityDetail(req, res) {
           assessmentType: assessmentType || 'oral',
           period: period || 'pre_test',
           language: language || 'fil',
+          dueDate: firstDueDate,
           typeLabel,
           periodLabel,
           langLabel,

@@ -4,6 +4,7 @@ const adminController = require('../controllers/admin.controller.js');
 const teacherController = require('../controllers/teacher.controller.js');
 const studentController = require('../controllers/student.controller.js');
 const { verifyToken, requireRole } = require('../middleware/auth.middleware.js');
+const { decodeActivityId } = require('../utils/activityIdHelper.js');
 
 // All teacher routes require a valid token
 router.use(verifyToken);
@@ -326,6 +327,56 @@ router.put('/assessments/:attemptId/verify-oral', teacherController.verifyOralRe
 router.get('/assessments/phil-iri-activities', teacherController.getPhilIriActivities);
 router.get('/assessments/activity-detail/:id', teacherController.getActivityDetail);
 router.get('/assessments/passages', teacherController.getPhilIriPassages);
+
+router.put('/assessments/toggle-status', async (req, res) => {
+  const db = require('../config/db.js');
+  try {
+    const { activityId, status, dueDate } = req.body;
+    if (!activityId) {
+      return res.status(400).json({ success: false, error: 'Activity ID is required.' });
+    }
+
+    const newStatus = status === 'closed' ? 'closed' : 'open';
+    const { passageId, assessmentType, period, language, rawId } = decodeActivityId(activityId);
+
+    let whereClause = `1=1`;
+    const params = [newStatus];
+
+    if (dueDate !== undefined) {
+      params.push(dueDate ? new Date(dueDate) : null);
+    }
+
+    const setClause = dueDate !== undefined
+      ? `status = $1, due_date = $2`
+      : `status = $1`;
+
+    if (assessmentType) {
+      params.push(assessmentType);
+      whereClause += ` AND LOWER(COALESCE(a.assessment_type, 'oral')) = LOWER($${params.length})`;
+
+      if (period) {
+        params.push(period);
+        whereClause += ` AND LOWER(COALESCE(a.assessment_period, 'pre_test')) = LOWER($${params.length})`;
+      }
+
+      if (language) {
+        params.push(language);
+        whereClause += ` AND EXISTS (SELECT 1 FROM phil_iri_passages p WHERE p.passage_id = a.passage_id AND LOWER(COALESCE(p.language, 'fil')) LIKE LOWER($${params.length}) || '%')`;
+      }
+    } else {
+      params.push(rawId);
+      whereClause += ` AND (a.passage_id::text = $${params.length} OR a.assessment_id::text = $${params.length})`;
+    }
+
+    await db.query(`UPDATE assessments SET ${setClause} WHERE assessment_id IN (SELECT a.assessment_id FROM assessments a WHERE ${whereClause})`, params);
+
+    return res.json({ success: true, message: `Assessment status updated to ${newStatus.toUpperCase()}.`, newStatus });
+  } catch (err) {
+    console.error('Error toggling assessment status:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update status.' });
+  }
+});
+
 router.delete('/assessments/:id', teacherController.deleteAssessment);
 
 module.exports = router;

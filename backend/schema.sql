@@ -219,7 +219,8 @@ CREATE TABLE IF NOT EXISTS assessments (
     assessment_type VARCHAR(50) NOT NULL, -- 'oral' or 'silent'
     assessment_period VARCHAR(50) NOT NULL, -- 'pre_test' or 'post_test'
     date_assigned TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'assigned',
+    due_date TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(50) DEFAULT 'open', -- 'open' or 'closed'
     reading_level_result VARCHAR(50), -- 'Independent', 'Instructional', 'Frustration'
     remarks TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
