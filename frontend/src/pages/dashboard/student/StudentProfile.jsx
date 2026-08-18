@@ -10,6 +10,7 @@ import AchievementActivityRow from '../../../components/dashboard/activity/Achie
 import BadgeCard from '../../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { decodeSecureToken } from '../../../lib/securityToken.js';
 
 import { students as mockStudentsData } from '../../../data/students.js';
 import { badgesByLrn, storiesByLrn } from '../../../data/studentAchievements.js';
@@ -47,7 +48,8 @@ function withPlaceholders(items) {
 }
 
 export default function StudentProfile() {
-  const { lrn } = useParams();
+  const { lrn: rawLrn } = useParams();
+  const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Activities');
   const [dbStudent, setDbStudent] = useState(null);
@@ -158,30 +160,34 @@ export default function StudentProfile() {
             <p className="text-sm font-medium text-ink">Accuracy Trend</p>
           </div>
           <div className="rounded-[10px] border border-ink/10 bg-cream p-3">
-            <AccuracyTrendChart sessions={SESSIONS} accuracy={ACCURACY_TREND} comprehension={COMPREHENSION_TREND} />
+            <AccuracyTrendChart
+              sessions={student.sessions && student.sessions.length > 0 ? student.sessions : ['S1']}
+              accuracy={student.accuracyTrend && student.accuracyTrend.length > 0 ? student.accuracyTrend : [0]}
+              comprehension={student.comprehensionTrend && student.comprehensionTrend.length > 0 ? student.comprehensionTrend : [0]}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
-              value={87}
+              value={student.avgAccuracy || 0}
               unit="%"
               label={'Average\nAccuracy'}
               iconName="ph:target"
               iconBg="bg-[#DBEAFE] text-[#2563EB]"
             />
             <StatCard
-              value={37}
+              value={student.avgComprehension || 0}
               unit="%"
               label={'Average\nComprehension'}
               iconName="ph:lightbulb"
               iconBg="bg-[#D1FAE5] text-[#059669]"
             />
             <StatCard
-              value={67}
-              unit="wps"
+              value={student.avgWps || 0}
+              unit=" WPS"
               label={'Average\nReading Speed'}
-              iconName="ph:lightning"
-              iconBg="bg-[#FEF08A] text-[#CA8A04]"
+              iconName="ph:gauge"
+              iconBg="bg-[#FEF3C7] text-[#D97706]"
             />
           </div>
         </div>

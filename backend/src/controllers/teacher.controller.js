@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-const { encodeActivityId, decodeActivityId } = require('../utils/activityIdHelper.js');
+const { encodeActivityId, decodeActivityId, encodeSecureToken, decodeSecureToken } = require('../utils/securityToken.js');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -281,7 +281,6 @@ async function createTeacher(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        console.log(`[createTeacher] Resolved adminSchoolId: ${schoolId}`);
         const hashedPassword = hashPassword(tempPassword);
 
         const { rows: userRows } = await db.query(

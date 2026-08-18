@@ -23,6 +23,7 @@ import {
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { encodeSecureToken } from '../../lib/securityToken.js';
 import { getToken } from '../../lib/auth.js';
 import * as XLSX from 'xlsx';
 
@@ -677,7 +678,7 @@ export default function AdminStudentRecords() {
                 paginatedStudents.map((std) => (
                   <tr key={std.id} className="hover:bg-ink/[0.02] transition-colors">
                     <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{std.lrn}</td>
-                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${std.lrn}`)}>{std.name}</td>
+                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}>{std.name}</td>
                     <td className="border border-ink/10 p-2 text-ink/80">
                       <span className="font-semibold">{std.grade}</span> - {std.section}
                     </td>
@@ -720,7 +721,7 @@ export default function AdminStudentRecords() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/records/students/${std.lrn}`)}
+                          onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}
                           className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         >
                           View Profile

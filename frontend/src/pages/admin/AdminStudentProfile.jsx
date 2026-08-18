@@ -19,8 +19,9 @@ import {
   X,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
-import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { decodeSecureToken } from '../../lib/securityToken.js';
+
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../components/dashboard/progress/StatCard.jsx';
 import AccuracyTrendChart from '../../components/dashboard/progress/AccuracyTrendChart.jsx';
@@ -54,7 +55,8 @@ function withPlaceholders(items) {
 }
 
 export default function AdminStudentProfile() {
-  const { lrn } = useParams();
+  const { lrn: rawLrn } = useParams();
+  const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);

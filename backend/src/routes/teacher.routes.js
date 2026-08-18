@@ -4,7 +4,7 @@ const adminController = require('../controllers/admin.controller.js');
 const teacherController = require('../controllers/teacher.controller.js');
 const studentController = require('../controllers/student.controller.js');
 const { verifyToken, requireRole } = require('../middleware/auth.middleware.js');
-const { decodeActivityId } = require('../utils/activityIdHelper.js');
+const { decodeActivityId, decodeSecureToken } = require('../utils/securityToken.js');
 
 // All teacher routes require a valid token
 router.use(verifyToken);

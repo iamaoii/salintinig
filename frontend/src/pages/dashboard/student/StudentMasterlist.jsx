@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { ArrowsClockwise, Check, X, UserCheck, CaretDown } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import { encodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken, getUser } from '../../../lib/auth.js';
 
 const TABS = [
@@ -253,7 +254,7 @@ export default function StudentMasterlist({ level }) {
                   <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.section || student.sectionName || 'Assigned'}</td>
                   <td className="px-4 py-3.5 text-right whitespace-nowrap">
                     <Link
-                      to={`/teacher/student-dashboard/students/${student.lrn}`}
+                      to={`/teacher/student-dashboard/students/${encodeSecureToken('st', student.lrn)}`}
                       className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-brand-blue/10 px-3.5 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
                     >
                       View Profile

@@ -145,16 +145,18 @@ async function getStudents(req, res) {
   }
 }
 
+const { decodeSecureToken } = require('../utils/securityToken.js');
+
 /**
  * GET /api/admin/students/:lrn — Get single student by LRN
  */
 async function getStudentByLrn(req, res) {
   try {
     const { lrn } = req.params;
+    const cleanLrn = decodeSecureToken('st', lrn);
 
     if (isDbConfigured()) {
       try {
-        const cleanLrn = String(lrn || '').trim();
         const { rows } = await db.query(`
           SELECT 
             s.student_id AS id,
