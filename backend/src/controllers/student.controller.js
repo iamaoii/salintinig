@@ -572,32 +572,32 @@ async function updateStudent(req, res) {
           [firstName || null, middleName || null, lastName || null, gender || null, lrn]
         );
 
-        if (stRows && stRows[0] && (grade || section)) {
-          const studentId = stRows[0].student_id;
-          const rawGrade = grade ? String(grade).trim() : 'Grade 4';
-          const gradeNum = rawGrade.replace(/^Grade\s*/i, '').trim();
-          const targetGrade = rawGrade.toLowerCase().startsWith('grade') ? rawGrade : `Grade ${gradeNum}`;
-          const targetSection = section || 'Fyang';
+          if (section) {
+            const studentId = stRows[0].student_id;
+            const rawGrade = grade ? String(grade).trim() : 'Grade 4';
+            const gradeNum = rawGrade.replace(/^Grade\s*/i, '').trim();
+            const targetGrade = rawGrade.toLowerCase().startsWith('grade') ? rawGrade : `Grade ${gradeNum}`;
+            const targetSection = String(section).trim();
 
-          // Find or create target class (supports 'Grade 4' or '4' in database)
-          let classId = null;
-          const { rows: existingClass } = await db.query(
-            `SELECT class_id FROM classes 
-             WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
-               AND LOWER(section_name) = LOWER($3) 
-             LIMIT 1`,
-            [targetGrade, gradeNum, targetSection]
-          );
-
-          if (existingClass && existingClass[0]) {
-            classId = existingClass[0].class_id;
-          } else {
-            const { rows: newClass } = await db.query(
-              `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-              [targetGrade, targetSection]
+            // Find or create target class
+            let classId = null;
+            const { rows: existingClass } = await db.query(
+              `SELECT class_id FROM classes 
+               WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
+                 AND LOWER(section_name) = LOWER($3) 
+               LIMIT 1`,
+              [targetGrade, gradeNum, targetSection]
             );
-            if (newClass && newClass[0]) classId = newClass[0].class_id;
-          }
+
+            if (existingClass && existingClass[0]) {
+              classId = existingClass[0].class_id;
+            } else {
+              const { rows: newClass } = await db.query(
+                `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
+                [targetGrade, targetSection]
+              );
+              if (newClass && newClass[0]) classId = newClass[0].class_id;
+            }
 
           if (classId) {
             // Find active school year
