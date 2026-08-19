@@ -5,13 +5,13 @@ const studentController = require('../controllers/student.controller.js');
 const teacherController = require('../controllers/teacher.controller.js');
 const { verifyToken, requireRole } = require('../middleware/auth.middleware.js');
 
-// Public or Dashboard stats endpoint
-router.get('/stats', adminController.getSystemStats);
 router.post('/verify-parent-code', adminController.verifyParentAccessCode);
 
 // Protected Admin-only routes
 router.use(verifyToken);
 router.use(requireRole('admin'));
+
+router.get('/stats', adminController.getSystemStats);
 
 router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);

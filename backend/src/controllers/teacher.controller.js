@@ -54,15 +54,6 @@ function parseNameString(rawName = '') {
 async function getAdminSchoolId(req) {
   if (process.env.DATABASE_URL) {
     try {
-      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
-      if (tokenSchoolId) {
-        const schoolRes = await db.query(
-          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
-          [tokenSchoolId]
-        );
-        if (schoolRes.rows?.[0]?.school_id) return schoolRes.rows[0].school_id;
-      }
-
       if (req.user?.email) {
         const { rows } = await db.query(
           `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
@@ -71,8 +62,14 @@ async function getAdminSchoolId(req) {
         if (rows?.[0]?.school_id) return rows[0].school_id;
       }
 
-      const sRes = await db.query(`SELECT school_id FROM schools LIMIT 1`);
-      if (sRes.rows?.[0]?.school_id) return sRes.rows[0].school_id;
+      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
+      if (tokenSchoolId) {
+        const schoolRes = await db.query(
+          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
+          [tokenSchoolId]
+        );
+        if (schoolRes.rows?.[0]?.school_id) return schoolRes.rows[0].school_id;
+      }
     } catch (e) {}
   }
   return req.user?.schoolId || req.user?.school_id || null;
@@ -1258,31 +1255,6 @@ async function getTeacherClassStudents(req, res) {
         `;
         const ficRes = await db.query(ficQuery, [userId]);
         students = ficRes.rows || [];
-      }
-
-      // If still empty (e.g. general fallback), query all enrolled students from database
-      if (students.length === 0) {
-        const fallbackQuery = `
-          SELECT 
-            s.student_id AS id,
-            s.student_id AS "studentId",
-            s.lrn,
-            CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            s.first_name AS "firstName",
-            s.middle_name AS "middleName",
-            s.last_name AS "lastName",
-            s.sex AS gender,
-            COALESCE(c.section_name, 'General') AS "sectionName",
-            COALESCE(c.grade_level, 'Grade 4') AS "gradeLevel",
-            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS "readingLevel"
-          FROM students s
-          LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-          LEFT JOIN classes c ON sgh.class_id = c.class_id
-          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
-          ORDER BY s.last_name ASC, s.first_name ASC
-        `;
-        const fbRes = await db.query(fallbackQuery);
-        students = fbRes.rows || [];
       }
 
       if (students.length > 0) {

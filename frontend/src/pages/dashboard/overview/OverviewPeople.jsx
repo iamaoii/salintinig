@@ -47,15 +47,15 @@ export default function OverviewPeople() {
           console.warn('Teacher me fetch notice:', meErr.message);
         }
 
-        // 2. Fetch students and filter by teacher's active section
-        const res = await fetch('http://localhost:5000/api/admin/students', {
+        // 2. Fetch students from teacher endpoint
+        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
           const filteredStudents = data.students.filter((s) => {
             if (!targetSection || targetSection.toLowerCase().includes('unassigned')) return false;
-            const sSec = (s.section || '').toLowerCase().trim();
+            const sSec = (s.sectionName || s.section || '').toLowerCase().trim();
             const targetSec = targetSection.toLowerCase().trim();
             const targetSecNameOnly = targetSec.replace(/^grade\s*\d+\s*-\s*/i, '').trim();
             return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));

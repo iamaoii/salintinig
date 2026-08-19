@@ -65,14 +65,14 @@ export default function ClassCard() {
         // 4. Fetch Enrolled Learners Count from DB for THIS specific section
         let learnerText = '0 Enrolled Learners';
         try {
-          const resStudents = await fetch('http://localhost:5000/api/admin/students', {
+          const resStudents = await fetch('http://localhost:5000/api/teacher/class-students', {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const dataStudents = await resStudents.json();
           if (resStudents.ok && dataStudents.success && Array.isArray(dataStudents.students)) {
             const sectionStudents = dataStudents.students.filter((s) => {
               if (!sectionName) return false;
-              const sSec = (s.section || '').toLowerCase().trim();
+              const sSec = (s.sectionName || s.section || '').toLowerCase().trim();
               const targetSec = sectionName.toLowerCase().trim();
               const targetSecNameOnly = targetSec.replace(/^grade\s*\d+\s*-\s*/i, '').trim();
               return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));

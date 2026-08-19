@@ -5,9 +5,9 @@
 -- -----------------------------------------------------------------------------
 -- 1. SEED ACTIVE ACADEMIC SCHOOL YEAR
 -- -----------------------------------------------------------------------------
-INSERT INTO school_years (school_year, is_active)
-VALUES ('2026-2027', true)
-ON CONFLICT (school_year) DO UPDATE SET is_active = EXCLUDED.is_active;
+INSERT INTO school_years (school_id, school_year, is_active)
+VALUES ('109283', '2026-2027', true)
+ON CONFLICT (school_id, school_year) DO UPDATE SET is_active = EXCLUDED.is_active;
 
 -- -----------------------------------------------------------------------------
 -- 2. SEED DEFAULT DEPED SCHOOL INSTITUTIONAL ACCOUNT

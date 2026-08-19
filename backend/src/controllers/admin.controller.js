@@ -67,6 +67,16 @@ function parseNameString(rawName = '') {
 async function getAdminSchoolId(req) {
   if (process.env.DATABASE_URL) {
     try {
+      if (req.user && req.user.email) {
+        const { rows } = await db.query(
+          `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [req.user.email]
+        );
+        if (rows && rows[0] && rows[0].school_id) {
+          return rows[0].school_id;
+        }
+      }
+
       const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
       if (tokenSchoolId) {
         const schoolRes = await db.query(
@@ -77,26 +87,9 @@ async function getAdminSchoolId(req) {
           return schoolRes.rows[0].school_id;
         }
       }
-
-      if (req.user && req.user.email) {
-        const { rows } = await db.query(
-          `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-          [req.user.email]
-        );
-        if (rows && rows[0] && rows[0].school_id) {
-          return rows[0].school_id;
-        }
-      }
-      const sRes = await db.query(`SELECT school_id FROM schools LIMIT 1`);
-      if (sRes.rows && sRes.rows[0] && sRes.rows[0].school_id) {
-        return sRes.rows[0].school_id;
-      }
     } catch (e) {}
   }
-  if (req.user && (req.user.schoolId || req.user.school_id)) {
-    return req.user.schoolId || req.user.school_id;
-  }
-  return null;
+  return req.user?.schoolId || req.user?.school_id || null;
 }
 
 /**
@@ -436,7 +429,7 @@ async function createStudent(req, res) {
             await db.query(
               `INSERT INTO student_parents (student_id, access_code)
                VALUES ($1, $2)
-               ON CONFLICT DO NOTHING`,
+               ON CONFLICT (student_id) DO UPDATE SET access_code = EXCLUDED.access_code`,
               [studentId, parentAccessCode]
             );
 
@@ -1032,27 +1025,35 @@ async function getSystemStats(req, res) {
            WHERE u.school_id = $1`,
           [schoolId]
         );
-        if (!studentRes.rows[0] || parseInt(studentRes.rows[0].count, 10) === 0) {
-          studentRes = await db.query('SELECT COUNT(*) FROM students');
-        }
-        totalStudents = parseInt(studentRes.rows[0].count, 10) || 0;
+        totalStudents = parseInt(studentRes.rows[0]?.count || 0, 10);
 
-        const teacherRes = await db.query('SELECT COUNT(*) FROM teachers');
+        const teacherRes = await db.query(
+          `SELECT COUNT(DISTINCT t.teacher_id) FROM teachers t
+           JOIN users u ON t.user_id = u.user_id
+           WHERE u.school_id = $1`,
+          [schoolId]
+        );
         totalTeachers = parseInt(teacherRes.rows[0].count, 10) || 0;
 
-        const parentRes = await db.query('SELECT COUNT(*) FROM student_parents');
+        const parentRes = await db.query(
+          `SELECT COUNT(DISTINCT sp.parent_id) FROM student_parents sp
+           JOIN students s ON sp.student_id = s.student_id
+           JOIN users u ON s.user_id = u.user_id
+           WHERE u.school_id = $1`,
+          [schoolId]
+        );
         totalParentAccounts = parseInt(parentRes.rows[0].count, 10) || 0;
 
         // Count sections created under active school year
         let sectionRes;
         if (activeSyId) {
-          sectionRes = await db.query('SELECT COUNT(*) FROM classes WHERE school_year_id = $1', [activeSyId]);
+          sectionRes = await db.query('SELECT COUNT(*) FROM classes WHERE school_year_id = $1 AND (school_id = $2 OR school_id IS NULL)', [activeSyId, schoolId]);
         } else {
-          sectionRes = await db.query('SELECT COUNT(*) FROM classes');
+          sectionRes = await db.query('SELECT COUNT(*) FROM classes WHERE school_id = $1 OR school_id IS NULL', [schoolId]);
         }
         totalSections = parseInt(sectionRes.rows[0].count, 10) || 0;
 
-        const gradeRes = await db.query('SELECT COUNT(DISTINCT grade_level) FROM classes');
+        const gradeRes = await db.query('SELECT COUNT(DISTINCT grade_level) FROM classes WHERE school_id = $1 OR school_id IS NULL', [schoolId]);
         totalGradeLevels = parseInt(gradeRes.rows[0].count, 10) || 3;
       } catch (dbErr) {
         console.warn('Stats DB query notice:', dbErr.message);
@@ -1456,6 +1457,7 @@ async function getFacultyAssignments(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(`
           SELECT 
             fic.faculty_id AS id,
@@ -1465,8 +1467,9 @@ async function getFacultyAssignments(req, res) {
           FROM faculty_in_charge fic
           JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
           JOIN teachers t ON fic.teacher_id = t.teacher_id
-          WHERE fic.status = 'active'
-        `);
+          JOIN users u ON t.user_id = u.user_id
+          WHERE fic.status = 'active' AND u.school_id = $1
+        `, [schoolId]);
 
         return res.json({ success: true, assignments: rows || [] });
       } catch (dbErr) {
@@ -1488,6 +1491,7 @@ async function getSchoolYears(req, res) {
   try {
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         let { rows } = await db.query(`
           SELECT 
             school_year_id AS id,
@@ -1495,8 +1499,9 @@ async function getSchoolYears(req, res) {
             is_active AS "isActive",
             TO_CHAR(created_at, 'YYYY-MM-DD') AS "createdAt"
           FROM school_years
+          WHERE school_id = $1 OR school_id IS NULL
           ORDER BY is_active DESC, created_at DESC
-        `);
+        `, [schoolId]);
 
         return res.json({ success: true, schoolYears: rows || [] });
       } catch (dbErr) {
@@ -1517,19 +1522,19 @@ async function getSchoolYears(req, res) {
 /**
  * Helper to perform DepEd student rollover to a new active school year
  */
-async function performStudentRollover(newSchoolYearId) {
+async function performStudentRollover(newSchoolYearId, schoolId) {
   try {
-    // 1. Get the previous school year ID (the most recently active or created school year before newSchoolYearId)
+    // 1. Get the previous school year ID for this school
     const prevSyRes = await db.query(
       `SELECT school_year_id FROM school_years 
-       WHERE school_year_id != $1 
+       WHERE school_year_id != $1 AND (school_id = $2 OR school_id IS NULL)
        ORDER BY created_at DESC LIMIT 1`,
-      [newSchoolYearId]
+      [newSchoolYearId, schoolId]
     );
 
     const prevSchoolYearId = prevSyRes.rows[0]?.school_year_id || null;
 
-    // 2. Fetch all student enrollments from previous school year or latest enrollments if no prev school year ID
+    // 2. Fetch student enrollments from previous school year belonging to this school
     let studentsToRollover = [];
     if (prevSchoolYearId) {
       const { rows } = await db.query(
@@ -1538,10 +1543,13 @@ async function performStudentRollover(newSchoolYearId) {
            COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade_level, 
            COALESCE(sgh.promotion_status, 'pending') AS promotion_status
          FROM student_grade_history sgh
+         JOIN students s ON sgh.student_id = s.student_id
+         JOIN users u ON s.user_id = u.user_id
          LEFT JOIN classes c ON sgh.class_id = c.class_id
-         WHERE c.school_year_id = $1 OR sgh.school_year_id = $1
+         WHERE (c.school_year_id = $1 OR sgh.school_year_id = $1)
+           AND u.school_id = $2
          ORDER BY sgh.student_id, (c.grade_level IS NOT NULL) DESC, sgh.created_at DESC`,
-        [prevSchoolYearId]
+        [prevSchoolYearId, schoolId]
       );
       studentsToRollover = rows;
     } else {
@@ -1551,16 +1559,18 @@ async function performStudentRollover(newSchoolYearId) {
            COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade_level, 
            COALESCE(sgh.promotion_status, 'pending') AS promotion_status
          FROM students s
+         JOIN users u ON s.user_id = u.user_id
          LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id
          LEFT JOIN classes c ON sgh.class_id = c.class_id
-         ORDER BY s.student_id, (c.grade_level IS NOT NULL) DESC, sgh.created_at DESC`
+         WHERE u.school_id = $1
+         ORDER BY s.student_id, (c.grade_level IS NOT NULL) DESC, sgh.created_at DESC`,
+        [schoolId]
       );
       studentsToRollover = rows;
     }
 
     // 3. For each student, check if an entry already exists for this school_year_id before performing rollover
     for (const std of studentsToRollover) {
-      // Check if student already has a record for this school year (via school_year_id OR via class in this school year)
       const existingRes = await db.query(
         `SELECT sgh.history_id 
          FROM student_grade_history sgh
@@ -1572,13 +1582,10 @@ async function performStudentRollover(newSchoolYearId) {
       );
 
       if (existingRes.rows && existingRes.rows.length > 0) {
-        continue; // Student already has a record for this Academic Year!
+        continue;
       }
 
       const status = (std.promotion_status || 'pending').toLowerCase();
-
-      // Only roll over students who have been evaluated as 'promoted' or 'retained'.
-      // Skip 'pending' (unevaluated), 'dropped', or 'transferred' students completely.
       if (status !== 'promoted' && status !== 'retained') {
         continue;
       }
@@ -1586,9 +1593,8 @@ async function performStudentRollover(newSchoolYearId) {
       const currentGrade = std.grade_level || 'Grade 4';
       let nextGrade = currentGrade;
       if (status === 'retained') {
-        nextGrade = currentGrade; // Stay in same grade level
+        nextGrade = currentGrade;
       } else {
-        // Promoted
         if (currentGrade.includes('4')) nextGrade = 'Grade 5';
         else if (currentGrade.includes('5')) nextGrade = 'Grade 6';
         else if (currentGrade.includes('6')) nextGrade = 'Grade 6 (Graduated)';
@@ -1602,7 +1608,7 @@ async function performStudentRollover(newSchoolYearId) {
           [std.student_id, newSchoolYearId, nextGrade]
         );
       } catch (insErr) {
-        // Safe catch if duplicate or constraint notice
+        // Safe catch
       }
     }
   } catch (err) {
@@ -1613,19 +1619,22 @@ async function performStudentRollover(newSchoolYearId) {
 /**
  * Helper to check if there are pending student evaluations in the currently active school year
  */
-async function getPendingEvaluationsCount() {
+async function getPendingEvaluationsCount(schoolId) {
   try {
-    const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+    const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1', [schoolId]);
     const activeSyId = activeSyRes.rows[0]?.school_year_id;
     if (!activeSyId) return 0;
 
     const { rows } = await db.query(
       `SELECT COUNT(*)::int AS count 
        FROM student_grade_history sgh
+       JOIN students s ON sgh.student_id = s.student_id
+       JOIN users u ON s.user_id = u.user_id
        LEFT JOIN classes c ON sgh.class_id = c.class_id
        WHERE (c.school_year_id = $1 OR sgh.school_year_id = $1)
+         AND u.school_id = $2
          AND (sgh.promotion_status = 'pending' OR sgh.promotion_status IS NULL)`,
-      [activeSyId]
+      [activeSyId, schoolId]
     );
 
     return Number(rows[0]?.count || 0);
@@ -1660,8 +1669,9 @@ async function createSchoolYear(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         if (setAsActive !== false && !allowOverride) {
-          const pendingCount = await getPendingEvaluationsCount();
+          const pendingCount = await getPendingEvaluationsCount(schoolId);
           if (pendingCount > 0) {
             return res.status(400).json({
               success: false,
@@ -1673,20 +1683,20 @@ async function createSchoolYear(req, res) {
         }
 
         if (setAsActive !== false) {
-          await db.query('UPDATE school_years SET is_active = false');
+          await db.query('UPDATE school_years SET is_active = false WHERE school_id = $1', [schoolId]);
         }
 
         const { rows } = await db.query(
-          `INSERT INTO school_years (school_year, is_active)
-           VALUES ($1, $2)
-           ON CONFLICT (school_year) DO UPDATE SET is_active = $2
+          `INSERT INTO school_years (school_id, school_year, is_active)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (school_id, school_year) DO UPDATE SET is_active = $3
            RETURNING school_year_id AS id, school_year AS "schoolYear", is_active AS "isActive"`,
-          [cleanSy, setAsActive !== false]
+          [schoolId, cleanSy, setAsActive !== false]
         );
 
         const newSyId = rows[0]?.id;
         if (newSyId && setAsActive !== false) {
-          await performStudentRollover(newSyId);
+          await performStudentRollover(newSyId, schoolId);
         }
 
         return res.status(201).json({
@@ -1720,8 +1730,9 @@ async function activateSchoolYear(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         if (!allowOverride) {
-          const pendingCount = await getPendingEvaluationsCount();
+          const pendingCount = await getPendingEvaluationsCount(schoolId);
           if (pendingCount > 0) {
             return res.status(400).json({
               success: false,
@@ -1732,14 +1743,14 @@ async function activateSchoolYear(req, res) {
           }
         }
 
-        await db.query('UPDATE school_years SET is_active = false');
+        await db.query('UPDATE school_years SET is_active = false WHERE school_id = $1', [schoolId]);
         const { rows } = await db.query(
-          'UPDATE school_years SET is_active = true WHERE school_year_id::text = $1 OR school_year = $1 RETURNING school_year_id',
-          [id]
+          'UPDATE school_years SET is_active = true WHERE (school_year_id::text = $1 OR school_year = $1) AND (school_id = $2 OR school_id IS NULL) RETURNING school_year_id',
+          [id, schoolId]
         );
         const activeSyId = rows[0]?.school_year_id;
         if (activeSyId) {
-          await performStudentRollover(activeSyId);
+          await performStudentRollover(activeSyId, schoolId);
         }
       } catch (dbErr) {
         console.warn('DB activate school year notice:', dbErr.message);

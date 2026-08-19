@@ -13,7 +13,7 @@ export default function PhilIriForm3List({ formKey, label }) {
       try {
         setLoading(true);
         const token = getToken();
-        const res = await fetch('http://localhost:5000/api/admin/students', {
+        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

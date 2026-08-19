@@ -64,14 +64,7 @@ export default function StudentMasterlist({ level }) {
         if (res.ok && data.success && Array.isArray(data.students)) {
           setStudents(data.students);
         } else {
-          // Fallback to admin endpoint if teacher endpoint returns empty
-          const fallbackRes = await fetch('http://localhost:5000/api/admin/students', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          const fallbackData = await fallbackRes.json();
-          if (fallbackRes.ok && fallbackData.success && Array.isArray(fallbackData.students)) {
-            setStudents(fallbackData.students);
-          }
+          setStudents([]);
         }
         setLoading(false);
       } catch (err) {

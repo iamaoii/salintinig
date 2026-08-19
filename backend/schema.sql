@@ -50,9 +50,11 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS school_years (
     school_year_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    school_year VARCHAR(20) NOT NULL UNIQUE, -- e.g. '2026-2027'
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
+    school_year VARCHAR(20) NOT NULL, -- e.g. '2026-2027'
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_school_sy UNIQUE (school_id, school_year)
 );
 
 CREATE TABLE IF NOT EXISTS teachers (
@@ -124,7 +126,8 @@ CREATE TABLE IF NOT EXISTS student_parents (
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    CONSTRAINT unique_student_parent_link UNIQUE (student_id)
 );
 
 CREATE TABLE IF NOT EXISTS student_grade_history (

@@ -29,22 +29,10 @@ const isDbConfigured = () =>
  * Resolve the correct school_id for the currently logged-in admin.
  * 1. Use school_id from JWT token if verified against schools table.
  * 2. Fall back to querying users table by admin email.
- * 3. Fall back to first school in schools table.
  */
 async function getAdminSchoolId(req) {
   if (process.env.DATABASE_URL) {
     try {
-      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
-      if (tokenSchoolId) {
-        const schoolRes = await db.query(
-          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
-          [tokenSchoolId]
-        );
-        if (schoolRes.rows && schoolRes.rows[0] && schoolRes.rows[0].school_id) {
-          return schoolRes.rows[0].school_id;
-        }
-      }
-
       if (req.user && req.user.email) {
         const { rows } = await db.query(
           `SELECT school_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
@@ -55,16 +43,19 @@ async function getAdminSchoolId(req) {
         }
       }
 
-      const sRes = await db.query(`SELECT school_id FROM schools LIMIT 1`);
-      if (sRes.rows && sRes.rows[0] && sRes.rows[0].school_id) {
-        return sRes.rows[0].school_id;
+      const tokenSchoolId = req.user?.schoolId || req.user?.school_id;
+      if (tokenSchoolId) {
+        const schoolRes = await db.query(
+          `SELECT school_id FROM schools WHERE school_id = $1 LIMIT 1`,
+          [tokenSchoolId]
+        );
+        if (schoolRes.rows && schoolRes.rows[0] && schoolRes.rows[0].school_id) {
+          return schoolRes.rows[0].school_id;
+        }
       }
     } catch (e) {}
   }
-  if (req.user && (req.user.schoolId || req.user.school_id)) {
-    return req.user.schoolId || req.user.school_id;
-  }
-  return null;
+  return req.user?.schoolId || req.user?.school_id || null;
 }
 
 /**
@@ -117,7 +108,15 @@ async function getStudents(req, res) {
               sgh_inner.created_at DESC
           ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
-          LEFT JOIN student_parents sp ON s.student_id = sp.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (sp_inner.student_id)
+              sp_inner.student_id,
+              sp_inner.access_code,
+              sp_inner.is_active,
+              sp_inner.parent_id
+            FROM student_parents sp_inner
+            ORDER BY sp_inner.student_id, sp_inner.generated_at DESC
+          ) sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
         `;
@@ -468,7 +467,7 @@ async function createStudent(req, res) {
               await db.query(
                 `INSERT INTO student_parents (student_id, parent_id, access_code)
                  VALUES ($1, $2, $3)
-                 ON CONFLICT DO NOTHING`,
+                 ON CONFLICT (student_id) DO UPDATE SET parent_id = EXCLUDED.parent_id, access_code = EXCLUDED.access_code`,
                 [studentId, parentId, parentAccessCode]
               );
             }
@@ -953,7 +952,7 @@ async function importStudentsCSV(req, res) {
                 await db.query(
                   `INSERT INTO student_parents (student_id, parent_id, access_code)
                    VALUES ($1, $2, $3)
-                   ON CONFLICT DO NOTHING`,
+                   ON CONFLICT (student_id) DO UPDATE SET parent_id = EXCLUDED.parent_id, access_code = EXCLUDED.access_code`,
                   [studentId, parentId, parentAccessCode]
                 );
               }
