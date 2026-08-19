@@ -93,14 +93,9 @@ export default function TeacherProfile() {
       )}
 
       {/* Top Back Navigation */}
-      <button
-        type="button"
-        onClick={() => navigate('/admin/teachers')}
-        className="group inline-flex items-center gap-2.5 text-xs font-semibold text-ink/70 hover:text-ink transition-colors cursor-pointer"
-      >
+      <div className="inline-flex items-center gap-2.5">
         <BackButton to="/admin/teachers" size={20} />
-        <span className="group-hover:underline">Back to Teacher Records</span>
-      </button>
+      </div>
 
       {/* Profile Header Banner */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">

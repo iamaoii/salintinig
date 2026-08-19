@@ -48,6 +48,7 @@ router.put('/student-promotion', adminController.updateStudentPromotionStatus);
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
 router.get('/students/check/:lrn', studentController.checkExistingStudent);
+router.get('/students/:lrn', studentController.getStudentByLrn);
 router.post('/students/transfer-in', studentController.transferInStudent);
 router.post('/students', studentController.createStudent);
 router.put('/students/:lrn', studentController.updateStudent);

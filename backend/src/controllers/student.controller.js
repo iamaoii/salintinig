@@ -200,9 +200,9 @@ async function getStudentByLrn(req, res) {
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
-          WHERE TRIM(s.lrn) = $1 OR s.student_id::text = $1
+          WHERE TRIM(s.lrn) = $1 OR s.student_id::text = $1 OR TRIM(s.lrn) = $2 OR s.student_id::text = $2
           LIMIT 1
-        `, [cleanLrn]);
+        `, [cleanLrn, lrn]);
 
         if (rows && rows.length > 0) {
           const studentObj = rows[0];

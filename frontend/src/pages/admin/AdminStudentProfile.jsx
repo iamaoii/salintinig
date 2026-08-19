@@ -19,6 +19,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
+import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 import { decodeSecureToken } from '../../lib/securityToken.js';
 
@@ -67,10 +68,19 @@ export default function AdminStudentProfile() {
     const fetchStudentDetail = async () => {
       try {
         const token = getToken();
-        const res = await fetch(`http://localhost:5000/api/admin/students/${lrn}`, {
+        const targetId = lrn || rawLrn;
+        let res = await fetch(`http://localhost:5000/api/admin/students/${targetId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        const data = await res.json();
+        let data = await res.json();
+        
+        if (!res.ok && rawLrn && rawLrn !== targetId) {
+          res = await fetch(`http://localhost:5000/api/admin/students/${rawLrn}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          data = await res.json();
+        }
+
         if (res.ok && data.success && data.student) {
           setStudent(data.student);
         }
@@ -81,7 +91,7 @@ export default function AdminStudentProfile() {
       }
     };
     fetchStudentDetail();
-  }, [lrn]);
+  }, [lrn, rawLrn]);
 
   const std = student || {
     id: lrn || '',
@@ -127,14 +137,9 @@ export default function AdminStudentProfile() {
       <div className="space-y-6">
 
       {/* Top Back Navigation */}
-      <button
-        type="button"
-        onClick={() => navigate('/admin/students')}
-        className="group inline-flex items-center gap-2.5 text-xs font-semibold text-ink/70 hover:text-ink transition-colors cursor-pointer"
-      >
+      <div className="inline-flex items-center gap-2.5">
         <BackButton to="/admin/students" size={20} />
-        <span className="group-hover:underline">Back to Student Records</span>
-      </button>
+      </div>
 
       {/* Profile Header Banner with Clean Action Buttons */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
