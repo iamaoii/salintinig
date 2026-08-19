@@ -3,13 +3,34 @@ import { useParams } from 'react-router-dom';
 import { CheckCircle } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import RecordActions from '../../../components/dashboard/records/RecordActions.jsx';
+import { decodeSecureToken } from '../../../lib/securityToken.js';
 import { students } from '../../../data/students.js';
 import { individualRecordsByLrn } from '../../../data/philIriRecords.js';
 
 export default function PhilIriForm3Detail({ formKey, label, backTo }) {
-  const { lrn } = useParams();
-  const student = students.find((s) => s.lrn === lrn) ?? students[0];
-  const initialRecord = individualRecordsByLrn[student.lrn];
+  const { lrn: rawLrn } = useParams();
+  const lrn = decodeSecureToken('st', rawLrn);
+  const student = students.find((s) => s.lrn === lrn || s.lrn === rawLrn) ?? students[0] ?? { name: 'Learner', lrn: '' };
+  const initialRecord = (student?.lrn && individualRecordsByLrn[student.lrn]) ?? individualRecordsByLrn['136670100091'] ?? {
+    duration: '03:45',
+    wpm: 67,
+    miscues: [
+      { type: 'Mispronunciation', typeFilipino: 'Maling Bigkas', count: 2 },
+      { type: 'Omission', typeFilipino: 'Pagkakaltas', count: 1 },
+      { type: 'Substitution', typeFilipino: 'Pagpapalit', count: 1 },
+      { type: 'Insertion', typeFilipino: 'Pagsingit', count: 0 },
+      { type: 'Repetition', typeFilipino: 'Pag-uulit', count: 1 },
+      { type: 'Reversal', typeFilipino: 'Pagsasalungat', count: 0 },
+      { type: 'Refusal to Pronounce', typeFilipino: 'Hindi Pagbigkas', count: 0 },
+    ],
+    totalMiscues: 5,
+    oralAccuracy: '92%',
+    answers: ['Tama', 'Tama', 'Mali', 'Tama', 'Mali', 'Tama', 'Tama'],
+    responses: ['Correct', 'Correct', 'Incorrect', 'Correct', 'Incorrect', 'Correct', 'Correct'],
+    compScore: '5/7',
+    compPercentage: '71%',
+    readingLevel: 'Instructional',
+  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -105,14 +126,14 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
 
           <p className="mt-3 text-sm text-ink/50">Sagot sa mga tanong:</p>
           <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-ink sm:grid-cols-4">
-            {record.answers.map((answer, i) => (
+            {(record?.answers || []).map((answer, i) => (
               <p key={i} className="flex items-center gap-1">
                 <span className="font-semibold">{i + 1}.</span>
                 {isEditing ? (
                   <input
                     value={answer}
                     onChange={(e) => {
-                      const nextAns = [...record.answers];
+                      const nextAns = [...(record?.answers || [])];
                       nextAns[i] = e.target.value;
                       setRecord((r) => ({ ...r, answers: nextAns }));
                     }}
@@ -130,13 +151,13 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
           <p className="text-sm font-semibold text-ink">PART B</p>
           <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink">
             <p>
-              <span className="text-ink/50">Seleksyon:</span> {record.selection}
+              <span className="text-ink/50">Seleksyon:</span> {record?.selection || 'N/A'}
             </p>
             <p>
-              <span className="text-ink/50">Level:</span> {record.level}
+              <span className="text-ink/50">Level:</span> {record?.level || 'Grade 4'}
             </p>
             <p>
-              <span className="text-ink/50">Set:</span> {record.set}
+              <span className="text-ink/50">Set:</span> {record?.set || 'A'}
             </p>
           </div>
 
@@ -154,7 +175,7 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                 </tr>
               </thead>
               <tbody>
-                {record.miscues.map((miscue, i) => (
+                {(record?.miscues || []).map((miscue, i) => (
                   <tr key={miscue.type}>
                     <td className="border border-ink/10 p-2 text-ink/70">{i + 1}</td>
                     <td className="border border-ink/10 p-2 text-ink">

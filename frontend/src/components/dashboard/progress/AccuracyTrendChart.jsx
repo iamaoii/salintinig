@@ -4,16 +4,20 @@ const PADDING_LEFT = 32;
 const PADDING = 24;
 
 function toPoints(values) {
+  if (!values || values.length === 0) return [];
   const max = 100;
-  const stepX = (WIDTH - PADDING_LEFT - PADDING) / (values.length - 1);
+  const divisor = values.length > 1 ? values.length - 1 : 1;
+  const stepX = (WIDTH - PADDING_LEFT - PADDING) / divisor;
   return values.map((v, i) => {
-    const x = PADDING_LEFT + i * stepX;
-    const y = PADDING + (1 - v / max) * (HEIGHT - PADDING * 2);
+    const safeVal = Number(v) || 0;
+    const x = PADDING_LEFT + (values.length === 1 ? (WIDTH - PADDING_LEFT - PADDING) / 2 : i * stepX);
+    const y = PADDING + (1 - safeVal / max) * (HEIGHT - PADDING * 2);
     return [x, y];
   });
 }
 
 function toPath(points) {
+  if (!points || points.length === 0) return '';
   return points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`).join(' ');
 }
 
@@ -24,7 +28,8 @@ export default function AccuracyTrendChart({ sessions = ['S1', 'S2', 'S3', 'S4',
   const hasData = accuracy && accuracy.length > 0;
   const accuracyPoints = hasData ? toPoints(accuracy) : [];
   const comprehensionPoints = (comprehension && comprehension.length > 0) ? toPoints(comprehension) : [];
-  const stepX = (WIDTH - PADDING_LEFT - PADDING) / (chartSessions.length - 1);
+  const divisor = chartSessions.length > 1 ? chartSessions.length - 1 : 1;
+  const stepX = (WIDTH - PADDING_LEFT - PADDING) / divisor;
 
   return (
     <div className="w-full">
@@ -72,11 +77,14 @@ export default function AccuracyTrendChart({ sessions = ['S1', 'S2', 'S3', 'S4',
           <circle key={`c-${i}`} cx={x} cy={y} r={3} fill="#d53f24" />
         ))}
 
-        {chartSessions.map((label, i) => (
-          <text key={label} x={PADDING_LEFT + i * stepX} y={HEIGHT - 4} fontSize={9} textAnchor="middle" fill="rgba(26,24,22,0.5)">
-            {label}
-          </text>
-        ))}
+        {chartSessions.map((label, i) => {
+          const posX = PADDING_LEFT + (chartSessions.length === 1 ? (WIDTH - PADDING_LEFT - PADDING) / 2 : i * stepX);
+          return (
+            <text key={label || i} x={posX} y={HEIGHT - 4} fontSize={9} textAnchor="middle" fill="rgba(26,24,22,0.5)">
+              {label}
+            </text>
+          );
+        })}
       </svg>
 
       <div className="mt-2 flex items-center gap-4 text-xs text-ink/60">

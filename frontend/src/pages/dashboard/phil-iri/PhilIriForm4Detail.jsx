@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Check, X, CheckCircle } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import RecordActions from '../../../components/dashboard/records/RecordActions.jsx';
+import { decodeSecureToken } from '../../../lib/securityToken.js';
 import { students } from '../../../data/students.js';
 import { form4Levels, form4RecordByLrn, classInfo } from '../../../data/philIriRecords.js';
 
@@ -15,9 +16,20 @@ function LevelMark({ active }) {
 }
 
 export default function PhilIriForm4Detail() {
-  const { lrn } = useParams();
-  const student = students.find((s) => s.lrn === lrn) ?? students[0];
-  const initialRecord = form4RecordByLrn[student.lrn];
+  const { lrn: rawLrn } = useParams();
+  const lrn = decodeSecureToken('st', rawLrn);
+  const student = students.find((s) => s.lrn === lrn || s.lrn === rawLrn) ?? students[0] ?? { name: 'Learner', lrn: '' };
+  const initialRecord = (student?.lrn && form4RecordByLrn[student.lrn]) ?? form4RecordByLrn['136670100091'] ?? {
+    wordReading: { level: 'Grade 4', ind: false, ins: true, frus: false },
+    comprehension: { level: 'Grade 4', ind: false, ins: true, frus: false },
+    summary: { readingLevel: 'Instructional', levelAssigned: 'Grade 4', dateTaken: '2026-03-10' },
+    observationChecklist: [
+      { behavior: 'Does word by word reading', behaviorFilipino: 'Pagbasa nang isa-isang salita', result: '✓' },
+      { behavior: 'Lacks expression', behaviorFilipino: 'Kakulangan sa damdamin', result: '✓' },
+      { behavior: 'Does not obey punctuation marks', behaviorFilipino: 'Hindi pagpansin sa bantas', result: 'X 2' },
+      { behavior: 'Points to words while reading', behaviorFilipino: 'Pagturo sa mga salita habang nagbabasa', result: '✓' },
+    ],
+  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -104,7 +116,7 @@ export default function PhilIriForm4Detail() {
             </thead>
             <tbody>
               {form4Levels.map((level) => {
-                const isActive = level === record.wordReading.level;
+                const isActive = level === record?.wordReading?.level;
                 return (
                   <tr key={level} className={isEditing && isActive ? 'bg-blue-50/20' : ''}>
                     <td className="border border-ink/10 p-2 text-center font-medium text-ink">
@@ -112,29 +124,29 @@ export default function PhilIriForm4Detail() {
                       {level}
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.wordReading.ind} />
+                      <LevelMark active={isActive && record?.wordReading?.ind} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.wordReading.ins} />
+                      <LevelMark active={isActive && record?.wordReading?.ins} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.wordReading.frus} />
+                      <LevelMark active={isActive && record?.wordReading?.frus} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.comprehension.ind} />
+                      <LevelMark active={isActive && record?.comprehension?.ind} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.comprehension.ins} />
+                      <LevelMark active={isActive && record?.comprehension?.ins} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center">
-                      <LevelMark active={isActive && record.comprehension.frus} />
+                      <LevelMark active={isActive && record?.comprehension?.frus} />
                     </td>
                     <td className="border border-ink/10 p-2 text-center text-ink/70">
                       {isActive ? (
                         isEditing ? (
                           <input
-                            value={record.dateTaken}
-                            onChange={(e) => setRecord((r) => ({ ...r, dateTaken: e.target.value }))}
+                            value={record?.summary?.dateTaken ?? ''}
+                            onChange={(e) => setRecord((r) => ({ ...r, summary: { ...r.summary, dateTaken: e.target.value } }))}
                             className="w-full bg-transparent text-center text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
                           />
                         ) : (
@@ -171,7 +183,7 @@ export default function PhilIriForm4Detail() {
               </tr>
             </thead>
             <tbody>
-              {record.observationChecklist.map((row, i) => (
+              {(record?.observationChecklist || []).map((row, i) => (
                 <tr key={row.behavior}>
                   <td className="border border-ink/10 p-2 text-ink">
                     {row.behavior} <span className="italic text-ink/40">({row.behaviorFilipino})</span>
@@ -183,10 +195,10 @@ export default function PhilIriForm4Detail() {
                         onChange={(e) => handleChecklistChange(i, e.target.value)}
                         className="w-full bg-transparent text-center text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
                       />
-                    ) : row.result.startsWith('X') ? (
+                    ) : (row.result || '').startsWith('X') ? (
                       <span className="inline-flex items-center gap-1">
                         <X size={14} className="text-brand-red" />
-                        {row.result.replace('X', '').trim()}
+                        {(row.result || '').replace('X', '').trim()}
                       </span>
                     ) : (
                       <Check size={14} className="mx-auto text-green-600" />
