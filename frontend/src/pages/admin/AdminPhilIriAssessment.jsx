@@ -17,12 +17,6 @@ import {
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 
-const DEFAULT_PERIODS = {
-  'Grade 4': 'Pre-Test',
-  'Grade 5': 'Pre-Test',
-  'Grade 6': 'Pre-Test',
-};
-
 export default function AdminPhilIriAssessment() {
   const { globalSearch } = useOutletContext() || {};
   const [students, setStudents] = useState([]);
@@ -35,10 +29,6 @@ export default function AdminPhilIriAssessment() {
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
 
-  // Active screening period per grade level
-  const [periods, setPeriods] = useState(DEFAULT_PERIODS);
-  const [editingGrade, setEditingGrade] = useState(null);
-
   const fetchAssessments = async () => {
     try {
       setLoading(true);
@@ -49,7 +39,6 @@ export default function AdminPhilIriAssessment() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.assessments) && data.assessments.length > 0) {
         setStudents(data.assessments);
-        if (data.periods) setPeriods(data.periods);
       } else {
         fetchStudentsFallback();
       }
@@ -95,25 +84,6 @@ export default function AdminPhilIriAssessment() {
 
     return { total, completed, pending };
   }, [students]);
-
-  const handleSavePeriod = async (grade, newPeriod) => {
-    setPeriods((prev) => ({ ...prev, [grade]: newPeriod }));
-    try {
-      const token = getToken();
-      await fetch('http://localhost:5000/api/admin/phil-iri/periods', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ grade, period: newPeriod }),
-      });
-    } catch (err) {
-      console.warn('Failed to persist screening period:', err);
-    }
-    setToast({ message: `${grade} active period set to ${newPeriod}.` });
-    setEditingGrade(null);
-  };
 
   // Filtered Students list (1 row per student)
   const filteredStudents = useMemo(() => {
@@ -182,48 +152,7 @@ export default function AdminPhilIriAssessment() {
           </div>
         </div>
 
-        {/* 2. Active Screening Period Configuration Card */}
-        <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_4px_12px_rgba(26,24,22,0.04)] space-y-3">
-          <div className="flex items-center gap-2">
-            <CalendarBlank size={18} className="text-brand-red shrink-0" />
-            <div>
-              <h3 className="text-sm font-bold text-ink">Active Screening Period Configuration</h3>
-              <p className="text-[11px] text-ink/50">Select active testing period per grade level (Pre-Test baseline or Post-Test evaluation)</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => {
-              const current = periods[g];
-              return (
-                <div key={g} className="rounded-xl border border-ink/12 bg-white p-3.5 shadow-xs flex flex-col justify-between space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-ink">{g}</span>
-                    <span className="rounded-full bg-brand-blue/10 border border-brand-blue/20 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                      Active: {current}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-ink/50 uppercase tracking-wider block mb-1">
-                      Screening Period
-                    </label>
-                    <select
-                      value={current}
-                      onChange={(e) => handleSavePeriod(g, e.target.value)}
-                      className="w-full rounded-xl border border-ink/20 bg-cream/50 px-3 py-2 text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue cursor-pointer transition-colors"
-                    >
-                      <option value="Pre-Test">Pre-Test (Baseline Period)</option>
-                      <option value="Post-Test">Post-Test (Evaluation Period)</option>
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 3. Assessment Records Table */}
+        {/* 2. Assessment Records Table */}
         <div className="rounded-xl border border-ink/10 bg-white p-4 space-y-4 shadow-xs">
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-ink/10">

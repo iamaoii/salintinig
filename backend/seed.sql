@@ -134,11 +134,11 @@ FROM users WHERE email = 'adrian.alonzo@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Adrian', last_name = 'Alonzo';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'active'
+SELECT s.student_id, c.class_id, 'pending'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100091' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'pending';
 
 INSERT INTO parents (parent_name, email)
 VALUES ('Mr./Mrs. Alonzo', 'parent.136670100091@gmail.com')
@@ -166,11 +166,11 @@ FROM users WHERE email = 'janna.cruz@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Janna', last_name = 'Cruz';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'active'
+SELECT s.student_id, c.class_id, 'pending'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100092' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'pending';
 
 INSERT INTO parents (parent_name, email)
 VALUES ('Mr./Mrs. Cruz', 'parent.136670100092@gmail.com')
@@ -198,11 +198,11 @@ FROM users WHERE email = 'charlie.dizon@student.deped.gov.ph'
 ON CONFLICT (lrn) DO UPDATE SET first_name = 'Charlie', last_name = 'Dizon';
 
 INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-SELECT s.student_id, c.class_id, 'active'
+SELECT s.student_id, c.class_id, 'pending'
 FROM students s
 CROSS JOIN classes c
 WHERE s.lrn = '136670100093' AND c.grade_level = 'Grade 4' AND c.section_name = 'Fyang'
-ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active';
+ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'pending';
 
 INSERT INTO parents (parent_name, email)
 VALUES ('Mr./Mrs. Dizon', 'parent.136670100093@gmail.com')

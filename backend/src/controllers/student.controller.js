@@ -102,10 +102,8 @@ async function getStudents(req, res) {
             LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
             LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
             LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
-            ORDER BY 
-              sgh_inner.student_id, 
-              (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
-              sgh_inner.created_at DESC
+            WHERE sy_c.is_active = true OR sy_direct.is_active = true
+            ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
           ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN (
@@ -191,10 +189,8 @@ async function getStudentByLrn(req, res) {
             LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
             LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
             LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
-            ORDER BY 
-              sgh_inner.student_id, 
-              (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
-              sgh_inner.created_at DESC
+            WHERE sy_c.is_active = true OR sy_direct.is_active = true
+            ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
           ) sgh ON s.student_id = sgh.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
@@ -501,7 +497,7 @@ async function createStudent(req, res) {
 
             await db.query(
               `INSERT INTO student_grade_history (student_id, school_year_id, grade_level, class_id, promotion_status)
-               VALUES ($1, $2, $3, $4, 'promoted')
+               VALUES ($1, $2, $3, $4, 'pending')
                ON CONFLICT (student_id, school_year_id) DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level`,
               [studentId, activeSyId, targetGrade, classId || null]
             );
@@ -970,14 +966,15 @@ async function importStudentsCSV(req, res) {
                 console.warn(`⚠️ Skipped grade/section binding: Class "${grade} - ${section}" does not exist in database.`);
               }
 
-              if (classId) {
-                await db.query(
-                  `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-                   VALUES ($1, $2, 'active')
-                   ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
-                  [studentId, classId]
-                );
-              }
+            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+            await db.query(
+              `INSERT INTO student_grade_history (student_id, school_year_id, grade_level, class_id, promotion_status)
+               VALUES ($1, $2, $3, $4, 'pending')
+               ON CONFLICT (student_id, school_year_id) DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level`,
+              [studentId, activeSyId, grade || 'Grade 4', classId || null]
+            );
 
               // Send welcome email with temporary password
               sendWelcomeEmailWithTempPassword({

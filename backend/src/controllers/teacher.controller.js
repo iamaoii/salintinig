@@ -1488,7 +1488,11 @@ async function updateStudentPromotionByTeacher(req, res) {
     }
 
     if (process.env.DATABASE_URL) {
-      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      const schoolId = await getAdminSchoolId(req);
+      const activeSyRes = await db.query(
+        'SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1',
+        [schoolId]
+      );
       if (!activeSyRes.rows || activeSyRes.rows.length === 0) {
         return res.status(400).json({ success: false, error: 'No active school year found.' });
       }
@@ -1502,7 +1506,8 @@ async function updateStudentPromotionByTeacher(req, res) {
          JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
            SELECT fic.teacher_id FROM faculty_in_charge fic WHERE fic.grade_level = c.grade_level AND fic.school_year_id = $1 AND fic.status = 'active'
          ))
-         WHERE sgh.student_id::text = $2 AND t.user_id = $3 AND c.school_year_id = $1
+         WHERE (sgh.student_id::text = $2 OR sgh.student_id IN (SELECT student_id FROM students WHERE lrn = $2)) 
+           AND t.user_id = $3 AND c.school_year_id = $1
          LIMIT 1`,
         [activeSyId, String(studentId), userId]
       );
@@ -1515,8 +1520,8 @@ async function updateStudentPromotionByTeacher(req, res) {
         `UPDATE student_grade_history
          SET promotion_status = $1::varchar,
              promoted_at = CASE WHEN $1::text = 'promoted' THEN CURRENT_TIMESTAMP ELSE NULL END
-         WHERE (student_id::text = $2 OR student_id IN (SELECT student_id FROM students WHERE student_id::text = $2))
-           AND class_id IN (SELECT class_id FROM classes WHERE school_year_id = $3)`,
+         WHERE (student_id::text = $2 OR student_id IN (SELECT student_id FROM students WHERE lrn = $2))
+           AND (school_year_id = $3 OR class_id IN (SELECT class_id FROM classes WHERE school_year_id = $3))`,
         [promotionStatus, String(studentId), activeSyId]
       );
 

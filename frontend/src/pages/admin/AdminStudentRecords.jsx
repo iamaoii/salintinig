@@ -53,8 +53,8 @@ export default function AdminStudentRecords() {
     middleName: '',
     lastName: '',
     gender: 'Male',
-    grade: 'Grade 4',
-    section: 'Fyang',
+    grade: '',
+    section: '',
     personalEmail: '',
     parentEmail: '',
   });
@@ -572,8 +572,8 @@ export default function AdminStudentRecords() {
                 middleName: '',
                 lastName: '',
                 gender: 'Male',
-                grade: 'Grade 4',
-                section: 'Fyang',
+                grade: '',
+                section: '',
                 personalEmail: '',
               });
               setEditingStudent(null);
@@ -924,10 +924,12 @@ export default function AdminStudentRecords() {
                     Grade Level <span className="text-brand-red ml-0.5">*</span>
                   </label>
                   <select
+                    required
                     value={formData.grade}
-                    onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                    onChange={(e) => setFormData({ ...formData, grade: e.target.value, section: '' })}
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue cursor-pointer"
                   >
+                    <option value="">Select Grade Level</option>
                     <option value="Grade 4">Grade 4</option>
                     <option value="Grade 5">Grade 5</option>
                     <option value="Grade 6">Grade 6</option>

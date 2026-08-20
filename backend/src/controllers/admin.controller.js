@@ -1340,7 +1340,10 @@ async function createSection(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1',
+          [schoolId]
+        );
         const syId = syRes.rows[0]?.school_year_id || null;
 
         await db.query(
@@ -1524,10 +1527,10 @@ async function getSchoolYears(req, res) {
  */
 async function performStudentRollover(newSchoolYearId, schoolId) {
   try {
-    // 1. Get the previous school year ID for this school
+    // 1. Get the previous school year ID for this specific school
     const prevSyRes = await db.query(
       `SELECT school_year_id FROM school_years 
-       WHERE school_year_id != $1 AND (school_id = $2 OR school_id IS NULL)
+       WHERE school_year_id != $1 AND school_id = $2
        ORDER BY created_at DESC LIMIT 1`,
       [newSchoolYearId, schoolId]
     );
@@ -1726,23 +1729,10 @@ async function createSchoolYear(req, res) {
 async function activateSchoolYear(req, res) {
   try {
     const { id } = req.params;
-    const { allowOverride } = req.body || {};
 
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        if (!allowOverride) {
-          const pendingCount = await getPendingEvaluationsCount(schoolId);
-          if (pendingCount > 0) {
-            return res.status(400).json({
-              success: false,
-              requiresConfirmation: true,
-              pendingCount,
-              error: `Cannot activate new school year: There are still ${pendingCount} unevaluated (Pending) learner(s) in the active school year. Please ensure class advisers complete EOSY evaluations first.`,
-            });
-          }
-        }
-
         await db.query('UPDATE school_years SET is_active = false WHERE school_id = $1', [schoolId]);
         const { rows } = await db.query(
           'UPDATE school_years SET is_active = true WHERE (school_year_id::text = $1 OR school_year = $1) AND (school_id = $2 OR school_id IS NULL) RETURNING school_year_id',
@@ -1772,8 +1762,9 @@ async function getStudentSectioning(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1', [schoolId]);
         const activeSy = syRes.rows[0];
+        const activeSyId = activeSy?.school_year_id || null;
 
         const { rows } = await db.query(
           `SELECT 
@@ -1794,17 +1785,13 @@ async function getStudentSectioning(req, res) {
                sgh_inner.promotion_status
              FROM student_grade_history sgh_inner
              LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
-             LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
-             LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
-             ORDER BY 
-               sgh_inner.student_id, 
-               (COALESCE(sy_c.is_active, sy_direct.is_active, FALSE)) DESC, 
-               sgh_inner.created_at DESC
+             WHERE (sgh_inner.school_year_id = $2 OR c_inner.school_year_id = $2 OR $2 IS NULL)
+             ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
            ) sgh ON s.student_id = sgh.student_id
            LEFT JOIN classes c ON sgh.class_id = c.class_id
            WHERE (u.school_id = $1 OR u.school_id IS NULL OR $1 IS NULL)
            ORDER BY COALESCE(c.section_name, 'Unassigned') ASC, s.last_name ASC`,
-          [schoolId]
+          [schoolId, activeSyId]
         );
 
         return res.json({
