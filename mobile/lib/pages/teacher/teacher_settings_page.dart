@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class TeacherSettingsPage extends StatefulWidget {
   const TeacherSettingsPage({super.key});
@@ -649,8 +650,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                 alignment: Alignment.centerRight,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Feedback.forTap(context);
-                    Navigator.pop(context);
+                    AuthService.showLogoutDialog(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFD34426),

@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/services/api_service.dart';
 
 class UserSession {
@@ -57,14 +60,23 @@ class UserSession {
   }
 
   String get gradeLevel {
-    if (rawUser == null) return '4';
-    final val = rawUser!['gradeLevel']?.toString() ?? rawUser!['grade']?.toString() ?? '4';
+    if (rawUser == null) return '';
+    final val = rawUser!['gradeLevel']?.toString() ?? rawUser!['grade']?.toString() ?? '';
     return val.replaceAll(RegExp(r'^Grade\s*', caseSensitive: false), '').trim();
   }
 
   String get sectionName {
-    if (rawUser == null) return 'A';
-    return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? 'A';
+    if (rawUser == null) return '';
+    return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? '';
+  }
+
+  String get schoolYear {
+    if (rawUser == null) return '';
+    final sy = rawUser!['schoolYear']?.toString() ?? rawUser!['school_year']?.toString() ?? rawUser!['activeSchoolYear']?.toString();
+    if (sy != null && sy.isNotEmpty) {
+      return sy.startsWith('S.Y.') ? sy : 'S.Y. $sy';
+    }
+    return '';
   }
 
   String get lrn {
@@ -192,5 +204,45 @@ class AuthService {
   static void logout() {
     _currentUser = null;
     ApiService.setAuthToken(null);
+  }
+
+  /// Show standard logout confirmation dialog and navigate to HomePage on logout
+  static void showLogoutDialog(BuildContext context, {String portalName = 'teacher portal'}) {
+    Feedback.forTap(context);
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Log out', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          content: Text('Are you sure you want to log out of the $portalName?', style: GoogleFonts.inter()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                logout();
+                Navigator.pop(dialogContext);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomePage()),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD34426),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: Text('Log out', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

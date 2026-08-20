@@ -6,6 +6,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class TeacherActivitiesPage extends StatefulWidget {
   final String className;
@@ -274,7 +275,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pop(context);
+                    AuthService.showLogoutDialog(context);
                   },
                 ),
                 const SizedBox(height: 12),

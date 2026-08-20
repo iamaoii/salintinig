@@ -8,6 +8,7 @@ import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_reading_levels_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'dart:math' as math;
 
 class TeacherClassProgressPage extends StatefulWidget {
@@ -249,7 +250,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pop(context);
+                    AuthService.showLogoutDialog(context);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -439,6 +440,27 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     );
   }
 
+  String get _displaySectionTitle {
+    if (widget.className.isNotEmpty && widget.className != 'Grade 4 - FYANG') {
+      return widget.className;
+    }
+    final rawSection = AuthService.currentUser?.sectionName ?? '';
+    final grade = AuthService.currentUser?.gradeLevel ?? '';
+    if (rawSection.toLowerCase().startsWith('grade')) {
+      return rawSection;
+    }
+    if (rawSection.isNotEmpty && grade.isNotEmpty) {
+      return 'Grade $grade - $rawSection';
+    }
+    if (rawSection.isNotEmpty) {
+      return rawSection;
+    }
+    if (grade.isNotEmpty) {
+      return 'Grade $grade';
+    }
+    return 'Grade 4 - Fyang';
+  }
+
   Widget _buildHeroCard() {
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -475,7 +497,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Grade 4 - Fyang',
+                  _displaySectionTitle,
                   style: GoogleFonts.inter(
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
@@ -483,47 +505,26 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text(
-                  'FRIDAY',
+                  AuthService.currentUser?.schoolYear ?? 'S.Y. 2026-2027',
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.9),
                     letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  '7:30AM - 9:30AM',
+                  '${AuthService.currentUser?.rawUser?['studentsCount'] ?? 4} Enrolled Learners',
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.9),
                     letterSpacing: 0.2,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 28),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              onSelected: (val) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
-                  ),
-                );
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'Edit Info', child: Text('Edit Class Info')),
-                const PopupMenuItem(value: 'Manage Students', child: Text('Manage Students')),
-                const PopupMenuItem(value: 'Archive', child: Text('Archive Class')),
               ],
             ),
           ),

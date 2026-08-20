@@ -76,29 +76,49 @@ class ApiService {
   }
 
   static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
-    try {
-      final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-      final response = await http.post(
-        url,
-        headers: _headers,
-        body: jsonEncode(body),
-      );
-      return ApiResponse.fromResponse(response);
-    } catch (e) {
-      return ApiResponse.error('Network error: Unable to connect to server. ($e)');
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}$endpoint',
+      'http://10.0.2.2:5000/api$endpoint',
+      'http://192.168.1.146:5000/api$endpoint',
+    ];
+
+    String lastErr = '';
+    for (final urlStr in urlsToTry) {
+      try {
+        final url = Uri.parse(urlStr);
+        final response = await http.post(
+          url,
+          headers: _headers,
+          body: jsonEncode(body),
+        ).timeout(const Duration(seconds: 4));
+        return ApiResponse.fromResponse(response);
+      } catch (e) {
+        lastErr = e.toString();
+      }
     }
+    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
   }
 
   static Future<ApiResponse> get(String endpoint) async {
-    try {
-      final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-      final response = await http.get(
-        url,
-        headers: _headers,
-      );
-      return ApiResponse.fromResponse(response);
-    } catch (e) {
-      return ApiResponse.error('Network error: Unable to connect to server. ($e)');
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}$endpoint',
+      'http://10.0.2.2:5000/api$endpoint',
+      'http://192.168.1.146:5000/api$endpoint',
+    ];
+
+    String lastErr = '';
+    for (final urlStr in urlsToTry) {
+      try {
+        final url = Uri.parse(urlStr);
+        final response = await http.get(
+          url,
+          headers: _headers,
+        ).timeout(const Duration(seconds: 4));
+        return ApiResponse.fromResponse(response);
+      } catch (e) {
+        lastErr = e.toString();
+      }
     }
+    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
   }
 }

@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
 import 'package:salintinig/pages/teacher/teacher_student_details_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherClassDetailsPage extends StatefulWidget {
@@ -262,7 +263,7 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pop(context);
+                    AuthService.showLogoutDialog(context);
                   },
                 ),
                 const SizedBox(height: 12),

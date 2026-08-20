@@ -382,6 +382,23 @@ async function getMe(req, res) {
             const secLabel = tRow.section_name ? `${tRow.grade_level || 'Grade 4'} - ${tRow.section_name}` : (user.section || '');
             const finalAvatar = tRow.teacher_profile_image || dbProfileImage || user.profileImage || user.profile_image || null;
 
+            let studentsCount = 0;
+            try {
+              if (tRow.section_name) {
+                const scRes = await db.query(
+                  `SELECT COUNT(DISTINCT sgh.student_id)::int AS count 
+                   FROM student_grade_history sgh
+                   JOIN classes c ON sgh.class_id = c.class_id
+                   JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+                   WHERE c.advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE user_id = $1 LIMIT 1)`,
+                  [userId]
+                );
+                studentsCount = scRes.rows[0]?.count || 0;
+              }
+            } catch (scErr) {
+              console.warn('Teacher studentsCount fetch notice:', scErr.message);
+            }
+
             return res.json({
               success: true,
               user: {
@@ -390,8 +407,11 @@ async function getMe(req, res) {
                 firstName: tRow.first_name || user.firstName,
                 lastName: tRow.last_name || user.lastName,
                 teacherNo: tRow.teacher_no || user.teacherNo,
+                gradeLevel: tRow.grade_level ? String(tRow.grade_level) : (user.gradeLevel || '4'),
+                sectionName: tRow.section_name || user.sectionName || '',
                 section: secLabel,
                 assigned_section: secLabel,
+                studentsCount,
                 isFacultyInCharge: tRow.is_faculty_in_charge === true,
                 ficGradeLevel: tRow.fic_grade_level || null,
                 profileImage: finalAvatar,

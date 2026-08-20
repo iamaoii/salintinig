@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/pages/teacher/teacher_activities_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
@@ -83,17 +82,22 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     {'title': 'Low score alert', 'time': '2 hours ago', 'desc': 'Maria Clara scored Frustration level on Form 1A.'},
   ];
 
+  bool _isLoadingUser = true;
+
   @override
   void initState() {
     super.initState();
+    _isLoadingUser = true;
     _refreshTeacherProfile();
     _setupRealtimeSubscription();
   }
 
   Future<void> _refreshTeacherProfile() async {
-    final res = await AuthService.fetchMe();
-    if (res.success && mounted) {
-      setState(() {});
+    await AuthService.fetchMe();
+    if (mounted) {
+      setState(() {
+        _isLoadingUser = false;
+      });
     }
   }
 
@@ -236,40 +240,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 
 
   void _showLogoutDialog() {
-    Feedback.forTap(context);
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Log out', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          content: Text('Are you sure you want to log out of the teacher portal?', style: GoogleFonts.inter()),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD34426),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                elevation: 0,
-              ),
-              child: Text('Log out', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
+    AuthService.showLogoutDialog(context);
   }
 
   @override
@@ -429,7 +400,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                     leading: Iconify(Ph.users_three, color: Colors.white, size: 22),
                     title: Text(
-                      'Grade 4 - Fyang',
+                      _displaySectionTitle,
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -441,7 +412,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
+                          builder: (context) => TeacherClassDetailsPage(className: _currentClassName),
                         ),
                       );
                     },
@@ -665,7 +636,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const TeacherClassProgressPage(className: 'Grade 4 - FYANG'),
+                                        builder: (context) => TeacherClassProgressPage(className: _currentClassName),
                                       ),
                                     );
                                   },
@@ -758,57 +729,62 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Grade 4 - Fyang',
-                    style: GoogleFonts.inter(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'FRIDAY',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '7:30AM - 9:30AM',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 3-dots popup menu at top right corner
-            Positioned(
-              top: 12,
-              right: 12,
-              child: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 28),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                onSelected: (val) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
-                    ),
-                  );
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'Edit Info', child: Text('Edit Class Info')),
-                  const PopupMenuItem(value: 'Manage Students', child: Text('Manage Students')),
-                  const PopupMenuItem(value: 'Archive', child: Text('Archive Class')),
+                  _isLoadingUser
+                      ? Container(
+                          width: 180,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        )
+                      : Text(
+                          _displaySectionTitle,
+                          style: GoogleFonts.inter(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                  const SizedBox(height: 12),
+                  _isLoadingUser
+                      ? Container(
+                          width: 100,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        )
+                      : Text(
+                          AuthService.currentUser?.schoolYear ?? '',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                  const SizedBox(height: 6),
+                  _isLoadingUser
+                      ? Container(
+                          width: 130,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        )
+                      : Text(
+                          '${AuthService.currentUser?.rawUser?['studentsCount'] ?? 0} Enrolled Learners',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
                 ],
               ),
             ),
@@ -816,6 +792,28 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         ),
       );
     }
+
+  String get _displaySectionTitle {
+    final rawSection = AuthService.currentUser?.sectionName ?? '';
+    final grade = AuthService.currentUser?.gradeLevel ?? '';
+    if (rawSection.toLowerCase().startsWith('grade')) {
+      return rawSection;
+    }
+    if (rawSection.isNotEmpty && grade.isNotEmpty) {
+      return 'Grade $grade - $rawSection';
+    }
+    if (rawSection.isNotEmpty) {
+      return rawSection;
+    }
+    if (grade.isNotEmpty) {
+      return 'Grade $grade';
+    }
+    return '';
+  }
+
+  String get _currentClassName {
+    return _displaySectionTitle;
+  }
 
   Widget _buildQuickAccessRow() {
     return Row(
@@ -830,7 +828,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const TeacherClassProgressPage(className: 'Grade 4 - FYANG'),
+                  builder: (context) => TeacherClassProgressPage(className: _currentClassName),
                 ),
               );
             },
@@ -846,7 +844,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const TeacherPhilIriRecordsPage(className: 'Grade 4 - FYANG'),
+                  builder: (context) => TeacherPhilIriRecordsPage(className: _currentClassName),
                 ),
               );
             },
@@ -862,7 +860,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const TeacherActivitiesPage(className: 'Grade 4 - FYANG'),
+                  builder: (context) => TeacherActivitiesPage(className: _currentClassName),
                 ),
               );
             },

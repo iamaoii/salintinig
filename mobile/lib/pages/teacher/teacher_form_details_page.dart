@@ -6,6 +6,7 @@ import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_gst_student_list_page.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'dart:math' as math;
 
 class TeacherFormDetailsPage extends StatefulWidget {
@@ -249,7 +250,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pop(context);
+                    AuthService.showLogoutDialog(context);
                   },
                 ),
                 const SizedBox(height: 12),

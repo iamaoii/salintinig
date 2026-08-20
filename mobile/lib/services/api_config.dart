@@ -23,6 +23,8 @@ class ApiConfig {
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     } else if (Platform.isAndroid) {
+      // ADB reverse forwards localhost:5000 directly. If customHost set, use it.
+      // Fallback order: 127.0.0.1 (ADB reverse) -> 10.0.2.2 (Emulator) -> 192.168.1.146 (LAN IP)
       return 'http://127.0.0.1:5000/api';
     } else {
       return 'http://localhost:5000/api';
