@@ -200,9 +200,31 @@ class AuthService {
     });
   }
 
+  static List<Map<String, dynamic>>? _cachedClassStudents;
+
+  static List<Map<String, dynamic>>? get cachedClassStudents => _cachedClassStudents;
+
+  static Future<List<Map<String, dynamic>>> fetchClassStudents({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedClassStudents != null) {
+      return _cachedClassStudents!;
+    }
+    try {
+      final res = await ApiService.get('/teacher/class-students');
+      if (res.success && res.data != null && res.data['students'] != null) {
+        final List list = res.data['students'] as List;
+        _cachedClassStudents = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        return _cachedClassStudents!;
+      }
+    } catch (e) {
+      debugPrint('Error fetching class students: $e');
+    }
+    return _cachedClassStudents ?? [];
+  }
+
   /// Clear session
   static void logout() {
     _currentUser = null;
+    _cachedClassStudents = null;
     ApiService.setAuthToken(null);
   }
 

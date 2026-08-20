@@ -94,6 +94,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 
   Future<void> _refreshTeacherProfile() async {
     await AuthService.fetchMe();
+    await AuthService.fetchClassStudents(forceRefresh: true);
     if (mounted) {
       setState(() {
         _isLoadingUser = false;
@@ -118,6 +119,22 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'assessments',
+            callback: (payload) {
+              _refreshTeacherProfile();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'reading_profiles',
+            callback: (payload) {
+              _refreshTeacherProfile();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'students',
             callback: (payload) {
               _refreshTeacherProfile();
             },
@@ -252,9 +269,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
       key: _scaffoldKey,
       backgroundColor: softCreamBg,
       drawer: Drawer(
-        child: Container(
-          color: const Color(0xFFD34426),
-          child: SafeArea(
+        backgroundColor: const Color(0xFFD34426),
+        child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
               child: Column(
@@ -312,75 +328,84 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                   ),
                   const SizedBox(height: 4),
                   // Nav Item 2: Student Dashboard
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.presentation_chart, color: Colors.white, size: 22),
-                    title: Text(
-                      'Student Dashboard',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherClassProgressPage(className: 'Grade 4 - FYANG'),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.presentation_chart, color: Colors.white, size: 22),
+                      title: Text(
+                        'Student Dashboard',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      );
-                    },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TeacherClassProgressPage(className: 'Grade 4 - FYANG'),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 4),
                   // Nav Item 3: Phil-IRI Records
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.exam, color: Colors.white, size: 22),
-                    title: Text(
-                      'Phil-IRI Records',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherPhilIriRecordsPage(className: 'Grade 4 - FYANG'),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.exam, color: Colors.white, size: 22),
+                      title: Text(
+                        'Phil-IRI Records',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      );
-                    },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TeacherPhilIriRecordsPage(className: 'Grade 4 - FYANG'),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 4),
                   // Nav Item 4: Class Activities
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.puzzle_piece, color: Colors.white, size: 22),
-                    title: Text(
-                      'Class Activities',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherActivitiesPage(className: 'Grade 4 - FYANG'),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.puzzle_piece, color: Colors.white, size: 22),
+                      title: Text(
+                        'Class Activities',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      );
-                    },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TeacherActivitiesPage(className: 'Grade 4 - FYANG'),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 24),
                   // Section: Your classes
@@ -395,98 +420,110 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                       ),
                     ),
                   ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.users_three, color: Colors.white, size: 22),
-                    title: Text(
-                      _displaySectionTitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TeacherClassDetailsPage(className: _currentClassName),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.users_three, color: Colors.white, size: 22),
+                      title: Text(
+                        _displaySectionTitle,
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      );
-                    },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TeacherClassDetailsPage(className: _currentClassName),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const Spacer(),
                   const Divider(color: Colors.white30, height: 24, thickness: 1),
                   // Footer Actions
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: const BoxDecoration(
-                        color: Colors.white70,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    title: Text(
-                      'My Profile',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherProfilePage(),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: const BoxDecoration(
+                          color: Colors.white70,
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.gear, color: Colors.white, size: 22),
-                    title: Text(
-                      'Settings',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
                       ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherSettingsPage(),
+                      title: Text(
+                        'My Profile',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                    leading: Iconify(Ph.sign_out, color: Colors.white, size: 22),
-                    title: Text(
-                      'Logout',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
                       ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TeacherProfilePage(),
+                          ),
+                        );
+                      },
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showLogoutDialog();
-                    },
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.gear, color: Colors.white, size: 22),
+                      title: Text(
+                        'Settings',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TeacherSettingsPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: Iconify(Ph.sign_out, color: Colors.white, size: 22),
+                      title: Text(
+                        'Logout',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showLogoutDialog();
+                      },
+                    ),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -494,7 +531,6 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
             ),
           ),
         ),
-      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

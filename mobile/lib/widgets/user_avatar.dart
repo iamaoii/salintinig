@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/auth_service.dart';
 
@@ -32,16 +32,38 @@ String _initialsFor(String name) {
 
 class InitialsAvatar extends StatelessWidget {
   final String name;
+  final String? imageUrl;
   final double radius;
   final double? fontSize;
 
-  const InitialsAvatar({super.key, required this.name, this.radius = 20, this.fontSize});
+  const InitialsAvatar({
+    super.key,
+    required this.name,
+    this.imageUrl,
+    this.radius = 20,
+    this.fontSize,
+  });
 
   static Color colorFor(String name) => _colorFor(name);
   static String initialsFor(String name) => _initialsFor(name);
 
   @override
   Widget build(BuildContext context) {
+    final cleanUrl = imageUrl?.trim();
+    final hasValidUrl = cleanUrl != null &&
+        cleanUrl.isNotEmpty &&
+        (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'));
+
+    if (hasValidUrl) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: _colorFor(name),
+        backgroundImage: NetworkImage(cleanUrl),
+        onBackgroundImageError: (exception, stackTrace) {},
+        child: null,
+      );
+    }
+
     return CircleAvatar(
       radius: radius,
       backgroundColor: _colorFor(name),
@@ -59,48 +81,79 @@ class InitialsAvatar extends StatelessWidget {
 
 class UserAvatar extends StatelessWidget {
   final double size;
+  final String? imageUrl;
   final VoidCallback? onTap;
 
-  const UserAvatar({super.key, this.size = 56, this.onTap});
+  const UserAvatar({super.key, this.size = 56, this.imageUrl, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final user = AuthService.currentUser;
-    final name = user?.displayName ?? 'Student';
+    final name = user?.displayName ?? 'User';
     final initials = user?.initials ?? _initialsFor(name);
     final bgColor = _colorFor(name);
+    final cleanUrl = (imageUrl ?? user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'])?.toString().trim();
+    final hasValidUrl = cleanUrl != null &&
+        cleanUrl.isNotEmpty &&
+        (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'));
 
-    final avatarWidget = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bgColor,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          initials,
-          style: GoogleFonts.inter(
-            fontSize: size * 0.36,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            letterSpacing: 0.5,
+    Widget avatarWidget;
+    if (hasValidUrl) {
+      avatarWidget = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          image: DecorationImage(
+            image: NetworkImage(cleanUrl),
+            fit: BoxFit.cover,
           ),
         ),
-      ),
-    );
+      );
+    } else {
+      avatarWidget = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: bgColor,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            initials,
+            style: GoogleFonts.inter(
+              fontSize: size * 0.36,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      );
+    }
 
     if (onTap != null) {
       return GestureDetector(
-        onTap: () { Feedback.forTap(context); onTap!(); },
+        onTap: () {
+          Feedback.forTap(context);
+          onTap!();
+        },
         child: avatarWidget,
       );
     }

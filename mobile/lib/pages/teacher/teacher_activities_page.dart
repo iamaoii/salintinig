@@ -69,9 +69,8 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
   Widget _buildTeacherDrawer(BuildContext context) {
     return Drawer(
-      child: Container(
-        color: const Color(0xFFD34426),
-        child: SafeArea(
+      backgroundColor: const Color(0xFFD34426),
+      child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
             child: Column(
@@ -283,7 +282,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
             ),
           ),
         ),
-      ),
     );
   }
 

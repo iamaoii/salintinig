@@ -22,49 +22,58 @@ class TeacherClassDetailsPage extends StatefulWidget {
 class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  final List<Map<String, String>> _students = const [
-    {'name': 'Adrian Matthew Cruz'},
-    {'name': 'Bianca Louise Santos'},
-    {'name': 'Caleb James Rivera'},
-    {'name': 'Daniela Mae Flores'},
-    {'name': 'Ethan Gabriel Reyes'},
-    {'name': 'Fiona Claire Mendoza'},
-    {'name': 'Hannah Nicole Castillo'},
-    {'name': 'Gabriel Anthony Navarro'},
-    {'name': 'Julia Camille Torres'},
-    {'name': 'Isaac Daniel Ramos'},
-    {'name': 'Juan Dela Cruz'},
-    {'name': 'Maria Clara Santos'},
-    {'name': 'Jose Protasio Rizal'},
-    {'name': 'Andres Bonifacio'},
-    {'name': 'Emilio Aguinaldo'},
-    {'name': 'Kylie Marie Soriano'},
-    {'name': 'Liam Alexander Diaz'},
-    {'name': 'Mia Sofia Garcia'},
-    {'name': 'Nathaniel Scott Villanueva'},
-    {'name': 'Olivia Grace Hernandez'},
-    {'name': 'Patrick John Aquino'},
-    {'name': 'Quentin Blake Valenzuela'},
-    {'name': 'Rose Ann Del Rosario'},
-    {'name': 'Samuel David Tan'},
-    {'name': 'Tristan Paul Mercado'},
-    {'name': 'Ursula Beatrice Lim'},
-    {'name': 'Vincent Mark Pascual'},
-    {'name': 'Wendy Joy Roxas'},
-    {'name': 'Xavier Cole Bautista'},
-    {'name': 'Yvonne Mae Alonzo'},
-    {'name': 'Zachary Sean Ocampo'},
-    {'name': 'Angelica Ruth Corpuz'},
-    {'name': 'Benjamin Thomas Salazar'},
-    {'name': 'Chloe Danielle Ibáñez'},
-    {'name': 'Dominic Rafael David'},
-  ];
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _students = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final cached = AuthService.cachedClassStudents;
+    if (cached != null) {
+      _students = cached;
+      _isLoading = false;
+    }
+    _fetchStudents();
+  }
+
+  Future<void> _fetchStudents() async {
+    try {
+      final rawList = await AuthService.fetchClassStudents(forceRefresh: true);
+      if (mounted) {
+        setState(() {
+          _students = rawList;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching class students: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String get _teacherName {
+    final name = AuthService.currentUser?.displayName;
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    return 'Teacher';
+  }
+
+  String? get _teacherImageUrl {
+    final user = AuthService.currentUser;
+    final img = user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'];
+    return img?.toString();
+  }
 
   Widget _buildTeacherDrawer(BuildContext context) {
     return Drawer(
-      child: Container(
-        color: const Color(0xFFD34426),
-        child: SafeArea(
+      backgroundColor: const Color(0xFFD34426),
+      child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
             child: Column(
@@ -271,7 +280,6 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -326,7 +334,7 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_students.length}',
+                              _isLoading ? '...' : '${_students.length}',
                               style: GoogleFonts.inter(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w900,
@@ -368,19 +376,23 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                     const SizedBox(height: 6),
                     const Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
                     const SizedBox(height: 4),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: InitialsAvatar(
-                        name: 'Ted Mosby',
-                        radius: 20,
-                        fontSize: 14,
-                      ),
-                      title: Text(
-                        'Ted Mosby',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                    Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: InitialsAvatar(
+                          name: _teacherName,
+                          imageUrl: _teacherImageUrl,
+                          radius: 20,
+                          fontSize: 14,
+                        ),
+                        title: Text(
+                          _teacherName,
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                     ),
@@ -407,59 +419,89 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                     const SizedBox(height: 8),
 
                     // Student List
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _students.length,
-                      separatorBuilder: (context, index) => const Divider(color: Color(0xFFF1F5F9), height: 1),
-                      itemBuilder: (context, index) {
-                        final student = _students[index];
-                        final String name = student['name']!;
-
-                        return InkWell(
-                          onTap: () {
-                            Feedback.forTap(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => TeacherStudentDetailsPage(
-                                  studentName: name,
-                                ),
-                              ),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
-                            child: Row(
-                              children: [
-                                InitialsAvatar(
-                                  name: name,
-                                  radius: 20,
-                                  fontSize: 14,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
+                    _isLoading
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: CircularProgressIndicator(color: Color(0xFFD34426)),
+                            ),
+                          )
+                        : _students.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 32.0),
+                                child: Center(
                                   child: Text(
-                                    name,
+                                    'No enrolled learners found.',
                                     style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _students.length,
+                                separatorBuilder: (context, index) => const Divider(color: Color(0xFFF1F5F9), height: 1),
+                                itemBuilder: (context, index) {
+                                  final student = _students[index];
+                                  final rawName = (student['name'] as String?)?.trim();
+                                  final first = (student['firstName'] as String?)?.trim() ?? '';
+                                  final last = (student['lastName'] as String?)?.trim() ?? '';
+                                  final String name = (rawName != null && rawName.isNotEmpty)
+                                      ? rawName
+                                      : ('$first $last').trim().isNotEmpty
+                                          ? ('$first $last').trim()
+                                          : 'Student ${index + 1}';
+                                  final String? studentAvatar = (student['profileImage'] ?? student['profile_image'] ?? student['avatarUrl'] ?? student['image'])?.toString();
+
+                                  return InkWell(
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => TeacherStudentDetailsPage(
+                                            studentName: name,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
+                                      child: Row(
+                                        children: [
+                                          InitialsAvatar(
+                                            name: name,
+                                            imageUrl: studentAvatar,
+                                            radius: 20,
+                                            fontSize: 14,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Text(
+                                              name,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.chevron_right_rounded,
+                                            color: Colors.grey,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                     const SizedBox(height: 24),
                   ],
                 ),

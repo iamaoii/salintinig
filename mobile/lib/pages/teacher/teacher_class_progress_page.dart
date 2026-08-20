@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
@@ -25,18 +26,136 @@ class TeacherClassProgressPage extends StatefulWidget {
 class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
+  RealtimeChannel? _realtimeChannel;
+
+  bool _isLoadingStudents = true;
+  int _totalStudents = 0;
+  int _maleCount = 0;
+  int _femaleCount = 0;
+  int _frustrationCount = 0;
+  int _instructionalCount = 0;
+  int _independentCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final cached = AuthService.cachedClassStudents;
+    if (cached != null) {
+      _applyStudentData(cached);
+      _isLoadingStudents = false;
+    } else {
+      final count = AuthService.currentUser?.rawUser?['studentsCount'];
+      if (count != null && count is int && count > 0) {
+        _totalStudents = count;
+      }
+    }
+    _fetchClassStudents();
+    _setupRealtimeSubscription();
+  }
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeChannel = client
+          .channel('public:class_progress_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'reading_profiles',
+            callback: (payload) => _fetchClassStudents(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assessments',
+            callback: (payload) => _fetchClassStudents(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'students',
+            callback: (payload) => _fetchClassStudents(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'student_grade_history',
+            callback: (payload) => _fetchClassStudents(),
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Realtime subscription notice: $e');
+    }
+  }
 
   @override
   void dispose() {
+    if (_realtimeChannel != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeChannel!);
+      } catch (_) {}
+    }
     _searchController.dispose();
     super.dispose();
   }
 
+  void _applyStudentData(List<Map<String, dynamic>> rawList) {
+    int males = 0;
+    int females = 0;
+    int frust = 0;
+    int inst = 0;
+    int indep = 0;
+
+    for (var s in rawList) {
+      final g = (s['gender'] ?? s['sex'] ?? '').toString().trim().toLowerCase();
+      if (g.startsWith('m')) {
+        males++;
+      } else if (g.startsWith('f')) {
+        females++;
+      }
+
+      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? s['gstResult'] ?? s['gst_result'] ?? '').toString().trim().toLowerCase();
+      if (lvl.contains('frustrat')) {
+        frust++;
+      } else if (lvl.contains('instruct')) {
+        inst++;
+      } else if (lvl.contains('independ')) {
+        indep++;
+      }
+    }
+
+    _totalStudents = rawList.length;
+    _maleCount = males;
+    _femaleCount = females;
+    _frustrationCount = frust;
+    _instructionalCount = inst;
+    _independentCount = indep;
+  }
+
+  Future<void> _fetchClassStudents() async {
+    try {
+      final rawList = await AuthService.fetchClassStudents(forceRefresh: true);
+      if (mounted) {
+        setState(() {
+          _applyStudentData(rawList);
+          _isLoadingStudents = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching class students: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingStudents = false;
+        });
+      }
+    }
+  }
+
   Widget _buildTeacherDrawer(BuildContext context) {
     return Drawer(
-      child: Container(
-        color: const Color(0xFFD34426),
-        child: SafeArea(
+      backgroundColor: const Color(0xFFD34426),
+      child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
             child: Column(
@@ -63,29 +182,30 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   ],
                 ),
                 const SizedBox(height: 28),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.house, color: Colors.white, size: 22),
-                  title: Text(
-                    'Home',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.house, color: Colors.white, size: 22),
+                    title: Text(
+                      'Home',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context);
-                  },
                 ),
                 const SizedBox(height: 4),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                   child: ListTile(
                     dense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
@@ -104,50 +224,56 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.exam, color: Colors.white, size: 22),
-                  title: Text(
-                    'Phil-IRI Records',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherPhilIriRecordsPage(className: 'Grade 4 - FYANG'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.exam, color: Colors.white, size: 22),
+                    title: Text(
+                      'Phil-IRI Records',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
-                    );
-                  },
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherPhilIriRecordsPage(className: 'Grade 4 - FYANG'),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 4),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.puzzle_piece, color: Colors.white, size: 22),
-                  title: Text(
-                    'Class Activities',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherActivitiesPage(className: 'Grade 4 - FYANG'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.puzzle_piece, color: Colors.white, size: 22),
+                    title: Text(
+                      'Class Activities',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
-                    );
-                  },
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherActivitiesPage(className: 'Grade 4 - FYANG'),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Padding(
@@ -161,104 +287,115 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                     ),
                   ),
                 ),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.users_three, color: Colors.white, size: 22),
-                  title: Text(
-                    'Grade 4 - Fyang',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.users_three, color: Colors.white, size: 22),
+                    title: Text(
+                      'Grade 4 - Fyang',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
-                    );
-                  },
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const Spacer(),
                 const Divider(color: Colors.white30, height: 24, thickness: 1),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: const BoxDecoration(
-                      color: Colors.white70,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  title: Text(
-                    'My Profile',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherProfilePage(),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        color: Colors.white70,
+                        shape: BoxShape.circle,
                       ),
-                    );
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.gear, color: Colors.white, size: 22),
-                  title: Text(
-                    'Settings',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
                     ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherSettingsPage(),
+                    title: Text(
+                      'My Profile',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
-                    );
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Iconify(Ph.sign_out, color: Colors.white, size: 22),
-                  title: Text(
-                    'Logout',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
                     ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherProfilePage(),
+                        ),
+                      );
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    AuthService.showLogoutDialog(context);
-                  },
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.gear, color: Colors.white, size: 22),
+                    title: Text(
+                      'Settings',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherSettingsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    leading: Iconify(Ph.sign_out, color: Colors.white, size: 22),
+                    title: Text(
+                      'Logout',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      AuthService.showLogoutDialog(context);
+                    },
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -595,7 +732,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               Iconify(Ph.users_three, color: Colors.black87, size: 28),
               const SizedBox(width: 8),
               Text(
-                '35',
+                _isLoadingStudents ? '...' : '$_totalStudents',
                 style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w900,
@@ -623,7 +760,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                 child: Row(
                   children: [
                     Text(
-                      '20 ',
+                      _isLoadingStudents ? '... ' : '$_maleCount ',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
@@ -651,7 +788,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                 child: Row(
                   children: [
                     Text(
-                      '15 ',
+                      _isLoadingStudents ? '... ' : '$_femaleCount ',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
@@ -677,6 +814,8 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   }
 
   Widget _buildDonutChartCard() {
+    final totalEvaluated = _frustrationCount + _instructionalCount + _independentCount;
+
     return InkWell(
       onTap: () {
         Feedback.forTap(context);
@@ -710,7 +849,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               children: [
                 Row(
                   children: [
-                    Iconify(Ph.chart_pie_slice, color: Colors.grey[600], size: 20),
+                    const Iconify(Ph.chart_pie_slice_bold, color: Color(0xFFD34426), size: 20),
                     const SizedBox(width: 8),
                     Text(
                       'Reading Level Classification',
@@ -735,23 +874,27 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               children: [
                 // Donut Chart
                 SizedBox(
-                  width: 150,
-                  height: 150,
+                  width: 140,
+                  height: 140,
                   child: CustomPaint(
-                    painter: _DonutChartPainter(),
+                    painter: _DonutChartPainter(
+                      frustration: _frustrationCount,
+                      instructional: _instructionalCount,
+                      independent: _independentCount,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 24),
+                const SizedBox(width: 16),
                 // Legend Column
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLegendRow('20', 'Frustration\nLevel', const Color(0xFFD34426), 'Frustration'),
-                      const SizedBox(height: 14),
-                      _buildLegendRow('10', 'Instructional\nLevel', const Color(0xFFEAB308), 'Instructional'),
-                      const SizedBox(height: 14),
-                      _buildLegendRow('5', 'Independent\nLevel', const Color(0xFF10B981), 'Independent'),
+                      _buildLegendRow(_frustrationCount, 'Frustration\nLevel', const Color(0xFFD34426), totalEvaluated, 'Frustration'),
+                      const SizedBox(height: 12),
+                      _buildLegendRow(_instructionalCount, 'Instructional\nLevel', const Color(0xFFEAB308), totalEvaluated, 'Instructional'),
+                      const SizedBox(height: 12),
+                      _buildLegendRow(_independentCount, 'Independent\nLevel', const Color(0xFF10B981), totalEvaluated, 'Independent'),
                     ],
                   ),
                 ),
@@ -763,14 +906,16 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     );
   }
 
-  Widget _buildLegendRow(String count, String label, Color color, [String? filterLevel]) {
+  Widget _buildLegendRow(int count, String label, Color color, int total, String filterLevel) {
+    final pct = total > 0 ? ((count / total) * 100).round() : 0;
+
     return InkWell(
       onTap: () {
         Feedback.forTap(context);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TeacherReadingLevelsPage(initialLevel: filterLevel ?? 'All'),
+            builder: (context) => TeacherReadingLevelsPage(initialLevel: filterLevel),
           ),
         );
       },
@@ -789,7 +934,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             ),
             const SizedBox(width: 10),
             Text(
-              count,
+              '$count',
               style: GoogleFonts.inter(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
@@ -806,6 +951,14 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   color: Colors.grey[700],
                   height: 1.1,
                 ),
+              ),
+            ),
+            Text(
+              '($pct%)',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[600],
               ),
             ),
           ],
@@ -920,7 +1073,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               Row(
                 children: [
                   Text(
-                    '20',
+                    '$_frustrationCount',
                     style: GoogleFonts.inter(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
@@ -950,11 +1103,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   color: const Color(0xFFFEE2E2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.notifications_active_outlined,
-                  color: Color(0xFFD34426),
-                  size: 20,
-                ),
+                child: const Iconify(Ph.warning_circle_bold, color: Color(0xFFD34426), size: 20),
               ),
             ],
           ),
@@ -975,11 +1124,33 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
 }
 
 class _DonutChartPainter extends CustomPainter {
+  final int frustration;
+  final int instructional;
+  final int independent;
+
+  _DonutChartPainter({
+    required this.frustration,
+    required this.instructional,
+    required this.independent,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2;
     final strokeWidth = radius * 0.42;
+    final rect = Rect.fromCircle(center: center, radius: radius - strokeWidth / 2);
+
+    final total = frustration + instructional + independent;
+
+    if (total == 0) {
+      final paintEmpty = Paint()
+        ..color = const Color(0xFFE2E8F0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawCircle(center, radius - strokeWidth / 2, paintEmpty);
+      return;
+    }
 
     final paintFrustration = Paint()
       ..color = const Color(0xFFD34426)
@@ -996,43 +1167,54 @@ class _DonutChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
 
-    final rect = Rect.fromCircle(center: center, radius: radius - strokeWidth / 2);
-
-    // 50% Frustration (top right to bottom, 180 degrees)
-    canvas.drawArc(rect, -math.pi / 2, math.pi, false, paintFrustration);
-    // 30% Instructional (bottom to left, 108 degrees)
-    canvas.drawArc(rect, math.pi / 2, math.pi * 0.6, false, paintInstructional);
-    // 20% Independent (left to top, 72 degrees)
-    canvas.drawArc(rect, math.pi * 1.1, math.pi * 0.4, false, paintIndependent);
-
-    // Text Percentages on Arcs
+    double startAngle = -math.pi / 2;
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    // 50% label
-    textPainter.text = TextSpan(
-      text: '50%',
-      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(center.dx + radius * 0.45, center.dy - 6));
+    final slices = [
+      {'count': frustration, 'paint': paintFrustration},
+      {'count': instructional, 'paint': paintInstructional},
+      {'count': independent, 'paint': paintIndependent},
+    ];
 
-    // 30% label
-    textPainter.text = TextSpan(
-      text: '30%',
-      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(center.dx - radius * 0.55, center.dy + radius * 0.25));
+    for (var slice in slices) {
+      final count = slice['count'] as int;
+      final paint = slice['paint'] as Paint;
 
-    // 20% label
-    textPainter.text = TextSpan(
-      text: '20%',
-      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(center.dx - radius * 0.4, center.dy - radius * 0.45));
+      if (count > 0) {
+        final sweepAngle = (count / total) * 2 * math.pi;
+        canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+
+        final pct = ((count / total) * 100).round();
+        if (pct >= 8) {
+          final midAngle = startAngle + sweepAngle / 2;
+          final labelRadius = radius - strokeWidth / 2;
+          final labelX = center.dx + labelRadius * math.cos(midAngle);
+          final labelY = center.dy + labelRadius * math.sin(midAngle);
+
+          textPainter.text = TextSpan(
+            text: '$pct%',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          );
+          textPainter.layout();
+          textPainter.paint(
+            canvas,
+            Offset(labelX - textPainter.width / 2, labelY - textPainter.height / 2),
+          );
+        }
+
+        startAngle += sweepAngle;
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    return oldDelegate.frustration != frustration ||
+        oldDelegate.instructional != instructional ||
+        oldDelegate.independent != independent;
+  }
 }

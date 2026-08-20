@@ -1198,23 +1198,27 @@ async function getTeacherClassStudents(req, res) {
           s.middle_name AS "middleName",
           s.last_name AS "lastName",
           s.sex AS gender,
+          s.profile_image AS "profileImage",
+          s.profile_image AS "profile_image",
           c.section_name AS "sectionName",
           c.grade_level AS "gradeLevel",
           c.class_id AS "classId",
           COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level
         FROM students s
         JOIN student_grade_history sgh ON sgh.student_id = s.student_id
         JOIN classes c ON sgh.class_id = c.class_id
         JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
         JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
-        LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+        LEFT JOIN reading_profiles rp ON rp.student_id::text = s.student_id::text
         LEFT JOIN (
           SELECT DISTINCT ON (student_id) student_id, reading_level_result
           FROM assessments
           WHERE reading_level_result IS NOT NULL
           ORDER BY student_id, created_at DESC
-        ) a ON a.student_id = s.student_id
+        ) a ON a.student_id::text = s.student_id::text
         WHERE t.user_id = $1
         ORDER BY s.last_name ASC, s.first_name ASC
       `;
@@ -1232,24 +1236,28 @@ async function getTeacherClassStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             s.sex AS gender,
+            s.profile_image AS "profileImage",
+            s.profile_image AS "profile_image",
             c.section_name AS "sectionName",
             c.grade_level AS "gradeLevel",
             c.class_id AS "classId",
             COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
-            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel"
+            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
+            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
+            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level
           FROM students s
           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
           JOIN classes c ON sgh.class_id = c.class_id
           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
           JOIN faculty_in_charge fic ON fic.grade_level = c.grade_level AND fic.school_year_id = sy.school_year_id AND fic.status = 'active'
           JOIN teachers t ON fic.teacher_id = t.teacher_id
-          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          LEFT JOIN reading_profiles rp ON rp.student_id::text = s.student_id::text
           LEFT JOIN (
             SELECT DISTINCT ON (student_id) student_id, reading_level_result
             FROM assessments
             WHERE reading_level_result IS NOT NULL
             ORDER BY student_id, created_at DESC
-          ) a ON a.student_id = s.student_id
+          ) a ON a.student_id::text = s.student_id::text
           WHERE t.user_id = $1
           ORDER BY c.section_name ASC, s.last_name ASC
         `;
