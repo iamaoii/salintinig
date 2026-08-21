@@ -1206,7 +1206,11 @@ async function getTeacherClassStudents(req, res) {
           COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
           COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
           COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level
+          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
+          COALESCE(rp.reading_speed_wpm, 0) AS "readingSpeed",
+          0 AS accuracy,
+          0 AS comprehension,
+          COALESCE(rp.updated_at, rp.generated_at) AS "lastUpdated"
         FROM students s
         JOIN student_grade_history sgh ON sgh.student_id = s.student_id
         JOIN classes c ON sgh.class_id = c.class_id
@@ -1216,7 +1220,6 @@ async function getTeacherClassStudents(req, res) {
         LEFT JOIN (
           SELECT DISTINCT ON (student_id) student_id, reading_level_result
           FROM assessments
-          WHERE reading_level_result IS NOT NULL
           ORDER BY student_id, created_at DESC
         ) a ON a.student_id::text = s.student_id::text
         WHERE t.user_id = $1
@@ -1244,7 +1247,11 @@ async function getTeacherClassStudents(req, res) {
             COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
             COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
             COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
-            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level
+            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
+            COALESCE(rp.reading_speed_wpm, 0) AS "readingSpeed",
+            0 AS accuracy,
+            0 AS comprehension,
+            COALESCE(rp.updated_at, rp.generated_at) AS "lastUpdated"
           FROM students s
           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
           JOIN classes c ON sgh.class_id = c.class_id
@@ -1255,7 +1262,6 @@ async function getTeacherClassStudents(req, res) {
           LEFT JOIN (
             SELECT DISTINCT ON (student_id) student_id, reading_level_result
             FROM assessments
-            WHERE reading_level_result IS NOT NULL
             ORDER BY student_id, created_at DESC
           ) a ON a.student_id::text = s.student_id::text
           WHERE t.user_id = $1

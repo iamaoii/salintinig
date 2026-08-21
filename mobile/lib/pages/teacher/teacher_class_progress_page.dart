@@ -36,6 +36,10 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   int _instructionalCount = 0;
   int _independentCount = 0;
 
+  double _avgAccuracy = 0.0;
+  double _avgComprehension = 0.0;
+  double _avgReadingSpeed = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +110,14 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     int inst = 0;
     int indep = 0;
 
+    double totalAcc = 0.0;
+    int accCount = 0;
+    double totalComp = 0.0;
+    int compCount = 0;
+    double totalSpeed = 0.0;
+    int speedCount = 0;
+    DateTime? latestDt;
+
     for (var s in rawList) {
       final g = (s['gender'] ?? s['sex'] ?? '').toString().trim().toLowerCase();
       if (g.startsWith('m')) {
@@ -122,6 +134,43 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
       } else if (lvl.contains('independ')) {
         indep++;
       }
+
+      final accRaw = s['accuracy'] ?? s['oralAccuracy'] ?? s['oral_accuracy'];
+      if (accRaw != null) {
+        final val = double.tryParse(accRaw.toString().replaceAll('%', '').trim());
+        if (val != null && val > 0) {
+          totalAcc += val;
+          accCount++;
+        }
+      }
+
+      final compRaw = s['comprehension'] ?? s['comprehensionAccuracy'] ?? s['comprehension_score'];
+      if (compRaw != null) {
+        final val = double.tryParse(compRaw.toString().replaceAll('%', '').trim());
+        if (val != null && val > 0) {
+          totalComp += val;
+          compCount++;
+        }
+      }
+
+      final speedRaw = s['readingSpeed'] ?? s['wps'] ?? s['reading_speed_wpm'];
+      if (speedRaw != null) {
+        final val = double.tryParse(speedRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '').trim());
+        if (val != null && val > 0) {
+          totalSpeed += val;
+          speedCount++;
+        }
+      }
+
+      final tsRaw = s['lastUpdated'] ?? s['updatedAt'] ?? s['updated_at'] ?? s['createdAt'] ?? s['created_at'];
+      if (tsRaw != null) {
+        final dt = DateTime.tryParse(tsRaw.toString());
+        if (dt != null) {
+          if (latestDt == null || dt.isAfter(latestDt)) {
+            latestDt = dt;
+          }
+        }
+      }
     }
 
     _totalStudents = rawList.length;
@@ -130,6 +179,10 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     _frustrationCount = frust;
     _instructionalCount = inst;
     _independentCount = indep;
+
+    _avgAccuracy = accCount > 0 ? (totalAcc / accCount) : 0.0;
+    _avgComprehension = compCount > 0 ? (totalComp / compCount) : 0.0;
+    _avgReadingSpeed = speedCount > 0 ? (totalSpeed / speedCount) : 0.0;
   }
 
   Future<void> _fetchClassStudents() async {
@@ -513,7 +566,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            value: '87%',
+                            value: '${_avgAccuracy.round()}%',
                             unit: '',
                             label: 'Average\nAccuracy',
                             icon: Ph.target_bold,
@@ -532,7 +585,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            value: '37%',
+                            value: '${_avgComprehension.round()}%',
                             unit: '',
                             label: 'Average\nComprehension',
                             icon: Ph.lightbulb_bold,
@@ -543,7 +596,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildMetricCard(
-                            value: '67',
+                            value: '${_avgReadingSpeed.round()}',
                             unit: 'wps',
                             label: 'Average\nReading Speed',
                             icon: Ph.lightning_bold,
@@ -553,20 +606,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-
-                    // Footer Last Update Text
-                    Center(
-                      child: Text(
-                        'Last Update: 05/06/2026',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 56),
                   ],
                 ),
               ),
@@ -1168,7 +1208,6 @@ class _DonutChartPainter extends CustomPainter {
       ..strokeWidth = strokeWidth;
 
     double startAngle = -math.pi / 2;
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     final slices = [
       {'count': frustration, 'paint': paintFrustration},
@@ -1183,29 +1222,6 @@ class _DonutChartPainter extends CustomPainter {
       if (count > 0) {
         final sweepAngle = (count / total) * 2 * math.pi;
         canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
-
-        final pct = ((count / total) * 100).round();
-        if (pct >= 8) {
-          final midAngle = startAngle + sweepAngle / 2;
-          final labelRadius = radius - strokeWidth / 2;
-          final labelX = center.dx + labelRadius * math.cos(midAngle);
-          final labelY = center.dy + labelRadius * math.sin(midAngle);
-
-          textPainter.text = TextSpan(
-            text: '$pct%',
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          );
-          textPainter.layout();
-          textPainter.paint(
-            canvas,
-            Offset(labelX - textPainter.width / 2, labelY - textPainter.height / 2),
-          );
-        }
-
         startAngle += sweepAngle;
       }
     }
