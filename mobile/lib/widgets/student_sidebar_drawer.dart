@@ -5,6 +5,8 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
 import 'package:salintinig/pages/student/settings_page.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class StudentSidebarDrawer extends StatelessWidget {
   final int currentIndex;
@@ -19,6 +21,10 @@ class StudentSidebarDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
+    final user = AuthService.currentUser;
+    final String studentName = user?.displayName ?? 'Student';
+    final String? studentImageUrl = (user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'])?.toString();
+
     const navItems = [
       {'icon': Ph.house, 'isSvg': false, 'label': 'Home'},
       {'icon': PhIcons.examRegular, 'isSvg': true, 'label': 'Phil-IRI Assessment'},
@@ -148,13 +154,11 @@ class StudentSidebarDrawer extends StatelessWidget {
                   children: [
                     // 1. My Profile
                     _buildBottomMenuItem(
-                      iconWidget: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: currentIndex == 5 ? primaryBlue : Colors.white,
-                          shape: BoxShape.circle,
-                        ),
+                      iconWidget: InitialsAvatar(
+                        name: studentName,
+                        imageUrl: studentImageUrl,
+                        radius: 11,
+                        fontSize: 10,
                       ),
                       label: 'My Profile',
                       isSelected: currentIndex == 5,
