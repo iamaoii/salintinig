@@ -881,12 +881,42 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                 SizedBox(
                   width: 140,
                   height: 140,
-                  child: CustomPaint(
-                    painter: _DonutChartPainter(
-                      frustration: _frustrationCount,
-                      instructional: _instructionalCount,
-                      independent: _independentCount,
-                    ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(140, 140),
+                        painter: _DonutChartPainter(
+                          frustration: _frustrationCount,
+                          instructional: _instructionalCount,
+                          independent: _independentCount,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$totalEvaluated',
+                            style: GoogleFonts.inter(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'LEARNERS',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.grey[500],
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),

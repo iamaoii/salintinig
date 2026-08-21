@@ -1204,6 +1204,27 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   }
 
   Widget _buildReadingClassificationCard() {
+    final cached = AuthService.cachedClassStudents ?? [];
+    int frust = 0;
+    int inst = 0;
+    int indep = 0;
+
+    for (var s in cached) {
+      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? s['gstResult'] ?? s['gst_result'] ?? '').toString().trim().toLowerCase();
+      if (lvl.contains('frustrat')) {
+        frust++;
+      } else if (lvl.contains('instruct')) {
+        inst++;
+      } else if (lvl.contains('independ')) {
+        indep++;
+      }
+    }
+
+    final totalEvaluated = frust + inst + indep;
+    final frustPct = totalEvaluated > 0 ? ((frust / totalEvaluated) * 100).round() : 0;
+    final instPct = totalEvaluated > 0 ? ((inst / totalEvaluated) * 100).round() : 0;
+    final indepPct = totalEvaluated > 0 ? ((indep / totalEvaluated) * 100).round() : 0;
+
     return InkWell(
       onTap: () {
         Feedback.forTap(context);
@@ -1254,7 +1275,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               children: [
                 // Left content
                 Expanded(
-                  flex: 4,
+                  flex: 5,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1263,9 +1284,9 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            '35',
+                            '$totalEvaluated',
                             style: GoogleFonts.inter(
-                              fontSize: 48,
+                              fontSize: 44,
                               fontWeight: FontWeight.w900,
                               color: Colors.black,
                               height: 1,
@@ -1287,37 +1308,63 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                       const Divider(color: Color(0xFFE2E8F0), thickness: 1),
                       const SizedBox(height: 12),
                       // Legend
-                      _buildLegendItem('20', 'Frustration Level', Colors.red, 'Frustration'),
+                      _buildLegendItem('$frust', 'Frustration Level ($frustPct%)', const Color(0xFFD34426), 'Frustration'),
                       const SizedBox(height: 8),
-                      _buildLegendItem('10', 'Instructional Level', Colors.amber, 'Instructional'),
+                      _buildLegendItem('$inst', 'Instructional Level ($instPct%)', const Color(0xFFFFD13E), 'Instructional'),
                       const SizedBox(height: 8),
-                      _buildLegendItem('5', 'Independent Level', Colors.green, 'Independent'),
+                      _buildLegendItem('$indep', 'Independent Level ($indepPct%)', const Color(0xFF00A859), 'Independent'),
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
                 // Right content: Custom donut chart
                 Expanded(
                   flex: 4,
                   child: Center(
                     child: SizedBox(
-                      width: 120,
-                      height: 120,
-                      child: CustomPaint(
-                        painter: DonutChartPainter(),
+                      width: 110,
+                      height: 110,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CustomPaint(
+                            size: const Size(110, 110),
+                            painter: DonutChartPainter(
+                              frustration: frust,
+                              instructional: inst,
+                              independent: indep,
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$totalEvaluated',
+                                style: GoogleFonts.inter(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                  height: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'LEARNERS',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.grey[500],
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Last Update: 05/06/2026',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: Colors.grey[400],
-                fontStyle: FontStyle.italic,
-              ),
             ),
           ],
         ),
@@ -1544,76 +1591,72 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 }
 
 class DonutChartPainter extends CustomPainter {
+  final int frustration;
+  final int instructional;
+  final int independent;
+
+  DonutChartPainter({
+    this.frustration = 0,
+    this.instructional = 0,
+    this.independent = 0,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2.3;
-    const strokeWidth = 28.0;
+    const strokeWidth = 26.0;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    final paintGreen = Paint()
-      ..color = const Color(0xFF00A859)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.butt;
+    final total = frustration + instructional + independent;
 
-    final paintYellow = Paint()
-      ..color = const Color(0xFFFFD13E)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.butt;
+    if (total == 0) {
+      final paintEmpty = Paint()
+        ..color = const Color(0xFFE2E8F0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawCircle(center, radius, paintEmpty);
+      return;
+    }
 
-    final paintRed = Paint()
+    final paintFrustration = Paint()
       ..color = const Color(0xFFD34426)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.butt;
+      ..strokeWidth = strokeWidth;
 
-    // Arcs alignment matching screenshot:
-    // Red (50%) is on the right side: starts at -pi/2 (top) and sweeps clockwise 180 degrees (to bottom)
-    // Yellow (30%) is at the bottom-left: starts at pi/2 (bottom) and sweeps clockwise 108 degrees
-    // Green (20%) is at the top-left: starts at bottom-left and sweeps 72 degrees back to -pi/2
-    
+    final paintInstructional = Paint()
+      ..color = const Color(0xFFFFD13E)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    final paintIndependent = Paint()
+      ..color = const Color(0xFF00A859)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
     double startAngle = -math.pi / 2;
-    
-    // 1. Red Arc (50%)
-    final double sweepRed = math.pi; 
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepRed, false, paintRed);
-    
-    // 2. Yellow Arc (30%)
-    startAngle += sweepRed;
-    final double sweepYellow = 0.6 * math.pi; // 108 degrees
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepYellow, false, paintYellow);
-    
-    // 3. Green Arc (20%)
-    startAngle += sweepYellow;
-    final double sweepGreen = 0.4 * math.pi; // 72 degrees
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepGreen, false, paintGreen);
 
-    // Render percentages inside segments
-    _drawPercentageText(canvas, center, radius, -math.pi / 2 + sweepRed / 2, "50%");
-    _drawPercentageText(canvas, center, radius, -math.pi / 2 + sweepRed + sweepYellow / 2, "30%");
-    _drawPercentageText(canvas, center, radius, -math.pi / 2 + sweepRed + sweepYellow + sweepGreen / 2, "20%");
-  }
+    final slices = [
+      {'count': frustration, 'paint': paintFrustration},
+      {'count': instructional, 'paint': paintInstructional},
+      {'count': independent, 'paint': paintIndependent},
+    ];
 
-  void _drawPercentageText(Canvas canvas, Offset center, double radius, double angle, String text) {
-    final x = center.dx + radius * math.cos(angle);
-    final y = center.dy + radius * math.sin(angle);
-    
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(x - textPainter.width / 2, y - textPainter.height / 2));
+    for (var slice in slices) {
+      final count = slice['count'] as int;
+      final paint = slice['paint'] as Paint;
+      if (count > 0) {
+        final sweepAngle = (count / total) * 2 * math.pi;
+        canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+        startAngle += sweepAngle;
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant DonutChartPainter oldDelegate) {
+    return oldDelegate.frustration != frustration ||
+        oldDelegate.instructional != instructional ||
+        oldDelegate.independent != independent;
+  }
 }

@@ -377,7 +377,35 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
   @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
-    final double donePercentage = (widget.doneCount / widget.totalStudents) * 100;
+    final students = AuthService.cachedClassStudents ?? [];
+    final int totalStudentsCount = students.isNotEmpty ? students.length : widget.totalStudents;
+
+    int realDone = 0;
+    int realUnder = 0;
+    int realAbove = 0;
+
+    for (var s in students) {
+      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? '').toString().trim().toLowerCase();
+      if (lvl.isNotEmpty && !lvl.contains('pending')) {
+        realDone++;
+        if (lvl.contains('independ')) {
+          realAbove++;
+        } else {
+          realUnder++;
+        }
+      }
+    }
+
+    final int effectiveDone = students.isNotEmpty ? realDone : widget.doneCount;
+    final int effectiveNotDone = totalStudentsCount > effectiveDone ? totalStudentsCount - effectiveDone : 0;
+    final int effectiveUnder = students.isNotEmpty ? realUnder : widget.underGSTCount;
+    final int effectiveAbove = students.isNotEmpty ? realAbove : widget.aboveGSTCount;
+
+    final double donePercentage = totalStudentsCount > 0 ? (effectiveDone / totalStudentsCount) * 100 : 0;
+
+    final int evalTotal = effectiveUnder + effectiveAbove;
+    final int underPct = evalTotal > 0 ? ((effectiveUnder / evalTotal) * 100).round() : 0;
+    final int abovePct = evalTotal > 0 ? ((effectiveAbove / evalTotal) * 100).round() : 0;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -463,7 +491,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                                       textBaseline: TextBaseline.alphabetic,
                                       children: [
                                         Text(
-                                          '${widget.totalStudents}',
+                                          '$totalStudentsCount',
                                           style: GoogleFonts.inter(
                                             fontSize: 48,
                                             fontWeight: FontWeight.w900,
@@ -499,7 +527,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                                         ),
                                         const SizedBox(width: 10),
                                         Text(
-                                          '${widget.doneCount}',
+                                          '$effectiveDone',
                                           style: GoogleFonts.inter(
                                             fontSize: 18,
                                             fontWeight: FontWeight.w900,
@@ -531,7 +559,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                                         ),
                                         const SizedBox(width: 10),
                                         Text(
-                                          '${widget.notDoneCount}',
+                                          '$effectiveNotDone',
                                           style: GoogleFonts.inter(
                                             fontSize: 18,
                                             fontWeight: FontWeight.w900,
@@ -560,26 +588,47 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                                   child: SizedBox(
                                     width: 140,
                                     height: 140,
-                                    child: CustomPaint(
-                                      painter: _FormDonutPainter(
-                                        donePercentage: donePercentage,
-                                        progressColor: widget.progressColor,
-                                        secondaryColor: widget.secondaryColor,
-                                      ),
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        CustomPaint(
+                                          size: const Size(140, 140),
+                                          painter: _FormDonutPainter(
+                                            donePercentage: donePercentage,
+                                            progressColor: widget.progressColor,
+                                            secondaryColor: widget.secondaryColor,
+                                          ),
+                                        ),
+                                        Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '${donePercentage.round()}%',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 26,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.black,
+                                                height: 1.0,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'DONE',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.grey[500],
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            'Last Update: 05/06/2026',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.grey[400],
-                            ),
                           ),
                         ],
                       ),
@@ -592,17 +641,28 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                         children: [
                           Expanded(
                             child: _buildGSTStatCard(
-                              count: widget.underGSTCount,
+                              count: effectiveUnder,
                               label: 'Student under\n14 GST',
                               filterType: 'Under 14',
+                              accentColor: const Color(0xFFDC2626),
                             ),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: _buildGSTStatCard(
-                              count: widget.aboveGSTCount,
+                              count: effectiveAbove,
                               label: 'Student above\n14 GST',
                               filterType: 'Above 14',
+                              accentColor: const Color(0xFF059669),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildGSTStatCard(
+                              count: effectiveNotDone,
+                              label: 'Student pending\nGST',
+                              filterType: 'Pending',
+                              accentColor: const Color(0xFFD97706),
                             ),
                           ),
                         ],
@@ -610,7 +670,12 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                       const SizedBox(height: 20),
 
                       // Score Range Distribution Bar
-                      _buildScoreDistributionBar(),
+                      _buildScoreDistributionBar(
+                        underCount: effectiveUnder,
+                        aboveCount: effectiveAbove,
+                        underPct: underPct,
+                        abovePct: abovePct,
+                      ),
                       const SizedBox(height: 20),
                     ],
 
@@ -651,7 +716,15 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     );
   }
 
-  Widget _buildScoreDistributionBar() {
+  Widget _buildScoreDistributionBar({
+    required int underCount,
+    required int aboveCount,
+    required int underPct,
+    required int abovePct,
+  }) {
+    final int safeUnderFlex = underCount > 0 ? underCount : (aboveCount > 0 ? 0 : 1);
+    final int safeAboveFlex = aboveCount > 0 ? aboveCount : (underCount > 0 ? 0 : 1);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -700,13 +773,13 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
               child: Row(
                 children: [
                   Expanded(
-                    flex: widget.underGSTCount,
-                    child: Container(color: const Color(0xFFEF4444)), // Red for Under 14
+                    flex: safeUnderFlex,
+                    child: Container(color: underCount > 0 ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0)), // Red for Under 14
                   ),
                   const SizedBox(width: 2),
                   Expanded(
-                    flex: widget.aboveGSTCount,
-                    child: Container(color: const Color(0xFF10B981)), // Green for Above 14
+                    flex: safeAboveFlex,
+                    child: Container(color: aboveCount > 0 ? const Color(0xFF10B981) : const Color(0xFFE2E8F0)), // Green for Above 14
                   ),
                 ],
               ),
@@ -730,7 +803,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Score 0 - 13 (86%)',
+                    'Score 0 - 13 ($underPct%)',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -751,7 +824,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Score 14 - 20 (14%)',
+                    'Score 14 - 20 ($abovePct%)',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -771,6 +844,9 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     required int count,
     required String label,
     required String filterType,
+    Color bgColor = Colors.white,
+    Color borderColor = const Color(0xFFE2E8F0),
+    Color accentColor = const Color(0xFF1D4ED8),
   }) {
     return GestureDetector(
       onTap: () {
@@ -786,11 +862,11 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: bgColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
@@ -809,35 +885,35 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                 Text(
                   '$count',
                   style: GoogleFonts.inter(
-                    fontSize: 34,
+                    fontSize: 28,
                     fontWeight: FontWeight.w900,
                     color: Colors.black,
                     height: 1.0,
                   ),
                 ),
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: 24,
+                  height: 24,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF1D4ED8),
+                      color: accentColor,
                       width: 1.5,
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.arrow_forward_rounded,
-                    color: Color(0xFF1D4ED8),
-                    size: 16,
+                    color: accentColor,
+                    size: 14,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 12,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
                 height: 1.2,
@@ -885,28 +961,6 @@ class _FormDonutPainter extends CustomPainter {
     if (donePercentage > 0) {
       final sweepAngle = (donePercentage / 100) * 2 * math.pi;
       canvas.drawArc(rect, -math.pi / 2, sweepAngle, false, donePaint);
-    }
-
-    // Text Percentage
-    final String pctText = '${donePercentage.round()}%';
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: pctText,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-
-    // Position text on arc center if donePercentage > 0
-    if (donePercentage == 100) {
-      textPainter.paint(canvas, Offset(center.dx + radius * 0.3, center.dy - 6));
-    } else if (donePercentage > 0) {
-      textPainter.paint(canvas, Offset(center.dx + radius * 0.25, center.dy - 12));
     }
   }
 

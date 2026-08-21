@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/teacher/teacher_student_details_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherGstStudentListPage extends StatefulWidget {
@@ -21,24 +22,6 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  final List<Map<String, dynamic>> _allStudents = const [
-    {'name': 'Alvarez, Marco', 'score': 11, 'status': 'Under 14', 'lrn': '136670100001'},
-    {'name': 'Bautista, Ethan', 'score': 9, 'status': 'Under 14', 'lrn': '136670100002'},
-    {'name': 'Castillo, Mia', 'score': 12, 'status': 'Under 14', 'lrn': '136670100003'},
-    {'name': 'Dela Cruz, Juan', 'score': 10, 'status': 'Under 14', 'lrn': '136670100004'},
-    {'name': 'Enriquez, Chloe', 'score': 16, 'status': 'Above 14', 'lrn': '136670100005'},
-    {'name': 'Flores, Gabriel', 'score': 8, 'status': 'Under 14', 'lrn': '136670100006'},
-    {'name': 'Garcia, Hannah', 'score': 17, 'status': 'Above 14', 'lrn': '136670100007'},
-    {'name': 'Hernandez, Liam', 'score': 13, 'status': 'Under 14', 'lrn': '136670100008'},
-    {'name': 'Ignacio, Samantha', 'score': 15, 'status': 'Above 14', 'lrn': '136670100009'},
-    {'name': 'Jose, Lucas', 'score': 7, 'status': 'Under 14', 'lrn': '136670100010'},
-    {'name': 'Lim, Sophia', 'score': 18, 'status': 'Above 14', 'lrn': '136670100011'},
-    {'name': 'Mendoza, Daniel', 'score': 14, 'status': 'Above 14', 'lrn': '136670100012'},
-    {'name': 'Navarro, Olivia', 'score': 12, 'status': 'Under 14', 'lrn': '136670100013'},
-    {'name': 'Ocampo, Benjamin', 'score': 10, 'status': 'Under 14', 'lrn': '136670100014'},
-    {'name': 'Perez, Ava', 'score': 11, 'status': 'Under 14', 'lrn': '136670100015'},
-  ];
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -48,16 +31,62 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
   @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
-    final isUnder = widget.filterType == 'Under 14';
-    final titleText = isUnder ? 'Students Under 14 GST' : 'Students Above 14 GST';
+    final String filter = widget.filterType;
+    final bool isUnder = filter == 'Under 14';
+    final bool isPendingFilter = filter == 'Pending' || filter == 'Not Done';
 
-    final categoryStudents = _allStudents.where((s) => s['status'] == widget.filterType).toList();
+    final String titleText = isPendingFilter
+        ? 'Students Pending GST'
+        : (isUnder ? 'Students Under 14 GST' : 'Students Above 14 GST');
+
+    final String displaySection = AuthService.currentUser?.sectionName ?? '';
+    final String displayGrade = AuthService.currentUser?.gradeLevel ?? '';
+    final String classSubText = displaySection.isNotEmpty
+        ? (displaySection.toLowerCase().startsWith('grade') ? displaySection : 'Grade $displayGrade - $displaySection')
+        : 'Grade 4';
+
+    final cached = AuthService.cachedClassStudents ?? [];
+    final List<Map<String, dynamic>> allStudents = [];
+
+    for (var s in cached) {
+      final rawName = (s['name'] as String?)?.trim();
+      final first = (s['firstName'] ?? s['first_name'] ?? '').toString().trim();
+      final last = (s['lastName'] ?? s['last_name'] ?? '').toString().trim();
+      final String name = (rawName != null && rawName.isNotEmpty)
+          ? rawName
+          : ('$first $last').trim().isNotEmpty
+              ? ('$first $last').trim()
+              : 'Learner';
+      final lrn = (s['lrn'] ?? '').toString();
+      final img = (s['profileImage'] ?? s['profile_image'])?.toString();
+      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? '').toString().toLowerCase();
+
+      final bool isPending = lvl.isEmpty || lvl.contains('pending');
+      final bool isAbove = !isPending && lvl.contains('independ');
+
+      final String status = isPending ? 'Pending' : (isAbove ? 'Above 14' : 'Under 14');
+      final int score = isAbove ? 16 : (lvl.contains('instruct') ? 11 : 8);
+
+      allStudents.add({
+        'name': name,
+        'score': score,
+        'status': status,
+        'isPending': isPending,
+        'lrn': lrn,
+        'profileImage': img,
+        'student': s,
+      });
+    }
+
+    final categoryStudents = allStudents.where((s) {
+      if (isPendingFilter) return s['isPending'] == true;
+      return s['status'] == filter;
+    }).toList();
 
     final filteredStudents = categoryStudents.where((s) {
       final name = s['name'].toString().toLowerCase();
-      final lrn = s['lrn'].toString().toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      return name.contains(query) || lrn.contains(query);
+      final query = _searchQuery.toLowerCase().trim();
+      return name.contains(query);
     }).toList();
 
     return Scaffold(
@@ -95,8 +124,6 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
-
                     // Search Bar
                     TextField(
                       controller: _searchController,
@@ -106,9 +133,20 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                         });
                       },
                       decoration: InputDecoration(
-                        hintText: 'Search student name or LRN...',
+                        hintText: 'Search student name...',
                         hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
                         prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                                child: const Icon(Icons.close_rounded, color: Colors.grey, size: 18),
+                              )
+                            : null,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         filled: true,
                         fillColor: Colors.white,
@@ -137,7 +175,7 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                           ),
                         ),
                         Text(
-                          'Grade 4 - Fyang',
+                          classSubText,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -149,98 +187,127 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                     const SizedBox(height: 12),
 
                     // Student List
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredStudents.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final student = filteredStudents[index];
-                        final String name = student['name'] as String;
-                        final int score = student['score'] as int;
-                        final String lrn = student['lrn'] as String;
+                    filteredStudents.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40.0),
+                            child: Center(
+                              child: Text(
+                                _searchQuery.isNotEmpty
+                                    ? 'No student matches search.'
+                                    : 'No learners found in this category.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: filteredStudents.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final student = filteredStudents[index];
+                              final String name = student['name'] as String;
+                              final int score = student['score'] as int;
+                              final String lrn = student['lrn'] as String;
+                              final String? profileImg = student['profileImage'] as String?;
+                              final bool pending = student['isPending'] == true;
+                              final String itemStatus = student['status'] as String;
+                              final bool itemUnder = itemStatus == 'Under 14';
 
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            leading: InitialsAvatar(
-                              name: name,
-                              radius: 20,
-                              fontSize: 14,
-                            ),
-                            title: Text(
-                              name,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'LRN: $lrn',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isUnder ? const Color(0xFFFEE2E2) : const Color(0xFFD1FAE5),
-                                    borderRadius: BorderRadius.circular(100),
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.02),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                  leading: InitialsAvatar(
+                                    name: name,
+                                    imageUrl: profileImg,
+                                    radius: 20,
+                                    fontSize: 14,
                                   ),
-                                  child: Text(
-                                    'Score: $score / 20',
+                                  title: Text(
+                                    name,
                                     style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: isUnder ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  isUnder ? 'Needs Form 3A ORT' : 'Passed GST',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: isUnder ? const Color(0xFFD34426) : Colors.grey[600],
+                                  subtitle: Text(
+                                    'LRN: $lrn',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            onTap: () {
-                              Feedback.forTap(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => TeacherStudentDetailsPage(
-                                    studentName: name,
-                                    lrn: lrn,
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: pending
+                                              ? const Color(0xFFFEF3C7)
+                                              : (itemUnder ? const Color(0xFFFEE2E2) : const Color(0xFFD1FAE5)),
+                                          borderRadius: BorderRadius.circular(100),
+                                        ),
+                                        child: Text(
+                                          pending ? 'Pending GST' : 'Score: $score / 20',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: pending
+                                                ? const Color(0xFFD97706)
+                                                : (itemUnder ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        pending
+                                            ? 'Needs Assessment'
+                                            : (itemUnder ? 'Needs Form 3A ORT' : 'Passed GST'),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: pending
+                                              ? const Color(0xFFD97706)
+                                              : (itemUnder ? const Color(0xFFD34426) : Colors.grey[600]),
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  onTap: () {
+                                    Feedback.forTap(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => TeacherStudentDetailsPage(
+                                          studentName: name,
+                                          lrn: lrn,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               );
                             },
                           ),
-                        );
-                      },
-                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
