@@ -106,13 +106,13 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return list;
     return list.where((s) {
-      final rawName = (s['name'] as String?)?.trim();
-      final first = (s['firstName'] as String?)?.trim() ?? '';
-      final last = (s['lastName'] as String?)?.trim() ?? '';
-      final String name = (rawName != null && rawName.isNotEmpty)
-          ? rawName
-          : ('$first $last').trim();
-      return name.toLowerCase().contains(query);
+      final rawName = (s['name'] as String?)?.trim() ?? '';
+      final first = (s['firstName'] ?? s['first_name'] ?? '').toString().trim();
+      final middle = (s['middleName'] ?? s['middle_name'] ?? '').toString().trim();
+      final last = (s['lastName'] ?? s['last_name'] ?? '').toString().trim();
+      final full = '$first $middle $last'.trim().toLowerCase();
+
+      return rawName.toLowerCase().contains(query) || full.contains(query);
     }).toList();
   }
 
@@ -261,11 +261,23 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                                   color: Colors.grey[500],
                                   fontWeight: FontWeight.w400,
                                 ),
-                                suffixIcon: Icon(
-                                  Icons.search_rounded,
-                                  color: Colors.grey[600],
-                                  size: 18,
-                                ),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          _searchController.clear();
+                                          setState(() {});
+                                        },
+                                        child: Icon(
+                                          Icons.close_rounded,
+                                          color: Colors.grey[600],
+                                          size: 18,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.search_rounded,
+                                        color: Colors.grey[600],
+                                        size: 18,
+                                      ),
                                 suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 0),
                                 border: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(vertical: 10),

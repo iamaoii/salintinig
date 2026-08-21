@@ -21,9 +21,31 @@ class TeacherClassDetailsPage extends StatefulWidget {
 
 class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _students = [];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredStudents {
+    if (_searchQuery.trim().isEmpty) return _students;
+    final q = _searchQuery.toLowerCase().trim();
+    return _students.where((s) {
+      final rawName = (s['name'] as String?)?.trim() ?? '';
+      final first = (s['firstName'] ?? s['first_name'] ?? '').toString().trim();
+      final middle = (s['middleName'] ?? s['middle_name'] ?? '').toString().trim();
+      final last = (s['lastName'] ?? s['last_name'] ?? '').toString().trim();
+      final full = '$first $middle $last'.trim().toLowerCase();
+
+      return rawName.toLowerCase().contains(q) || full.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -416,7 +438,59 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                     ),
                     const SizedBox(height: 6),
                     const Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+
+                    // Search Student Input Pill
+                    Container(
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9).withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      padding: const EdgeInsets.only(left: 16, right: 6),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                          });
+                        },
+                        style: GoogleFonts.inter(fontSize: 13, color: Colors.black87),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Search student',
+                          hintStyle: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w400,
+                          ),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    color: Colors.grey[600],
+                                    size: 18,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.search_rounded,
+                                  color: Colors.grey[600],
+                                  size: 18,
+                                ),
+                          suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 0),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
                     // Student List
                     _isLoading
@@ -426,12 +500,12 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                               child: CircularProgressIndicator(color: Color(0xFFD34426)),
                             ),
                           )
-                        : _students.isEmpty
+                        : _filteredStudents.isEmpty
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                                 child: Center(
                                   child: Text(
-                                    'No enrolled learners found.',
+                                    _searchQuery.isNotEmpty ? 'No student matches search.' : 'No enrolled learners found.',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       color: Colors.grey[600],
@@ -443,10 +517,10 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                             : ListView.separated(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _students.length,
+                                itemCount: _filteredStudents.length,
                                 separatorBuilder: (context, index) => const Divider(color: Color(0xFFF1F5F9), height: 1),
                                 itemBuilder: (context, index) {
-                                  final student = _students[index];
+                                  final student = _filteredStudents[index];
                                   final rawName = (student['name'] as String?)?.trim();
                                   final first = (student['firstName'] as String?)?.trim() ?? '';
                                   final last = (student['lastName'] as String?)?.trim() ?? '';

@@ -25,7 +25,6 @@ class TeacherClassProgressPage extends StatefulWidget {
 
 class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final TextEditingController _searchController = TextEditingController();
   RealtimeChannel? _realtimeChannel;
 
   bool _isLoadingStudents = true;
@@ -99,7 +98,6 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         Supabase.instance.client.removeChannel(_realtimeChannel!);
       } catch (_) {}
     }
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -135,7 +133,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         indep++;
       }
 
-      final accRaw = s['accuracy'] ?? s['oralAccuracy'] ?? s['oral_accuracy'];
+      final accRaw = s['accuracy'] ?? s['oralAccuracy'] ?? s['oral_accuracy'] ?? s['oral_accuracy_rate'];
       if (accRaw != null) {
         final val = double.tryParse(accRaw.toString().replaceAll('%', '').trim());
         if (val != null && val > 0) {
@@ -144,7 +142,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         }
       }
 
-      final compRaw = s['comprehension'] ?? s['comprehensionAccuracy'] ?? s['comprehension_score'];
+      final compRaw = s['comprehension'] ?? s['comprehensionAccuracy'] ?? s['comprehension_score'] ?? s['comprehension_rate'];
       if (compRaw != null) {
         final val = double.tryParse(compRaw.toString().replaceAll('%', '').trim());
         if (val != null && val > 0) {
@@ -153,7 +151,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         }
       }
 
-      final speedRaw = s['readingSpeed'] ?? s['wps'] ?? s['reading_speed_wpm'];
+      final speedRaw = s['readingSpeed'] ?? s['reading_speed'] ?? s['wps'] ?? s['reading_speed_wpm'] ?? s['speed'];
       if (speedRaw != null) {
         final val = double.tryParse(speedRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '').trim());
         if (val != null && val > 0) {
@@ -501,39 +499,6 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
 
                     // 2. General Information Card
                     _buildGeneralInfoCard(),
-                    const SizedBox(height: 20),
-
-                    // 3. Search Student Input (Slim Pill Style - Reverted Color)
-                    Container(
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9).withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(100),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      padding: const EdgeInsets.only(left: 16, right: 6),
-                      child: TextField(
-                        controller: _searchController,
-                        style: GoogleFonts.inter(fontSize: 13, color: Colors.black87),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: 'Search student',
-                          hintStyle: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[500],
-                            fontWeight: FontWeight.w400,
-                          ),
-                          suffixIcon: Icon(
-                            Icons.search_rounded,
-                            color: Colors.grey[600],
-                            size: 18,
-                          ),
-                          suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 0),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 24),
 
                     // 4. Section Title: Class Progress Dashboard
@@ -585,23 +550,23 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            value: '${_avgComprehension.round()}%',
-                            unit: '',
-                            label: 'Average\nComprehension',
-                            icon: Ph.lightbulb_bold,
-                            iconColor: const Color(0xFF10B981),
-                            bgColor: const Color(0xFFD1FAE5),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMetricCard(
                             value: '${_avgReadingSpeed.round()}',
                             unit: 'wps',
                             label: 'Average\nReading Speed',
                             icon: Ph.lightning_bold,
                             iconColor: const Color(0xFFEAB308),
                             bgColor: const Color(0xFFFEF9C3),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
+                            value: '${_avgComprehension.round()}%',
+                            unit: '',
+                            label: 'Average\nComprehension',
+                            icon: Ph.lightbulb_bold,
+                            iconColor: const Color(0xFF10B981),
+                            bgColor: const Color(0xFFD1FAE5),
                           ),
                         ),
                       ],

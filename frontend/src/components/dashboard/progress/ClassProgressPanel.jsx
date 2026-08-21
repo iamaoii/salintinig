@@ -44,43 +44,47 @@ export default function ClassProgressPanel() {
         });
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
-          const sectionStudents = data.students.filter((s) => {
-            if (!targetSection || targetSection.toLowerCase().includes('unassigned')) return false;
-            const sSec = (s.sectionName || s.section || '').toLowerCase().trim();
-            const targetSec = targetSection.toLowerCase().trim();
-            const targetSecNameOnly = targetSec.replace(/^grade\s*\d+\s*-\s*/i, '').trim();
-            return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));
-          });
+          const targetList = data.students;
 
-          // Calculate reading levels distribution
+          // Calculate reading levels distribution & metrics
           let frustration = 0;
           let instructional = 0;
           let independent = 0;
           let totalAccuracy = 0;
+          let accCount = 0;
           let totalSpeed = 0;
+          let speedCount = 0;
           let totalComp = 0;
-          let assessedCount = 0;
+          let compCount = 0;
 
-          sectionStudents.forEach((st) => {
-            const lvl = (st.level || st.readingLevel || st.gstResult || '').toLowerCase();
+          targetList.forEach((st) => {
+            const lvl = (st.level || st.readingLevel || st.reading_level || st.current_profile_label || st.gstResult || '').toLowerCase();
             if (lvl.includes('frustrat')) frustration++;
             else if (lvl.includes('instruct')) instructional++;
             else if (lvl.includes('independ')) independent++;
 
-            if (st.oralAccuracy || st.comprehensionScore || st.readingSpeed) {
-              assessedCount++;
-              totalAccuracy += Number(st.oralAccuracy || 85);
-              totalSpeed += Number(st.readingSpeed || 65);
-              totalComp += Number(st.comprehensionScore || 75);
+            const acc = Number(st.accuracy ?? st.oralAccuracy ?? st.oral_accuracy ?? 0);
+            if (acc > 0) {
+              totalAccuracy += acc;
+              accCount++;
+            }
+
+            const spd = Number(st.readingSpeed ?? st.reading_speed_wpm ?? st.wps ?? 0);
+            if (spd > 0) {
+              totalSpeed += spd;
+              speedCount++;
+            }
+
+            const comp = Number(st.comprehension ?? st.comprehensionScore ?? st.comprehension_score ?? 0);
+            if (comp > 0) {
+              totalComp += comp;
+              compCount++;
             }
           });
 
-          const avgAcc = assessedCount > 0 ? Math.round(totalAccuracy / assessedCount) : 0;
-          const avgSpd = assessedCount > 0 ? Math.round(totalSpeed / assessedCount) : 0;
-          const avgCmp = assessedCount > 0 ? Math.round(totalComp / assessedCount) : 0;
-
-          const today = new Date();
-          const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+          const avgAcc = accCount > 0 ? Math.round(totalAccuracy / accCount) : 0;
+          const avgSpd = speedCount > 0 ? Math.round(totalSpeed / speedCount) : 0;
+          const avgCmp = compCount > 0 ? Math.round(totalComp / compCount) : 0;
 
           setStats({
             readingLevels: { frustration, instructional, independent },
@@ -88,7 +92,6 @@ export default function ClassProgressPanel() {
             averageReadingSpeed: avgSpd,
             averageComprehension: avgCmp,
             priorityStudents: frustration,
-            lastUpdate: assessedCount > 0 ? dateStr : 'No assessments yet',
           });
         }
         setLoading(false);
@@ -158,8 +161,6 @@ export default function ClassProgressPanel() {
           iconBg="bg-[#D1FAE5] text-[#059669]"
         />
       </div>
-
-      <p className="text-xs font-semibold text-ink/70">Last Update: {stats.lastUpdate}</p>
     </div>
   );
 }
