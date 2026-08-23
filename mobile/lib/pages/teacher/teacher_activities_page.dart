@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/pages/teacher/assign_phil_iri_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 
@@ -850,287 +851,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
     );
   }
 
-  void _showAssignPhilIriModal() {
-    Feedback.forTap(context);
-    String selectedPeriod = 'Pre-Test';
-    String selectedLanguage = 'fil';
-    String selectedType = 'oral';
-    String selectedSet = 'Set A';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Iconify(
-                        PhIcons.flagPennantBold,
-                        color: const Color(0xFFD34426),
-                        size: 22,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Assign Phil-IRI Passage Set',
-                        style: GoogleFonts.inter(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(sheetCtx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Period Selection
-              Text(
-                'Assessment Period',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: ['GST', 'Pre-Test', 'Post-Test'].map((p) {
-                  final isSelected = selectedPeriod == p;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(
-                        p,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      selected: isSelected,
-                      selectedColor: const Color(0xFFD34426),
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      onSelected: (_) =>
-                          setModalState(() => selectedPeriod = p),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-
-              // Language Selection
-              Text(
-                'Target Language',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children:
-                    [
-                      {'id': 'fil', 'label': 'Filipino (Tagalog)'},
-                      {'id': 'eng', 'label': 'English'},
-                    ].map((l) {
-                      final isSelected = selectedLanguage == l['id'];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(
-                            l['label']!,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFFD34426),
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          onSelected: (_) =>
-                              setModalState(() => selectedLanguage = l['id']!),
-                        ),
-                      );
-                    }).toList(),
-              ),
-              const SizedBox(height: 14),
-
-              // Assessment Type Selection
-              Text(
-                'Assessment Type',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children:
-                    [
-                      {'id': 'oral', 'label': 'Oral Reading'},
-                      {'id': 'listening', 'label': 'Listening'},
-                      {'id': 'silent', 'label': 'Silent'},
-                    ].map((t) {
-                      final isSelected = selectedType == t['id'];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text(
-                            t['label']!,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFFD34426),
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          onSelected: (_) =>
-                              setModalState(() => selectedType = t['id']!),
-                        ),
-                      );
-                    }).toList(),
-              ),
-              const SizedBox(height: 14),
-
-              // Passage Set Selection
-              Text(
-                'Passage Set',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: ['Set A', 'Set B', 'Set C', 'Set D'].map((s) {
-                  final isSelected = selectedSet == s;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(
-                        s,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      selected: isSelected,
-                      selectedColor: const Color(0xFFD34426),
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      onSelected: (_) => setModalState(() => selectedSet = s),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 22),
-
-              // Confirm Button
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(sheetCtx);
-                  final String langTitle = selectedLanguage == 'fil'
-                      ? 'Tagalog'
-                      : 'English';
-                  final String newTitle =
-                      'Phil-IRI $selectedPeriod ${selectedType.toUpperCase()} - $langTitle ($selectedSet)';
-
-                  final newActivity = {
-                    'id': 'assigned_${DateTime.now().millisecondsSinceEpoch}',
-                    'title': newTitle,
-                    'subtitle': 'Form 3 Graded Evaluation',
-                    'mode': 'phil-iri',
-                    'assessmentType': selectedType,
-                    'type': selectedType,
-                    'period': selectedPeriod,
-                    'language': selectedLanguage,
-                    'badge': 'Phil - IRI',
-                    'status': 'open',
-                    'activityStatus': 'open',
-                    'doneCount': 0,
-                    'pendingCount': 35,
-                    'totalAssigned': 35,
-                  };
-
-                  setState(() {
-                    _philIriActivities.insert(0, newActivity);
-                  });
-
-                  final messenger = ScaffoldMessenger.of(context);
-
-                  try {
-                    await ApiService.post(
-                      '/teacher/assessments/assign-phil-iri-students',
-                      {
-                        'passageSet': selectedSet,
-                        'assessmentType': selectedType,
-                        'assessmentPeriod': selectedPeriod,
-                        'language': selectedLanguage,
-                      },
-                    );
-                  } catch (_) {}
-
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('Assigned "$newTitle" to class!'),
-                        backgroundColor: const Color(0xFF059669),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD34426),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: Text(
-                  'Assign Set to Class Students',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showNotificationCenter() {
     Feedback.forTap(context);
     showModalBottomSheet(
@@ -1220,6 +940,19 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
     );
   }
 
+  Future<void> _navigateToAssignPage() async {
+    Feedback.forTap(context);
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AssignPhilIriPage(className: widget.className),
+      ),
+    );
+    if (result == true) {
+      _fetchActivitiesData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
@@ -1230,7 +963,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       drawer: const TeacherSidebarDrawer(activeRoute: 'Class Activities'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _activeTab == 'phil-iri'
-            ? _showAssignPhilIriModal
+            ? _navigateToAssignPage
             : () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -1710,7 +1443,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
-                                onPressed: _showAssignPhilIriModal,
+                                onPressed: _navigateToAssignPage,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFD34426),
                                   foregroundColor: Colors.white,
