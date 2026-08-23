@@ -9,6 +9,7 @@ import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
 import 'package:salintinig/pages/teacher/teacher_form_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/teacher_reading_levels_page.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 import 'dart:math' as math;
@@ -31,53 +32,93 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   final GlobalKey _recordsKey = GlobalKey();
 
   int _notificationsCount = 3;
-  String _selectedActivityFilter = 'All'; // 'All', 'Practice Mode', 'Phil-IRI'
+  String _overviewFilter = 'all'; // 'all', 'oral', 'listening', 'silent'
+  List<Map<String, dynamic>> _overviewActivities = [];
 
-  // Activities managed by teacher for students
-  final List<Map<String, dynamic>> _activities = [
+  final List<Map<String, dynamic>> _defaultOverviewActivities = [
     {
-      'id': 'act_1',
-      'title': 'Pronunciation Challenge',
-      'category': 'Practice Mode',
-      'description': 'Speech and pronunciation practice',
-      'done': 28,
-      'pending': 7,
-      'isAvailable': true,
+      'id': 'phil_iri_gst_1',
+      'title': 'Phil-IRI Group Screening Test (GST)',
+      'subtitle': 'Form 1A & 1B Class Screening',
+      'mode': 'phil-iri',
+      'type': 'silent',
+      'assessmentType': 'silent',
+      'period': 'GST',
+      'language': 'fil',
+      'badge': 'Phil - IRI',
+      'status': 'closed',
+      'activityStatus': 'closed',
+      'doneCount': 35,
+      'pendingCount': 0,
+      'totalAssigned': 35,
     },
     {
-      'id': 'act_2',
-      'title': 'Oral Reading Assessment',
-      'category': 'Phil-IRI',
-      'description': 'Grade 4 Filipino passage evaluation',
-      'done': 15,
-      'pending': 20,
-      'isAvailable': true,
+      'id': 'phil_iri_ort_1',
+      'title': 'Oral Reading Assessment (Pre-Test - Filipino)',
+      'subtitle': 'Form 3A Graded Passage Evaluation',
+      'mode': 'phil-iri',
+      'type': 'oral',
+      'assessmentType': 'oral',
+      'period': 'Pre-Test',
+      'language': 'fil',
+      'badge': 'Phil - IRI',
+      'status': 'open',
+      'activityStatus': 'open',
+      'doneCount': 0,
+      'pendingCount': 0,
+      'totalAssigned': 0,
     },
     {
-      'id': 'act_3',
-      'title': 'Vocabulary Matching',
-      'category': 'Practice Mode',
-      'description': 'Filipino word-meaning matching game',
-      'done': 32,
-      'pending': 3,
-      'isAvailable': false,
+      'id': 'phil_iri_ort_2',
+      'title': 'Oral Reading Assessment (Pre-Test - English)',
+      'subtitle': 'Form 3A Graded Passage Evaluation',
+      'mode': 'phil-iri',
+      'type': 'oral',
+      'assessmentType': 'oral',
+      'period': 'Pre-Test',
+      'language': 'eng',
+      'badge': 'Phil - IRI',
+      'status': 'open',
+      'activityStatus': 'open',
+      'doneCount': 0,
+      'pendingCount': 0,
+      'totalAssigned': 0,
     },
     {
-      'id': 'act_4',
-      'title': 'Silent Reading Assessment',
-      'category': 'Phil-IRI',
-      'description': 'Comprehension quiz and reading speed test',
-      'done': 10,
-      'pending': 25,
-      'isAvailable': false,
+      'id': 'phil_iri_ort_3',
+      'title': 'Listening Assessment (Pre-Test - Filipino)',
+      'subtitle': 'Form 3B Graded Listening Evaluation',
+      'mode': 'phil-iri',
+      'type': 'listening',
+      'assessmentType': 'listening',
+      'period': 'Pre-Test',
+      'language': 'fil',
+      'badge': 'Phil - IRI',
+      'status': 'open',
+      'activityStatus': 'open',
+      'doneCount': 0,
+      'pendingCount': 0,
+      'totalAssigned': 0,
     },
   ];
 
   // Notifications
   final List<Map<String, String>> _notifications = [
-    {'title': 'Activity 1 completed', 'time': '5 mins ago', 'desc': 'Juan Dela Cruz just completed Pronunciation Challenge.'},
-    {'title': 'Pending evaluation', 'time': '1 hour ago', 'desc': '3 students are waiting for oral reading grading.'},
-    {'title': 'Low score alert', 'time': '2 hours ago', 'desc': 'Maria Clara scored Frustration level on Form 1A.'},
+    {
+      'title': 'Activity 1 completed',
+      'time': '5 mins ago',
+      'desc': 'Juan Dela Cruz just completed Pronunciation Challenge.',
+    },
+    {
+      'title': 'Pending evaluation',
+      'time': '1 hour ago',
+      'desc': '3 students are waiting for oral reading grading.',
+    },
+    {
+      'title': 'Low score alert',
+      'time': '2 hours ago',
+      'desc': 'Maria Clara scored Frustration level on Form 1A.',
+    },
   ];
 
   bool _isLoadingUser = true;
@@ -86,6 +127,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   void initState() {
     super.initState();
     _isLoadingUser = true;
+    _overviewActivities = List.from(_defaultOverviewActivities);
     _refreshTeacherProfile();
     _setupRealtimeSubscription();
   }
@@ -93,6 +135,21 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   Future<void> _refreshTeacherProfile() async {
     await AuthService.fetchMe();
     await AuthService.fetchClassStudents(forceRefresh: true);
+
+    try {
+      final res = await ApiService.get(
+        '/teacher/assessments/phil-iri-activities',
+      );
+      if (res.success && res.data != null && res.data['activities'] is List) {
+        final List raw = res.data['activities'];
+        if (raw.isNotEmpty) {
+          _overviewActivities = raw
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+    } catch (_) {}
+
     if (mounted) {
       setState(() {
         _isLoadingUser = false;
@@ -154,8 +211,6 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     super.dispose();
   }
 
-
-
   void _showNotificationCenter() {
     Feedback.forTap(context);
     setState(() {
@@ -196,7 +251,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _notifications.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = _notifications[index];
                     return Container(
@@ -250,10 +306,6 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     );
   }
 
-
-
-
-
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
@@ -277,7 +329,10 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                   children: [
                     // 1. Navigation Row (App Bar)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -356,97 +411,110 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 
                     // 2. Scrollable Body
                     Expanded(
-                      child: SingleChildScrollView(
-                        controller: _scrollController,
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // ── Hero Header Card (Grade 4 - Fyang) ──
-                            _buildHeroHeaderCard(),
-                            const SizedBox(height: 20),
+                      child: RefreshIndicator(
+                        onRefresh: _refreshTeacherProfile,
+                        color: const Color(0xFFD34426),
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 12.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // ── Hero Header Card (Grade 4 - Fyang) ──
+                              _buildHeroHeaderCard(),
+                              const SizedBox(height: 20),
 
-                            // ── Quick Access Row ──
-                            _buildQuickAccessRow(),
-                            const SizedBox(height: 28),
+                              // ── Quick Access Row ──
+                              _buildQuickAccessRow(),
+                              const SizedBox(height: 28),
 
-                            // ── Section: Class Activities ──
-                            _buildClassActivitiesSection(),
-                            const SizedBox(height: 28),
+                              // ── Section: Class Activities ──
+                              _buildClassActivitiesSection(),
+                              const SizedBox(height: 28),
 
-                            // ── Section: Student Dashboard ──
-                            Row(
-                              key: _dashboardKey,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Iconify(
-                                      Ph.presentation_chart,
-                                      color: Colors.grey[700],
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Student Dashboard',
+                              // ── Section: Student Dashboard ──
+                              Row(
+                                key: _dashboardKey,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Iconify(
+                                        Ph.presentation_chart,
+                                        color: Colors.grey[700],
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Student Dashboard',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              TeacherClassProgressPage(
+                                                className: _currentClassName,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      'View Details',
                                       style: GoogleFonts.inter(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryBlue,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    Feedback.forTap(context);
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => TeacherClassProgressPage(className: _currentClassName),
-                                      ),
-                                    );
-                                  },
-                                  child: Text(
-                                    'View Details',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: primaryBlue,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            _buildReadingClassificationCard(),
-                            const SizedBox(height: 28),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              _buildReadingClassificationCard(),
+                              const SizedBox(height: 28),
 
-                            // ── Section: Phil - IRI Records ──
-                            Row(
-                              key: _recordsKey,
-                              children: [
-                                const Icon(
-                                  Icons.assignment_outlined,
-                                  color: Color(0xFFD34426),
-                                  size: 24,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Phil - IRI Records',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black,
+                              // ── Section: Phil - IRI Records ──
+                              Row(
+                                key: _recordsKey,
+                                children: [
+                                  const Icon(
+                                    Icons.assignment_outlined,
+                                    color: Color(0xFFD34426),
+                                    size: 24,
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildRecordsGrid(),
-                            const SizedBox(height: 24),
-                          ],
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Phil - IRI Records',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildRecordsGrid(),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -462,104 +530,104 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 
   Widget _buildHeroHeaderCard() {
     return Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFE05234), Color(0xFFDC4D2F)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE05234), Color(0xFFDC4D2F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFDC4D2F).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFDC4D2F).withValues(alpha: 0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Translucent watermark logo background (identical to student overview page)
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Image.asset(
+              'assets/teacher page/logo_bg.webp',
+              fit: BoxFit.fitHeight,
+              alignment: Alignment.centerRight,
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Translucent watermark logo background (identical to student overview page)
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              child: Image.asset(
-                'assets/teacher page/logo_bg.webp',
-                fit: BoxFit.fitHeight,
-                alignment: Alignment.centerRight,
-              ),
+          ),
+          // Foreground content
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _isLoadingUser
+                    ? Container(
+                        width: 180,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      )
+                    : Text(
+                        _displaySectionTitle,
+                        style: GoogleFonts.inter(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                const SizedBox(height: 12),
+                _isLoadingUser
+                    ? Container(
+                        width: 100,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )
+                    : Text(
+                        AuthService.currentUser?.schoolYear ?? '',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                const SizedBox(height: 6),
+                _isLoadingUser
+                    ? Container(
+                        width: 130,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )
+                    : Text(
+                        '${AuthService.currentUser?.rawUser?['studentsCount'] ?? 0} Enrolled Learners',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+              ],
             ),
-            // Foreground content
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _isLoadingUser
-                      ? Container(
-                          width: 180,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        )
-                      : Text(
-                          _displaySectionTitle,
-                          style: GoogleFonts.inter(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                  const SizedBox(height: 12),
-                  _isLoadingUser
-                      ? Container(
-                          width: 100,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        )
-                      : Text(
-                          AuthService.currentUser?.schoolYear ?? '',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                  const SizedBox(height: 6),
-                  _isLoadingUser
-                      ? Container(
-                          width: 130,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        )
-                      : Text(
-                          '${AuthService.currentUser?.rawUser?['studentsCount'] ?? 0} Enrolled Learners',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+          ),
+        ],
+      ),
+    );
+  }
 
   String get _displaySectionTitle {
     final rawSection = AuthService.currentUser?.sectionName ?? '';
@@ -596,7 +664,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TeacherClassProgressPage(className: _currentClassName),
+                  builder: (context) =>
+                      TeacherClassProgressPage(className: _currentClassName),
                 ),
               );
             },
@@ -612,7 +681,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TeacherPhilIriRecordsPage(className: _currentClassName),
+                  builder: (context) =>
+                      TeacherPhilIriRecordsPage(className: _currentClassName),
                 ),
               );
             },
@@ -628,7 +698,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TeacherActivitiesPage(className: _currentClassName),
+                  builder: (context) =>
+                      TeacherActivitiesPage(className: _currentClassName),
                 ),
               );
             },
@@ -638,87 +709,565 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     );
   }
 
+  void _showOverviewActivityDetailSheet(Map<String, dynamic> activity) {
+    Feedback.forTap(context);
+    final String title = activity['title'] ?? 'Assessment Details';
+    final String typeStr =
+        (activity['assessmentType'] ?? activity['type'] ?? 'oral')
+            .toString()
+            .toUpperCase();
+    final int done =
+        int.tryParse(
+          activity['doneCount']?.toString() ??
+              activity['done']?.toString() ??
+              '0',
+        ) ??
+        0;
+    final int pending =
+        int.tryParse(
+          activity['pendingCount']?.toString() ??
+              activity['pending']?.toString() ??
+              '0',
+        ) ??
+        0;
+    final int total =
+        int.tryParse(activity['totalAssigned']?.toString() ?? '0') ??
+        (done + pending);
+    final bool isOpen =
+        activity['activityStatus'] != 'closed' &&
+        activity['status'] != 'closed';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFCFAF7),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Iconify(
+                        Ph.chart_pie_slice,
+                        color: Color(0xFFD34426),
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Activity Overview',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(sheetCtx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Overview Stat Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 3 Metric Containers Grid
+                    Row(
+                      children: [
+                        // Total Assigned
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFBFDBFE),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '$total',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: const Color(0xFF1E40AF),
+                                      ),
+                                    ),
+                                    const Iconify(
+                                      Ph.users_three,
+                                      color: Color(0xFF1D4ED8),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Total\nAssigned',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF1E3A8A),
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Completed
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFA7F3D0),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '$done',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: const Color(0xFF047857),
+                                      ),
+                                    ),
+                                    const Iconify(
+                                      Ph.check_circle,
+                                      color: Color(0xFF059669),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Completed\nStudents',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF065F46),
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Pending
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFFBEB),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFFDE68A),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '$pending',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: const Color(0xFFB45309),
+                                      ),
+                                    ),
+                                    const Iconify(
+                                      Ph.clock,
+                                      color: Color(0xFFD97706),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Pending\nEvaluation',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF92400E),
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Last Update: Active Assessment Session',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Instructions Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isOpen
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                              color: isOpen
+                                  ? const Color(0xFF86EFAC)
+                                  : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          child: Text(
+                            isOpen ? 'STATUS: OPEN' : 'STATUS: CLOSED',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: isOpen
+                                  ? const Color(0xFF166534)
+                                  : Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'Type: $typeStr',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Instructions:',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '1. Students complete oral, listening, or silent assessment in student app.\n2. Automated AI computes accuracy %, WPM, and comprehension level.\n3. Teacher verifies miscues for oral reading tests.',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.grey[700],
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // View Full Page Link
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          TeacherActivitiesPage(className: _currentClassName),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD34426),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: Text(
+                  'Open Full Class Activities Page',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildClassActivitiesSection() {
-    final filteredList = _selectedActivityFilter == 'All'
-        ? _activities
-        : _activities.where((a) => a['category'] == _selectedActivityFilter).toList();
+    final filteredList = _overviewActivities.where((act) {
+      final typeStr = (act['assessmentType'] ?? act['type'] ?? '')
+          .toString()
+          .toLowerCase();
+      if (_overviewFilter == 'oral') return typeStr.contains('oral');
+      if (_overviewFilter == 'listening') return typeStr.contains('listening');
+      if (_overviewFilter == 'silent') return typeStr.contains('silent');
+      return true;
+    }).toList();
+
+    // Show only the 3 most recent activities on overview page
+    final displayList = filteredList.take(3).toList();
 
     return Column(
       key: _activitiesKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Category Filter Chips Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children:
+                [
+                  {'id': 'all', 'label': 'All'},
+                  {'id': 'oral', 'label': 'Oral Reading'},
+                  {'id': 'listening', 'label': 'Listening'},
+                  {'id': 'silent', 'label': 'Silent Reading'},
+                ].map((f) {
+                  final isSelected = _overviewFilter == f['id'];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(
+                        f['label']!,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : Colors.grey[700],
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: const Color(0xFFD34426),
+                      backgroundColor: Colors.white,
+                      side: BorderSide(
+                        color: isSelected
+                            ? const Color(0xFFD34426)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                      onSelected: (_) {
+                        Feedback.forTap(context);
+                        setState(() => _overviewFilter = f['id']!);
+                      },
+                    ),
+                  );
+                }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Section Title & Items Count
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                const Iconify(
-                  PhIcons.flagPennantBold,
-                  color: Color(0xFFD34426),
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
                 Text(
-                  'Class Activities',
+                  'Phil-IRI Assessments',
                   style: GoogleFonts.inter(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w800,
                     color: Colors.black,
                   ),
                 ),
+                const SizedBox(width: 8),
+                Text(
+                  '${filteredList.length} items',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFDF4F2),
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: const Color(0xFFFBE8E6)),
-              ),
+            GestureDetector(
+              onTap: () {
+                Feedback.forTap(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        TeacherActivitiesPage(className: _currentClassName),
+                  ),
+                );
+              },
               child: Text(
-                'Set Student Access',
+                'View All',
                 style: GoogleFonts.inter(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFFD34426),
+                  color: const Color(0xFF1B64D8),
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        // Filter tabs: All, Practice Mode, Phil-IRI
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _buildFilterChip('All'),
-              const SizedBox(width: 8),
-              _buildFilterChip('Practice Mode'),
-              const SizedBox(width: 8),
-              _buildFilterChip('Phil-IRI'),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
+
+        // Activities List Cards (Limited to 3 recent items)
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: filteredList.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemCount: displayList.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 14),
           itemBuilder: (context, index) {
-            final activity = filteredList[index];
-            final bool isAvailable = activity['isAvailable'] as bool;
-            final bool isPractice = activity['category'] == 'Practice Mode';
+            final act = displayList[index];
+            final String title = act['title'] ?? 'Assessment';
+            final String subtitle = act['subtitle'] ?? '';
+            final String typeStr =
+                (act['assessmentType'] ?? act['type'] ?? 'oral')
+                    .toString()
+                    .toLowerCase();
+            final bool isOpen =
+                act['activityStatus'] != 'closed' && act['status'] != 'closed';
+            final int done =
+                int.tryParse(
+                  act['doneCount']?.toString() ??
+                      act['done']?.toString() ??
+                      '0',
+                ) ??
+                0;
+            final int pending =
+                int.tryParse(
+                  act['pendingCount']?.toString() ??
+                      act['pending']?.toString() ??
+                      '0',
+                ) ??
+                0;
+
+            String iconSvg = PhIcons.userSoundBold;
+            Color iconBg = const Color(0xFFDBEAFE);
+            Color iconColor = const Color(0xFF1D4ED8);
+
+            if (typeStr.contains('listening')) {
+              iconSvg = PhIcons.earBold;
+              iconBg = const Color(0xFFFEF3C7);
+              iconColor = const Color(0xFFB45309);
+            } else if (typeStr.contains('silent')) {
+              iconSvg = PhIcons.bookOpenBold;
+              iconBg = const Color(0xFFD1FAE5);
+              iconColor = const Color(0xFF047857);
+            } else if (typeStr.contains('practice')) {
+              iconSvg = PhIcons.puzzlePieceBold;
+              iconBg = const Color(0xFFF3E8FF);
+              iconColor = const Color(0xFF7E22CE);
+            }
 
             return Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isAvailable ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
-                  width: 1.2,
-                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.02),
@@ -727,128 +1276,179 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Icon indicator
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: isPractice ? const Color(0xFFEFF6FF) : const Color(0xFFFDF4F2),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Iconify(
-                      isPractice ? Ph.microphone_stage : Ph.book_open,
-                      color: isPractice ? const Color(0xFF1B64D8) : const Color(0xFFD34426),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          activity['title'],
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isPractice ? const Color(0xFFDBEAFE) : const Color(0xFFFEE2E2),
-                                borderRadius: BorderRadius.circular(100),
-                              ),
-                              child: Text(
-                                activity['category'],
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: isPractice ? const Color(0xFF1D4ED8) : const Color(0xFFB91C1C),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.check_circle_outline_rounded, size: 14, color: Colors.green),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${activity['done']} Completed',
-                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.hourglass_empty_rounded, size: 14, color: Colors.orange),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${activity['pending']} Pending',
-                                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[700], fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Availability Switch Toggle
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Transform.scale(
-                        scale: 0.85,
-                        child: Switch(
-                          value: isAvailable,
-                          activeThumbColor: const Color(0xFFD34426),
-                          onChanged: (val) {
-                            setState(() {
-                              activity['isAvailable'] = val;
-                            });
-                            Feedback.forTap(context);
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  val
-                                      ? '${activity['title']} is now AVAILABLE to students'
-                                      : '${activity['title']} is now HIDDEN from students',
-                                ),
-                                backgroundColor: val ? const Color(0xFF10B981) : Colors.grey[700],
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          },
+                      // Type Icon
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: Iconify(iconSvg, color: iconColor, size: 22),
                         ),
                       ),
-                      Text(
-                        isAvailable ? 'Available' : 'Hidden',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: isAvailable ? const Color(0xFF10B981) : Colors.grey[400],
+                      const SizedBox(width: 12),
+                      // Title & Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                            if (subtitle.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isOpen
+                                        ? const Color(0xFFDCFCE7)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isOpen ? 'OPEN' : 'CLOSED',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: isOpen
+                                          ? const Color(0xFF15803D)
+                                          : Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    typeStr.toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 12),
+
+                  // Footer Stats & Actions
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF059669),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$done',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
+                          ),
+                          Text(
+                            ' Done',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Icon(
+                            Icons.access_time_rounded,
+                            color: Color(0xFFD97706),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$pending',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
+                          ),
+                          Text(
+                            ' Pending',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // View Details Button
+                      ElevatedButton(
+                        onPressed: () => _showOverviewActivityDetailSheet(act),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD34426),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                        ),
+                        child: Text(
+                          'View Details',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -859,33 +1459,6 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
           },
         ),
       ],
-    );
-  }
-
-  Widget _buildFilterChip(String label) {
-    final bool isSelected = _selectedActivityFilter == label;
-    return ChoiceChip(
-      label: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-          color: isSelected ? Colors.white : Colors.black87,
-        ),
-      ),
-      selected: isSelected,
-      selectedColor: const Color(0xFFD34426),
-      backgroundColor: Colors.white,
-      side: BorderSide(
-        color: isSelected ? const Color(0xFFD34426) : const Color(0xFFE2E8F0),
-      ),
-      onSelected: (selected) {
-        if (selected) {
-          setState(() {
-            _selectedActivityFilter = label;
-          });
-        }
-      },
     );
   }
 
@@ -902,22 +1475,17 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
       child: Container(
         height: 110,
         decoration: BoxDecoration(
-          color: const Color(0xFFFDF4F2), // Light peach/pinkish matching first screenshot
+          color: const Color(
+            0xFFFDF4F2,
+          ), // Light peach/pinkish matching first screenshot
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFFBE8E6),
-            width: 1.5,
-          ),
+          border: Border.all(color: const Color(0xFFFBE8E6), width: 1.5),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Iconify(
-              icon,
-              size: 32,
-              color: const Color(0xFFD34426),
-            ),
+            Iconify(icon, size: 32, color: const Color(0xFFD34426)),
             const SizedBox(height: 8),
             Text(
               label,
@@ -942,7 +1510,17 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     int indep = 0;
 
     for (var s in cached) {
-      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? s['gstResult'] ?? s['gst_result'] ?? '').toString().trim().toLowerCase();
+      final lvl =
+          (s['readingLevel'] ??
+                  s['level'] ??
+                  s['reading_level'] ??
+                  s['current_profile_label'] ??
+                  s['gstResult'] ??
+                  s['gst_result'] ??
+                  '')
+              .toString()
+              .trim()
+              .toLowerCase();
       if (lvl.contains('frustrat')) {
         frust++;
       } else if (lvl.contains('instruct')) {
@@ -953,9 +1531,15 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     }
 
     final totalEvaluated = frust + inst + indep;
-    final frustPct = totalEvaluated > 0 ? ((frust / totalEvaluated) * 100).round() : 0;
-    final instPct = totalEvaluated > 0 ? ((inst / totalEvaluated) * 100).round() : 0;
-    final indepPct = totalEvaluated > 0 ? ((indep / totalEvaluated) * 100).round() : 0;
+    final frustPct = totalEvaluated > 0
+        ? ((frust / totalEvaluated) * 100).round()
+        : 0;
+    final instPct = totalEvaluated > 0
+        ? ((inst / totalEvaluated) * 100).round()
+        : 0;
+    final indepPct = totalEvaluated > 0
+        ? ((indep / totalEvaluated) * 100).round()
+        : 0;
 
     return InkWell(
       onTap: () {
@@ -963,7 +1547,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const TeacherReadingLevelsPage(initialLevel: 'All'),
+            builder: (context) =>
+                const TeacherReadingLevelsPage(initialLevel: 'All'),
           ),
         );
       },
@@ -983,7 +1568,11 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
               children: [
                 Row(
                   children: [
-                    Iconify(Ph.chart_pie_slice, color: Colors.grey[600], size: 20),
+                    Iconify(
+                      Ph.chart_pie_slice,
+                      color: Colors.grey[600],
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Reading Level Classification',
@@ -1040,11 +1629,26 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                       const Divider(color: Color(0xFFE2E8F0), thickness: 1),
                       const SizedBox(height: 12),
                       // Legend
-                      _buildLegendItem('$frust', 'Frustration Level ($frustPct%)', const Color(0xFFD34426), 'Frustration'),
+                      _buildLegendItem(
+                        '$frust',
+                        'Frustration Level ($frustPct%)',
+                        const Color(0xFFD34426),
+                        'Frustration',
+                      ),
                       const SizedBox(height: 8),
-                      _buildLegendItem('$inst', 'Instructional Level ($instPct%)', const Color(0xFFFFD13E), 'Instructional'),
+                      _buildLegendItem(
+                        '$inst',
+                        'Instructional Level ($instPct%)',
+                        const Color(0xFFFFD13E),
+                        'Instructional',
+                      ),
                       const SizedBox(height: 8),
-                      _buildLegendItem('$indep', 'Independent Level ($indepPct%)', const Color(0xFF00A859), 'Independent'),
+                      _buildLegendItem(
+                        '$indep',
+                        'Independent Level ($indepPct%)',
+                        const Color(0xFF00A859),
+                        'Independent',
+                      ),
                     ],
                   ),
                 ),
@@ -1104,16 +1708,20 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     );
   }
 
-  Widget _buildLegendItem(String count, String label, Color color, [String? levelFilter]) {
+  Widget _buildLegendItem(
+    String count,
+    String label,
+    Color color, [
+    String? levelFilter,
+  ]) {
     return InkWell(
       onTap: () {
         Feedback.forTap(context);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TeacherReadingLevelsPage(
-              initialLevel: levelFilter ?? 'All',
-            ),
+            builder: (context) =>
+                TeacherReadingLevelsPage(initialLevel: levelFilter ?? 'All'),
           ),
         );
       },
@@ -1133,13 +1741,21 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
             const SizedBox(width: 8),
             Text(
               count,
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

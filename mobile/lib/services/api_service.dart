@@ -145,4 +145,27 @@ class ApiService {
     }
     return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
   }
+
+  static Future<ApiResponse> delete(String endpoint) async {
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}$endpoint',
+      'http://10.0.2.2:5000/api$endpoint',
+      'http://192.168.1.146:5000/api$endpoint',
+    ];
+
+    String lastErr = '';
+    for (final urlStr in urlsToTry) {
+      try {
+        final url = Uri.parse(urlStr);
+        final response = await http.delete(
+          url,
+          headers: _headers,
+        ).timeout(const Duration(seconds: 10));
+        return ApiResponse.fromResponse(response);
+      } catch (e) {
+        lastErr = e.toString();
+      }
+    }
+    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+  }
 }

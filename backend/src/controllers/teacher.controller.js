@@ -823,9 +823,10 @@ async function assignPhilIriSetToClass(req, res) {
 // ---------------------------------------------------------------------------
 async function assignPhilIriToStudents(req, res) {
   try {
-    const { assignments, assessmentType, assessmentPeriod, dueDate, isEdit } = req.body;
-    if (!Array.isArray(assignments) || !assessmentType || !assessmentPeriod) {
-      return res.status(400).json({ success: false, error: 'Assignments array, assessmentType, and assessmentPeriod are required.' });
+    let { assignments, passageSet, assessmentType, assessmentPeriod, language, dueDate, isEdit } = req.body;
+
+    if (!assessmentType || !assessmentPeriod) {
+      return res.status(400).json({ success: false, error: 'assessmentType and assessmentPeriod are required.' });
     }
 
     const teacherUserId = req.user?.teacherId || req.user?.teacher_id || req.user?.userId || req.user?.user_id || req.user?.id;
@@ -840,6 +841,46 @@ async function assignPhilIriToStudents(req, res) {
         [teacherUserId]
       );
       const teacherId = tRes.rows[0]?.teacher_id || null;
+
+      // If assignments array is not provided, automatically gather section students and matching passage
+      if (!Array.isArray(assignments) || assignments.length === 0) {
+        // Find matching passage
+        const pMatch = await db.query(
+          `SELECT passage_id FROM phil_iri_passages 
+           WHERE (LOWER(passage_set) = LOWER($1) OR passage_set = $1 OR passage_set ILIKE $1)
+             AND (LOWER(COALESCE(language, 'fil')) LIKE LOWER($2) || '%')
+           LIMIT 1`,
+          [passageSet || 'Set A', (language || 'fil').substring(0, 2)]
+        );
+
+        let targetPassageId = pMatch.rows[0]?.passage_id;
+        if (!targetPassageId) {
+          const fallbackPassage = await db.query(`SELECT passage_id FROM phil_iri_passages LIMIT 1`);
+          targetPassageId = fallbackPassage.rows[0]?.passage_id;
+        }
+
+        // Find section students
+        const stRes = await db.query(
+          `SELECT s.student_id 
+           FROM students s
+           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+           JOIN classes c ON sgh.class_id = c.class_id
+           JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
+             SELECT fic.teacher_id FROM faculty_in_charge fic WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
+           ))
+           WHERE t.user_id::text = $1::text OR t.teacher_id::text = $1::text`,
+          [teacherUserId]
+        );
+
+        if (stRes.rows && stRes.rows.length > 0 && targetPassageId) {
+          assignments = stRes.rows.map((row) => ({
+            studentId: row.student_id,
+            passageId: targetPassageId,
+          }));
+        } else {
+          assignments = [];
+        }
+      }
 
       const cleanDueDate = dueDate ? new Date(dueDate) : null;
 

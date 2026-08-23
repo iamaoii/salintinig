@@ -124,8 +124,11 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+              child: RefreshIndicator(
+                onRefresh: _fetchStudents,
+                color: const Color(0xFFD34426),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,9 +368,10 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
+    ),
+  );
   }
 }

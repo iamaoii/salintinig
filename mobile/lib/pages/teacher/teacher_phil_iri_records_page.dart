@@ -136,6 +136,116 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     );
   }
 
+  Future<void> _refreshRecords() async {
+    Feedback.forTap(context);
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Phil-IRI Records updated', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          duration: const Duration(seconds: 1),
+          backgroundColor: const Color(0xFFD34426),
+        ),
+      );
+    }
+  }
+
+  int _notificationsCount = 3;
+  final List<Map<String, String>> _notifications = [
+    {'title': 'Activity 1 completed', 'time': '5 mins ago', 'desc': 'Juan Dela Cruz just completed Pronunciation Challenge.'},
+    {'title': 'Pending evaluation', 'time': '1 hour ago', 'desc': '3 students are waiting for oral reading grading.'},
+    {'title': 'Low score alert', 'time': '2 hours ago', 'desc': 'Maria Clara scored Frustration level on Form 1A.'},
+  ];
+
+  void _showNotificationCenter() {
+    Feedback.forTap(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Iconify(Ph.bell_bold, color: Color(0xFFD34426), size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Notifications',
+                      style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _notificationsCount = 0);
+                    Navigator.pop(sheetCtx);
+                  },
+                  child: Text('Mark all read', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFD34426))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ..._notifications.map((notif) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFCFAF7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Center(child: Iconify(Ph.bell_ringing, color: Color(0xFFD34426), size: 18)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(notif['title']!, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold)),
+                            Text(notif['time']!, style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500])),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(notif['desc']!, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[700])),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
@@ -167,16 +277,52 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                       color: Colors.black,
                     ),
                   ),
-                  const SizedBox(width: 48),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        onPressed: _showNotificationCenter,
+                        icon: const Iconify(Ph.bell, size: 28, color: Colors.black),
+                      ),
+                      if (_notificationsCount > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$_notificationsCount',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
 
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                child: Column(
+              child: RefreshIndicator(
+                onRefresh: _refreshRecords,
+                color: const Color(0xFFD34426),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Section Title
@@ -307,9 +453,10 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
+    ),
+  );
   }
 }

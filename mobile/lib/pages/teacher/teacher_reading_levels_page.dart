@@ -175,7 +175,7 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), // Spacer for balance
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
@@ -185,8 +185,11 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                   ? const Center(
                       child: CircularProgressIndicator(color: Color(0xFFD34426)),
                     )
-                  : SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
+                  : RefreshIndicator(
+                      onRefresh: _fetchStudents,
+                      color: const Color(0xFFD34426),
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,6 +355,7 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                         ],
                       ),
                     ),
+                  ),
             ),
           ],
         ),
