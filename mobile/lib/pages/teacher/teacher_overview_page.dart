@@ -1161,14 +1161,16 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         _buildRecordCard(
           title: 'FORM 1A',
           subtitle: 'Filipino GST',
-          bgColor: const Color(0xFFECFDF5),
+          bgColor: Colors.white,
           arrowColor: const Color(0xFF10B981),
+          hasBorder: true,
         ),
         _buildRecordCard(
           title: 'FORM 1B',
           subtitle: 'English GST',
-          bgColor: const Color(0xFFFFFBEB),
+          bgColor: Colors.white,
           arrowColor: const Color(0xFFF59E0B),
+          hasBorder: true,
         ),
         _buildRecordCard(
           title: 'FORM 2',

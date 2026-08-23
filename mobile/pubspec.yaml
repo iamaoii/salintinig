@@ -45,6 +45,7 @@ dependencies:
   confetti: ^0.8.0
   http: ^1.2.0
   flutter_dotenv: ^5.2.1
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

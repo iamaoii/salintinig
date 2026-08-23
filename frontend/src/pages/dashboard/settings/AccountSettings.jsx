@@ -624,18 +624,6 @@ export default function AccountSettings() {
                     className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
                   />
                 </div>
-
-                <div>
-                  <label className="font-semibold text-ink">Contact Phone Number</label>
-                  <input
-                    type="text"
-                    disabled={loading}
-                    value={form.contactNo}
-                    onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
-                    placeholder="0917-123-4567"
-                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
-                  />
-                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-ink/10">

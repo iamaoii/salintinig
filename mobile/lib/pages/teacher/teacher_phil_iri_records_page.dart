@@ -23,8 +23,8 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     {
       'title': 'FORM 1A',
       'subtitle': 'Filipino GST',
-      'bgColor': const Color(0xFFECFDF5),
-      'borderColor': const Color(0xFFA7F3D0),
+      'bgColor': Colors.white,
+      'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFFEF08A),
       'iconColor': const Color(0xFFCA8A04),
       'icon': Ph.users_three,
@@ -33,8 +33,8 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     {
       'title': 'FORM 1B',
       'subtitle': 'English GST',
-      'bgColor': const Color(0xFFFFFBEB),
-      'borderColor': const Color(0xFFFDE68A),
+      'bgColor': Colors.white,
+      'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFDBEAFE),
       'iconColor': const Color(0xFF2563EB),
       'icon': Ph.users_three,

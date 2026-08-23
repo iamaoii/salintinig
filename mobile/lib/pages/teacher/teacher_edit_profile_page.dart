@@ -1,7 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherEditProfilePage extends StatefulWidget {
   final String currentName;
@@ -9,7 +15,6 @@ class TeacherEditProfilePage extends StatefulWidget {
   final String currentSchool;
   final String currentEmployeeId;
   final String currentEmail;
-  final String currentContactNumber;
   final String currentAssignedClass;
   final IconData currentAvatarIcon;
 
@@ -20,7 +25,6 @@ class TeacherEditProfilePage extends StatefulWidget {
     required this.currentSchool,
     required this.currentEmployeeId,
     required this.currentEmail,
-    required this.currentContactNumber,
     required this.currentAssignedClass,
     required this.currentAvatarIcon,
   });
@@ -35,9 +39,13 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
   late TextEditingController _schoolController;
   late TextEditingController _empIdController;
   late TextEditingController _emailController;
-  late TextEditingController _phoneController;
   late TextEditingController _classController;
   late IconData _selectedAvatarIcon;
+
+  XFile? _pickedImage;
+  String? _base64Image;
+  bool _isUploading = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -47,7 +55,6 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
     _schoolController = TextEditingController(text: widget.currentSchool);
     _empIdController = TextEditingController(text: widget.currentEmployeeId);
     _emailController = TextEditingController(text: widget.currentEmail);
-    _phoneController = TextEditingController(text: widget.currentContactNumber);
     _classController = TextEditingController(text: widget.currentAssignedClass);
     _selectedAvatarIcon = widget.currentAvatarIcon;
   }
@@ -59,12 +66,129 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
     _schoolController.dispose();
     _empIdController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _classController.dispose();
     super.dispose();
   }
 
-  void _saveProfile() {
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final file = await _picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() {
+          _pickedImage = file;
+          _base64Image = base64Str;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick photo: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showPhotoPickerOptions() {
+    Feedback.forTap(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final hasExistingPhoto = _pickedImage != null ||
+            (AuthService.currentUser?.rawUser?['profileImage'] ?? AuthService.currentUser?.rawUser?['profile_image']) != null;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Change Profile Picture',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFDF4F2),
+                    child: Icon(Icons.photo_library_rounded, color: Color(0xFFD34426)),
+                  ),
+                  title: Text(
+                    'Choose from Gallery',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFDF4F2),
+                    child: Icon(Icons.camera_alt_rounded, color: Color(0xFFD34426)),
+                  ),
+                  title: Text(
+                    'Take a Photo',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                if (hasExistingPhoto)
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.red[50],
+                      child: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                    ),
+                    title: Text(
+                      'Remove Photo',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.red),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _pickedImage = null;
+                        _base64Image = '';
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveProfile() async {
     Feedback.forTap(context);
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,18 +200,42 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
       return;
     }
 
-    final updatedData = {
-      'name': _nameController.text.trim(),
-      'title': _titleController.text.trim(),
-      'school': _schoolController.text.trim(),
-      'employeeId': _empIdController.text.trim(),
-      'email': _emailController.text.trim(),
-      'contactNumber': _phoneController.text.trim(),
-      'assignedClass': _classController.text.trim(),
-      'avatarIcon': _selectedAvatarIcon,
-    };
+    setState(() => _isUploading = true);
 
-    Navigator.pop(context, updatedData);
+    try {
+      final Map<String, dynamic> body = {
+        'name': _nameController.text.trim(),
+        'fullName': _nameController.text.trim(),
+      };
+      if (_base64Image != null) {
+        body['profileImage'] = _base64Image;
+      }
+
+      final response = await ApiService.put('/auth/profile', body);
+      if (response.success) {
+        await AuthService.fetchMe();
+      }
+    } catch (e) {
+      debugPrint('Profile update error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+
+    if (mounted) {
+      final updatedData = {
+        'name': _nameController.text.trim(),
+        'title': _titleController.text.trim(),
+        'school': _schoolController.text.trim(),
+        'employeeId': _empIdController.text.trim(),
+        'email': _emailController.text.trim(),
+        'assignedClass': _classController.text.trim(),
+        'avatarIcon': _selectedAvatarIcon,
+      };
+
+      Navigator.pop(context, updatedData);
+    }
   }
 
   @override
@@ -132,43 +280,87 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFD34426), width: 2.5),
-                        color: const Color(0xFFFDF4F2),
-                      ),
-                      child: CircleAvatar(
-                        radius: 40,
-                        backgroundColor: const Color(0xFFFDF4F2),
-                        child: Icon(_selectedAvatarIcon, size: 50, color: const Color(0xFFD34426)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Choose Profile Avatar Icon',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
+                    Stack(
+                      children: [
+                        GestureDetector(
+                          onTap: _showPhotoPickerOptions,
+                          child: Container(
+                            width: 90,
+                            height: 90,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFFD34426), width: 2.5),
+                              color: const Color(0xFFFDF4F2),
+                            ),
+                            child: ClipOval(
+                              child: _pickedImage != null
+                                  ? Image.file(
+                                      File(_pickedImage!.path),
+                                      fit: BoxFit.cover,
+                                      width: 90,
+                                      height: 90,
+                                    )
+                                  : (_base64Image == ''
+                                      ? InitialsAvatar(
+                                          name: _nameController.text.isNotEmpty ? _nameController.text : widget.currentName,
+                                          imageUrl: null,
+                                          radius: 42,
+                                          fontSize: 26,
+                                        )
+                                      : InitialsAvatar(
+                                          name: _nameController.text.isNotEmpty ? _nameController.text : widget.currentName,
+                                          imageUrl: (AuthService.currentUser?.rawUser?['profileImage'] ?? AuthService.currentUser?.rawUser?['profile_image'])?.toString(),
+                                          radius: 42,
+                                          fontSize: 26,
+                                        )),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _showPhotoPickerOptions,
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD34426),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildAvatarOption(Icons.person_rounded),
-                        const SizedBox(width: 12),
-                        _buildAvatarOption(Icons.face_rounded),
-                        const SizedBox(width: 12),
-                        _buildAvatarOption(Icons.account_circle_rounded),
-                        const SizedBox(width: 12),
-                        _buildAvatarOption(Icons.school_rounded),
-                        const SizedBox(width: 12),
-                        _buildAvatarOption(Icons.psychology_rounded),
-                      ],
+                    OutlinedButton.icon(
+                      onPressed: _showPhotoPickerOptions,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD34426),
+                        side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
+                        backgroundColor: const Color(0xFFFDF4F2),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      icon: const Icon(Icons.photo_camera_rounded, size: 16, color: Color(0xFFD34426)),
+                      label: Text(
+                        'Change Profile Picture',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -189,9 +381,9 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                   children: [
                     _buildInputField('Full Name', _nameController, Ph.user),
                     const SizedBox(height: 14),
-                    _buildInputField('Designation / Position', _titleController, Ph.briefcase),
+                    _buildInputField('Designation / Position', _titleController, Ph.briefcase, isReadOnly: true),
                     const SizedBox(height: 14),
-                    _buildInputField('School Name', _schoolController, Ph.buildings),
+                    _buildInputField('School Name', _schoolController, Ph.buildings, isReadOnly: true),
                   ],
                 ),
               ),
@@ -209,13 +401,11 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    _buildInputField('Employee ID', _empIdController, Ph.identification_badge),
+                    _buildInputField('Employee ID', _empIdController, Ph.identification_badge, isReadOnly: true),
                     const SizedBox(height: 14),
                     _buildInputField('Email Address', _emailController, Ph.envelope_simple),
                     const SizedBox(height: 14),
-                    _buildInputField('Contact Number', _phoneController, Ph.phone),
-                    const SizedBox(height: 14),
-                    _buildInputField('Assigned Class', _classController, Ph.users_three),
+                    _buildInputField('Assigned Class', _classController, Ph.users_three, isReadOnly: true),
                   ],
                 ),
               ),
@@ -228,7 +418,7 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           child: ElevatedButton(
-            onPressed: _saveProfile,
+            onPressed: _isUploading ? null : _saveProfile,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD34426),
               foregroundColor: Colors.white,
@@ -239,13 +429,19 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
               ),
               minimumSize: const Size(double.infinity, 52),
             ),
-            child: Text(
-              'Save Profile Changes',
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: _isUploading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                  )
+                : Text(
+                    'Save Profile Changes',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -269,66 +465,64 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
     );
   }
 
-  Widget _buildAvatarOption(IconData icon) {
-    final isSelected = _selectedAvatarIcon == icon;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedAvatarIcon = icon),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFD34426) : const Color(0xFFF8FAFC),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? const Color(0xFFD34426) : const Color(0xFFE2E8F0),
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            if (isSelected)
-              BoxShadow(
-                color: const Color(0xFFD34426).withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-          ],
-        ),
-        child: Center(
-          child: Icon(
-            icon,
-            size: 24,
-            color: isSelected ? Colors.white : Colors.grey[700],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField(String label, TextEditingController controller, String iconName) {
+  Widget _buildInputField(
+    String label,
+    TextEditingController controller,
+    String iconName, {
+    bool isReadOnly = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey[700],
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
+              ),
+            ),
+            if (isReadOnly)
+              Text(
+                'Read Only',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black),
+          enabled: !isReadOnly,
+          readOnly: isReadOnly,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isReadOnly ? Colors.grey[700] : Colors.black,
+          ),
           decoration: InputDecoration(
             prefixIcon: Padding(
               padding: const EdgeInsets.all(12.0),
-              child: Iconify(iconName, color: const Color(0xFFD34426), size: 18),
+              child: Iconify(
+                iconName,
+                color: isReadOnly ? Colors.grey[500]! : const Color(0xFFD34426),
+                size: 18,
+              ),
             ),
             filled: true,
-            fillColor: const Color(0xFFF8FAFC),
+            fillColor: isReadOnly ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),

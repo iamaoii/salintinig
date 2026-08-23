@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'teacher_edit_profile_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherProfilePage extends StatefulWidget {
   const TeacherProfilePage({super.key});
@@ -16,42 +17,106 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   String? _customTeacherName;
   String? _customEmailAddress;
   String? _customEmployeeId;
+  String? _customTitle;
+  String? _customSchool;
+  String? _customAssignedClass;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshProfile();
+  }
+
+  Future<void> _refreshProfile() async {
+    final res = await AuthService.fetchMe();
+    if (res.success && mounted) {
+      setState(() {});
+    }
+  }
+
+  UserSession? get _user => AuthService.currentUser;
+  Map<String, dynamic>? get _raw => _user?.rawUser;
 
   String get _teacherName {
     if (_customTeacherName != null && _customTeacherName!.isNotEmpty) {
       return _customTeacherName!;
     }
-    final user = AuthService.currentUser;
-    if (user != null && user.displayName.isNotEmpty) {
-      return user.displayName;
+    final name = _user?.displayName;
+    if (name != null && name.isNotEmpty) {
+      return name;
     }
-    return 'Maria Santos';
+    return 'Teacher';
   }
 
   String get _emailAddress {
     if (_customEmailAddress != null && _customEmailAddress!.isNotEmpty) {
       return _customEmailAddress!;
     }
-    final user = AuthService.currentUser;
-    if (user != null && user.email.isNotEmpty) {
-      return user.email;
+    final email = _user?.email;
+    if (email != null && email.isNotEmpty) {
+      return email;
     }
-    return 'maria.santos@deped.gov.ph';
+    return 'N/A';
   }
 
   String get _employeeId {
     if (_customEmployeeId != null && _customEmployeeId!.isNotEmpty) {
       return _customEmployeeId!;
     }
-    final raw = AuthService.currentUser?.rawUser;
-    return raw?['teacher_no'] ?? raw?['id_no'] ?? '198420349';
+    final empNo = _raw?['teacher_no'] ??
+        _raw?['teacherNo'] ??
+        _raw?['id_no'] ??
+        _raw?['employeeId'] ??
+        _raw?['user_id'];
+    if (empNo != null && empNo.toString().isNotEmpty) {
+      return empNo.toString();
+    }
+    return 'N/A';
   }
 
-  String _teacherTitle = 'Grade IV Teacher';
-  String _schoolName = 'San Juan Elementary School';
-  String _contactNumber = '+63 917 890 1234';
-  String _assignedClass = 'Grade 4 - FYANG';
-  IconData _selectedAvatarIcon = Icons.person_rounded;
+  String get _teacherTitle {
+    if (_customTitle != null && _customTitle!.isNotEmpty) {
+      return _customTitle!;
+    }
+    final pos = _raw?['title'] ?? _raw?['position'] ?? _raw?['designation'];
+    if (pos != null && pos.toString().isNotEmpty) {
+      return pos.toString();
+    }
+    final grade = _user?.gradeLevel;
+    if (grade != null && grade.isNotEmpty) {
+      return 'Grade $grade Teacher';
+    }
+    return 'Grade IV Teacher';
+  }
+
+  String get _schoolName {
+    if (_customSchool != null && _customSchool!.isNotEmpty) {
+      return _customSchool!;
+    }
+    final school = _raw?['school_name'] ?? _raw?['schoolName'] ?? _raw?['school'];
+    if (school != null && school.toString().isNotEmpty) {
+      return school.toString();
+    }
+    return 'San Juan Elementary School';
+  }
+
+  String get _assignedClass {
+    if (_customAssignedClass != null && _customAssignedClass!.isNotEmpty) {
+      return _customAssignedClass!;
+    }
+    final sec = _user?.sectionName ?? '';
+    final grade = _user?.gradeLevel ?? '';
+    if (sec.toLowerCase().startsWith('grade')) return sec;
+    if (sec.isNotEmpty && grade.isNotEmpty) return 'Grade $grade - $sec';
+    if (sec.isNotEmpty) return sec;
+    if (grade.isNotEmpty) return 'Grade $grade';
+    return 'Grade 4 - FYANG';
+  }
+
+  String? get _teacherImageUrl {
+    final img = _raw?['profileImage'] ?? _raw?['profile_image'];
+    return img?.toString();
+  }
 
   Future<void> _openEditProfilePage() async {
     Feedback.forTap(context);
@@ -64,9 +129,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
           currentSchool: _schoolName,
           currentEmployeeId: _employeeId,
           currentEmail: _emailAddress,
-          currentContactNumber: _contactNumber,
           currentAssignedClass: _assignedClass,
-          currentAvatarIcon: _selectedAvatarIcon,
+          currentAvatarIcon: Icons.person_rounded,
         ),
       ),
     );
@@ -74,13 +138,11 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     if (result != null && mounted) {
       setState(() {
         _customTeacherName = result['name'] as String?;
-        _teacherTitle = result['title'] ?? _teacherTitle;
-        _schoolName = result['school'] ?? _schoolName;
+        _customTitle = result['title'] as String?;
+        _customSchool = result['school'] as String?;
         _customEmployeeId = result['employeeId'] as String?;
         _customEmailAddress = result['email'] as String?;
-        _contactNumber = result['contactNumber'] ?? _contactNumber;
-        _assignedClass = result['assignedClass'] ?? _assignedClass;
-        _selectedAvatarIcon = result['avatarIcon'] ?? _selectedAvatarIcon;
+        _customAssignedClass = result['assignedClass'] as String?;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -117,138 +179,137 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 24.0),
-          child: Column(
-            children: [
-              // Header Profile Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // Profile Avatar
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFD34426), width: 2.5),
-                        color: const Color(0xFFFDF4F2),
+        child: RefreshIndicator(
+          onRefresh: _refreshProfile,
+          color: const Color(0xFFD34426),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 60.0),
+            child: Column(
+              children: [
+                // Header Profile Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      child: CircleAvatar(
-                        radius: 40,
-                        backgroundColor: const Color(0xFFFDF4F2),
-                        child: Icon(_selectedAvatarIcon, size: 50, color: const Color(0xFFD34426)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Teacher Name & Credentials
-                    Text(
-                      _teacherName,
-                      style: GoogleFonts.inter(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _teacherTitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFD34426),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _schoolName,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: _openEditProfilePage,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFD34426),
-                        side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
-                        backgroundColor: const Color(0xFFFDF4F2),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(100),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Profile Avatar using InitialsAvatar with DB Image support
+                      Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFD34426), width: 2.5),
+                          color: const Color(0xFFFDF4F2),
+                        ),
+                        child: InitialsAvatar(
+                          name: _teacherName,
+                          imageUrl: _teacherImageUrl,
+                          radius: 40,
+                          fontSize: 26,
                         ),
                       ),
-                      icon: Iconify(Ph.pencil_simple, color: const Color(0xFFD34426), size: 16),
-                      label: Text(
-                        'Edit Profile',
+                      const SizedBox(height: 14),
+
+                      // Teacher Name & Credentials
+                      Text(
+                        _teacherName,
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _teacherTitle,
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFD34426),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _schoolName,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: _openEditProfilePage,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD34426),
+                          side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
+                          backgroundColor: const Color(0xFFFDF4F2),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                        ),
+                        icon: Iconify(Ph.pencil_simple, color: const Color(0xFFD34426), size: 16),
+                        label: Text(
+                          'Edit Profile',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
+                const SizedBox(height: 18),
 
-              // Account & Personal Info Section
-              _buildSectionHeader('Account Details', Ph.user),
-              const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                // Account & Personal Info Section
+                _buildSectionHeader('Account Details', Ph.user),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildDetailTile(
+                        icon: Ph.identification_card,
+                        label: 'Employee ID',
+                        value: _employeeId,
+                      ),
+                      const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                      _buildDetailTile(
+                        icon: Ph.envelope_simple,
+                        label: 'Email Address',
+                        value: _emailAddress,
+                      ),
+                      const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                      _buildDetailTile(
+                        icon: Ph.users_three,
+                        label: 'Assigned Class',
+                        value: _assignedClass,
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    _buildDetailTile(
-                      icon: Ph.identification_card,
-                      label: 'Employee ID',
-                      value: _employeeId,
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildDetailTile(
-                      icon: Ph.envelope_simple,
-                      label: 'Email Address',
-                      value: _emailAddress,
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildDetailTile(
-                      icon: Ph.phone,
-                      label: 'Contact Number',
-                      value: _contactNumber,
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildDetailTile(
-                      icon: Ph.users_three,
-                      label: 'Assigned Class',
-                      value: _assignedClass,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 36),
+              ],
+            ),
           ),
         ),
       ),
