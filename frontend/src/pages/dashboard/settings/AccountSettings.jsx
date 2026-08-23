@@ -56,12 +56,14 @@ export default function AccountSettings() {
 
   // Form State
   const [form, setForm] = useState({
+    firstName: currentUser?.firstName || currentUser?.first_name || (currentUser?.name ? currentUser.name.split(' ')[0] : 'Teacher'),
+    middleName: currentUser?.middleName || currentUser?.middle_name || (currentUser?.name && currentUser.name.split(' ').length >= 3 ? currentUser.name.split(' ').slice(1, -1).join(' ') : ''),
+    lastName: currentUser?.lastName || currentUser?.last_name || (currentUser?.name && currentUser.name.split(' ').length >= 2 ? currentUser.name.split(' ').slice(-1)[0] : ''),
     fullName: currentUser?.name || 'Teacher',
     teacherId: currentUser?.teacherNo || currentUser?.employeeId || 'N/A',
     assignedClass: initialClass,
     designation: initialDesignation,
     email: currentUser?.email || '',
-    contactNo: '0917-123-4567',
   });
 
   // Password Form State
@@ -112,19 +114,24 @@ export default function AccountSettings() {
         const data = await res.json();
         if (res.ok && data.success && data.user) {
           const u = data.user;
-          const fn = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Teacher';
+          const fName = u.firstName || u.first_name || (u.name ? u.name.split(' ')[0] : 'Teacher');
+          const mName = u.middleName || u.middle_name || (u.name && u.name.split(' ').length >= 3 ? u.name.split(' ').slice(1, -1).join(' ') : '');
+          const lName = u.lastName || u.last_name || (u.name && u.name.split(' ').length >= 2 ? u.name.split(' ').slice(-1)[0] : '');
+          const fn = u.name || [fName, mName, lName].filter(Boolean).join(' ') || 'Teacher';
           const rawSec = u.section || u.assigned_section;
           const hasAssignedSec = Boolean(rawSec && !rawSec.toLowerCase().includes('unassigned'));
           const classText = hasAssignedSec ? rawSec : 'Unassigned Section';
           const desigText = u.isFacultyInCharge ? 'Faculty-in-Charge' : hasAssignedSec ? 'Class Adviser' : 'Unassigned Teacher';
 
           setForm({
+            firstName: fName,
+            middleName: mName,
+            lastName: lName,
             fullName: fn,
             teacherId: u.teacherNo || u.employeeId || 'N/A',
             assignedClass: classText,
             designation: desigText,
             email: u.email || '',
-            contactNo: u.contactNo || u.phone || '0917-123-4567',
           });
 
           if (u.activeSchoolYear || u.schoolYear) {
@@ -260,6 +267,7 @@ export default function AccountSettings() {
     try {
       setIsSaving(true);
       const token = getToken();
+      const fn = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
       if (token) {
         const res = await fetch('http://localhost:5000/api/auth/profile', {
           method: 'PUT',
@@ -268,7 +276,14 @@ export default function AccountSettings() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            fullName: form.fullName,
+            firstName: form.firstName,
+            middleName: form.middleName,
+            lastName: form.lastName,
+            first_name: form.firstName,
+            middle_name: form.middleName,
+            last_name: form.lastName,
+            fullName: fn,
+            name: fn,
             email: form.email,
           }),
         });
@@ -282,7 +297,13 @@ export default function AccountSettings() {
               'salintinig_user',
               JSON.stringify({
                 ...current,
-                name: form.fullName,
+                name: fn,
+                firstName: form.firstName,
+                middleName: form.middleName,
+                lastName: form.lastName,
+                first_name: form.firstName,
+                middle_name: form.middleName,
+                last_name: form.lastName,
                 email: form.email,
               })
             );
@@ -561,14 +582,39 @@ export default function AccountSettings() {
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-semibold text-ink">Full Name</label>
+                  <label className="font-semibold text-ink">First Name</label>
                   <input
                     type="text"
                     required
                     disabled={loading}
-                    value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                    placeholder="Enter Full Name"
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    placeholder="Enter First Name"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">Middle Name (Optional)</label>
+                  <input
+                    type="text"
+                    disabled={loading}
+                    value={form.middleName}
+                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                    placeholder="Enter Middle Name"
+                    className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-ink">Last Name</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={loading}
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    placeholder="Enter Last Name"
                     className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-50"
                   />
                 </div>

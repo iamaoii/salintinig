@@ -359,6 +359,7 @@ async function getMe(req, res) {
         } else if (user.role === 'teacher') {
           const tRes = await db.query(
             `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image, c.grade_level, c.section_name,
+                    sch.school_name,
                     EXISTS(
                       SELECT 1 FROM faculty_in_charge fic
                       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
@@ -371,6 +372,8 @@ async function getMe(req, res) {
                       LIMIT 1
                     ) AS fic_grade_level
              FROM teachers t
+             LEFT JOIN users u ON t.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
              LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id
              WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
              LIMIT 1`,
@@ -381,6 +384,7 @@ async function getMe(req, res) {
             const fullName = [tRow.first_name, tRow.middle_name, tRow.last_name].filter(Boolean).join(' ');
             const secLabel = tRow.section_name ? `${tRow.grade_level || 'Grade 4'} - ${tRow.section_name}` : (user.section || '');
             const finalAvatar = tRow.teacher_profile_image || dbProfileImage || user.profileImage || user.profile_image || null;
+            const schoolName = tRow.school_name || dbSchoolName || user.schoolName || user.school_name || 'Mandaluyong Elementary School';
 
             let studentsCount = 0;
             try {
@@ -404,13 +408,20 @@ async function getMe(req, res) {
               user: {
                 ...user,
                 name: fullName || user.name || 'Teacher',
-                firstName: tRow.first_name || user.firstName,
-                lastName: tRow.last_name || user.lastName,
+                firstName: tRow.first_name || user.firstName || '',
+                middleName: tRow.middle_name || user.middleName || user.middle_name || '',
+                lastName: tRow.last_name || user.lastName || '',
+                first_name: tRow.first_name || user.first_name || '',
+                middle_name: tRow.middle_name || user.middle_name || '',
+                last_name: tRow.last_name || user.last_name || '',
                 teacherNo: tRow.teacher_no || user.teacherNo,
                 gradeLevel: tRow.grade_level ? String(tRow.grade_level) : (user.gradeLevel || '4'),
                 sectionName: tRow.section_name || user.sectionName || '',
                 section: secLabel,
                 assigned_section: secLabel,
+                schoolName,
+                school_name: schoolName,
+                school: schoolName,
                 studentsCount,
                 isFacultyInCharge: tRow.is_faculty_in_charge === true,
                 ficGradeLevel: tRow.fic_grade_level || null,
@@ -455,8 +466,7 @@ async function updateProfile(req, res) {
       return res.status(401).json({ success: false, error: 'Unauthorized.' });
     }
 
-    const userId = user.id || user.user_id;
-    const { profileImage, avatarUrl, fullName, name, email } = req.body;
+    const { profileImage, avatarUrl, fullName, name, email, firstName, middleName, lastName, first_name, middle_name, last_name } = req.body;
     const rawImage = profileImage || avatarUrl;
 
     let finalImageUrl = null;
@@ -514,18 +524,37 @@ async function updateProfile(req, res) {
         }
       }
 
-      if (fullName || name) {
-        const full = (fullName || name).trim();
-        const parts = full.split(' ');
-        const firstName = parts[0] || full;
-        const lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+      const inputFirstName = firstName || first_name;
+      const inputMiddleName = middleName || middle_name;
+      const inputLastName = lastName || last_name;
+
+      if (inputFirstName || inputLastName || fullName || name) {
+        let fName = inputFirstName;
+        let mName = inputMiddleName || '';
+        let lName = inputLastName;
+
+        if (!fName && (fullName || name)) {
+          const full = (fullName || name).trim();
+          const parts = full.split(' ');
+          fName = parts[0] || full;
+          if (parts.length > 2) {
+            mName = parts.slice(1, -1).join(' ');
+            lName = parts.slice(-1)[0];
+          } else if (parts.length === 2) {
+            lName = parts[1];
+          } else {
+            lName = '';
+          }
+        }
 
         try {
           await db.query(
-            `UPDATE teachers SET first_name = $1, last_name = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3`,
-            [firstName, lastName, userId]
+            `UPDATE teachers SET first_name = $1, middle_name = $2, last_name = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4`,
+            [fName || '', mName || null, lName || '', userId]
           );
-        } catch (tErr) {}
+        } catch (tErr) {
+          console.warn('DB teachers name update notice:', tErr.message);
+        }
       }
 
       if (email) {

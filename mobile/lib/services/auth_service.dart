@@ -20,12 +20,16 @@ class UserSession {
 
   String get displayName {
     if (rawUser == null) return email;
+    final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String? ?? '';
+    final middle = rawUser!['middleName'] as String? ?? rawUser!['middle_name'] as String? ?? '';
+    final last = rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String? ?? '';
+    if (first.isNotEmpty || last.isNotEmpty) {
+      final parts = [first, if (middle.isNotEmpty) middle, last].where((s) => s.isNotEmpty).join(' ');
+      if (parts.isNotEmpty) return parts;
+    }
     final name = rawUser!['name'] as String?;
     if (name != null && name.isNotEmpty) return name;
-    final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String? ?? '';
-    final last = rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String? ?? '';
-    final fullName = '$first $last'.trim();
-    return fullName.isNotEmpty ? fullName : email;
+    return email;
   }
 
   String get firstName {
@@ -33,13 +37,44 @@ class UserSession {
     final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String?;
     if (first != null && first.isNotEmpty) return first;
     final name = rawUser!['name'] as String?;
-    if (name != null && name.isNotEmpty) return name.split(' ').first;
+    if (name != null && name.isNotEmpty) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 3) {
+        return parts.first;
+      } else if (parts.length == 2) {
+        return parts.first;
+      }
+      return name;
+    }
     return email.split('@').first;
+  }
+
+  String get middleName {
+    if (rawUser == null) return '';
+    final mid = rawUser!['middleName'] as String? ?? rawUser!['middle_name'] as String?;
+    if (mid != null && mid.isNotEmpty) return mid;
+    final name = rawUser!['name'] as String?;
+    if (name != null && name.isNotEmpty) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 3) {
+        return parts.sublist(1, parts.length - 1).join(' ');
+      }
+    }
+    return '';
   }
 
   String get lastName {
     if (rawUser == null) return '';
-    return rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String? ?? '';
+    final last = rawUser!['lastName'] as String? ?? rawUser!['last_name'] as String?;
+    if (last != null && last.isNotEmpty) return last;
+    final name = rawUser!['name'] as String?;
+    if (name != null && name.isNotEmpty) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 2) {
+        return parts.last;
+      }
+    }
+    return '';
   }
 
   String get initials {

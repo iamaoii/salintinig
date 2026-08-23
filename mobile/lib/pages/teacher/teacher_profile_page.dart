@@ -97,7 +97,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     if (school != null && school.toString().isNotEmpty) {
       return school.toString();
     }
-    return 'San Juan Elementary School';
+    return 'Mandaluyong Elementary School';
   }
 
   String get _assignedClass {
@@ -120,11 +120,15 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
 
   Future<void> _openEditProfilePage() async {
     Feedback.forTap(context);
+    final user = AuthService.currentUser;
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (context) => TeacherEditProfilePage(
           currentName: _teacherName,
+          currentFirstName: user?.firstName ?? '',
+          currentMiddleName: user?.middleName ?? '',
+          currentLastName: user?.lastName ?? '',
           currentTitle: _teacherTitle,
           currentSchool: _schoolName,
           currentEmployeeId: _employeeId,
@@ -300,10 +304,30 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
                       ),
                       const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                       _buildDetailTile(
+                        icon: Ph.briefcase,
+                        label: 'Designation / Position',
+                        value: _teacherTitle,
+                      ),
+                      const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                      _buildDetailTile(
+                        icon: Ph.buildings,
+                        label: 'School Name',
+                        value: _schoolName,
+                      ),
+                      const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                      _buildDetailTile(
                         icon: Ph.users_three,
                         label: 'Assigned Class',
                         value: _assignedClass,
                       ),
+                      if (_user?.schoolYear.isNotEmpty == true) ...[
+                        const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                        _buildDetailTile(
+                          icon: Ph.calendar_blank,
+                          label: 'Active School Year',
+                          value: _user!.schoolYear,
+                        ),
+                      ],
                     ],
                   ),
                 ),

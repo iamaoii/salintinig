@@ -34,84 +34,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     }
   }
 
-  // 1. Profile Details Modal
-  void _showProfileDetailsModal() {
-    Feedback.forTap(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Profile Details',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              _buildModalInfoRow('Full Name', 'Maria Santos'),
-              _buildModalInfoRow('Designation / Title', 'Grade IV Teacher'),
-              _buildModalInfoRow('Grade & Section', 'Grade 4 - FYANG'),
-              _buildModalInfoRow('Employee ID', '198420349'),
-              _buildModalInfoRow('Email Address', 'maria.santos@deped.gov.ph'),
-              _buildModalInfoRow('Contact Number', '+63 917 890 1234'),
-              _buildModalInfoRow('School', 'San Juan Elementary School'),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildModalInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF71717A),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.black,
-            ),
-          ),
-          const Divider(height: 16),
-        ],
-      ),
-    );
-  }
 
   // 2. Change Password Modal
   void _showChangePasswordModal() {
@@ -394,60 +317,84 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                   physics: const BouncingScrollPhysics(),
                   children: [
                     ExpansionTile(
-                      title: Text('How do I export Phil-IRI assessment forms (Form 1A / 1B)?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text('What is SalinTinig?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
-                            'Navigate to Class Progress or Form Details, select your desired assessment period (GST or ORT), and tap Export Report to generate standardized DepEd Form 1A/1B documents.',
+                            'SalinTinig is an automated Phil-IRI assessment and oral reading analysis platform designed for DepEd schools to monitor student reading proficiency levels in real time.',
                             style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How are student Phil-IRI reading levels categorized?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text('How are student reading levels classified?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
-                            'Student profiles are automatically categorized as Independent, Instructional, Frustration, or Non-Reader based on oral reading accuracy percentage and comprehension scores recorded in GST and ORT testing.',
+                            'Reading levels (Independent, Instructional, Frustrational, Non-Reader) are automatically calculated based on Oral Reading Score (%) and Comprehension Score (%) following official DepEd Phil-IRI guidelines.',
                             style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How do I add or manage students in my assigned class?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text('How do I generate and export Phil-IRI Form 1 to 4?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
-                            'Go to Class Details under your section and tap Add Student to enroll new learners, or tap an existing student to review individual score histories and reading progress.',
+                            'Navigate to the Phil - IRI Records tab in the navigation bar to access pre-formatted templates, enter assessment scores, or export official DepEd Form 1–4 summary records.',
                             style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('What should I do if a student\'s speech recording fails to sync?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text('How do class activities and oral reading practice work?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
-                            'Ensure the device microphone permission is allowed and internet connection is stable. Offline assessment scores are saved locally and automatically sync once reconnected.',
+                            'Go to Class Activities to create custom practice passages, assign reading tasks, and view real-time student recordings and submission progress.',
                             style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How do I assign reading activities or games to my class?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text('What notifications do I receive on my dashboard?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
-                            'Open the Activities page from the navigation drawer, select the target reading tier or practice module, and tap Assign to Class to distribute it to student devices.',
+                            'You will receive real-time alerts for student Phil-IRI oral reading assessment completions, class progress alerts, and school announcements.',
+                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ExpansionTile(
+                      title: Text('How do Faculty-in-Charge (FIC) grade-level permissions work?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Text(
+                            'If designated as Faculty-in-Charge for a grade level, you can view summary reading statistics, section performance, and faculty records across all sections in your assigned grade level.',
+                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ExpansionTile(
+                      title: Text('Need additional support?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Text(
+                            'Contact your school administrator or reach out to DepEd IT support at support.salintinig@deped.gov.ph.',
                             style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
                           ),
                         ),
@@ -570,12 +517,6 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingsTile(
-                      iconName: Ph.user,
-                      title: 'Profile details',
-                      onTap: _showProfileDetailsModal,
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                     _buildSettingsTile(
                       iconName: Ph.lock_key,
                       title: 'Password',

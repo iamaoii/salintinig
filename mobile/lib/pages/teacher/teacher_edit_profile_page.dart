@@ -11,6 +11,9 @@ import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherEditProfilePage extends StatefulWidget {
   final String currentName;
+  final String currentFirstName;
+  final String currentMiddleName;
+  final String currentLastName;
   final String currentTitle;
   final String currentSchool;
   final String currentEmployeeId;
@@ -21,6 +24,9 @@ class TeacherEditProfilePage extends StatefulWidget {
   const TeacherEditProfilePage({
     super.key,
     required this.currentName,
+    this.currentFirstName = '',
+    this.currentMiddleName = '',
+    this.currentLastName = '',
     required this.currentTitle,
     required this.currentSchool,
     required this.currentEmployeeId,
@@ -34,7 +40,9 @@ class TeacherEditProfilePage extends StatefulWidget {
 }
 
 class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
-  late TextEditingController _nameController;
+  late TextEditingController _firstNameController;
+  late TextEditingController _middleNameController;
+  late TextEditingController _lastNameController;
   late TextEditingController _titleController;
   late TextEditingController _schoolController;
   late TextEditingController _empIdController;
@@ -50,7 +58,28 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.currentName);
+    final user = AuthService.currentUser;
+    String fName = user?.firstName ?? widget.currentFirstName;
+    String mName = user?.middleName ?? widget.currentMiddleName;
+    String lName = user?.lastName ?? widget.currentLastName;
+
+    if ((fName.isEmpty || fName == widget.currentName) && widget.currentName.isNotEmpty) {
+      final parts = widget.currentName.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 3) {
+        fName = parts.first;
+        if (mName.isEmpty) mName = parts.sublist(1, parts.length - 1).join(' ');
+        if (lName.isEmpty) lName = parts.last;
+      } else if (parts.length == 2) {
+        fName = parts.first;
+        if (lName.isEmpty) lName = parts.last;
+      } else {
+        fName = widget.currentName;
+      }
+    }
+
+    _firstNameController = TextEditingController(text: fName);
+    _middleNameController = TextEditingController(text: mName);
+    _lastNameController = TextEditingController(text: lName);
     _titleController = TextEditingController(text: widget.currentTitle);
     _schoolController = TextEditingController(text: widget.currentSchool);
     _empIdController = TextEditingController(text: widget.currentEmployeeId);
@@ -61,7 +90,9 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     _titleController.dispose();
     _schoolController.dispose();
     _empIdController.dispose();
@@ -190,22 +221,43 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
 
   Future<void> _saveProfile() async {
     Feedback.forTap(context);
-    if (_nameController.text.trim().isEmpty) {
+    if (_firstNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Full name cannot be empty.'),
+          content: Text('First name cannot be empty.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (_lastNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Last name cannot be empty.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
+    final fullName = [
+      _firstNameController.text.trim(),
+      if (_middleNameController.text.trim().isNotEmpty) _middleNameController.text.trim(),
+      _lastNameController.text.trim(),
+    ].join(' ');
+
     setState(() => _isUploading = true);
 
     try {
       final Map<String, dynamic> body = {
-        'name': _nameController.text.trim(),
-        'fullName': _nameController.text.trim(),
+        'firstName': _firstNameController.text.trim(),
+        'middleName': _middleNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'first_name': _firstNameController.text.trim(),
+        'middle_name': _middleNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'name': fullName,
+        'fullName': fullName,
       };
       if (_base64Image != null) {
         body['profileImage'] = _base64Image;
@@ -225,7 +277,10 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
 
     if (mounted) {
       final updatedData = {
-        'name': _nameController.text.trim(),
+        'name': fullName,
+        'firstName': _firstNameController.text.trim(),
+        'middleName': _middleNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
         'title': _titleController.text.trim(),
         'school': _schoolController.text.trim(),
         'employeeId': _empIdController.text.trim(),
@@ -302,13 +357,13 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                                     )
                                   : (_base64Image == ''
                                       ? InitialsAvatar(
-                                          name: _nameController.text.isNotEmpty ? _nameController.text : widget.currentName,
+                                          name: _firstNameController.text.isNotEmpty ? '${_firstNameController.text} ${_lastNameController.text}' : widget.currentName,
                                           imageUrl: null,
                                           radius: 42,
                                           fontSize: 26,
                                         )
                                       : InitialsAvatar(
-                                          name: _nameController.text.isNotEmpty ? _nameController.text : widget.currentName,
+                                          name: _firstNameController.text.isNotEmpty ? '${_firstNameController.text} ${_lastNameController.text}' : widget.currentName,
                                           imageUrl: (AuthService.currentUser?.rawUser?['profileImage'] ?? AuthService.currentUser?.rawUser?['profile_image'])?.toString(),
                                           radius: 42,
                                           fontSize: 26,
@@ -379,7 +434,11 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    _buildInputField('Full Name', _nameController, Ph.user),
+                    _buildInputField('First Name', _firstNameController, Ph.user),
+                    const SizedBox(height: 14),
+                    _buildInputField('Middle Name (Optional)', _middleNameController, Ph.user),
+                    const SizedBox(height: 14),
+                    _buildInputField('Last Name', _lastNameController, Ph.user),
                     const SizedBox(height: 14),
                     _buildInputField('Designation / Position', _titleController, Ph.briefcase, isReadOnly: true),
                     const SizedBox(height: 14),
