@@ -99,7 +99,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Student Dashboard') {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const TeacherClassProgressPage(),
@@ -119,7 +119,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Phil-IRI Records') {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const TeacherPhilIriRecordsPage(),
@@ -139,7 +139,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Class Activities') {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const TeacherActivitiesPage(),
@@ -170,7 +170,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Class Details') {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (context) => TeacherClassDetailsPage(className: displaySectionTitle),
@@ -206,7 +206,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     if (activeRoute != 'My Profile') {
-                      Navigator.push(
+                      Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const TeacherProfilePage(),
@@ -226,7 +226,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Settings') {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const TeacherSettingsPage(),

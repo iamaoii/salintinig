@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/services/api_config.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/local_notification_service.dart';
 import 'package:salintinig/pages/common/loading_page.dart';
 
@@ -37,9 +38,10 @@ void main() async {
   }
 
   try {
+    await ApiService.initToken();
     await LocalNotificationService.init();
   } catch (e) {
-    debugPrint('LocalNotificationService init notice: $e');
+    debugPrint('Service init notice: $e');
   }
 
   runApp(const SalinTinigApp());

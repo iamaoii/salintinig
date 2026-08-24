@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/services/api_config.dart';
 
 class ApiResponse {
@@ -57,8 +58,23 @@ class ApiResponse {
 class ApiService {
   static String? _authToken;
 
-  static void setAuthToken(String? token) {
+  static Future<void> initToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _authToken = prefs.getString('auth_token');
+    } catch (_) {}
+  }
+
+  static Future<void> setAuthToken(String? token) async {
     _authToken = token;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (token != null && token.isNotEmpty) {
+        await prefs.setString('auth_token', token);
+      } else {
+        await prefs.remove('auth_token');
+      }
+    } catch (_) {}
   }
 
   static String? get authToken => _authToken;

@@ -140,10 +140,15 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: softCreamBg,
-      drawer: const TeacherSidebarDrawer(activeRoute: 'Overview'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        // Prevent system back button from logging out or popping back to login screen
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: softCreamBg,
+        drawer: const TeacherSidebarDrawer(activeRoute: 'Overview'),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -317,8 +322,9 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
           },
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeroHeaderCard() {
     return Container(

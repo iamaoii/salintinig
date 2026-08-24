@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/auth_service.dart';
@@ -30,6 +31,24 @@ String _initialsFor(String name) {
   return (first + last).toUpperCase();
 }
 
+ImageProvider? _getImageProvider(String? urlStr) {
+  if (urlStr == null) return null;
+  final clean = urlStr.trim();
+  if (clean.isEmpty) return null;
+  if (clean.startsWith('data:image/')) {
+    try {
+      final commaIdx = clean.indexOf(',');
+      final b64 = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+      return MemoryImage(base64Decode(b64.replaceAll(RegExp(r'\s+'), '')));
+    } catch (_) {
+      return null;
+    }
+  } else if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return NetworkImage(clean);
+  }
+  return null;
+}
+
 class InitialsAvatar extends StatelessWidget {
   final String name;
   final String? imageUrl;
@@ -49,18 +68,19 @@ class InitialsAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cleanUrl = imageUrl?.trim();
-    final hasValidUrl = cleanUrl != null &&
-        cleanUrl.isNotEmpty &&
-        (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'));
+    final imageProvider = _getImageProvider(imageUrl);
 
-    if (hasValidUrl) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: _colorFor(name),
-        backgroundImage: NetworkImage(cleanUrl),
-        onBackgroundImageError: (exception, stackTrace) {},
-        child: null,
+    if (imageProvider != null) {
+      return Container(
+        width: radius * 2,
+        height: radius * 2,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          image: DecorationImage(
+            image: imageProvider,
+            fit: BoxFit.cover,
+          ),
+        ),
       );
     }
 
@@ -92,13 +112,11 @@ class UserAvatar extends StatelessWidget {
     final name = user?.displayName ?? 'User';
     final initials = user?.initials ?? _initialsFor(name);
     final bgColor = _colorFor(name);
-    final cleanUrl = (imageUrl ?? user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'])?.toString().trim();
-    final hasValidUrl = cleanUrl != null &&
-        cleanUrl.isNotEmpty &&
-        (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'));
+    final url = imageUrl ?? user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'];
+    final imageProvider = _getImageProvider(url?.toString());
 
     Widget avatarWidget;
-    if (hasValidUrl) {
+    if (imageProvider != null) {
       avatarWidget = Container(
         width: size,
         height: size,
@@ -113,7 +131,7 @@ class UserAvatar extends StatelessWidget {
             ),
           ],
           image: DecorationImage(
-            image: NetworkImage(cleanUrl),
+            image: imageProvider,
             fit: BoxFit.cover,
           ),
         ),

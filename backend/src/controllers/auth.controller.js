@@ -79,8 +79,8 @@ async function login(req, res) {
       try {
         // A. Match strictly by Email
         const userQuery = `
-          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, s.school_name,
-                 t.first_name, t.last_name, t.teacher_no
+          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, s.school_name,
+                 t.first_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image
           FROM users u
           LEFT JOIN schools s ON u.school_id = s.school_id
           LEFT JOIN teachers t ON u.user_id = t.user_id
@@ -99,7 +99,7 @@ async function login(req, res) {
         // B. Match strictly by Teacher ID (Employee ID)
         if (!matchedUser) {
           const teacherQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, t.first_name, t.last_name, t.teacher_no
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, t.first_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image
             FROM teachers t
             JOIN users u ON t.user_id = u.user_id
             WHERE LOWER(t.teacher_no) = $1
@@ -117,7 +117,7 @@ async function login(req, res) {
         // C. Match by Student LRN (lrn) or LRN identifier
         if (!matchedUser) {
           const studentQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, st.first_name, st.last_name, st.lrn
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, st.first_name, st.last_name, st.lrn
             FROM students st
             JOIN users u ON st.user_id = u.user_id
             WHERE LOWER(st.lrn) = $1 OR LOWER(u.username) = $1
@@ -254,6 +254,8 @@ async function login(req, res) {
         role: matchedUser.role,
         schoolId,
         employeeId: empId,
+        profileImage: matchedUser.teacher_profile_image || matchedUser.profile_image || null,
+        profile_image: matchedUser.teacher_profile_image || matchedUser.profile_image || null,
         mustChangePassword: Boolean(matchedUser.must_change_password),
         defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/teacher',
         source: 'database',

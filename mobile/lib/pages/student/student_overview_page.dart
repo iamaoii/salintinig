@@ -94,8 +94,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     const darkBlueBg = Color(0xFF195ECB);
     const softCreamBg = Color(0xFFFCFAF7);
 
-    return Scaffold(
-      key: _scaffoldKey,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        // Prevent system back button from logging out or popping back to login screen
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
       backgroundColor: softCreamBg,
       drawer: StudentSidebarDrawer(
         currentIndex: 0, // Since this is the home/overview page
@@ -615,7 +620,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
         ),
       ),
     ),
-  );
+  ),
+);
 }
 
   // ── Helper Widgets ──
