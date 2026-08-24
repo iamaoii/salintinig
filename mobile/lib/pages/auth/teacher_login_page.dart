@@ -358,18 +358,20 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                                                      (response.data['mustChangePassword'] == true || response.data['user']?['mustChangePassword'] == true || AuthService.currentUser?.mustChangePassword == true);
 
                                                  if (mustChange) {
-                                                   navigator.pushReplacement(
+                                                   navigator.pushAndRemoveUntil(
                                                      MaterialPageRoute(
                                                        builder: (context) => ForceChangePasswordPage(
                                                          email: teacherId,
                                                        ),
                                                      ),
+                                                     (route) => false,
                                                    );
                                                  } else {
-                                                   navigator.pushReplacement(
+                                                   navigator.pushAndRemoveUntil(
                                                      MaterialPageRoute(
                                                        builder: (context) => const TeacherOverviewPage(),
                                                      ),
+                                                     (route) => false,
                                                    );
                                                  }
                                                } else {

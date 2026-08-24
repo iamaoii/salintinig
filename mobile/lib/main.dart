@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/services/api_config.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/local_notification_service.dart';
 import 'package:salintinig/pages/common/loading_page.dart';
 
@@ -39,6 +40,7 @@ void main() async {
 
   try {
     await ApiService.initToken();
+    await AuthService.initSession();
     await LocalNotificationService.init();
   } catch (e) {
     debugPrint('Service init notice: $e');

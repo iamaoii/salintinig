@@ -144,6 +144,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+
+        // Close drawer if open, otherwise stay on Home (Social Media App standard)
         if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
           _scaffoldKey.currentState?.closeDrawer();
         }

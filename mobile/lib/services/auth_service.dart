@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/services/api_service.dart';
 
@@ -133,12 +135,38 @@ class UserSession {
       rawUser: json,
     );
   }
+
+  Map<String, dynamic> toJson() => rawUser ?? {
+    'user_id': userId,
+    'email': email,
+    'role': role,
+    'status': status,
+  };
 }
 
 class AuthService {
   static UserSession? _currentUser;
 
   static UserSession? get currentUser => _currentUser;
+
+  /// Load persisted user session from SharedPreferences on app startup
+  static Future<void> initSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('user_session');
+      if (userJsonStr != null && userJsonStr.isNotEmpty) {
+        final map = jsonDecode(userJsonStr) as Map<String, dynamic>;
+        _currentUser = UserSession.fromJson(map);
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> _saveSession(Map<String, dynamic> userData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_session', jsonEncode(userData));
+    } catch (_) {}
+  }
 
   /// Fetch currently authenticated user info from backend
   static Future<ApiResponse> fetchMe() async {
@@ -147,6 +175,7 @@ class AuthService {
       if (response.data is Map<String, dynamic>) {
         final userData = response.data['user'] as Map<String, dynamic>? ?? response.data as Map<String, dynamic>;
         _currentUser = UserSession.fromJson(userData);
+        await _saveSession(userData);
       }
     }
     return response;
@@ -174,10 +203,11 @@ class AuthService {
       final userData = dataMap?['user'] as Map<String, dynamic>? ?? dataMap;
 
       if (token != null) {
-        ApiService.setAuthToken(token);
+        await ApiService.setAuthToken(token);
       }
       if (userData != null) {
         _currentUser = UserSession.fromJson(userData);
+        await _saveSession(userData);
       }
     }
 
@@ -268,6 +298,10 @@ class AuthService {
     _currentUser = null;
     clearAllCache();
     await ApiService.setAuthToken(null);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_session');
+    } catch (_) {}
   }
 
   /// Show standard logout confirmation dialog and navigate to HomePage on logout

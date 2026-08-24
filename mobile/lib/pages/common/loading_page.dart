@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:salintinig/pages/common/onboarding_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import 'package:salintinig/pages/common/onboarding_page.dart';
+import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
+import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/pages/parent/parent_overview_page.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class LoadingPage extends StatefulWidget {
   const LoadingPage({super.key});
@@ -69,36 +74,69 @@ class _LoadingPageState extends State<LoadingPage> with SingleTickerProviderStat
       // Smoothly play the entrance animations
       _controller.forward();
 
-      // Navigate to OnboardingPage after 2.8 seconds of clean, un-lagged visibility
-      Timer(const Duration(milliseconds: 2800), _navigateToOnboarding);
+      // Navigate to initial target after 2.8 seconds of clean, un-lagged visibility
+      Timer(const Duration(milliseconds: 2800), _navigateToNextScreen);
     }
   }
 
-  void _navigateToOnboarding() {
+  Future<void> _navigateToNextScreen() async {
     if (!mounted) return;
     
+    // Auto-login session restoration (Social Media App style)
+    final token = ApiService.authToken;
+    if (token != null && token.isNotEmpty) {
+      var user = AuthService.currentUser;
+      if (user == null) {
+        await AuthService.fetchMe();
+        user = AuthService.currentUser;
+      } else {
+        AuthService.fetchMe();
+      }
+
+      if (mounted && user != null) {
+        Widget targetWidget;
+        final role = user.role.toLowerCase();
+        if (role == 'student') {
+          targetWidget = const StudentOverviewPage();
+        } else if (role == 'parent') {
+          targetWidget = const ParentOverviewPage();
+        } else {
+          targetWidget = const TeacherOverviewPage();
+        }
+
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => targetWidget,
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
+              );
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: scaleAnimation, child: child),
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 700),
+          ),
+        );
+        return;
+      }
+    }
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => const OnboardingPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          // A premium fade-and-scale transition typical of professional apps:
-          // The onboarding page will fade in while gently scaling from 96% to 100%
           final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOutCubic,
-            ),
+            CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
           );
 
           return FadeTransition(
             opacity: animation,
-            child: ScaleTransition(
-              scale: scaleAnimation,
-              child: child,
-            ),
+            child: ScaleTransition(scale: scaleAnimation, child: child),
           );
         },
-        transitionDuration: const Duration(milliseconds: 700), // Elegant, relaxed duration
+        transitionDuration: const Duration(milliseconds: 700),
       ),
     );
   }
