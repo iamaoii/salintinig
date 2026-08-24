@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherStudentDetailsPage extends StatefulWidget {
@@ -123,28 +124,8 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                             });
                             await Future.delayed(const Duration(seconds: 2));
                             if (!context.mounted) return;
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
                             Navigator.pop(context);
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(Icons.check_circle_rounded, color: Colors.white),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Report for ${widget.studentName} generated & downloaded successfully!',
-                                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: const Color(0xFF10B981),
-                                duration: const Duration(seconds: 3),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            );
+                            AppToast.success(context, 'Report for ${widget.studentName} generated & downloaded successfully!');
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1B64D8),

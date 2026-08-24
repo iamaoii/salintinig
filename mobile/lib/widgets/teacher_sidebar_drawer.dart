@@ -5,7 +5,6 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_activities_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
-import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/teacher_profile_page.dart';
 import 'package:salintinig/pages/teacher/teacher_settings_page.dart';
@@ -79,12 +78,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Overview' && activeRoute != 'Home') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherOverviewPage(),
-                      ),
-                    );
+                    Navigator.popUntil(context, (route) => route.isFirst);
                   }
                 },
               ),
@@ -99,12 +93,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Student Dashboard') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherClassProgressPage(),
-                      ),
-                    );
+                    final target = const TeacherClassProgressPage();
+                    if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                    } else {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                    }
                   }
                 },
               ),
@@ -119,12 +113,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Phil-IRI Records') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherPhilIriRecordsPage(),
-                      ),
-                    );
+                    final target = const TeacherPhilIriRecordsPage();
+                    if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                    } else {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                    }
                   }
                 },
               ),
@@ -139,12 +133,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Class Activities') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherActivitiesPage(),
-                      ),
-                    );
+                    final target = const TeacherActivitiesPage();
+                    if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                    } else {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                    }
                   }
                 },
               ),
@@ -170,12 +164,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Class Details') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TeacherClassDetailsPage(className: displaySectionTitle),
-                      ),
-                    );
+                    final target = TeacherClassDetailsPage(className: displaySectionTitle);
+                    if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                    } else {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                    }
                   }
                 },
               ),
@@ -206,12 +200,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     if (activeRoute != 'My Profile') {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherProfilePage(),
-                        ),
-                      );
+                      final target = const TeacherProfilePage();
+                      if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                      } else {
+                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                      }
                     }
                   },
                 ),
@@ -226,12 +220,12 @@ class TeacherSidebarDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   if (activeRoute != 'Settings') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TeacherSettingsPage(),
-                      ),
-                    );
+                    final target = const TeacherSettingsPage();
+                    if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                    } else {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                    }
                   }
                 },
               ),

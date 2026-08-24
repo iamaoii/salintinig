@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
@@ -291,7 +292,16 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const TeacherOverviewPage()),
+              );
+            }
+          },
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
         ),
         centerTitle: true,

@@ -97,7 +97,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        // Prevent system back button from logging out or popping back to login screen
+        if (didPop) return;
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeDrawer();
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,

@@ -62,6 +62,16 @@ class AppToast {
       iconColor: const Color(0xFFEF4444),
     );
   }
+
+  /// Convenience method for info toasts
+  static void info(BuildContext context, String message) {
+    show(
+      context,
+      message: message,
+      icon: Icons.info_outline_rounded,
+      iconColor: const Color(0xFF3B82F6),
+    );
+  }
 }
 
 class _TopToastWidget extends StatefulWidget {

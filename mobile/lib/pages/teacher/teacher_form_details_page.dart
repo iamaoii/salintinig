@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_gst_student_list_page.dart';
+import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 import 'dart:math' as math;
 
@@ -117,13 +119,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Downloading DepEd ${widget.formTitle} PDF Report...'),
-                      backgroundColor: const Color(0xFF059669),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  AppToast.info(context, 'Downloading DepEd ${widget.formTitle} PDF Report...');
                 },
               ),
               ListTile(
@@ -137,13 +133,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Exporting DepEd ${widget.formTitle} Excel Sheet...'),
-                      backgroundColor: const Color(0xFF1D4ED8),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  AppToast.info(context, 'Exporting DepEd ${widget.formTitle} Excel Sheet...');
                 },
               ),
               const SizedBox(height: 12),
@@ -201,7 +191,16 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const TeacherOverviewPage()),
+                        );
+                      }
+                    },
                     icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 22, color: Colors.black),
                   ),
                   Text(

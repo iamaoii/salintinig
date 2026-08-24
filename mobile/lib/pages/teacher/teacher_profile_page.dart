@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'teacher_edit_profile_page.dart';
+import 'teacher_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
@@ -148,13 +149,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         _customEmailAddress = result['email'] as String?;
         _customAssignedClass = result['assignedClass'] as String?;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully!'),
-          backgroundColor: Color(0xFF059669),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
   }
 
@@ -169,7 +163,16 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const TeacherOverviewPage()),
+              );
+            }
+          },
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
         ),
         centerTitle: true,

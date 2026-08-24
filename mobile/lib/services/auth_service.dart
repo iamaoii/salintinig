@@ -264,10 +264,10 @@ class AuthService {
   }
 
   /// Clear session
-  static void logout() {
+  static Future<void> logout() async {
     _currentUser = null;
     clearAllCache();
-    ApiService.setAuthToken(null);
+    await ApiService.setAuthToken(null);
   }
 
   /// Show standard logout confirmation dialog and navigate to HomePage on logout
@@ -275,6 +275,7 @@ class AuthService {
     Feedback.forTap(context);
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -286,12 +287,11 @@ class AuthService {
               child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey[600], fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
-              onPressed: () {
-                logout();
-                Navigator.pop(dialogContext);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
+              onPressed: () async {
+                final nav = Navigator.of(dialogContext, rootNavigator: true);
+                await logout();
+                nav.pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const HomePage()),
                   (route) => false,
                 );
               },
