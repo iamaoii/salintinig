@@ -256,10 +256,17 @@ class AuthService {
     return _cachedClassStudents ?? [];
   }
 
+  /// Clear all cached app data in memory
+  static void clearAllCache() {
+    _cachedClassStudents = null;
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+
   /// Clear session
   static void logout() {
     _currentUser = null;
-    _cachedClassStudents = null;
+    clearAllCache();
     ApiService.setAuthToken(null);
   }
 

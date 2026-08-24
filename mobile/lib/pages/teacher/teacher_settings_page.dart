@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/local_notification_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 
 class TeacherSettingsPage extends StatefulWidget {
@@ -15,6 +19,47 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
   bool _dailyReminder = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 19, minute: 0);
   bool _achievementAlerts = true;
+  bool _isSubmittingPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreferences();
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _dailyReminder = prefs.getBool('dailyReminder') ?? true;
+        _achievementAlerts = prefs.getBool('achievementAlerts') ?? true;
+        final savedHour = prefs.getInt('reminderHour') ?? 19;
+        final savedMinute = prefs.getInt('reminderMinute') ?? 0;
+        _reminderTime = TimeOfDay(hour: savedHour, minute: savedMinute);
+      });
+    }
+  }
+
+  Future<void> _saveNotificationPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dailyReminder', _dailyReminder);
+    await prefs.setBool('achievementAlerts', _achievementAlerts);
+    await prefs.setInt('reminderHour', _reminderTime.hour);
+    await prefs.setInt('reminderMinute', _reminderTime.minute);
+
+    if (_dailyReminder) {
+      await LocalNotificationService.scheduleDailyReminder(
+        hour: _reminderTime.hour,
+        minute: _reminderTime.minute,
+      );
+    } else {
+      await LocalNotificationService.cancelDailyReminder();
+    }
+
+    if (mounted) {
+      AppToast.success(context, 'Notification settings updated!');
+    }
+  }
 
   String _formatTimeOfDay(TimeOfDay tod) {
     final hour = tod.hourOfPeriod == 0 ? 12 : tod.hourOfPeriod;
@@ -31,6 +76,16 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     if (picked != null && picked != _reminderTime) {
       setModalState(() => _reminderTime = picked);
       setState(() => _reminderTime = picked);
+      _saveNotificationPreferences();
+    }
+  }
+
+  Future<void> _clearAppCache() async {
+    Feedback.forTap(context);
+    AuthService.clearAllCache();
+    await AuthService.fetchClassStudents(forceRefresh: true);
+    if (mounted) {
+      AppToast.success(context, 'App cache cleared successfully!');
     }
   }
 
@@ -47,85 +102,130 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      builder: (modalCtx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Change Password',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Change Password',
+                        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(modalCtx),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  const Divider(height: 24),
+                  TextField(
+                    controller: currentController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: newController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      hintText: 'Minimum 6 characters',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: confirmController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isSubmittingPassword
+                        ? null
+                        : () async {
+                            final current = currentController.text.trim();
+                            final newPass = newController.text.trim();
+                            final confirm = confirmController.text.trim();
+
+                            if (current.isEmpty) {
+                              AppToast.warning(context, 'Please enter your current password.');
+                              return;
+                            }
+                            if (newPass.length < 6) {
+                              AppToast.warning(context, 'New password must be at least 6 characters.');
+                              return;
+                            }
+                            if (newPass != confirm) {
+                              AppToast.error(context, 'Passwords do not match!');
+                              return;
+                            }
+
+                            setModalState(() => _isSubmittingPassword = true);
+
+                            try {
+                              final res = await ApiService.post('/auth/change-password', {
+                                'currentPassword': current,
+                                'newPassword': newPass,
+                              });
+
+                              if (res.success) {
+                                if (modalCtx.mounted) Navigator.pop(modalCtx);
+                                if (mounted) AppToast.success(context, 'Password updated successfully!');
+                              } else {
+                                if (mounted) AppToast.error(context, res.error ?? res.message ?? 'Failed to update password.');
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                AppToast.error(context, 'Network error updating password.');
+                              }
+                            } finally {
+                              setModalState(() => _isSubmittingPassword = false);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD34426),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _isSubmittingPassword
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Text('Update Password', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
                   ),
                 ],
               ),
-              const Divider(height: 24),
-              TextField(
-                controller: currentController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: newController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: confirmController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  if (newController.text != confirmController.text) {
-                    AppToast.error(context, 'Passwords do not match!');
-                    return;
-                  }
-                  Navigator.pop(context);
-                  AppToast.success(context, 'Password updated successfully!');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD34426),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text('Update Password', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -180,6 +280,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                     onChanged: (val) {
                       setModalState(() => _dailyReminder = val);
                       setState(() => _dailyReminder = val);
+                      _saveNotificationPreferences();
                     },
                   ),
                   if (_dailyReminder) ...[
@@ -201,6 +302,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                     onChanged: (val) {
                       setModalState(() => _achievementAlerts = val);
                       setState(() => _achievementAlerts = val);
+                      _saveNotificationPreferences();
                     },
                   ),
                   const SizedBox(height: 16),
@@ -549,7 +651,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                     _buildSettingsTile(
                       iconName: Ph.arrows_clockwise,
                       title: 'Clear App Cache',
-                      onTap: () {},
+                      onTap: _clearAppCache,
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                     _buildSettingsTile(

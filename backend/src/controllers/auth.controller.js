@@ -1177,7 +1177,7 @@ async function contactAdmin(req, res) {
  */
 async function changePassword(req, res) {
   try {
-    const { newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
     const userId = req.user?.id || req.user?.user_id;
     const userEmail = req.user?.email || req.user?.username;
 
@@ -1192,6 +1192,21 @@ async function changePassword(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        if (currentPassword && currentPassword.trim()) {
+          const userRes = await db.query(
+            `SELECT password_hash FROM users WHERE user_id::text = $1 OR LOWER(email) = LOWER($2) LIMIT 1`,
+            [userId || '', userEmail || '']
+          );
+          if (userRes.rows.length > 0 && userRes.rows[0].password_hash) {
+            const isValid = comparePassword(currentPassword.trim(), userRes.rows[0].password_hash);
+            if (!isValid) {
+              return res.status(400).json({
+                success: false,
+                error: 'Current password is incorrect.',
+              });
+            }
+          }
+        }
         const hashedPassword = hashPassword(cleanNewPass);
         await db.query(
           `UPDATE users 
