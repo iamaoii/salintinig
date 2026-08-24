@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:salintinig/widgets/app_toast.dart';
+import 'package:salintinig/widgets/crop_profile_photo_dialog.dart';
 
 class EditProfilePage extends StatefulWidget {
   final String currentNickname;
@@ -77,78 +82,89 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   // Simulate image upload dialog
-  void _showUploadDialog() {
-    final urlController = TextEditingController(text: _avatarUrl);
+  Future<void> _pickAndCropImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 90,
+      );
 
-    showDialog(
+      if (file != null && mounted) {
+        final croppedBytes = await showDialog<Uint8List>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => CropProfilePhotoDialog(imageFile: file),
+        );
+
+        if (croppedBytes != null && mounted) {
+          final base64Str = 'data:image/png;base64,${base64Encode(croppedBytes)}';
+          setState(() {
+            _avatarUrl = base64Str;
+          });
+          AppToast.success(context, 'Profile picture updated successfully!');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(context, 'Failed to pick photo: ${e.toString()}');
+      }
+    }
+  }
+
+  void _showUploadDialog() {
+    Feedback.forTap(context);
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Upload Custom Photo',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800),
-          ),
-          content: Column(
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Enter an image URL to simulate upload:',
-                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF71717A)),
+              const SizedBox(height: 12),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: urlController,
-                decoration: InputDecoration(
-                  hintText: 'https://example.com/image.png',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              Text(
+                'Change Profile Photo',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
                 ),
               ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF1B64D8)),
+                title: Text('Choose from Gallery', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndCropImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF1B64D8)),
+                title: Text('Take a Photo', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndCropImage(ImageSource.camera);
+                },
+              ),
+              const SizedBox(height: 12),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(color: const Color(0xFF71717A), fontWeight: FontWeight.w600),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final url = urlController.text.trim();
-                if (url.isNotEmpty) {
-                  setState(() {
-                    _avatarUrl = url;
-                  });
-                }
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Custom profile image uploaded!', style: GoogleFonts.inter()),
-                    backgroundColor: const Color(0xFF1B64D8),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B64D8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'Upload',
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
         );
       },
     );

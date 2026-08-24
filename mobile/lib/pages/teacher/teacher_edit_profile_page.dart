@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -9,6 +10,7 @@ import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
+import 'package:salintinig/widgets/crop_profile_photo_dialog.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherEditProfilePage extends StatefulWidget {
@@ -107,17 +109,24 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
     try {
       final file = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 90,
       );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-        setState(() {
-          _pickedImage = file;
-          _base64Image = base64Str;
-        });
+      if (file != null && mounted) {
+        final croppedBytes = await showDialog<Uint8List>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => CropProfilePhotoDialog(imageFile: file),
+        );
+
+        if (croppedBytes != null && mounted) {
+          final base64Str = 'data:image/png;base64,${base64Encode(croppedBytes)}';
+          setState(() {
+            _pickedImage = file;
+            _base64Image = base64Str;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
