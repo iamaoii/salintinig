@@ -7,6 +7,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
 class TeacherEditProfilePage extends StatefulWidget {
@@ -119,12 +120,7 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick photo: ${e.toString()}'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.error(context, 'Failed to pick photo: ${e.toString()}');
       }
     }
   }
@@ -222,21 +218,11 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
   Future<void> _saveProfile() async {
     Feedback.forTap(context);
     if (_firstNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('First name cannot be empty.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppToast.warning(context, 'First name cannot be empty.');
       return;
     }
     if (_lastNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Last name cannot be empty.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppToast.warning(context, 'Last name cannot be empty.');
       return;
     }
 
@@ -289,6 +275,7 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
         'avatarIcon': _selectedAvatarIcon,
       };
 
+      AppToast.success(context, 'Profile updated successfully!');
       Navigator.pop(context, updatedData);
     }
   }

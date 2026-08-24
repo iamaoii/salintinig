@@ -6,6 +6,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/teacher/assign_phil_iri_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/notification_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 
@@ -203,15 +204,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       });
 
       if (res.success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Assessment status changed to ${newStatus.toUpperCase()}.',
-            ),
-            backgroundColor: const Color(0xFF059669),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
         _fetchActivitiesData();
       } else {
         setState(() {
@@ -282,12 +274,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Assessment deleted successfully.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.success(context, 'Assessment deleted successfully.');
       }
     }
   }
@@ -823,12 +810,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
         onPressed: _activeTab == 'phil-iri'
             ? _navigateToAssignPage
             : () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Practice activity creation opened...'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                AppToast.warning(context, 'Practice activity creation opened...');
               },
         backgroundColor: const Color(0xFFD34426),
         foregroundColor: Colors.white,

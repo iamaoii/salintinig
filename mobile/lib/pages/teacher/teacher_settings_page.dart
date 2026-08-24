@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class TeacherSettingsPage extends StatefulWidget {
   const TeacherSettingsPage({super.key});
@@ -110,21 +110,11 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               ElevatedButton(
                 onPressed: () {
                   if (newController.text != confirmController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Passwords do not match!', style: GoogleFonts.inter()),
-                        backgroundColor: const Color(0xFFEF4444),
-                      ),
-                    );
+                    AppToast.error(context, 'Passwords do not match!');
                     return;
                   }
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Password updated successfully!', style: GoogleFonts.inter()),
-                      backgroundColor: const Color(0xFF00A859),
-                    ),
-                  );
+                  AppToast.success(context, 'Password updated successfully!');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFD34426),
@@ -436,12 +426,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Deactivation request sent.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                AppToast.warning(context, 'Deactivation request sent.');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFDC2626),
@@ -564,15 +549,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                     _buildSettingsTile(
                       iconName: Ph.arrows_clockwise,
                       title: 'Clear App Cache',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('App cache cleared successfully!'),
-                            backgroundColor: Color(0xFF059669),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
+                      onTap: () {},
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                     _buildSettingsTile(
@@ -582,34 +559,6 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                       onTap: _showDeactivateDialog,
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Bottom Right Log Out Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    AuthService.showLogoutDialog(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD34426),
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  icon: Iconify(Ph.sign_out, color: Colors.white, size: 18),
-                  label: Text(
-                    'Log Out',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                 ),
               ),
               const SizedBox(height: 20),

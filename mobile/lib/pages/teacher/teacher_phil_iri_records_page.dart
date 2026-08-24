@@ -142,15 +142,6 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     Feedback.forTap(context);
     NotificationService().fetchNotifications();
     await Future.delayed(const Duration(milliseconds: 300));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Phil-IRI Records updated', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          duration: const Duration(seconds: 1),
-          backgroundColor: const Color(0xFFD34426),
-        ),
-      );
-    }
   }
 
   @override

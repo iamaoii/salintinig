@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'dart:math' as math;
 
 class AssignPhilIriPage extends StatefulWidget {
@@ -158,8 +159,6 @@ class _AssignPhilIriPageState extends State<AssignPhilIriPage> {
         _assignedPassageMap[sId] = (p['passage_id'] ?? '').toString();
       }
     });
-
-    _showSnackBar('Auto-distributed passage sets to ${_selectedStudentIds.length} student(s).', const Color(0xFF059669));
   }
 
   Future<void> _selectDueDate() async {
@@ -214,37 +213,29 @@ class _AssignPhilIriPageState extends State<AssignPhilIriPage> {
       };
 
       final res = await ApiService.post('/teacher/assessments/assign-phil-iri-students', payload);
+      if (!mounted) return;
 
       if (res.success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Successfully assigned Phil-IRI assessment to ${_selectedStudentIds.length} student(s)!', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              backgroundColor: const Color(0xFF059669),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
+        AppToast.success(context, 'Assessment assigned successfully!');
+        Navigator.pop(context, true);
       } else {
-        _showSnackBar(res.message ?? 'Failed to publish assessment.', Colors.red[700]!);
+        AppToast.error(context, res.message ?? 'Failed to publish assessment.');
       }
     } catch (e) {
-      _showSnackBar('An error occurred while publishing assessment.', Colors.red[700]!);
+      if (mounted) {
+        AppToast.error(context, 'An error occurred while publishing assessment.');
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   void _showSnackBar(String msg, Color bg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12)),
-        backgroundColor: bg,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    if (bg == Colors.red[700] || bg == const Color(0xFFEF4444)) {
+      AppToast.error(context, msg);
+    } else {
+      AppToast.warning(context, msg);
+    }
   }
 
   void _previewPassageModal(Map<String, dynamic> passage) {
