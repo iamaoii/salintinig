@@ -252,10 +252,23 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
                     // 2. Scrollable Dashboard Body
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Column(
+                      child: RefreshIndicator(
+                        color: primaryBlue,
+                        backgroundColor: Colors.white,
+                        onRefresh: () async {
+                          await AuthService.fetchMe();
+                          if (mounted) {
+                            setState(() {
+                              _isListeningDone = PhilIriAssessmentPage.isListeningDone;
+                              _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+                              _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+                            });
+                          }
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // ── Hero Banner Card ──
@@ -617,6 +630,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                         ),
                       ),
                     ),
+                  ),
                   ],
                 ),
               ),

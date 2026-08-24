@@ -305,8 +305,15 @@ class AuthService {
   }
 
   /// Show standard logout confirmation dialog and navigate to HomePage on logout
-  static void showLogoutDialog(BuildContext context, {String portalName = 'teacher portal'}) {
+  static void showLogoutDialog(BuildContext context, {String? portalName}) {
     Feedback.forTap(context);
+
+    final role = _currentUser?.role.toLowerCase() ?? '';
+    final activePortal = portalName ??
+        (role == 'student' ? 'student portal' : (role == 'parent' ? 'parent portal' : 'teacher portal'));
+
+    final btnColor = (role == 'student') ? const Color(0xFF1B64D8) : const Color(0xFFD34426);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -314,7 +321,7 @@ class AuthService {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text('Log out', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          content: Text('Are you sure you want to log out of the $portalName?', style: GoogleFonts.inter()),
+          content: Text('Are you sure you want to log out of the $activePortal?', style: GoogleFonts.inter()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -330,7 +337,7 @@ class AuthService {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD34426),
+                backgroundColor: btnColor,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
                 elevation: 0,

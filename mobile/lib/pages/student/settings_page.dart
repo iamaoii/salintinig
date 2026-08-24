@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -563,41 +564,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 7. Log Out Dialog
-  void _showLogOut() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Log Out?', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
-          content: Text('Are you sure you want to log out of SalinTinig?', style: GoogleFonts.inter()),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF71717A), fontWeight: FontWeight.w600)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // close dialog
-                Navigator.pop(context); // pop settings page
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Logged out successfully!', style: GoogleFonts.inter()),
-                    backgroundColor: const Color(0xFF1B64D8),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B64D8)),
-              child: Text('Log Out', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
@@ -703,19 +669,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white24,
-                                    ),
-                                    padding: const EdgeInsets.all(3),
-                                    child: const CircleAvatar(
-                                      radius: 26,
-                                      backgroundImage: NetworkImage(
-                                        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-                                      ),
-                                    ),
-                                  ),
+                                  const UserAvatar(size: 52),
                                 ],
                               ),
                             ),
@@ -1128,38 +1082,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                   const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
                                   _buildSettingItem(Ph.trash, 'Deactivate my account', _showDeactivateAccount, isDestructive: true),
                                 ],
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // ── Log Out Button ───────────────────────────────
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: _showLogOut,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryBlue,
-                                  foregroundColor: Colors.white,
-                                  elevation: 2,
-                                  shadowColor: primaryBlue.withValues(alpha: 0.3),
-                                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                icon: const Iconify(
-                                  Ph.sign_out,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                label: Text(
-                                  'Log Out',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
                               ),
                             ),
                             const SizedBox(height: 32),

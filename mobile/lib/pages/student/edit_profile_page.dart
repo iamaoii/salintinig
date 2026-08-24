@@ -7,6 +7,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/crop_profile_photo_dialog.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
 
 class EditProfilePage extends StatefulWidget {
   final String currentNickname;
@@ -256,10 +257,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     ),
                                   ],
                                 ),
-                                child: CircleAvatar(
+                                child: InitialsAvatar(
                                   radius: 64,
-                                  backgroundImage: NetworkImage(_avatarUrl),
-                                  backgroundColor: Colors.grey[200],
+                                  name: widget.currentNickname,
+                                  imageUrl: _avatarUrl,
                                 ),
                               ),
                             ),
@@ -358,10 +359,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                           width: 3.0,
                                         ),
                                       ),
-                                      child: CircleAvatar(
-                                        radius: 30,
-                                        backgroundImage: NetworkImage(url),
-                                      ),
+                                       child: InitialsAvatar(
+                                         radius: 30,
+                                         name: 'Avatar',
+                                         imageUrl: url,
+                                       ),
                                     ),
                                   );
                                 },

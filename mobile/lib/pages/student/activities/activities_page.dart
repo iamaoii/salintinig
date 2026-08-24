@@ -10,6 +10,7 @@ import 'package:salintinig/pages/student/library/side_quests_page.dart';
 import 'package:salintinig/pages/student/activities/pronunciation_challenge_page.dart';
 import 'package:salintinig/pages/student/activities/vocabulary_matching_page.dart';
 import 'package:salintinig/pages/student/activities/sentence_arrangement_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 
 class ActivitiesPage extends StatefulWidget {
@@ -300,12 +301,19 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
                       // ── Scrollable Body ─────────────────────────────────────
                       Expanded(
-                        child: _selectedTab == 0
-                            ? SingleChildScrollView(
-                                key: const ValueKey('PracticeActivitiesScroll'),
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                                child: Column(
+                        child: RefreshIndicator(
+                          color: const Color(0xFF1B64D8),
+                          backgroundColor: Colors.white,
+                          onRefresh: () async {
+                            await AuthService.fetchMe();
+                            if (mounted) setState(() {});
+                          },
+                          child: _selectedTab == 0
+                              ? SingleChildScrollView(
+                                  key: const ValueKey('PracticeActivitiesScroll'),
+                                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                  child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     const SizedBox(height: 12),
@@ -430,6 +438,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                   ],
                                 ),
                               ),
+                        ),
                       ),
                     ],
                   ),

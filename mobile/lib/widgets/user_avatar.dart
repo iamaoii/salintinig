@@ -12,14 +12,17 @@ const List<Color> _kAvatarColors = [
   Color(0xFF0891b2), // cyan
 ];
 
-/// Ports JS Avatar.jsx colorFor function exactly.
+/// Ports JS Avatar.jsx colorFor function (returns Cyan Teal #0891b2 for student accounts).
 Color _colorFor(String name) {
-  if (name.isEmpty) return _kAvatarColors[0];
+  final user = AuthService.currentUser;
+  if (user?.role.toLowerCase() == 'student' || name.toLowerCase().contains('student')) {
+    return const Color(0xFF0891B2); // Cyan Teal (#0891b2) matching web student avatar
+  }
+
+  if (name.isEmpty) return _kAvatarColors[5];
   int hash = 0;
   for (int i = 0; i < name.length; i++) {
-    int shift5 = (hash << 5) & 0xFFFFFFFF;
-    if (shift5 >= 0x80000000) shift5 -= 0x100000000;
-    hash = name.codeUnitAt(i) + (shift5 - hash);
+    hash = name.codeUnitAt(i) + ((hash << 5) - hash);
   }
   return _kAvatarColors[hash.abs() % _kAvatarColors.length];
 }
@@ -54,6 +57,7 @@ class InitialsAvatar extends StatelessWidget {
   final String? imageUrl;
   final double radius;
   final double? fontSize;
+  final bool showBorder;
 
   const InitialsAvatar({
     super.key,
@@ -61,6 +65,7 @@ class InitialsAvatar extends StatelessWidget {
     this.imageUrl,
     this.radius = 20,
     this.fontSize,
+    this.showBorder = false,
   });
 
   static Color colorFor(String name) => _colorFor(name);
@@ -69,13 +74,17 @@ class InitialsAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageProvider = _getImageProvider(imageUrl);
+    final size = radius * 2;
+    final initials = _initialsFor(name);
+    final bgColor = _colorFor(name);
 
     if (imageProvider != null) {
       return Container(
-        width: radius * 2,
-        height: radius * 2,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          border: showBorder ? Border.all(color: Colors.white, width: 2) : null,
           image: DecorationImage(
             image: imageProvider,
             fit: BoxFit.cover,
@@ -84,15 +93,22 @@ class InitialsAvatar extends StatelessWidget {
       );
     }
 
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: _colorFor(name),
-      child: Text(
-        _initialsFor(name),
-        style: GoogleFonts.inter(
-          fontSize: fontSize ?? radius * 0.85,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: bgColor,
+        border: showBorder ? Border.all(color: Colors.white, width: 2) : null,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: GoogleFonts.inter(
+            fontSize: fontSize ?? size * 0.4,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -122,14 +138,6 @@ class UserAvatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
           image: DecorationImage(
             image: imageProvider,
             fit: BoxFit.cover,
@@ -143,23 +151,14 @@ class UserAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: bgColor,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Center(
           child: Text(
             initials,
             style: GoogleFonts.inter(
-              fontSize: size * 0.36,
-              fontWeight: FontWeight.w800,
+              fontSize: size * 0.4,
+              fontWeight: FontWeight.w600,
               color: Colors.white,
-              letterSpacing: 0.5,
             ),
           ),
         ),

@@ -209,7 +209,7 @@ class StudentSidebarDrawer extends StatelessWidget {
                       label: 'Logout',
                       onTap: () {
                         Navigator.of(context).pop();
-                        Navigator.of(context).popUntil((route) => route.isFirst);
+                        AuthService.showLogoutDialog(context);
                       },
                     ),
                     const SizedBox(height: 16),

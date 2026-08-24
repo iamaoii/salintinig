@@ -207,10 +207,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     // ── Scrollable Profile Details ────────────────────────────
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Column(
+                      child: RefreshIndicator(
+                        color: primaryBlue,
+                        backgroundColor: Colors.white,
+                        onRefresh: () async {
+                          await AuthService.fetchMe();
+                          if (mounted) setState(() {});
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const SizedBox(height: 12),
@@ -595,14 +602,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
-    );
+    ),
+  );
   }
 
   // ── Helper UI builders ──────────────────────────────────────────────────────
