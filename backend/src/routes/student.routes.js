@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken } = require('../middleware/auth.middleware.js');
 const {
   getStudents,
   getStudentByLrn,
@@ -20,7 +21,7 @@ const {
 // Routes for Student Records management & assessment submissions
 router.get('/', getStudents);
 router.get('/assessment/passages', getPhilIriPassages);
-router.get('/assessment/my-assignment', getStudentActiveAssignment);
+router.get('/assessment/my-assignment', verifyToken, getStudentActiveAssignment);
 router.post('/assessment/assign', assignPhilIriToStudent);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/assessment/submit-oral-audio', submitStudentOralAudio);

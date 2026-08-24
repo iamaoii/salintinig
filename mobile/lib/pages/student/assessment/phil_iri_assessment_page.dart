@@ -15,6 +15,7 @@ import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
@@ -36,10 +37,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   bool _isOralReadingDone = false;
   bool _isListeningDone = false;
   bool _isSilentReadingDone = false;
+  bool _isLoading = true;
 
-  String _assignedSet = 'Set A';
-  String _assignedPeriod = 'Pre-Test';
-  bool _isLoadingAssignment = true;
+  List<Map<String, dynamic>> _assignedList = [];
 
   @override
   void initState() {
@@ -50,27 +50,66 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     _fetchTeacherAssignment();
   }
 
-  void _fetchTeacherAssignment() async {
+  int _getTypePriority(String type) {
+    switch (type.toLowerCase()) {
+      case 'oral':
+        return 1;
+      case 'listening':
+        return 2;
+      case 'silent':
+        return 3;
+      default:
+        return 4;
+    }
+  }
+
+  Future<void> _fetchTeacherAssignment() async {
     try {
-      final res = await ApiService.get('/student/assessment/my-assignment?grade=Grade%204&type=oral');
-      if (res.success && res.data != null && res.data['assignment'] != null) {
-        final assignment = res.data['assignment'];
+      final res = await ApiService.get('/students/assessment/my-assignment');
+      debugPrint('[PhilIRI] API success=${res.success} statusCode=${res.statusCode}');
+      debugPrint('[PhilIRI] raw data=${res.data}');
+      if (res.data is Map) {
+        debugPrint('[PhilIRI] debug=${(res.data as Map)['debug']}');
+      }
+      if (res.success && res.data != null) {
+        final attempts = res.data['attemptsStatus'];
+        final activitiesList = res.data['assignedActivities'];
+        debugPrint('[PhilIRI] assignedActivities=$activitiesList');
         if (mounted) {
           setState(() {
-            _assignedSet = assignment['set'] ?? 'Set A';
-            _assignedPeriod = assignment['period'] ?? 'Pre-Test';
-            _isLoadingAssignment = false;
+            _isLoading = false;
+            if (activitiesList != null && activitiesList is List) {
+              _assignedList = List<Map<String, dynamic>>.from(activitiesList);
+              _assignedList.sort((a, b) {
+                final typeA = (a['assessmentType'] ?? 'oral').toString().toLowerCase();
+                final typeB = (b['assessmentType'] ?? 'oral').toString().toLowerCase();
+                final priorityA = _getTypePriority(typeA);
+                final priorityB = _getTypePriority(typeB);
+                if (priorityA != priorityB) {
+                  return priorityA.compareTo(priorityB);
+                }
+                final titleA = (a['title'] ?? '').toString();
+                final titleB = (b['title'] ?? '').toString();
+                return titleA.compareTo(titleB);
+              });
+            }
+            if (attempts != null) {
+              if (attempts['listening'] == true) _isListeningDone = true;
+              if (attempts['oral'] == true) _isOralReadingDone = true;
+              if (attempts['silent'] == true) _isSilentReadingDone = true;
+            }
           });
         }
         return;
       }
     } catch (e) {
-      debugPrint('Assignment fetch notice: $e');
-    }
-    if (mounted) {
-      setState(() {
-        _isLoadingAssignment = false;
-      });
+      debugPrint('[PhilIRI] Assignment fetch error: $e');
+    } finally {
+      if (mounted && _isLoading) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -92,29 +131,26 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
             // Navigate to Library page replacing this one
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const LibraryPage(),
-              ),
+              MaterialPageRoute(builder: (context) => const LibraryPage()),
             );
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const ActivitiesPage(),
-              ),
+              MaterialPageRoute(builder: (context) => const ActivitiesPage()),
             );
           } else if (index == 4) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const ProgressPage(),
-              ),
+              MaterialPageRoute(builder: (context) => const ProgressPage()),
             );
           } else if (index != 1) {
             // For other placeholder pages, show a feedback snackbar
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Navigation to item $index tapped.', style: GoogleFonts.inter()),
+                content: Text(
+                  'Navigation to item $index tapped.',
+                  style: GoogleFonts.inter(),
+                ),
                 duration: const Duration(seconds: 1),
               ),
             );
@@ -124,7 +160,8 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragEnd: (details) {
-          if (details.primaryVelocity != null && details.primaryVelocity! > 200) {
+          if (details.primaryVelocity != null &&
+              details.primaryVelocity! > 200) {
             _scaffoldKey.currentState?.openDrawer();
           }
         },
@@ -142,7 +179,10 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                     children: [
                       // 1. Custom Header
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 12.0,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -175,197 +215,273 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
                       // 2. Scrollable Body
                       Expanded(
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 20),
-                              if (!_isLoadingAssignment)
-                                Container(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFBFDBFE)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.assignment_ind_rounded, color: Color(0xFF1B64D8), size: 24),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Assigned by Teacher: $_assignedSet',
-                                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1E3A8A)),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Screening Period: $_assignedPeriod',
-                                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF3B82F6), fontWeight: FontWeight.w500),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                        child: RefreshIndicator(
+                          color: primaryBlue,
+                          backgroundColor: Colors.white,
+                          onRefresh: () async {
+                            await AuthService.fetchMe();
+                            await _fetchTeacherAssignment();
+                          },
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 20),
+                                // Section Header
+                                _buildSectionHeader(
+                                  'Phil - IRI Assessments',
+                                  PhIcons.examRegular,
                                 ),
-                              // Section Header
-                              _buildSectionHeader('Phil - IRI Assessments', PhIcons.examRegular),
-                              const SizedBox(height: 16),
-                              // 1. Listening Comprehension Test
-                              _isListeningDone
-                                  ? _buildAssessmentCard(
-                                      title: 'Listening\nComprehension Test',
-                                      tag: 'Done',
-                                      tagBgColor: const Color(0xFFD1FAE5),
-                                      tagTextColor: const Color(0xFF059669),
-                                      buttonText: 'View Result',
-                                      buttonColor: const Color(0xFF00A859),
-                                      icon: PhIcons.earRegular,
-                                      iconColor: const Color(0xFFF59E0B),
-                                      iconBg: const Color(0xFFFEF3C7),
-                                      cardBg: const Color(0xFFEAF5EC),
+                                const SizedBox(height: 16),
+
+                                if (_isLoading)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 48,
+                                      horizontal: 20,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const CircularProgressIndicator(
+                                      color: primaryBlue,
+                                    ),
+                                  )
+                                else if (_assignedList.isNotEmpty)
+                                  ..._assignedList.map((item) {
+                                    final title =
+                                        item['title'] ?? 'Phil-IRI Assessment';
+                                    final type =
+                                        (item['assessmentType'] ?? 'oral')
+                                            .toString()
+                                            .toLowerCase();
+                                    final isDone =
+                                        item['isCompleted'] == true ||
+                                        (type == 'listening' &&
+                                            _isListeningDone) ||
+                                        (type == 'silent' &&
+                                            _isSilentReadingDone) ||
+                                        (type == 'oral' && _isOralReadingDone);
+
+                                    final rawLang =
+                                        (item['rawLanguage'] ?? 'fil')
+                                            .toString()
+                                            .toLowerCase();
+                                    final langBadge = rawLang.startsWith('en')
+                                        ? 'ENG'
+                                        : 'FIL';
+                                    final rawSet =
+                                        (item['passageSet'] ?? 'Set A')
+                                            .toString();
+                                    final setBadge =
+                                        rawSet.toLowerCase().startsWith('set')
+                                        ? rawSet
+                                        : 'Set $rawSet';
+
+                                    String icon = PhIcons.userSoundRegular;
+                                    Color iconColor = const Color(0xFF1B64D8);
+                                    Color iconBg = const Color(0xFFD0E1F9);
+                                    Color btnColor = const Color(0xFF1B64D8);
+                                    Color btnTextColor = Colors.white;
+
+                                    if (type == 'listening') {
+                                      icon = PhIcons.earRegular;
+                                      iconColor = const Color(0xFFD97706);
+                                      iconBg = const Color(0xFFFEF3C7);
+                                      btnColor = const Color(0xFFFFC000); // Bright Golden Yellow like Teacher portal
+                                      btnTextColor = const Color(0xFF451A03); // High-contrast dark text
+                                    } else if (type == 'silent') {
+                                      icon = PhIcons.bookOpenRegular;
+                                      iconColor = const Color(0xFF10B981);
+                                      iconBg = const Color(0xFFD1FAE5);
+                                      btnColor = const Color(0xFF10B981);
+                                    }
+
+                                    final isClosed = !isDone &&
+                                        (item['status'] ?? 'open')
+                                                .toString()
+                                                .toLowerCase() ==
+                                            'closed';
+
+                                    return _buildAssessmentCard(
+                                      title: title,
+                                      tag: isDone ? 'Done' : 'Required',
+                                      tagBgColor: isDone
+                                          ? const Color(0xFFD1FAE5)
+                                          : const Color(0xFFFEE2E2),
+                                      tagTextColor: isDone
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFFEF4444),
+                                      buttonText: isDone
+                                          ? 'View Result'
+                                          : (isClosed ? 'Closed' : 'Start'),
+                                      buttonColor: isDone
+                                          ? const Color(0xFF00A859)
+                                          : (isClosed
+                                              ? const Color(0xFFE4E4E7)
+                                              : btnColor),
+                                      buttonTextColor: isDone
+                                          ? Colors.white
+                                          : (isClosed
+                                              ? const Color(0xFF9CA3AF)
+                                              : btnTextColor),
+                                      icon: icon,
+                                      iconColor: iconColor,
+                                      iconBg: iconBg,
+                                      cardBg: isDone
+                                          ? const Color(0xFFEAF5EC)
+                                          : Colors.white,
+                                      languageBadge: langBadge,
+                                      passageSetBadge: setBadge,
                                       onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ListeningResultPage(
-                                              score: PhilIriAssessmentPage.listeningScore,
-                                              totalQuestions: 5,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : _buildAssessmentCard(
-                                      title: 'Listening\nComprehension Test',
-                                      tag: 'Required',
-                                      tagBgColor: const Color(0xFFFEE2E2),
-                                      tagTextColor: const Color(0xFFEF4444),
-                                      buttonText: 'Start',
-                                      buttonColor: primaryBlue,
-                                      icon: PhIcons.earRegular,
-                                      iconColor: const Color(0xFFF59E0B),
-                                      iconBg: const Color(0xFFFEF3C7),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const ListeningAssessmentInstructionsPage(),
-                                          ),
-                                        ).then((completed) {
-                                          if (completed == true) {
-                                            setState(() {
-                                              _isListeningDone = true;
-                                              PhilIriAssessmentPage.isListeningDone = true;
+                                        if (isClosed) return;
+                                        if (type == 'listening') {
+                                          if (isDone) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    ListeningResultPage(
+                                                      score:
+                                                          PhilIriAssessmentPage
+                                                              .listeningScore,
+                                                      totalQuestions: 5,
+                                                    ),
+                                              ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const ListeningAssessmentInstructionsPage(),
+                                              ),
+                                            ).then((completed) {
+                                              if (completed == true) {
+                                                setState(() {
+                                                  _isListeningDone = true;
+                                                  PhilIriAssessmentPage
+                                                          .isListeningDone =
+                                                      true;
+                                                });
+                                              }
                                             });
                                           }
-                                        });
+                                        } else if (type == 'silent') {
+                                          if (isDone) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    SilentReadingResultPage(
+                                                      score: PhilIriAssessmentPage
+                                                          .silentReadingScore,
+                                                      totalQuestions: 3,
+                                                    ),
+                                              ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const SilentReadingAssessmentInstructionsPage(),
+                                              ),
+                                            ).then((_) {
+                                              setState(() {
+                                                _isSilentReadingDone =
+                                                    PhilIriAssessmentPage
+                                                        .isSilentReadingDone;
+                                              });
+                                            });
+                                          }
+                                        } else {
+                                          if (isDone) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    OralReadingResultPage(
+                                                      score:
+                                                          PhilIriAssessmentPage
+                                                              .oralReadingScore,
+                                                      totalQuestions: 3,
+                                                    ),
+                                              ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const OralReadingAssessmentInstructionsPage(),
+                                              ),
+                                            ).then((_) {
+                                              setState(() {
+                                                _isOralReadingDone =
+                                                    PhilIriAssessmentPage
+                                                        .isOralReadingDone;
+                                              });
+                                            });
+                                          }
+                                        }
                                       },
+                                    );
+                                  })
+                                else
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 36,
+                                      horizontal: 20,
                                     ),
-                              // 2. Silent Reading Test
-                              _isSilentReadingDone
-                                  ? _buildAssessmentCard(
-                                      title: 'Silent Reading\nTest',
-                                      tag: 'Done',
-                                      tagBgColor: const Color(0xFFD1FAE5),
-                                      tagTextColor: const Color(0xFF059669),
-                                      buttonText: 'View Result',
-                                      buttonColor: const Color(0xFF00A859),
-                                      icon: PhIcons.bookOpenRegular,
-                                      iconColor: const Color(0xFF10B981),
-                                      iconBg: const Color(0xFFD1FAE5),
-                                      cardBg: const Color(0xFFEAF5EC),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => SilentReadingResultPage(
-                                              score: PhilIriAssessmentPage.silentReadingScore,
-                                              totalQuestions: 3,
-                                            ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
                                           ),
-                                        );
-                                      },
-                                    )
-                                  : _buildAssessmentCard(
-                                      title: 'Silent Reading\nTest',
-                                      tag: 'Optional',
-                                      tagBgColor: const Color(0xFFF3F4F6),
-                                      tagTextColor: const Color(0xFF71717A),
-                                      buttonText: 'Start',
-                                      buttonColor: primaryBlue,
-                                      icon: PhIcons.bookOpenRegular,
-                                      iconColor: const Color(0xFF10B981),
-                                      iconBg: const Color(0xFFD1FAE5),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const SilentReadingAssessmentInstructionsPage(),
-                                          ),
-                                        ).then((_) {
-                                          setState(() {
-                                            _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
-                                          });
-                                        });
-                                      },
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
-                              // 3. Oral Reading Test
-                              _isOralReadingDone
-                                  ? _buildAssessmentCard(
-                                      title: 'Oral Reading Test',
-                                      tag: 'Done',
-                                      tagBgColor: const Color(0xFFD1FAE5),
-                                      tagTextColor: const Color(0xFF059669),
-                                      buttonText: 'View Result',
-                                      buttonColor: const Color(0xFF00A859),
-                                      icon: PhIcons.userSoundRegular,
-                                      iconColor: primaryBlue,
-                                      iconBg: const Color(0xFFD0E1F9),
-                                      cardBg: const Color(0xFFEAF5EC),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => OralReadingResultPage(
-                                              score: PhilIriAssessmentPage.oralReadingScore,
-                                              totalQuestions: 3,
-                                            ),
+                                    child: Column(
+                                      children: [
+                                        const Icon(
+                                          Icons.assignment_turned_in_outlined,
+                                          size: 48,
+                                          color: Color(0xFF9CA3AF),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'No Active Assessments',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF374151),
                                           ),
-                                        );
-                                      },
-                                    )
-                                  : _buildAssessmentCard(
-                                      title: 'Oral Reading Test',
-                                      tag: 'Required',
-                                      tagBgColor: const Color(0xFFFEE2E2),
-                                      tagTextColor: const Color(0xFFEF4444),
-                                      buttonText: 'Start',
-                                      buttonColor: primaryBlue,
-                                      icon: PhIcons.userSoundRegular,
-                                      iconColor: primaryBlue,
-                                      iconBg: const Color(0xFFD0E1F9),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const OralReadingAssessmentInstructionsPage(),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Your teacher has not assigned any Phil-IRI assessment yet. Pull down to refresh.',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: const Color(0xFF6B7280),
                                           ),
-                                        ).then((_) {
-                                          setState(() {
-                                            _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
-                                          });
-                                        });
-                                      },
+                                        ),
+                                      ],
                                     ),
-                              const SizedBox(height: 32),
-                            ],
+                                  ),
+                                const SizedBox(height: 32),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -383,11 +499,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   Widget _buildSectionHeader(String title, String iconSvg) {
     return Row(
       children: [
-        Iconify(
-          iconSvg,
-          color: const Color(0xFF1B64D8),
-          size: 24,
-        ),
+        Iconify(iconSvg, color: const Color(0xFF1B64D8), size: 24),
         const SizedBox(width: 8),
         Text(
           title,
@@ -414,8 +526,11 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     required Color iconColor,
     required Color iconBg,
     Color cardBg = Colors.white,
+    String? languageBadge,
+    String? passageSetBadge,
     VoidCallback? onPressed,
   }) {
+    final bool isFil = (languageBadge ?? 'FIL').toUpperCase() == 'FIL';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -437,19 +552,12 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
           Container(
             width: 52,
             height: 52,
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
             alignment: Alignment.center,
-            child: Iconify(
-              icon,
-              color: iconColor,
-              size: 26,
-            ),
+            child: Iconify(icon, color: iconColor, size: 26),
           ),
           const SizedBox(width: 14),
-          // Assessment Title & Capsule tag
+          // Assessment Title & Capsule badges
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,27 +566,81 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                 Text(
                   title,
                   style: GoogleFonts.inter(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF18181B),
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: tagBgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  child: Text(
-                    tag,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: tagTextColor,
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    // Language badge (FIL / ENG)
+                    if (languageBadge != null)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isFil
+                              ? const Color(0xFFCCFBF1)
+                              : const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          languageBadge,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: isFil
+                                ? const Color(0xFF0F766E)
+                                : const Color(0xFF1E40AF),
+                          ),
+                        ),
+                      ),
+                    // Set badge (e.g. Set A)
+                    if (passageSetBadge != null)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F4F5),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          passageSetBadge,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF52525B),
+                          ),
+                        ),
+                      ),
+                    // Status Tag (Done / Required / Optional)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: tagBgColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        tag,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: tagTextColor,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

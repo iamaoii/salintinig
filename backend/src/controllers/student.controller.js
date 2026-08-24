@@ -59,7 +59,7 @@ async function getAdminSchoolId(req) {
 }
 
 /**
- * GET /api/admin/students — List all students
+ * GET /api/admin/students â€” List all students
  */
 async function getStudents(req, res) {
   try {
@@ -145,7 +145,7 @@ async function getStudents(req, res) {
 const { decodeSecureToken } = require('../utils/securityToken.js');
 
 /**
- * GET /api/admin/students/:lrn — Get single student by LRN
+ * GET /api/admin/students/:lrn â€” Get single student by LRN
  */
 async function getStudentByLrn(req, res) {
   try {
@@ -341,7 +341,7 @@ function parseNameString(rawName = '') {
 }
 
 /**
- * POST /api/admin/students — Create single student
+ * POST /api/admin/students â€” Create single student
  */
 async function createStudent(req, res) {
   try {
@@ -522,7 +522,7 @@ async function createStudent(req, res) {
           }
         }
       } catch (dbErr) {
-        console.error('❌ DB student insert error:', dbErr.message || dbErr);
+        console.error('âŒ DB student insert error:', dbErr.message || dbErr);
       }
     }
 
@@ -539,7 +539,7 @@ async function createStudent(req, res) {
 }
 
 /**
- * PUT /api/admin/students/:lrn — Update student
+ * PUT /api/admin/students/:lrn â€” Update student
  */
 async function updateStudent(req, res) {
   try {
@@ -644,7 +644,7 @@ async function updateStudent(req, res) {
 }
 
 /**
- * PATCH /api/admin/students/:lrn/status — Toggle student status (Active / Disabled / Dropped)
+ * PATCH /api/admin/students/:lrn/status â€” Toggle student status (Active / Disabled / Dropped)
  */
 async function toggleStudentStatus(req, res) {
   try {
@@ -733,7 +733,7 @@ async function toggleStudentStatus(req, res) {
 }
 
 /**
- * DELETE /api/admin/students/:lrn — Delete student
+ * DELETE /api/admin/students/:lrn â€” Delete student
  */
 async function deleteStudent(req, res) {
   try {
@@ -777,7 +777,7 @@ async function deleteStudent(req, res) {
             );
             if (!stillLinked || stillLinked.length === 0) {
               await db.query(`DELETE FROM parents WHERE parent_id = $1`, [pid]);
-              console.log(`✅ Deleted orphan parent record: ${pid}`);
+              console.log(`âœ… Deleted orphan parent record: ${pid}`);
             }
           }
 
@@ -817,7 +817,7 @@ async function deleteStudent(req, res) {
         await db.query('COMMIT');
       } catch (dbErr) {
         await db.query('ROLLBACK');
-        console.error('❌ DB deleteStudent error:', dbErr.message);
+        console.error('âŒ DB deleteStudent error:', dbErr.message);
         return res.status(500).json({ success: false, error: `Failed to delete student: ${dbErr.message}` });
       }
     }
@@ -830,7 +830,7 @@ async function deleteStudent(req, res) {
 }
 
 /**
- * POST /api/admin/students/import-csv — Import batch CSV students
+ * POST /api/admin/students/import-csv â€” Import batch CSV students
  */
 async function importStudentsCSV(req, res) {
   try {
@@ -963,7 +963,7 @@ async function importStudentsCSV(req, res) {
               if (existingClass && existingClass[0]) {
                 classId = existingClass[0].class_id;
               } else {
-                console.warn(`⚠️ Skipped grade/section binding: Class "${grade} - ${section}" does not exist in database.`);
+                console.warn(`âš ï¸ Skipped grade/section binding: Class "${grade} - ${section}" does not exist in database.`);
               }
 
             const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
@@ -996,7 +996,7 @@ async function importStudentsCSV(req, res) {
             }
           }
         } catch (dbErr) {
-          console.error('❌ DB CSV import row notice:', dbErr.message || dbErr);
+          console.error('âŒ DB CSV import row notice:', dbErr.message || dbErr);
         }
       }
 
@@ -1045,7 +1045,7 @@ async function importStudentsCSV(req, res) {
 }
 
 /**
- * GET /api/admin/students/check/:lrn — Check if LRN already exists in national database
+ * GET /api/admin/students/check/:lrn â€” Check if LRN already exists in national database
  */
 async function checkExistingStudent(req, res) {
   try {
@@ -1094,7 +1094,7 @@ async function checkExistingStudent(req, res) {
 }
 
 /**
- * POST /api/admin/students/transfer-in — Transfer existing student into current school
+ * POST /api/admin/students/transfer-in â€” Transfer existing student into current school
  */
 async function transferInStudent(req, res) {
   try {
@@ -1183,7 +1183,7 @@ async function transferInStudent(req, res) {
           }
         }
       } catch (dbErr) {
-        console.error('❌ DB transfer-in student error:', dbErr.message || dbErr);
+        console.error('âŒ DB transfer-in student error:', dbErr.message || dbErr);
       }
     }
 
@@ -1200,7 +1200,7 @@ async function transferInStudent(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/assessment/submit — Submit Phil-IRI assessment & compute DepEd profile
+// POST /api/students/assessment/submit â€” Submit Phil-IRI assessment & compute DepEd profile
 // ---------------------------------------------------------------------------
 async function submitPhilIriAssessment(req, res) {
   try {
@@ -1322,7 +1322,7 @@ async function submitPhilIriAssessment(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/story/complete — Mark story completed and award story badges
+// POST /api/students/story/complete â€” Mark story completed and award story badges
 // ---------------------------------------------------------------------------
 async function completeStoryProgress(req, res) {
   try {
@@ -1387,7 +1387,7 @@ async function completeStoryProgress(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/activity/complete — Record completed activity attempt
+// POST /api/students/activity/complete â€” Record completed activity attempt
 // ---------------------------------------------------------------------------
 async function completeActivityProgress(req, res) {
   try {
@@ -1440,7 +1440,7 @@ async function completeActivityProgress(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/student/assessments/passages — Get DepEd Phil-IRI passages
+// GET /api/student/assessments/passages â€” Get DepEd Phil-IRI passages
 // ---------------------------------------------------------------------------
 async function getPhilIriPassages(req, res) {
   try {
@@ -1498,7 +1498,7 @@ async function getPhilIriPassages(req, res) {
 const activePhilIriAssignments = new Map();
 
 /**
- * POST /api/student/assessment/assign — Assign specific Phil-IRI Set & Period to a student or grade level
+ * POST /api/student/assessment/assign â€” Assign specific Phil-IRI Set & Period to a student or grade level
  */
 async function assignPhilIriToStudent(req, res) {
   try {
@@ -1535,73 +1535,179 @@ async function assignPhilIriToStudent(req, res) {
 }
 
 /**
- * GET /api/student/assessment/my-assignment — Get active Phil-IRI assignment for student
+ * GET /api/student/assessment/my-assignment â€” Get active Phil-IRI assignment for student
  */
 async function getStudentActiveAssignment(req, res) {
   try {
-    const { lrn, grade, type } = req.query;
-    const cleanLrn = lrn ? String(lrn).trim() : null;
-    const targetGrade = grade || 'Grade 4';
-    const targetType = type || 'oral';
+    const { lrn: queryLrn } = req.query;
+    const studentUser = req.user || {};
 
-    let assignment = null;
-    if (cleanLrn && activePhilIriAssignments.has(`lrn_${cleanLrn}`)) {
-      assignment = activePhilIriAssignments.get(`lrn_${cleanLrn}`);
-    } else if (activePhilIriAssignments.has(`grade_${targetGrade}_${targetType}`)) {
-      assignment = activePhilIriAssignments.get(`grade_${targetGrade}_${targetType}`);
+    // Extract identity from JWT token (createToken stores id = users.user_id)
+    const tokenUserId = studentUser.id || studentUser.user_id || studentUser.userId || null;
+    const tokenLrn = (queryLrn || studentUser.lrn || '').trim();
+
+    console.log('[getStudentActiveAssignment] tokenUserId:', tokenUserId, '| tokenLrn:', tokenLrn);
+
+    let targetStudentId = null;
+    let targetGrade = 'Grade 4';
+    let resolvedLrn = tokenLrn;
+    let assignedActivities = [];
+    let attemptsStatus = { listening: false, oral: false, silent: false };
+
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, hasAssignment: false, assignedActivities: [], attemptsStatus });
     }
 
-    if (!assignment) {
-      // Default initial assignment
-      assignment = {
-        studentId: cleanLrn || 'ALL',
-        lrn: cleanLrn || 'ALL',
-        gradeLevel: targetGrade,
-        set: 'Set A',
-        period: 'Pre-Test',
-        assessmentType: targetType,
-        assignedAt: new Date().toISOString(),
-      };
+    // â”€â”€â”€ Step 0: Resolve students.student_id from users.user_id or LRN â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    try {
+      let sRow = null;
+      if (tokenUserId) {
+        const sRes = await db.query(
+          `SELECT s.student_id, s.lrn FROM students s WHERE s.user_id = $1 LIMIT 1`,
+          [tokenUserId]
+        );
+        sRow = sRes.rows[0] || null;
+      }
+      if (!sRow && tokenLrn) {
+        const sRes = await db.query(
+          `SELECT s.student_id, s.lrn FROM students s WHERE s.lrn = $1 LIMIT 1`,
+          [tokenLrn]
+        );
+        sRow = sRes.rows[0] || null;
+      }
+
+      if (sRow) {
+        targetStudentId = sRow.student_id;
+        resolvedLrn = sRow.lrn || tokenLrn;
+        console.log('[getStudentActiveAssignment] resolved student_id:', targetStudentId);
+
+        // Get grade_level from student_grade_history â†’ classes
+        const gradeRes = await db.query(
+          `SELECT c.grade_level
+           FROM student_grade_history sgh
+           JOIN classes c ON sgh.class_id = c.class_id
+           WHERE sgh.student_id = $1
+           ORDER BY sgh.created_at DESC LIMIT 1`,
+          [targetStudentId]
+        );
+        if (gradeRes.rows[0]?.grade_level) {
+          targetGrade = gradeRes.rows[0].grade_level;
+        }
+      } else {
+        console.warn('[getStudentActiveAssignment] No student record found for userId:', tokenUserId, 'lrn:', tokenLrn);
+      }
+    } catch (resolveErr) {
+      console.error('[getStudentActiveAssignment] student resolve error:', resolveErr.message);
     }
 
-    // Fetch matching passage details from database
-    let matchedPassage = null;
-    if (process.env.DATABASE_URL) {
-      const { rows } = await db.query(`
-        SELECT 
-          passage_id AS id,
-          title,
-          grade_level AS "gradeLevel",
-          passage_set AS set,
-          language,
-          content_text AS text,
-          word_count AS words
-        FROM phil_iri_passages
-        WHERE status != 'archived'
-          AND LOWER(grade_level) = LOWER($1)
-          AND LOWER(passage_set) = LOWER($2)
-        LIMIT 1
-      `, [assignment.gradeLevel, assignment.set]);
+    // â”€â”€â”€ Step 1: Fetch assessments assigned to this student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if (targetStudentId) {
+      try {
+        const aRes = await db.query(
+          `SELECT
+             a.assessment_id   AS "assessmentId",
+             a.student_id      AS "studentId",
+             a.passage_id      AS "passageId",
+             LOWER(a.assessment_type)   AS "assessmentType",
+             LOWER(a.assessment_period) AS "period",
+             a.due_date        AS "dueDate",
+             COALESCE(a.status, 'open') AS status,
+             a.created_at      AS "assignedAt",
+             p.title,
+             p.grade_level     AS "gradeLevel",
+             p.passage_set     AS "set",
+             COALESCE(p.language, 'fil') AS language,
+             p.content_text    AS text,
+             p.word_count      AS words
+           FROM assessments a
+           JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+           WHERE a.student_id = $1
+             AND LOWER(COALESCE(a.status, 'open')) != 'cancelled'
+           ORDER BY a.created_at DESC`,
+          [targetStudentId]
+        );
+        console.log('[getStudentActiveAssignment] assessment rows found:', aRes.rows.length);
 
-      if (rows && rows.length > 0) {
-        matchedPassage = rows[0];
+        // â”€â”€â”€ Step 2: Fetch completed attempt types for this student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        try {
+          const attRes = await db.query(
+            `SELECT DISTINCT LOWER(a.assessment_type) AS type
+             FROM assessment_attempts aa
+             JOIN assessments a ON a.assessment_id = aa.assessment_id
+             WHERE a.student_id = $1
+               AND LOWER(aa.status) = 'completed'`,
+            [targetStudentId]
+          );
+          attRes.rows.forEach((r) => {
+            if (r.type === 'listening') attemptsStatus.listening = true;
+            if (r.type === 'oral')      attemptsStatus.oral = true;
+            if (r.type === 'silent')    attemptsStatus.silent = true;
+          });
+        } catch (attErr) {
+          console.warn('[getStudentActiveAssignment] attempts query skipped:', attErr.message);
+        }
+
+        // â”€â”€â”€ Step 3: Map rows to assignedActivities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        assignedActivities = aRes.rows.map((row) => {
+          const typeLabel =
+            row.assessmentType === 'oral'      ? 'Oral Reading' :
+            row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+          const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+          const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+
+          const isDone = Boolean(
+            attemptsStatus[row.assessmentType] ||
+            (row.status && row.status.toLowerCase() === 'completed')
+          );
+
+          return {
+            assessmentId:  row.assessmentId,
+            title:         `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
+            passageTitle:  row.title,
+            assessmentType: row.assessmentType,
+            period:        periodLabel,
+            rawPeriod:     row.period,
+            language:      langLabel,
+            rawLanguage:   row.language || 'fil',
+            gradeLevel:    row.gradeLevel || targetGrade,
+            passageSet:    row.set || 'Set A',
+            dueDate:       row.dueDate,
+            status:        row.status,
+            isCompleted:   isDone,
+            passageId:     row.passageId,
+            passage: {
+              id:         row.passageId,
+              title:      row.title,
+              text:       row.text,
+              words:      row.words,
+              gradeLevel: row.gradeLevel,
+              set:        row.set,
+              language:   row.language,
+            },
+          };
+        });
+      } catch (queryErr) {
+        console.error('[getStudentActiveAssignment] assessment query error:', queryErr.message);
       }
     }
 
     return res.json({
       success: true,
-      hasAssignment: true,
-      assignment,
-      passage: matchedPassage,
+      hasAssignment: assignedActivities.length > 0,
+      assignedActivities,
+      attemptsStatus,
+      studentId: targetStudentId,
+      lrn: resolvedLrn,
+      gradeLevel: targetGrade,
     });
   } catch (error) {
-    console.error('Error fetching student assignment:', error);
-    return res.status(500).json({ success: false, error: 'Failed to fetch assignment.' });
+    console.error('[getStudentActiveAssignment] unhandled error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch assignment.', debug: error?.message || String(error) });
   }
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/assessment/submit-oral-audio — Submit Oral Audio & Speech-to-Text Miscue Analysis
+// POST /api/students/assessment/submit-oral-audio â€” Submit Oral Audio & Speech-to-Text Miscue Analysis
 // ---------------------------------------------------------------------------
 async function submitStudentOralAudio(req, res) {
   try {

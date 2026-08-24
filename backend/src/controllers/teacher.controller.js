@@ -1212,7 +1212,7 @@ async function deleteAssessment(req, res) {
         params
       );
 
-      console.log(`Successfully deleted ${result.rowCount} assessment record(s) for query: ${cleanId}`);
+      console.log(`Successfully deleted ${result.rowCount} assessment record(s) for query: ${id}`);
     }
 
     return res.json({ success: true, message: 'Assessment deleted successfully.' });

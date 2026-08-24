@@ -16,6 +16,7 @@ import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -131,10 +132,17 @@ class _ProgressPageState extends State<ProgressPage> {
 
                       // 2. Scrollable Content
                       Expanded(
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
-                          child: Column(
+                        child: RefreshIndicator(
+                          color: primaryBlue,
+                          backgroundColor: Colors.white,
+                          onRefresh: () async {
+                            await AuthService.fetchMe();
+                            if (mounted) setState(() {});
+                          },
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                            padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
+                            child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SizedBox(height: 12),
@@ -225,6 +233,7 @@ class _ProgressPageState extends State<ProgressPage> {
                           ),
                         ),
                       ),
+                    ),
                     ],
                   ),
                 ),

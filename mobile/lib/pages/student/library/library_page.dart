@@ -11,6 +11,7 @@ import 'package:salintinig/pages/student/library/side_quests_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -121,10 +122,17 @@ class _LibraryPageState extends State<LibraryPage> {
 
                     // 2. Scrollable content
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
-                        child: Column(
+                      child: RefreshIndicator(
+                        color: const Color(0xFF1B64D8),
+                        backgroundColor: Colors.white,
+                        onRefresh: () async {
+                          await AuthService.fetchMe();
+                          if (mounted) setState(() {});
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const SizedBox(height: 20),
@@ -183,6 +191,7 @@ class _LibraryPageState extends State<LibraryPage> {
                           ],
                         ),
                       ),
+                    ),
                     ),
                   ],
                 ),
