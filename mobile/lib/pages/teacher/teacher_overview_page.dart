@@ -11,6 +11,8 @@ import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/teacher_reading_levels_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/notification_service.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 import 'dart:math' as math;
 
@@ -31,122 +33,36 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   final GlobalKey _dashboardKey = GlobalKey();
   final GlobalKey _recordsKey = GlobalKey();
 
-  int _notificationsCount = 3;
+  static List<Map<String, dynamic>>? _cachedOverviewActivities;
+
   String _overviewFilter = 'all'; // 'all', 'oral', 'listening', 'silent'
-  List<Map<String, dynamic>> _overviewActivities = [];
+  List<Map<String, dynamic>> _overviewActivities = _cachedOverviewActivities ?? [];
 
-  final List<Map<String, dynamic>> _defaultOverviewActivities = [
-    {
-      'id': 'phil_iri_gst_1',
-      'title': 'Phil-IRI Group Screening Test (GST)',
-      'subtitle': 'Form 1A & 1B Class Screening',
-      'mode': 'phil-iri',
-      'type': 'silent',
-      'assessmentType': 'silent',
-      'period': 'GST',
-      'language': 'fil',
-      'badge': 'Phil - IRI',
-      'status': 'closed',
-      'activityStatus': 'closed',
-      'doneCount': 35,
-      'pendingCount': 0,
-      'totalAssigned': 35,
-    },
-    {
-      'id': 'phil_iri_ort_1',
-      'title': 'Oral Reading Assessment (Pre-Test - Filipino)',
-      'subtitle': 'Form 3A Graded Passage Evaluation',
-      'mode': 'phil-iri',
-      'type': 'oral',
-      'assessmentType': 'oral',
-      'period': 'Pre-Test',
-      'language': 'fil',
-      'badge': 'Phil - IRI',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 0,
-      'pendingCount': 0,
-      'totalAssigned': 0,
-    },
-    {
-      'id': 'phil_iri_ort_2',
-      'title': 'Oral Reading Assessment (Pre-Test - English)',
-      'subtitle': 'Form 3A Graded Passage Evaluation',
-      'mode': 'phil-iri',
-      'type': 'oral',
-      'assessmentType': 'oral',
-      'period': 'Pre-Test',
-      'language': 'eng',
-      'badge': 'Phil - IRI',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 0,
-      'pendingCount': 0,
-      'totalAssigned': 0,
-    },
-    {
-      'id': 'phil_iri_ort_3',
-      'title': 'Listening Assessment (Pre-Test - Filipino)',
-      'subtitle': 'Form 3B Graded Listening Evaluation',
-      'mode': 'phil-iri',
-      'type': 'listening',
-      'assessmentType': 'listening',
-      'period': 'Pre-Test',
-      'language': 'fil',
-      'badge': 'Phil - IRI',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 0,
-      'pendingCount': 0,
-      'totalAssigned': 0,
-    },
-  ];
-
-  // Notifications
-  final List<Map<String, String>> _notifications = [
-    {
-      'title': 'Activity 1 completed',
-      'time': '5 mins ago',
-      'desc': 'Juan Dela Cruz just completed Pronunciation Challenge.',
-    },
-    {
-      'title': 'Pending evaluation',
-      'time': '1 hour ago',
-      'desc': '3 students are waiting for oral reading grading.',
-    },
-    {
-      'title': 'Low score alert',
-      'time': '2 hours ago',
-      'desc': 'Maria Clara scored Frustration level on Form 1A.',
-    },
-  ];
-
-  bool _isLoadingUser = true;
+  bool _isLoadingUser = _cachedOverviewActivities == null;
 
   @override
   void initState() {
     super.initState();
-    _isLoadingUser = true;
-    _overviewActivities = List.from(_defaultOverviewActivities);
     _refreshTeacherProfile();
     _setupRealtimeSubscription();
   }
 
   Future<void> _refreshTeacherProfile() async {
-    await AuthService.fetchMe();
-    await AuthService.fetchClassStudents(forceRefresh: true);
-
     try {
-      final res = await ApiService.get(
-        '/teacher/assessments/phil-iri-activities',
-      );
+      final results = await Future.wait([
+        AuthService.fetchMe(),
+        AuthService.fetchClassStudents(forceRefresh: false),
+        ApiService.get('/teacher/assessments/phil-iri-activities'),
+        NotificationService().fetchNotifications(),
+      ]);
+
+      final res = results[2] as ApiResponse;
       if (res.success && res.data != null && res.data['activities'] is List) {
         final List raw = res.data['activities'];
-        if (raw.isNotEmpty) {
-          _overviewActivities = raw
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList();
-        }
+        _overviewActivities = raw
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        _cachedOverviewActivities = _overviewActivities;
       }
     } catch (_) {}
 
@@ -162,6 +78,14 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
       final client = Supabase.instance.client;
       _realtimeSubscription = client
           .channel('public:teacher_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'notifications',
+            callback: (payload) {
+              NotificationService().fetchNotifications();
+            },
+          )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
@@ -209,101 +133,6 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     }
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _showNotificationCenter() {
-    Feedback.forTap(context);
-    setState(() {
-      _notificationsCount = 0;
-    });
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Notifications',
-                    style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: Colors.black),
-                  ),
-                ],
-              ),
-              const Divider(height: 24, thickness: 1, color: Color(0xFFE4E4E7)),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: _notifications.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final item = _notifications[index];
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFCFAF7),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                item['title']!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Text(
-                                item['time']!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item['desc']!,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -367,44 +196,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                             ],
                           ),
                           // Right Notification Bell
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              IconButton(
-                                onPressed: _showNotificationCenter,
-                                icon: Iconify(
-                                  Ph.bell,
-                                  size: 28,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              if (_notificationsCount > 0)
-                                Positioned(
-                                  right: 6,
-                                  top: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 16,
-                                      minHeight: 16,
-                                    ),
-                                    child: Text(
-                                      '$_notificationsCount',
-                                      style: GoogleFonts.inter(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                          const NotificationBellIconButton(),
                         ],
                       ),
                     ),
