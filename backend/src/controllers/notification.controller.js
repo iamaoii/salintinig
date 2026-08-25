@@ -7,7 +7,7 @@ const db = require('../config/db.js');
 const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-    const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+    const schoolId = req.user?.schoolId || req.user?.school_id || null;
     const userRole = req.user?.role || 'admin';
 
     let result;
@@ -20,6 +20,43 @@ const getUserNotifications = async (req, res) => {
          LIMIT 50`,
         [schoolId, userId]
       );
+    } else if (userRole === 'student') {
+      let sGrade = null;
+      let sSection = null;
+      try {
+        const sQuery = await db.query(
+          `SELECT grade_level, section_name FROM students WHERE user_id = $1 LIMIT 1`,
+          [userId]
+        );
+        if (sQuery.rows && sQuery.rows.length > 0) {
+          sGrade = sQuery.rows[0].grade_level ? String(sQuery.rows[0].grade_level) : null;
+          sSection = sQuery.rows[0].section_name || null;
+        }
+      } catch (e) {
+        console.warn('Student details fetch notice for notifications:', e.message);
+      }
+
+      const rawRes = await db.query(
+        `SELECT notification_id AS id, school_id, user_id, title, message, notification_type, is_read, created_at
+         FROM notifications
+         WHERE (school_id = $1 OR school_id IS NULL OR user_id = $2)
+           AND (notification_type IS NULL OR notification_type NOT IN ('account_request', 'account_approval', 'account_rejection', 'admin_audit', 'teacher'))
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [schoolId, userId]
+      );
+
+      const allNotifs = rawRes.rows || [];
+      const filtered = allNotifs.filter((n) => {
+        if (n.user_id && String(n.user_id) === String(userId)) return true;
+        const text = `${n.title || ''} ${n.message || ''}`.toLowerCase();
+        if (sSection && text.includes(sSection.toLowerCase().trim())) return true;
+        if (sGrade && text.includes(`grade ${sGrade.toLowerCase().trim()}`)) return true;
+        if (n.notification_type === 'announcement' || n.notification_type === 'general' || n.notification_type === 'student' || n.notification_type === 'assessment' || n.notification_type === 'phil_iri' || n.notification_type === 'activity') return true;
+        return false;
+      });
+
+      result = { rows: filtered.slice(0, 50) };
     } else {
       // 1. Fetch Teacher profile to get assigned section & Faculty-in-Charge details
       let tGrade = null;
@@ -138,7 +175,7 @@ const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-    const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+    const schoolId = req.user?.schoolId || req.user?.school_id || null;
 
     await db.query(
       `UPDATE notifications
@@ -164,7 +201,7 @@ const markAsRead = async (req, res) => {
 const markAllAsRead = async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-    const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+    const schoolId = req.user?.schoolId || req.user?.school_id || null;
 
     await db.query(
       `UPDATE notifications
@@ -191,7 +228,7 @@ const deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-    const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+    const schoolId = req.user?.schoolId || req.user?.school_id || null;
 
     await db.query(
       `DELETE FROM notifications
@@ -216,7 +253,7 @@ const deleteNotification = async (req, res) => {
 const clearAllNotifications = async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-    const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
+    const schoolId = req.user?.schoolId || req.user?.school_id || null;
 
     await db.query(
       `DELETE FROM notifications

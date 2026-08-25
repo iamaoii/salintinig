@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/bookshelf_page.dart';
@@ -114,8 +115,8 @@ class _LibraryPageState extends State<LibraryPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Right Spacer to keep title centered
-                            const SizedBox(width: 48),
+                             // Right Notification Bell
+                             const NotificationBellIconButton(),
                           ],
                         ),
                       ),

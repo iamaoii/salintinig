@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
@@ -27,7 +28,6 @@ class ProgressPage extends StatefulWidget {
 
 class _ProgressPageState extends State<ProgressPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   bool _isListeningDone = false;
   bool _isOralReadingDone = false;
   bool _isSilentReadingDone = false;
@@ -124,8 +124,8 @@ class _ProgressPageState extends State<ProgressPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Right Spacer to keep title centered
-                            const SizedBox(width: 48),
+                            // Right Notification Bell
+                            const NotificationBellIconButton(),
                           ],
                         ),
                       ),

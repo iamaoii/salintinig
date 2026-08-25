@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
@@ -207,8 +208,8 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Right Spacer to keep title centered
-                            const SizedBox(width: 48),
+                            // Right Notification Bell
+                            const NotificationBellIconButton(),
                           ],
                         ),
                       ),

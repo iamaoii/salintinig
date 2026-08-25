@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/constants/ph_icons.dart';
@@ -33,8 +34,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Simple state toggles for interactive button feedback
-  bool _notificationAlert = true;
-
   bool _isListeningDone = false;
   bool _isOralReadingDone = false;
   bool _isSilentReadingDone = false;
@@ -287,47 +286,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                 ],
                               ),
                               // Right Notification Bell
-                              Stack(
-                                children: [
-                                  IconButton(
-                                    onPressed: () {
-                                      Feedback.forTap(context);
-                                      setState(() {
-                                        _notificationAlert = false;
-                                      });
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'No new notifications.',
-                                            style: GoogleFonts.inter(),
-                                          ),
-                                          duration: const Duration(seconds: 1),
-                                        ),
-                                      );
-                                    },
-                                    icon: Iconify(
-                                      Ph.bell,
-                                      size: 28,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  if (_notificationAlert)
-                                    Positioned(
-                                      right: 8,
-                                      top: 8,
-                                      child: Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFEF4444),
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              const NotificationBellIconButton(),
                             ],
                           ),
                         ),

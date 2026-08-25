@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/services/notification_service.dart';
-import 'package:salintinig/widgets/notification_center_modal.dart';
+import 'package:salintinig/widgets/notifications_modal.dart';
 
 class NotificationBellIconButton extends StatefulWidget {
   const NotificationBellIconButton({super.key});
@@ -41,7 +41,7 @@ class _NotificationBellIconButtonState extends State<NotificationBellIconButton>
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          onPressed: () => NotificationCenterModal.show(context),
+          onPressed: () => NotificationsModal.show(context),
           icon: const Iconify(
             Ph.bell,
             size: 28,

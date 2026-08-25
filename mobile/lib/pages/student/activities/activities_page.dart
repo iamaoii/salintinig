@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/side_quests_page.dart';
@@ -22,7 +23,6 @@ class ActivitiesPage extends StatefulWidget {
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   int _selectedTab = 0; // 0 = Practice Activities, 1 = Side Quests
 
 
@@ -201,8 +201,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 letterSpacing: -0.5,
                               ),
                             ),
-                            // Symmetrical spacer to center the title
-                            const SizedBox(width: 48),
+                            // Right Notification Bell
+                            const NotificationBellIconButton(),
                           ],
                         ),
                       ),
