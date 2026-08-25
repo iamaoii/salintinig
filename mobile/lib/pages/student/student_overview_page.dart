@@ -658,7 +658,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) =>
-                                                      const ListeningAssessmentInstructionsPage(),
+                                                      ListeningAssessmentInstructionsPage(
+                                                        item: item,
+                                                        customInstructions:
+                                                            item['instructions'],
+                                                      ),
                                                 ),
                                               ).then((completed) {
                                                 if (completed == true) {
@@ -690,7 +694,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) =>
-                                                      const SilentReadingAssessmentInstructionsPage(),
+                                                      SilentReadingAssessmentInstructionsPage(
+                                                        item: item,
+                                                        customInstructions:
+                                                            item['instructions'],
+                                                      ),
                                                 ),
                                               ).then((_) {
                                                 setState(() {
@@ -720,7 +728,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) =>
-                                                      const OralReadingAssessmentInstructionsPage(),
+                                                      OralReadingAssessmentInstructionsPage(
+                                                        item: item,
+                                                        customInstructions:
+                                                            item['instructions'],
+                                                      ),
                                                 ),
                                               ).then((_) {
                                                 setState(() {
@@ -1231,8 +1243,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     const cardBg = Color(
       0xFFFEF8EC,
     ); // Warm cream/beige tint matching reference
-    const tagBg = Color(0xFFE6F4EA); // Soft green background
-    const tagTextColor = Color(0xFF137333); // Dark green text
+    const tagBg = Color(0xFFF1F5F9); // Light blue-grey background matching picture 4
+    const tagTextColor = Color(0xFF475569); // Dark slate text matching picture 4
     const continueBtnColor = Color(0xFFFBBF24); // Vibrant golden yellow button
 
     return Container(

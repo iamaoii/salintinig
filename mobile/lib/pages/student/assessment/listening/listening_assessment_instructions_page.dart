@@ -7,13 +7,61 @@ import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dar
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_story_page.dart';
 
 class ListeningAssessmentInstructionsPage extends StatelessWidget {
-  const ListeningAssessmentInstructionsPage({super.key});
+  final Map<String, dynamic>? item;
+  final String? customInstructions;
+
+  const ListeningAssessmentInstructionsPage({
+    super.key,
+    this.item,
+    this.customInstructions,
+  });
+
+  String _formatDueDate(dynamic rawDate) {
+    if (rawDate == null || rawDate.toString().isEmpty) return 'No due date';
+    try {
+      final dt = DateTime.parse(rawDate.toString()).toLocal();
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final month = months[dt.month - 1];
+      final day = dt.day;
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return 'Due: $month $day, $hour:$minute $period';
+    } catch (_) {
+      return 'Due: ${rawDate.toString().split('T')[0]}';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
     final isPhilIriPeriod = PhilIriAssessmentPage.isPhilIriPeriod;
+    final effectiveInstructions =
+        (item?['instructions'] ?? customInstructions ?? '').toString();
+
+    final titleText = item?['title'] ?? 'Listening Assessment';
+    final rawSet = (item?['passageSet'] ?? item?['set'] ?? item?['passage']?['set'] ?? 'Set A').toString().trim();
+    final setLabel = rawSet.toLowerCase().startsWith('set') ? rawSet : 'Set $rawSet';
+    final dueDateText = _formatDueDate(item?['dueDate']);
+    final isDone = item?['isCompleted'] == true;
+    final isClosed = !isDone && (item?['status'] ?? 'open') == 'closed';
+    final statusText = isDone
+        ? 'Completed'
+        : (isClosed ? 'Closed' : 'Assessment not started.');
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -31,7 +79,10 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                   children: [
                     // 1. Header Navigation Row
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -82,7 +133,9 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: isPhilIriPeriod ? Colors.white : const Color(0xFFEEEEEE),
+                                color: isPhilIriPeriod
+                                    ? Colors.white
+                                    : const Color(0xFFEEEEEE),
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
@@ -98,7 +151,8 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                 children: [
                                   // Top section of the card: Icon & Description details
                                   Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       // Styled Ear Badge Icon
                                       Container(
@@ -120,59 +174,62 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                       // Meta Info Details
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            if (isPhilIriPeriod) ...[
-                                              Text(
-                                                'Due: May 18, 11:59 PM',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: const Color(0xFF71717A),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                            ],
                                             Text(
-                                              'Listening Assessment',
+                                              dueDateText,
                                               style: GoogleFonts.inter(
-                                                fontSize: 20,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: const Color(0xFF71717A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              titleText,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.w800,
                                                 color: Colors.black,
                                                 letterSpacing: -0.5,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Assessment not started.',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                                color: const Color(0xFF71717A),
-                                              ),
-                                            ),
-                                            if (isPhilIriPeriod) ...[
-                                              const SizedBox(height: 8),
-                                              // Reward star pill badge
+                                            const SizedBox(height: 6),
+                                            if (setLabel.isNotEmpty) ...[
                                               Container(
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFD1FAE5),
-                                                  borderRadius: BorderRadius.circular(100),
-                                                ),
                                                 padding: const EdgeInsets.symmetric(
-                                                  horizontal: 12,
+                                                  horizontal: 10,
                                                   vertical: 4,
                                                 ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF4F4F5),
+                                                  borderRadius: BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: const Color(0xFFE4E4E7),
+                                                  ),
+                                                ),
                                                 child: Text(
-                                                  '100 Stars',
+                                                  setLabel,
                                                   style: GoogleFonts.inter(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w700,
-                                                    color: const Color(0xFF059669),
+                                                    color: primaryBlue,
                                                   ),
                                                 ),
                                               ),
+                                              const SizedBox(height: 6),
                                             ],
+                                            Text(
+                                              statusText,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: isDone
+                                                    ? const Color(0xFF059669)
+                                                    : const Color(0xFF71717A),
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -195,10 +252,61 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  _buildInstructionRow('1.', 'Listen carefully while the story is being read aloud.'),
-                                  _buildInstructionRow('2.', 'Focus on the details, characters, and events in the passage.'),
-                                  _buildInstructionRow('3.', 'Answer the questions based on what you heard.'),
-                                  _buildInstructionRow('4.', 'Complete the activity correctly to receive a higher score.'),
+                                  _buildInstructionRow(
+                                    '1.',
+                                    'Listen attentively while the reading passage is read aloud clearly.',
+                                  ),
+                                  _buildInstructionRow(
+                                    '2.',
+                                    'Focus on remembering key characters, events, and details of the story.',
+                                  ),
+                                  _buildInstructionRow(
+                                    '3.',
+                                    'Answer all comprehension questions based strictly on what you heard.',
+                                  ),
+                                  _buildInstructionRow(
+                                    '4.',
+                                    'Complete the assessment to determine Listening Comprehension level.',
+                                  ),
+                                  if (effectiveInstructions.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEFF6FF),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: const Color(0xFFBFDBFE),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Special Instructions from Teacher',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF1D4ED8),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            effectiveInstructions.trim(),
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w400,
+                                              color: const Color(0xFF1E293B),
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -234,7 +342,9 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                                 }
                               : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isPhilIriPeriod ? primaryBlue : const Color(0xFFE4E4E7),
+                            backgroundColor: isPhilIriPeriod
+                                ? primaryBlue
+                                : const Color(0xFFE4E4E7),
                             disabledBackgroundColor: const Color(0xFFE4E4E7),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -246,16 +356,22 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
                             children: [
                               Iconify(
                                 PhIcons.examRegular,
-                                color: isPhilIriPeriod ? Colors.white : const Color(0xFFA1A1AA),
+                                color: isPhilIriPeriod
+                                    ? Colors.white
+                                    : const Color(0xFFA1A1AA),
                                 size: 24,
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                isPhilIriPeriod ? 'Start Assessment' : 'Not Available',
+                                isPhilIriPeriod
+                                    ? 'Start Assessment'
+                                    : 'Not Available',
                                 style: GoogleFonts.inter(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
-                                  color: isPhilIriPeriod ? Colors.white : const Color(0xFFA1A1AA),
+                                  color: isPhilIriPeriod
+                                      ? Colors.white
+                                      : const Color(0xFFA1A1AA),
                                 ),
                               ),
                             ],
@@ -310,7 +426,7 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ListeningAssessmentStoryPage(),
+        builder: (context) => ListeningAssessmentStoryPage(item: item),
       ),
     );
   }

@@ -7,13 +7,51 @@ import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dar
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_story_page.dart';
 
 class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
-  const SilentReadingAssessmentInstructionsPage({super.key});
+  final Map<String, dynamic>? item;
+  final String? customInstructions;
+
+  const SilentReadingAssessmentInstructionsPage({
+    super.key,
+    this.item,
+    this.customInstructions,
+  });
+
+  String _formatDueDate(dynamic rawDate) {
+    if (rawDate == null || rawDate.toString().isEmpty) return 'No due date';
+    try {
+      final dt = DateTime.parse(rawDate.toString()).toLocal();
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      final month = months[dt.month - 1];
+      final day = dt.day;
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return 'Due: $month $day, $hour:$minute $period';
+    } catch (_) {
+      return 'Due: ${rawDate.toString().split('T')[0]}';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
     final isPhilIriPeriod = PhilIriAssessmentPage.isPhilIriPeriod;
+    final effectiveInstructions =
+        (item?['instructions'] ?? customInstructions ?? '').toString();
+
+    final titleText = item?['title'] ?? 'Silent Reading Assessment';
+    final rawSet = (item?['passageSet'] ?? item?['set'] ?? item?['passage']?['set'] ?? 'Set A').toString().trim();
+    final setLabel = rawSet.toLowerCase().startsWith('set') ? rawSet : 'Set $rawSet';
+    final dueDateText = _formatDueDate(item?['dueDate']);
+    final isDone = item?['isCompleted'] == true;
+    final isClosed = !isDone && (item?['status'] ?? 'open') == 'closed';
+    final statusText = isDone
+        ? 'Completed'
+        : (isClosed ? 'Closed' : 'Assessment not started.');
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -122,57 +160,59 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            if (isPhilIriPeriod) ...[
-                                              Text(
-                                                'Due: May 18, 11:59 PM',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: const Color(0xFF71717A),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                            ],
                                             Text(
-                                              'Silent Reading Test',
+                                              dueDateText,
                                               style: GoogleFonts.inter(
-                                                fontSize: 20,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: const Color(0xFF71717A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              titleText,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.w800,
                                                 color: Colors.black,
                                                 letterSpacing: -0.5,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Assessment not started.',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                                color: const Color(0xFF71717A),
-                                              ),
-                                            ),
-                                            if (isPhilIriPeriod) ...[
-                                              const SizedBox(height: 8),
-                                              // Reward star pill badge
+                                            const SizedBox(height: 6),
+                                            if (setLabel.isNotEmpty) ...[
                                               Container(
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFD1FAE5),
-                                                  borderRadius: BorderRadius.circular(100),
-                                                ),
                                                 padding: const EdgeInsets.symmetric(
-                                                  horizontal: 12,
+                                                  horizontal: 10,
                                                   vertical: 4,
                                                 ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF4F4F5),
+                                                  borderRadius: BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: const Color(0xFFE4E4E7),
+                                                  ),
+                                                ),
                                                 child: Text(
-                                                  '100 Stars',
+                                                  setLabel,
                                                   style: GoogleFonts.inter(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w700,
-                                                    color: const Color(0xFF059669),
+                                                    color: primaryBlue,
                                                   ),
                                                 ),
                                               ),
+                                              const SizedBox(height: 6),
                                             ],
+                                            Text(
+                                              statusText,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: isDone
+                                                    ? const Color(0xFF059669)
+                                                    : const Color(0xFF71717A),
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
@@ -195,10 +235,49 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  _buildInstructionRow('1.', 'Read the passage silently and understand the story carefully.'),
-                                  _buildInstructionRow('2.', 'Pay attention to important details and unfamiliar words.'),
-                                  _buildInstructionRow('3.', 'Answer the comprehension questions after reading.'),
-                                  _buildInstructionRow('4.', 'Complete all answers correctly to earn a higher score.'),
+                                  _buildInstructionRow('1.', 'Read the assigned passage silently at your regular reading speed.'),
+                                  _buildInstructionRow('2.', 'Focus on understanding main ideas, details, and context clues in the passage.'),
+                                  _buildInstructionRow('3.', 'Answer all comprehension questions independently after reading.'),
+                                  _buildInstructionRow('4.', 'Complete the assessment to determine Silent Reading Rate and Comprehension level.'),
+                                   if (effectiveInstructions.trim().isNotEmpty) ...[
+                                     const SizedBox(height: 16),
+                                     Container(
+                                       width: double.infinity,
+                                       padding: const EdgeInsets.all(14),
+                                       decoration: BoxDecoration(
+                                         color: const Color(0xFFEFF6FF),
+                                         borderRadius: BorderRadius.circular(16),
+                                         border: Border.all(
+                                           color: const Color(0xFFBFDBFE),
+                                           width: 1.0,
+                                         ),
+                                       ),
+                                       child: Column(
+                                         crossAxisAlignment:
+                                             CrossAxisAlignment.start,
+                                         children: [
+                                           Text(
+                                             'Special Instructions from Teacher',
+                                             style: GoogleFonts.inter(
+                                               fontSize: 13,
+                                               fontWeight: FontWeight.w700,
+                                               color: const Color(0xFF1D4ED8),
+                                             ),
+                                           ),
+                                           const SizedBox(height: 6),
+                                           Text(
+                                             effectiveInstructions.trim(),
+                                             style: GoogleFonts.inter(
+                                               fontSize: 13,
+                                               fontWeight: FontWeight.w400,
+                                               color: const Color(0xFF1E293B),
+                                               height: 1.4,
+                                             ),
+                                           ),
+                                         ],
+                                       ),
+                                     ),
+                                   ],
                                 ],
                               ),
                             ),
@@ -310,7 +389,7 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const SilentReadingAssessmentStoryPage(),
+        builder: (context) => SilentReadingAssessmentStoryPage(item: item),
       ),
     );
   }

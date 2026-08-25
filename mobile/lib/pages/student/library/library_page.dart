@@ -248,8 +248,8 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildContinueReadingCard() {
     const cardBg = Color(0xFFFEF8EC); // Creamy warm beige
-    const tagBg = Color(0xFFE6F4EA);
-    const tagTextColor = Color(0xFF137333);
+    const tagBg = Color(0xFFF1F5F9);
+    const tagTextColor = Color(0xFF475569);
     const continueBtnColor = Color(0xFFFBBF24);
 
     return GestureDetector(

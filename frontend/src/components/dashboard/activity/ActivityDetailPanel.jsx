@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ChartPieSlice, ArrowRight, PencilSimple, Trash, UsersThree, LockKey, CheckCircle } from '@phosphor-icons/react';
+import { ChartPieSlice, ArrowRight, PencilSimple, Trash, UsersThree, LockKey, CheckCircle, Notebook, PushPin } from '@phosphor-icons/react';
 
 export default function ActivityDetailPanel({ activity, onDelete, onToggleStatus }) {
   return (
@@ -104,13 +104,26 @@ export default function ActivityDetailPanel({ activity, onDelete, onToggleStatus
           </span>
         </div>
 
-        <div className="border-t border-ink/10 pt-2.5">
-          <p className="text-xs font-semibold text-ink">Instructions:</p>
-          <ol className="mt-1.5 list-decimal space-y-0.5 pl-4 text-xs text-ink/70 leading-normal">
-            {activity.instructions.map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ol>
+        <div className="border-t border-ink/10 pt-2.5 space-y-2.5">
+          <div>
+            <p className="text-xs font-semibold text-ink">Instructions:</p>
+            <ol className="mt-1.5 list-decimal space-y-0.5 pl-4 text-xs text-ink/70 leading-normal">
+              {(activity.instructions || []).map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ol>
+          </div>
+
+          {activity.specialInstructions && (
+            <div className="mt-3 rounded-2xl border border-blue-200/90 bg-blue-50/80 p-3.5 shadow-2xs">
+              <p className="text-xs font-bold text-brand-blue">
+                Special Instructions from Teacher
+              </p>
+              <p className="mt-1.5 text-xs text-slate-800 leading-relaxed font-medium whitespace-pre-line">
+                {activity.specialInstructions}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

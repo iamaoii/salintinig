@@ -823,7 +823,8 @@ async function assignPhilIriSetToClass(req, res) {
 // ---------------------------------------------------------------------------
 async function assignPhilIriToStudents(req, res) {
   try {
-    let { assignments, passageSet, assessmentType, assessmentPeriod, language, dueDate, isEdit } = req.body;
+    let { assignments, passageSet, assessmentType, assessmentPeriod, language, dueDate, isEdit, instructions: customInstructions, teacherNotes } = req.body;
+    const finalInstructions = (customInstructions || teacherNotes || '').trim() || null;
 
     if (!assessmentType || !assessmentPeriod) {
       return res.status(400).json({ success: false, error: 'assessmentType and assessmentPeriod are required.' });
@@ -913,9 +914,10 @@ async function assignPhilIriToStudents(req, res) {
                SET passage_id = $1, 
                    assigned_by_teacher_id = COALESCE($2, assigned_by_teacher_id),
                    due_date = $3,
+                   instructions = $4,
                    updated_at = CURRENT_TIMESTAMP
-               WHERE assessment_id = $4`,
-              [item.passageId, teacherId, cleanDueDate, existingId]
+               WHERE assessment_id = $5`,
+              [item.passageId, teacherId, cleanDueDate, finalInstructions, existingId]
             );
             successfulCount++;
             continue;
@@ -930,9 +932,9 @@ async function assignPhilIriToStudents(req, res) {
         }
 
         await db.query(
-          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
-          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod, cleanDueDate]
+          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, instructions, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'open')`,
+          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod, cleanDueDate, finalInstructions]
         );
         successfulCount++;
       }
@@ -1076,7 +1078,8 @@ async function getPhilIriActivities(req, res) {
           COUNT(DISTINCT CASE WHEN COALESCE(LOWER(aa.status), 'pending') != 'completed' THEN a.assessment_id END)::int AS "pending",
           MAX(a.created_at) AS "created_at",
           MAX(a.due_date) AS "dueDate",
-          BOOL_OR(LOWER(a.status) = 'closed') AS "isClosed"
+          BOOL_OR(LOWER(a.status) = 'closed') AS "isClosed",
+          MAX(a.instructions) AS "specialInstructions"
         FROM assessments a
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
@@ -1107,6 +1110,30 @@ async function getPhilIriActivities(req, res) {
         const isClosed = Boolean(r.isClosed);
         const formattedDueDate = r.dueDate ? new Date(r.dueDate).toLocaleDateString() : 'No Deadline';
 
+        let depEdInstructions = [];
+        if (r.assessmentType === 'oral') {
+          depEdInstructions = [
+            'Read the assigned passage aloud clearly and accurately into your device microphone.',
+            'Maintain proper pronunciation, pace, and reading expression.',
+            'Answer all comprehension questions carefully after completing the reading passage.',
+            'Complete the assessment to evaluate Oral Reading Fluency (WPM) and Comprehension level.',
+          ];
+        } else if (r.assessmentType === 'listening') {
+          depEdInstructions = [
+            'Listen attentively while the reading passage is read aloud clearly.',
+            'Focus on remembering key characters, events, and details of the story.',
+            'Answer all comprehension questions based strictly on what you heard.',
+            'Complete the assessment to determine Listening Comprehension level.',
+          ];
+        } else {
+          depEdInstructions = [
+            'Read the assigned passage silently at your regular reading speed.',
+            'Focus on understanding main ideas, details, and context clues in the passage.',
+            'Answer all comprehension questions independently after reading.',
+            'Complete the assessment to determine Silent Reading Rate and Comprehension level.',
+          ];
+        }
+
         return {
           id: uniqueId,
           title: masterTitle,
@@ -1129,10 +1156,8 @@ async function getPhilIriActivities(req, res) {
           studentsUnder14Gst: r.done,
           studentsAbove14Gst: r.pending,
           lastUpdate: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Today',
-          instructions: [
-            `Complete the ${typeLabel} (${periodLabel}) assessment for ${langLabel}.`,
-            'Includes assigned passage sets for your section students.',
-          ],
+          specialInstructions: r.specialInstructions || null,
+          instructions: depEdInstructions,
         };
       });
       return res.json({ success: true, activities });
@@ -1511,6 +1536,7 @@ async function getActivityDetail(req, res) {
           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
           a.status,
           a.due_date AS "dueDate",
+          a.instructions AS "instructions",
           COALESCE(a.reading_level_result, 'Pending Evaluation') AS "readingLevelResult",
           a.remarks,
           aa.attempt_id AS "attemptId",
@@ -1542,6 +1568,7 @@ async function getActivityDetail(req, res) {
       const langLabel = (language || 'fil').startsWith('en') ? 'English' : 'Filipino';
 
       const firstDueDate = sRes.rows.find((r) => r.dueDate)?.dueDate || null;
+      const firstInstructions = sRes.rows.find((r) => r.instructions)?.instructions || null;
 
       return res.json({
         success: true,
@@ -1552,6 +1579,7 @@ async function getActivityDetail(req, res) {
           period: period || 'pre_test',
           language: language || 'fil',
           dueDate: firstDueDate,
+          instructions: firstInstructions,
           typeLabel,
           periodLabel,
           langLabel,

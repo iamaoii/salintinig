@@ -282,20 +282,20 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                         ? rawSet
                                         : 'Set $rawSet';
 
-                                    String icon = PhIcons.userSoundRegular;
+                                    String icon = PhIcons.userSoundBold;
                                     Color iconColor = const Color(0xFF1B64D8);
                                     Color iconBg = const Color(0xFFD0E1F9);
                                     Color btnColor = const Color(0xFF1B64D8);
                                     Color btnTextColor = Colors.white;
 
                                     if (type == 'listening') {
-                                      icon = PhIcons.earRegular;
+                                      icon = PhIcons.earBold;
                                       iconColor = const Color(0xFFD97706);
                                       iconBg = const Color(0xFFFEF3C7);
                                       btnColor = const Color(0xFFFFC000); // Bright Golden Yellow like Teacher portal
                                       btnTextColor = const Color(0xFF451A03); // High-contrast dark text
                                     } else if (type == 'silent') {
-                                      icon = PhIcons.bookOpenRegular;
+                                      icon = PhIcons.bookOpenBold;
                                       iconColor = const Color(0xFF10B981);
                                       iconBg = const Color(0xFFD1FAE5);
                                       btnColor = const Color(0xFF10B981);
@@ -358,7 +358,11 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    const ListeningAssessmentInstructionsPage(),
+                                                    ListeningAssessmentInstructionsPage(
+                                                  item: item,
+                                                  customInstructions:
+                                                      item['instructions'],
+                                                ),
                                               ),
                                             ).then((completed) {
                                               if (completed == true) {
@@ -389,7 +393,11 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    const SilentReadingAssessmentInstructionsPage(),
+                                                    SilentReadingAssessmentInstructionsPage(
+                                                  item: item,
+                                                  customInstructions:
+                                                      item['instructions'],
+                                                ),
                                               ),
                                             ).then((_) {
                                               setState(() {
@@ -418,7 +426,11 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    const OralReadingAssessmentInstructionsPage(),
+                                                    OralReadingAssessmentInstructionsPage(
+                                                  item: item,
+                                                  customInstructions:
+                                                      item['instructions'],
+                                                ),
                                               ),
                                             ).then((_) {
                                               setState(() {

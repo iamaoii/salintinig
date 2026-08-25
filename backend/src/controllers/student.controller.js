@@ -1611,6 +1611,7 @@ async function getStudentActiveAssignment(req, res) {
              LOWER(a.assessment_type)   AS "assessmentType",
              LOWER(a.assessment_period) AS "period",
              a.due_date        AS "dueDate",
+             a.instructions    AS "instructions",
              COALESCE(a.status, 'open') AS status,
              a.created_at      AS "assignedAt",
              p.title,
@@ -1654,6 +1655,8 @@ async function getStudentActiveAssignment(req, res) {
             row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
           const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
           const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+          const rawSet      = row.set ? String(row.set).trim() : 'Set A';
+          const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
 
           const isDone = Boolean(
             attemptsStatus[row.assessmentType] ||
@@ -1670,8 +1673,9 @@ async function getStudentActiveAssignment(req, res) {
             language:      langLabel,
             rawLanguage:   row.language || 'fil',
             gradeLevel:    row.gradeLevel || targetGrade,
-            passageSet:    row.set || 'Set A',
+            passageSet:    setLabel,
             dueDate:       row.dueDate,
+            instructions:  row.instructions || null,
             status:        row.status,
             isCompleted:   isDone,
             passageId:     row.passageId,

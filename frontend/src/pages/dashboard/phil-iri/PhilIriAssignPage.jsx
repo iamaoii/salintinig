@@ -70,6 +70,7 @@ export default function PhilIriAssignPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [selectedGrade, setSelectedGrade] = useState(initialGrade);
   const [dueDate, setDueDate] = useState('');
+  const [customInstructions, setCustomInstructions] = useState('');
   const [students, setStudents] = useState([]);
   const [passages, setPassages] = useState([]);
   const [selectedPassages, setSelectedPassages] = useState({});
@@ -172,6 +173,7 @@ export default function PhilIriAssignPage() {
             setSelectedLanguage(act.language || 'fil');
 
             if (act.dueDate) setDueDate(act.dueDate.split('T')[0]);
+            if (act.instructions) setCustomInstructions(act.instructions);
 
             if (Array.isArray(act.students) && act.students.length > 0) {
               const assignedIds = new Set();
@@ -355,6 +357,7 @@ export default function PhilIriAssignPage() {
           assessmentPeriod: period,
           dueDate: dueDate || null,
           isEdit: isEditMode,
+          instructions: customInstructions || null,
         }),
       });
 
@@ -550,6 +553,20 @@ export default function PhilIriAssignPage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Optional Custom Instructions / Teacher Notes */}
+              <div>
+                <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-ink/80">
+                  Special Instructions / Notes for Students <span className="text-xs font-normal text-ink/50">(Optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="e.g., Please make sure you are in a quiet room and speak loudly into your microphone..."
+                  className="w-full rounded-xl border border-ink/15 bg-white p-3 text-xs text-ink outline-none transition-all focus:border-brand-blue focus:ring-1 focus:ring-brand-blue placeholder:text-ink/35"
+                />
               </div>
             </div>
           </div>

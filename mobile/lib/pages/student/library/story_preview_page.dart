@@ -245,17 +245,17 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                               runSpacing: 8,
                               alignment: WrapAlignment.center,
                               children: tags.map((tag) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE6F4EA),
+                                  color: const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
                                   tag,
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF137333),
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF475569),
                                   ),
                                 ),
                               )).toList(),
