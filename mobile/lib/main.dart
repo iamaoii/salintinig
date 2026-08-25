@@ -57,6 +57,7 @@ class SalinTinigApp extends StatelessWidget {
     return MaterialApp(
       title: 'SalinTinig',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -123,7 +124,6 @@ class SalinTinigApp extends StatelessWidget {
           ),
         ),
       ),
-      themeMode: ThemeMode.system,
       builder: (context, child) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
