@@ -49,7 +49,7 @@ class _OralReadingAssessmentStoryPageState
 
     final item = widget.item;
     final passageTitle =
-        item?['passageTitle'] ?? item?['passage']?['title'] ?? 'ISANG PANGARAP';
+        item?['passageTitle'] ?? item?['title'] ?? item?['passage']?['title'] ?? 'Oral Reading Assessment';
     final rawSet =
         (item?['passageSet'] ??
                 item?['set'] ??
@@ -428,7 +428,7 @@ class _OralReadingAssessmentStoryPageState
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const OralReadingMicrophoneTestPage(),
+        builder: (context) => OralReadingMicrophoneTestPage(item: widget.item),
       ),
     );
   }

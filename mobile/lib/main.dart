@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:record/record.dart';
 import 'package:salintinig/services/api_config.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
@@ -41,7 +42,12 @@ void main() async {
   try {
     await ApiService.initToken();
     await AuthService.initSession();
+    // 1. Request Notification Permissions right away
     await LocalNotificationService.init();
+
+    // 2. Request Audio Microphone Permissions right away upon app installation
+    final audioRecorder = AudioRecorder();
+    await audioRecorder.hasPermission();
   } catch (e) {
     debugPrint('Service init notice: $e');
   }

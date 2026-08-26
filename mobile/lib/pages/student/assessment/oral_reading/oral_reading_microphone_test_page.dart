@@ -12,7 +12,8 @@ import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 
 class OralReadingMicrophoneTestPage extends StatefulWidget {
-  const OralReadingMicrophoneTestPage({super.key});
+  final Map<String, dynamic>? item;
+  const OralReadingMicrophoneTestPage({super.key, this.item});
 
   @override
   State<OralReadingMicrophoneTestPage> createState() => _OralReadingMicrophoneTestPageState();
@@ -384,9 +385,9 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                           color: primaryBlue,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: primaryBlue.withValues(alpha: 0.3),
-                                              blurRadius: 20,
-                                              offset: const Offset(0, 8),
+                                              color: primaryBlue.withValues(alpha: 0.25),
+                                              blurRadius: 16,
+                                              offset: const Offset(0, 6),
                                             ),
                                           ],
                                         ),
@@ -513,8 +514,8 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                         borderRadius: BorderRadius.circular(16),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: primaryBlue.withValues(alpha: 0.2),
-                                            blurRadius: 12,
+                                            color: primaryBlue.withValues(alpha: 0.18),
+                                            blurRadius: 10,
                                             offset: const Offset(0, 4),
                                           ),
                                         ],
@@ -554,19 +555,9 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                             else if (_testState == 'failure')
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12.0),
-                                child: Container(
+                                child: SizedBox(
                                   width: double.infinity,
                                   height: 56,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFFEF4444).withValues(alpha: 0.2),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
                                   child: ElevatedButton(
                                     onPressed: () {
                                       Feedback.forTap(context);
@@ -699,7 +690,7 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const OralReadingAssessmentReaderPage(),
+                                builder: (context) => OralReadingAssessmentReaderPage(item: widget.item),
                               ),
                             );
                           }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:record/record.dart';
@@ -8,42 +7,59 @@ import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 
 class OralReadingAssessmentReaderPage extends StatefulWidget {
-  const OralReadingAssessmentReaderPage({super.key});
+  final Map<String, dynamic>? item;
+  const OralReadingAssessmentReaderPage({super.key, this.item});
 
   @override
-  State<OralReadingAssessmentReaderPage> createState() => _OralReadingAssessmentReaderPageState();
+  State<OralReadingAssessmentReaderPage> createState() =>
+      _OralReadingAssessmentReaderPageState();
 }
 
-class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentReaderPage> {
+class _OralReadingAssessmentReaderPageState
+    extends State<OralReadingAssessmentReaderPage> {
   bool _isDarkMode = false;
   int _currentPage = 0;
   final PageController _pageController = PageController();
 
-  double _recordingProgress = 0.2;
+  double _recordingProgress = 0.0;
   Timer? _progressTimer;
-  final Random _random = Random();
 
   String _fullStoryText = '';
+  String _storyTitle = 'Oral Reading Passage';
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _recordedAudioPath;
+  int _countdown = 3;
+  bool _isCountdownActive = true;
+  Timer? _countdownTimer;
+  int _readingSecondsElapsed = 0;
+  Timer? _readingTimer;
 
   @override
   void initState() {
     super.initState();
+    _extractItemData();
     _fetchPassageFromApi();
-    _startVoiceRecording();
+    _startCountdownSequence();
 
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
-      double level = 0.2;
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 50), (
+      timer,
+    ) async {
+      double level = 0.0;
       try {
         if (await _audioRecorder.isRecording()) {
           final amp = await _audioRecorder.getAmplitude();
-          level = ((amp.current + 60) / 60).clamp(0.05, 1.0);
-        } else {
-          level = 0.15 + _random.nextDouble() * 0.70;
+          final db = amp.current; // dB level (-160 to 0)
+
+          // Noise Gate filter: Ignore ambient background noise below -32 dB
+          if (db > -32.0) {
+            level = ((db + 32.0) / 28.0).clamp(0.0, 1.0);
+          } else {
+            level =
+                0.0; // Bar stays completely still on ambient background noise
+          }
         }
       } catch (_) {
-        level = 0.15 + _random.nextDouble() * 0.70;
+        level = 0.0;
       }
       if (mounted) {
         setState(() {
@@ -53,11 +69,41 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
     });
   }
 
+  void _startCountdownSequence() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        if (_countdown > 1) {
+          setState(() {
+            _countdown--;
+          });
+        } else {
+          _countdownTimer?.cancel();
+          setState(() {
+            _isCountdownActive = false;
+          });
+          _startVoiceRecording();
+          _startReadingTimer();
+        }
+      }
+    });
+  }
+
+  void _startReadingTimer() {
+    _readingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _readingSecondsElapsed++;
+        });
+      }
+    });
+  }
+
   Future<void> _startVoiceRecording() async {
     try {
       if (await _audioRecorder.hasPermission()) {
         final tempDir = Directory.systemTemp;
-        final path = '${tempDir.path}/oral_reading_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        final path =
+            '${tempDir.path}/oral_reading_${DateTime.now().millisecondsSinceEpoch}.m4a';
         await _audioRecorder.start(
           const RecordConfig(
             encoder: AudioEncoder.aacLc,
@@ -85,26 +131,147 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
     }
   }
 
+  void _extractItemData() {
+    final item = widget.item;
+    if (item != null) {
+      final passageObj = item['passage'] is Map ? item['passage'] : item;
+      final String? title =
+          item['passageTitle'] ??
+          item['title'] ??
+          passageObj?['title'] ??
+          passageObj?['passageTitle'];
+      final String? text =
+          passageObj?['text'] ??
+          passageObj?['contentText'] ??
+          passageObj?['content_text'] ??
+          item['text'] ??
+          item['contentText'] ??
+          item['content_text'];
+      final List<dynamic>? questions =
+          item['questions'] ?? passageObj?['questions'];
+
+      if (title != null && title.trim().isNotEmpty) {
+        _storyTitle = title.trim();
+      }
+      if (text != null && text.trim().isNotEmpty) {
+        _fullStoryText = text.trim();
+      }
+      if (questions != null && questions.isNotEmpty) {
+        _dynamicQuestions = questions;
+      }
+      debugPrint(
+        '[OralReader] Extracted passed item: title="$_storyTitle", text length=${_fullStoryText.length}',
+      );
+    }
+  }
+
   void _fetchPassageFromApi() async {
+    // If passage item was already passed directly into widget constructor, keep it!
+    if (_fullStoryText.trim().isNotEmpty && widget.item != null) {
+      debugPrint(
+        '[OralReader] Using directly passed passage item: "$_storyTitle"',
+      );
+      return;
+    }
+
     try {
-      final res = await ApiService.get('/student/assessment/passages?grade=Grade%204&type=oral&period=Pre-Test');
-      if (res.success && res.data != null && res.data['passages'] != null && (res.data['passages'] as List).isNotEmpty) {
+      // 1. Try fetching student's assigned Phil-IRI activity first
+      try {
+        final myAssignRes = await ApiService.get(
+          '/student/assessment/my-assignment',
+        );
+        if (myAssignRes.success &&
+            myAssignRes.data != null &&
+            myAssignRes.data['assignedActivities'] != null) {
+          final activities = myAssignRes.data['assignedActivities'] as List;
+          if (activities.isNotEmpty) {
+            final oralActivity = activities.firstWhere(
+              (act) =>
+                  act['assessmentType'] == 'oral' ||
+                  act['assessmentType'] == 'oral reading',
+              orElse: () => activities[0],
+            );
+            if (oralActivity != null) {
+              final passage = oralActivity['passage'] ?? oralActivity;
+              final String title =
+                  passage['title'] ??
+                  oralActivity['passageTitle'] ??
+                  'Oral Reading Passage';
+              final String text =
+                  passage['text'] ??
+                  passage['contentText'] ??
+                  passage['content_text'] ??
+                  '';
+              final List<dynamic>? questions = passage['questions'];
+
+              if (mounted && text.trim().isNotEmpty) {
+                setState(() {
+                  _storyTitle = title;
+                  _fullStoryText = text.trim();
+                  _dynamicQuestions = questions;
+                });
+                debugPrint(
+                  '[OralReader] Successfully loaded student assignment passage: $title',
+                );
+                return;
+              }
+            }
+          }
+        }
+      } catch (assignErr) {
+        debugPrint('[OralReader] Assignment fetch notice: $assignErr');
+      }
+
+      // 2. Fallback to general Phil-IRI passages API
+      var res = await ApiService.get('/student/assessment/passages');
+      if (!res.success ||
+          res.data == null ||
+          res.data['passages'] == null ||
+          (res.data['passages'] as List).isEmpty) {
+        res = await ApiService.get(
+          '/student/assessment/passages?grade=Grade%204',
+        );
+      }
+
+      if (res.success &&
+          res.data != null &&
+          res.data['passages'] != null &&
+          (res.data['passages'] as List).isNotEmpty) {
         final passage = res.data['passages'][0];
+        final String title =
+            passage['title'] ??
+            passage['passage_title'] ??
+            'Oral Reading Passage';
+        final String text =
+            passage['text'] ??
+            passage['contentText'] ??
+            passage['content_text'] ??
+            '';
+        final List<dynamic>? questions = passage['questions'];
+
         if (mounted) {
           setState(() {
-            _fullStoryText = passage['contentText'] ?? '';
-            _dynamicQuestions = passage['questions'];
+            _storyTitle = title;
+            if (text.trim().isNotEmpty) {
+              _fullStoryText = text.trim();
+            }
+            _dynamicQuestions = questions;
           });
+          debugPrint(
+            '[OralReader] Successfully loaded general passage: $title',
+          );
         }
         return;
       }
     } catch (e) {
-      debugPrint('Passage API fetch notice: $e');
+      debugPrint('[OralReader] Passage API fetch notice: $e');
     }
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
+    _readingTimer?.cancel();
     _progressTimer?.cancel();
     _pageController.dispose();
     _stopVoiceRecording();
@@ -121,7 +288,14 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
     required TextStyle textStyle,
     required double paragraphSpacing,
   }) {
-    final List<String> paragraphs = fullText.split('\n\n');
+    final String normalizedText = fullText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final List<String> rawParagraphs = normalizedText.contains('\n\n')
+        ? normalizedText.split('\n\n')
+        : normalizedText.split('\n');
+    final List<String> paragraphs = rawParagraphs
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
     final List<List<String>> pages = [];
     List<String> currentPage = [];
     double currentHeight = 0.0;
@@ -140,27 +314,20 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
         currentPage.add(paragraph);
         currentHeight += spacing + paraHeight;
       } else {
-        // The paragraph doesn't fit as a whole.
-        // If the current page already has text, finish it and try this paragraph on a clean next page.
+        // The paragraph doesn't fit as a whole on the current page.
+        // If current page already has text, push it to pages and start a new clean page with this paragraph.
         if (currentPage.isNotEmpty) {
           pages.add(currentPage);
           currentPage = [];
           currentHeight = 0.0;
         }
 
-        // Now on a clean page. Check if the paragraph fits as a whole.
-        final textPainterClean = TextPainter(
-          text: TextSpan(text: paragraph.trim(), style: textStyle),
-          textDirection: TextDirection.ltr,
-        );
-        textPainterClean.layout(maxWidth: maxWidth);
-        final double paraHeightClean = textPainterClean.height;
-
-        if (paraHeightClean <= maxHeight) {
+        // Check if paragraph fits on a clean new page
+        if (paraHeight <= maxHeight) {
           currentPage.add(paragraph);
-          currentHeight = paraHeightClean;
+          currentHeight = paraHeight;
         } else {
-          // If it still doesn't fit on a clean page, split by sentences to avoid overflow
+          // If a single paragraph is larger than an entire page, split into sentences for safety
           final sentences = _splitIntoSentences(paragraph);
           for (final sentence in sentences) {
             final textPainterSent = TextPainter(
@@ -204,7 +371,8 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
       if (i < paragraph.length - 1) {
         final char = paragraph[i];
         final nextChar = paragraph[i + 1];
-        if ((char == '.' || char == '?' || char == '!') && (nextChar == ' ' || nextChar == '”')) {
+        if ((char == '.' || char == '?' || char == '!') &&
+            (nextChar == ' ' || nextChar == '”')) {
           final int end = (nextChar == '”') ? i + 2 : i + 1;
           result.add(paragraph.substring(start, end).trim());
           start = end;
@@ -223,42 +391,49 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
 
   @override
   Widget build(BuildContext context) {
-    final Color bgColor = _isDarkMode ? const Color(0xFF1A1816) : const Color(0xFFFCFAF7);
-    final Color textColor = _isDarkMode ? const Color(0xFFE5E0DB) : const Color(0xFF2D2D2D);
-    final Color titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final Color secondaryTextColor = _isDarkMode ? const Color(0xFF8A8580) : const Color(0xFF64748B);
+    final Color bgColor = _isDarkMode
+        ? const Color(0xFF1A1816)
+        : const Color(0xFFFCFAF7);
+    final Color textColor = _isDarkMode
+        ? const Color(0xFFE5E0DB)
+        : const Color(0xFF2D2D2D);
+    final Color titleColor = _isDarkMode
+        ? const Color(0xFFECE8E4)
+        : const Color(0xFF1E293B);
+    final Color secondaryTextColor = _isDarkMode
+        ? const Color(0xFF8A8580)
+        : const Color(0xFF64748B);
     const primaryBlue = Color(0xFF1B64D8);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: PopScope(
         canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          _confirmExit(context);
-        },
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isTablet = constraints.maxWidth > 600;
+        onPopInvokedWithResult: (didPop, result) {},
+        child: Stack(
+          children: [
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isTablet = constraints.maxWidth > 600;
 
-              return Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isTablet ? 520 : double.infinity,
-                  ),
-                  child: Column(
-                    children: [
-                      // 1. Header with Close Button and Title
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const SizedBox(width: 48),
-                            Expanded(
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isTablet ? 520 : double.infinity,
+                      ),
+                      child: Column(
+                        children: [
+                          // 1. Header with Title (No exit options)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 12.0,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
                               child: Text(
-                                'Isang Pangarap',
+                                _storyTitle,
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.lora(
@@ -268,162 +443,263 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
                                 ),
                               ),
                             ),
-                            IconButton(
-                              onPressed: () {
-                                Feedback.forTap(context);
-                                _confirmExit(context);
-                              },
-                              icon: Icon(
-                                Icons.close_rounded,
-                                size: 28,
-                                color: titleColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
 
-                      // 2. Reading Text Block (PageView with dynamic pagination)
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, viewConstraints) {
-                            final double horizontalPadding = 56.0;
-                            final double verticalPadding = 48.0;
-                            // Account for page indicator, mic row, and theme switchers
-                            final double footerControlsHeight = 176.0;
-                            final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
-                            final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight - 12.0;
+                          // 2. Reading Text Block (PageView with dynamic pagination)
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, viewConstraints) {
+                                final double horizontalPadding = 40.0;
+                                final double verticalPadding = 24.0;
+                                // Accurate height for bottom page count indicator and mic bar
+                                final double footerControlsHeight = 90.0;
+                                final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
+                                final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight;
 
-                            final TextStyle textStyle = GoogleFonts.lora(
-                              fontSize: 22,
-                              height: 1.65,
-                              fontWeight: FontWeight.w500,
-                              color: textColor,
-                            );
+                                final TextStyle textStyle = GoogleFonts.lora(
+                                  fontSize: 22.0,
+                                  height: 1.75,
+                                  fontWeight: FontWeight.w500,
+                                  color: textColor,
+                                );
 
-                            final dynamicPages = _paginateStory(
-                              fullText: _fullStoryText,
-                              maxWidth: maxWidth > 0 ? maxWidth : 100,
-                              maxHeight: maxHeight > 0 ? maxHeight : 100,
-                              textStyle: textStyle,
-                              paragraphSpacing: 28.0,
-                            );
+                                final dynamicPages = _paginateStory(
+                                  fullText: _fullStoryText,
+                                  maxWidth: maxWidth > 0 ? maxWidth : 100,
+                                  maxHeight: maxHeight > 0 ? maxHeight : 100,
+                                  textStyle: textStyle,
+                                  paragraphSpacing: 30.0,
+                                );
 
-                            final int totalPages = dynamicPages.length;
-                            final int activePage = _currentPage.clamp(0, totalPages - 1);
+                                final int totalPages = dynamicPages.length;
+                                final int activePage = _currentPage.clamp(
+                                  0,
+                                  totalPages - 1,
+                                );
 
-                            return Column(
-                              children: [
-                                Expanded(
-                                  child: PageView.builder(
-                                    controller: _pageController,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: totalPages,
-                                    onPageChanged: (pageIndex) {
-                                      setState(() {
-                                        _currentPage = pageIndex;
-                                      });
-                                    },
-                                    itemBuilder: (context, pageIndex) {
-                                      final pageParagraphs = dynamicPages[pageIndex];
+                                return Column(
+                                  children: [
+                                    Expanded(
+                                      child: PageView.builder(
+                                        controller: _pageController,
+                                        physics: const BouncingScrollPhysics(),
+                                        itemCount: totalPages,
+                                        onPageChanged: (pageIndex) {
+                                          setState(() {
+                                            _currentPage = pageIndex;
+                                          });
+                                        },
+                                        itemBuilder: (context, pageIndex) {
+                                          final pageParagraphs = dynamicPages[pageIndex];
 
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          mainAxisAlignment: MainAxisAlignment.start,
-                                          children: List.generate(pageParagraphs.length, (pIndex) {
-                                            final isLast = pIndex == pageParagraphs.length - 1;
-                                            return Padding(
-                                              padding: EdgeInsets.only(bottom: isLast ? 0.0 : 28.0),
-                                              child: Text(
-                                                pageParagraphs[pIndex].trim(),
-                                                style: textStyle,
-                                              ),
-                                            );
-                                          }),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-
-                                // 3. Centered page count indicator
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Text(
-                                    '${activePage + 1}/$totalPages',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: secondaryTextColor,
-                                    ),
-                                  ),
-                                ),
-
-                                // 4. Active Voice Recording Indicator Row
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 12.0),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.mic_none_rounded,
-                                        color: _isDarkMode ? Colors.white : primaryBlue,
-                                        size: 26,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: LayoutBuilder(
-                                          builder: (context, barConstraints) {
-                                            return ClipRRect(
-                                              borderRadius: BorderRadius.circular(4),
-                                              child: Container(
-                                                height: 6,
-                                                width: double.infinity,
-                                                color: _isDarkMode
-                                                    ? Colors.white
-                                                    : const Color(0xFFE2E8F0),
-                                                child: Stack(
-                                                  children: [
-                                                    AnimatedContainer(
-                                                      duration: const Duration(milliseconds: 100),
-                                                      width: barConstraints.maxWidth * _recordingProgress,
-                                                      color: primaryBlue,
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 20.0,
+                                              vertical: 12.0,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              mainAxisAlignment: MainAxisAlignment.start,
+                                              children: List.generate(
+                                                pageParagraphs.length,
+                                                (pIndex) {
+                                                  final isLast = pIndex == pageParagraphs.length - 1;
+                                                  return Padding(
+                                                    padding: EdgeInsets.only(
+                                                      bottom: isLast ? 0.0 : 30.0,
                                                     ),
-                                                  ],
-                                                ),
+                                                    child: Text(
+                                                      pageParagraphs[pIndex]
+                                                          .trim(),
+                                                      style: textStyle,
+                                                    ),
+                                                  );
+                                                },
                                               ),
-                                            );
-                                          },
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+
+                                    // 3. Centered page count indicator
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8.0,
+                                      ),
+                                      child: Text(
+                                        '${activePage + 1}/$totalPages',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: secondaryTextColor,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
 
-                                // 5. Footer navigation controls
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                      left: 24.0, right: 24.0, bottom: 20.0, top: 12.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      _buildThemeSwitcher(),
-                                      _buildActionButton(activePage, totalPages),
-                                    ],
-                                  ),
+                                    // 4. Active Voice Recording Indicator Row
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 32.0,
+                                        vertical: 12.0,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.mic_none_rounded,
+                                            color: _isDarkMode
+                                                ? Colors.white
+                                                : primaryBlue,
+                                            size: 26,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: LayoutBuilder(
+                                              builder: (context, barConstraints) {
+                                                return ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  child: Container(
+                                                    height: 6,
+                                                    width: double.infinity,
+                                                    color: _isDarkMode
+                                                        ? Colors.white
+                                                        : const Color(
+                                                            0xFFE2E8F0,
+                                                          ),
+                                                    child: Stack(
+                                                      children: [
+                                                        AnimatedContainer(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    40,
+                                                              ),
+                                                          curve: Curves
+                                                              .easeOutCubic,
+                                                          width:
+                                                              barConstraints
+                                                                  .maxWidth *
+                                                              _recordingProgress,
+                                                          decoration: BoxDecoration(
+                                                            color: primaryBlue,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // 5. Footer navigation controls
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 24.0,
+                                        right: 24.0,
+                                        bottom: 20.0,
+                                        top: 12.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          _buildThemeSwitcher(),
+                                          _buildActionButton(
+                                            activePage,
+                                            totalPages,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (_isCountdownActive)
+              Positioned.fill(
+                child: Container(
+                  color: _isDarkMode
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFFCFAF7),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Get Ready to Read',
+                          style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: _isDarkMode
+                                ? Colors.white
+                                : const Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Recording starts in...',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, animation) =>
+                              ScaleTransition(scale: animation, child: child),
+                          child: Container(
+                            key: ValueKey(_countdown),
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF1B64D8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF1B64D8,
+                                  ).withValues(alpha: 0.22),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
                                 ),
                               ],
-                            );
-                          },
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$_countdown',
+                                style: GoogleFonts.inter(
+                                  fontSize: 52,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -442,14 +718,18 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
         height: 48,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          color: _isDarkMode ? const Color(0xFF141A24) : const Color(0xFFE2E8F0),
+          color: _isDarkMode
+              ? const Color(0xFF141A24)
+              : const Color(0xFFE2E8F0),
         ),
         child: Stack(
           children: [
             AnimatedAlign(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOutCubic,
-              alignment: _isDarkMode ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: _isDarkMode
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: Container(
                 width: 44,
                 height: 44,
@@ -491,8 +771,12 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
   Widget _buildActionButton(int activePage, int totalPages) {
     final isFirstPage = activePage == 0;
     final isLastPage = activePage == totalPages - 1;
-    final Color buttonBgColor = _isDarkMode ? const Color(0xFF1E2530) : const Color(0xFFE2E8F0);
-    final Color iconColor = _isDarkMode ? Colors.white : const Color(0xFF475569);
+    final Color buttonBgColor = _isDarkMode
+        ? const Color(0xFF1E2530)
+        : const Color(0xFFE2E8F0);
+    final Color iconColor = _isDarkMode
+        ? Colors.white
+        : const Color(0xFF475569);
 
     if (totalPages <= 1) {
       return GestureDetector(
@@ -605,7 +889,7 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1B64D8).withValues(alpha: 0.25),
+            color: const Color(0xFF1B64D8).withValues(alpha: 0.18),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -634,65 +918,32 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
     );
   }
 
-  void _confirmExit(BuildContext context) {
-    final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
-    final dialogBg = _isDarkMode ? const Color(0xFF22201E) : Colors.white;
-    final cancelColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Exit Assessment?',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
-          ),
-          content: Text(
-            'Your current reading progress will be lost. Are you sure you want to exit?',
-            style: GoogleFonts.inter(fontSize: 14, color: descColor),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Close Reader Page
-              },
-              child: Text(
-                'Exit',
-                style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _confirmStartQuiz(BuildContext context) {
-    final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
+    final titleColor = _isDarkMode
+        ? const Color(0xFFECE8E4)
+        : const Color(0xFF1E293B);
+    final descColor = _isDarkMode
+        ? const Color(0xFFC5C0BA)
+        : const Color(0xFF475569);
     final dialogBg = _isDarkMode ? const Color(0xFF22201E) : Colors.white;
-    final cancelColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
+    final cancelColor = _isDarkMode
+        ? const Color(0xFFC5C0BA)
+        : const Color(0xFF64748B);
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Text(
             'Start Quiz?',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w800,
+              color: titleColor,
+            ),
           ),
           content: Text(
             'You won\'t be able to read the story again once you start the quiz. Are you ready to begin?',
@@ -703,17 +954,23 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
+                style: GoogleFonts.inter(
+                  color: cancelColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext); // Close dialog
-                _finishReading();             // Transition to Quiz Page
+                _finishReading(); // Transition to Quiz Page
               },
               child: Text(
                 'Start',
-                style: GoogleFonts.inter(color: const Color(0xFF1B64D8), fontWeight: FontWeight.w700),
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF1B64D8),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -733,6 +990,9 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
         builder: (context) => OralReadingAssessmentQuizPage(
           dynamicQuestions: _dynamicQuestions,
           recordedAudioPath: _recordedAudioPath,
+          readingTimeSeconds: _readingSecondsElapsed > 0
+              ? _readingSecondsElapsed
+              : 60,
         ),
       ),
     );

@@ -7,11 +7,13 @@ import 'package:salintinig/widgets/app_toast.dart';
 class OralReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
   final String? recordedAudioPath;
+  final int? readingTimeSeconds;
 
   const OralReadingAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
     this.recordedAudioPath,
+    this.readingTimeSeconds,
   });
 
   @override
@@ -27,33 +29,28 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
   final List<Map<String, dynamic>> _defaultQuestions = [
     {
       'question': 'Sino ang pangunahing tauhan sa kuwento?',
-      'options': ['Si Mang Tomas', 'Si Juan', 'Si Pedro', 'Si Ana'],
+      'options': ['Ang pangunahing tauhan', 'Ang kaniyang kaibigan', 'Ang kapitbahay', 'Ang guro'],
       'correctIndex': 0,
     },
     {
-      'question': 'Ano ang hanapbuhay ni Mang Tomas?',
-      'options': ['Mangingisda', 'Magsasaka', 'Guro', 'Karpintero'],
-      'correctIndex': 1,
+      'question': 'Tungkol saan ang binasang kuwento?',
+      'options': ['Pagtulong sa kapwa', 'Pagsasaka', 'Paglalakbay', 'Pakikipagsapalaran'],
+      'correctIndex': 0,
     },
     {
-      'question': 'Saan matatagpuan ang bukirin ni Mang Tomas?',
-      'options': ['Sa gitna ng lungsod', 'Sa tabi ng dagat', 'Sa paanan ng bundok', 'Sa ibabaw ng burol'],
-      'correctIndex': 2,
+      'question': 'Ano ang magandang katangian na ipinakita sa kuwento?',
+      'options': ['Kabutihan at katapangan', 'Katamaran', 'Kagalitan', 'Katakutan'],
+      'correctIndex': 0,
     },
     {
-      'question': 'Ano ang naramdaman ni Mang Tomas sa kaniyang huling ani?',
-      'options': ['Malungkot', 'Galit', 'Masaya at Nagpapasalamat', 'Nababato'],
-      'correctIndex': 2,
-    },
-    {
-      'question': 'Ano ang aral ng kuwento?',
+      'question': 'Ano ang magandang aral na matututuhan sa kuwento?',
       'options': [
-        'Huwag magsikap sa buhay',
-        'Maging matiyaga at magpasalamat sa biiyaya',
-        'Umasa lamang sa tulong ng iba',
-        'Mag-aksaya ng pagkain'
+        'Maging matulungin at mabuti sa kapwa',
+        'Huwag tumulong sa nangangailangan',
+        'Umasa lamang sa iba',
+        'Maging makasarili'
       ],
-      'correctIndex': 1,
+      'correctIndex': 0,
     },
   ];
 
