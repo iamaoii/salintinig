@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_congratulations_page.dart';
 import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class OralReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
+  final String? recordedAudioPath;
 
   const OralReadingAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
+    this.recordedAudioPath,
   });
 
   @override
@@ -17,40 +20,40 @@ class OralReadingAssessmentQuizPage extends StatefulWidget {
 
 class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQuizPage> {
   int _currentQuestionIndex = 0;
+  final Map<int, int> _selectedAnswers = {};
   
-  late List<int?> _selectedAnswers;
   late List<Map<String, dynamic>> _questions;
 
   final List<Map<String, dynamic>> _defaultQuestions = [
     {
-      'questionText': 'Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?',
-      'options': [
-        'Jamil',
-        'Abdul',
-        'Mohammed',
-        'Allah',
-      ],
-      'correctAnswerIndex': 0,
+      'question': 'Sino ang pangunahing tauhan sa kuwento?',
+      'options': ['Si Mang Tomas', 'Si Juan', 'Si Pedro', 'Si Ana'],
+      'correctIndex': 0,
     },
     {
-      'questionText': 'Ano ang banal na aklat ng mga Muslim na binanggit ni Tito Abdul?',
-      'options': [
-        'Bibliya',
-        'Koran',
-        'Karnak',
-        'Talmud',
-      ],
-      'correctAnswerIndex': 1,
+      'question': 'Ano ang hanapbuhay ni Mang Tomas?',
+      'options': ['Mangingisda', 'Magsasaka', 'Guro', 'Karpintero'],
+      'correctIndex': 1,
     },
     {
-      'questionText': 'Ano ang pinakabanal na gawain ng mga Muslim kung saan sila ay nag-aayuno?',
+      'question': 'Saan matatagpuan ang bukirin ni Mang Tomas?',
+      'options': ['Sa gitna ng lungsod', 'Sa tabi ng dagat', 'Sa paanan ng bundok', 'Sa ibabaw ng burol'],
+      'correctIndex': 2,
+    },
+    {
+      'question': 'Ano ang naramdaman ni Mang Tomas sa kaniyang huling ani?',
+      'options': ['Malungkot', 'Galit', 'Masaya at Nagpapasalamat', 'Nababato'],
+      'correctIndex': 2,
+    },
+    {
+      'question': 'Ano ang aral ng kuwento?',
       'options': [
-        'Ramadan',
-        'Pasko',
-        'Semana Santa',
-        'Fiesta',
+        'Huwag magsikap sa buhay',
+        'Maging matiyaga at magpasalamat sa biiyaya',
+        'Umasa lamang sa tulong ng iba',
+        'Mag-aksaya ng pagkain'
       ],
-      'correctAnswerIndex': 0,
+      'correctIndex': 1,
     },
   ];
 
@@ -59,17 +62,16 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
     super.initState();
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
       _questions = widget.dynamicQuestions!.map((q) => {
-        'questionText': q['questionText'] ?? '',
+        'question': q['questionText'] ?? q['question'] ?? '',
         'options': List<String>.from(q['options'] ?? []),
-        'correctAnswerIndex': q['correctAnswerIndex'] ?? 0,
+        'correctIndex': q['correctIndex'] ?? 0,
       }).toList();
     } else {
       _questions = _defaultQuestions;
     }
-    _selectedAnswers = List<int?>.filled(_questions.length, null);
   }
 
-  void _onOptionSelected(int index) {
+  void _selectAnswer(int index) {
     Feedback.forTap(context);
     setState(() {
       _selectedAnswers[_currentQuestionIndex] = index;
@@ -79,17 +81,9 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
   void _goNext() {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -113,17 +107,9 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
   void _finishAssessment() {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -346,7 +332,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12.0),
                                 child: GestureDetector(
-                                  onTap: () => _onOptionSelected(index),
+                                  onTap: () => _selectAnswer(index),
                                   child: Container(
                                     height: 64,
                                     decoration: BoxDecoration(

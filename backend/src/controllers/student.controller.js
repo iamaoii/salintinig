@@ -1800,6 +1800,40 @@ async function submitStudentOralAudio(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/students/assessment/denoise-test-audio — Denoise audio test clip using FFmpeg
+// ---------------------------------------------------------------------------
+async function denoiseTestAudio(req, res) {
+  try {
+    const file = req.file;
+    if (!file || !file.path) {
+      return res.status(400).json({ success: false, error: 'No audio file uploaded.' });
+    }
+
+    const path = require('path');
+    const fs = require('fs');
+    const { denoiseAudio, cleanupTempAudio } = require('../utils/audioDenoise.util.js');
+    const denoiseResult = await denoiseAudio(file.path);
+    const targetPath = typeof denoiseResult === 'string' ? denoiseResult : (denoiseResult.originalPath || file.path);
+
+    res.setHeader('Content-Type', 'audio/m4a');
+    return res.sendFile(path.resolve(targetPath), (err) => {
+      // Auto-cleanup all temporary mic test audio files immediately after sending to client
+      cleanupTempAudio(file.path);
+    });
+  } catch (err) {
+    console.error('Error in denoiseTestAudio:', err);
+    if (req.file && req.file.path) {
+      const path = require('path');
+      const { cleanupTempAudio } = require('../utils/audioDenoise.util.js');
+      return res.sendFile(path.resolve(req.file.path), () => {
+        cleanupTempAudio(req.file.path);
+      });
+    }
+    return res.status(500).json({ success: false, error: 'Failed to denoise test audio.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -1817,4 +1851,5 @@ module.exports = {
   completeStoryProgress,
   completeActivityProgress,
   submitStudentOralAudio,
+  denoiseTestAudio,
 };

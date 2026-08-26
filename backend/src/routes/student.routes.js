@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
 const { verifyToken } = require('../middleware/auth.middleware.js');
+
+const upload = multer({
+  dest: path.join(__dirname, '../../uploads/temp/'),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max
+});
+
 const {
   getStudents,
   getStudentByLrn,
@@ -16,6 +24,7 @@ const {
   completeStoryProgress,
   completeActivityProgress,
   submitStudentOralAudio,
+  denoiseTestAudio,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
@@ -25,6 +34,7 @@ router.get('/assessment/my-assignment', verifyToken, getStudentActiveAssignment)
 router.post('/assessment/assign', assignPhilIriToStudent);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/assessment/submit-oral-audio', submitStudentOralAudio);
+router.post('/assessment/denoise-test-audio', upload.single('audio'), denoiseTestAudio);
 router.post('/story/complete', completeStoryProgress);
 router.post('/activity/complete', completeActivityProgress);
 router.get('/:lrn', getStudentByLrn);

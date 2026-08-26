@@ -208,4 +208,30 @@ class ApiService {
     }
     return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
   }
+
+  static Future<List<int>?> uploadAudioForDenoising(String filePath) async {
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}/students/assessment/denoise-test-audio',
+      'http://10.0.2.2:5000/api/students/assessment/denoise-test-audio',
+      'http://192.168.1.146:5000/api/students/assessment/denoise-test-audio',
+    ];
+
+    for (final urlStr in urlsToTry) {
+      try {
+        final request = http.MultipartRequest('POST', Uri.parse(urlStr));
+        if (_authToken != null && _authToken!.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $_authToken';
+        }
+        request.files.add(await http.MultipartFile.fromPath('audio', filePath));
+        final streamedResponse = await request.send().timeout(const Duration(seconds: 8));
+        if (streamedResponse.statusCode == 200) {
+          final response = await http.Response.fromStream(streamedResponse);
+          return response.bodyBytes;
+        }
+      } catch (e) {
+        print('[ApiService] Denoise upload attempt notice: $e');
+      }
+    }
+    return null;
+  }
 }

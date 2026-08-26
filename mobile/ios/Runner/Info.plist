@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SalinTinig needs access to your microphone to record your oral reading assessment and evaluate reading fluency.</string>
 </dict>
 </plist>

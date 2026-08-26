@@ -1,4 +1,6 @@
 const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
+const { denoiseAudio } = require('../utils/audioDenoise.util.js');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -8,14 +10,26 @@ cloudinary.config({
 });
 
 /**
- * Helper to upload audio recording buffer or file path to Cloudinary
+ * Helper to upload audio recording buffer or file path to Cloudinary (with FFmpeg RNNoise/afftdn Denoising)
  * @param {string|Buffer} fileInput - File path or buffer
  * @param {string} folder - Destination folder in Cloudinary (e.g. 'salintinig/audio')
  */
 const uploadAudio = async (fileInput, folder = 'salintinig/audio') => {
+  let fileToUpload = fileInput;
+
+  // Upload student's natural original audio for teacher playback
+  if (typeof fileInput === 'string' && fs.existsSync(fileInput)) {
+    try {
+      const denoiseResult = await denoiseAudio(fileInput);
+      fileToUpload = typeof denoiseResult === 'string' ? denoiseResult : (denoiseResult.originalPath || fileInput);
+    } catch (e) {
+      console.warn('[CloudinaryUpload] Audio denoise notice:', e.message);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(
-      fileInput,
+      fileToUpload,
       {
         resource_type: 'video', // Cloudinary uses 'video' resource type for audio files (MP3, WAV, M4A)
         folder: folder,

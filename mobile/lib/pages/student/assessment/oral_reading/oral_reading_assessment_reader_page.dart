@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:record/record.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 
@@ -22,18 +24,65 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
   final Random _random = Random();
 
   String _fullStoryText = '';
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _recordedAudioPath;
 
   @override
   void initState() {
     super.initState();
     _fetchPassageFromApi();
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    _startVoiceRecording();
+
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+      double level = 0.2;
+      try {
+        if (await _audioRecorder.isRecording()) {
+          final amp = await _audioRecorder.getAmplitude();
+          level = ((amp.current + 60) / 60).clamp(0.05, 1.0);
+        } else {
+          level = 0.15 + _random.nextDouble() * 0.70;
+        }
+      } catch (_) {
+        level = 0.15 + _random.nextDouble() * 0.70;
+      }
       if (mounted) {
         setState(() {
-          _recordingProgress = 0.15 + _random.nextDouble() * 0.70;
+          _recordingProgress = level;
         });
       }
     });
+  }
+
+  Future<void> _startVoiceRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final tempDir = Directory.systemTemp;
+        final path = '${tempDir.path}/oral_reading_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            noiseSuppress: true,
+            echoCancel: true,
+            autoGain: true,
+          ),
+          path: path,
+        );
+        _recordedAudioPath = path;
+      }
+    } catch (e) {
+      debugPrint('[OralReader] Audio recording start notice: $e');
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      if (await _audioRecorder.isRecording()) {
+        final path = await _audioRecorder.stop();
+        if (path != null) _recordedAudioPath = path;
+      }
+    } catch (e) {
+      debugPrint('[OralReader] Audio recording stop notice: $e');
+    }
   }
 
   void _fetchPassageFromApi() async {
@@ -58,6 +107,8 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
   void dispose() {
     _progressTimer?.cancel();
     _pageController.dispose();
+    _stopVoiceRecording();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -673,12 +724,15 @@ class _OralReadingAssessmentReaderPageState extends State<OralReadingAssessmentR
 
   List<dynamic>? _dynamicQuestions;
 
-  void _finishReading() {
+  void _finishReading() async {
+    await _stopVoiceRecording();
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => OralReadingAssessmentQuizPage(
           dynamicQuestions: _dynamicQuestions,
+          recordedAudioPath: _recordedAudioPath,
         ),
       ),
     );

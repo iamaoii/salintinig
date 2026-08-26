@@ -38,8 +38,9 @@ dependencies:
   # Supabase - Database & Auth
   supabase_flutter: ^2.3.0
 
-  # Audio Recording
+  # Audio Recording & Playback
   record: ^6.2.0
+  audioplayers: ^6.1.0
   google_fonts: ^8.1.0
   iconify_flutter: ^0.0.7
   confetti: ^0.8.0
