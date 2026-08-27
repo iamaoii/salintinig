@@ -6,44 +6,47 @@ import 'package:salintinig/constants/ph_icons.dart';
 class SilentReadingComprehensionSummaryPage extends StatelessWidget {
   final int score;
   final int totalQuestions;
+  final List<Map<String, dynamic>>? questionsList;
 
   const SilentReadingComprehensionSummaryPage({
     super.key,
     this.score = 3,
     this.totalQuestions = 3,
+    this.questionsList,
   });
 
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    // Build question status dynamically based on score
-    final List<Map<String, dynamic>> questions = [
-      {
-        'number': 1,
-        'question': 'Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?',
-        'choices': ['Jamil', 'Abdul', 'Mohammed', 'Allah'],
-        'isCorrect': score >= 1,
-        'studentAnswer': score >= 1 ? 'Jamil' : 'Abdul',
-        'correctAnswer': 'Jamil',
-      },
-      {
-        'number': 2,
-        'question': 'Ano ang banal na aklat ng mga Muslim na binanggit ni Tito Abdul?',
-        'choices': ['Bibliya', 'Koran', 'Karnak', 'Talmud'],
-        'isCorrect': score >= 2,
-        'studentAnswer': score >= 2 ? 'Koran' : 'Bibliya',
-        'correctAnswer': 'Koran',
-      },
-      {
-        'number': 3,
-        'question': 'Ano ang pinakabanal na gawain ng mga Muslim kung saan sila ay nag-aayuno?',
-        'choices': ['Ramadan', 'Pasko', 'Semana Santa', 'Fiesta'],
-        'isCorrect': score >= 3,
-        'studentAnswer': score >= 3 ? 'Ramadan' : 'Pasko',
-        'correctAnswer': 'Ramadan',
-      },
-    ];
+    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
+        ? questionsList!
+        : [
+            {
+              'number': 1,
+              'question': 'Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?',
+              'choices': ['Jamil', 'Abdul', 'Mohammed', 'Allah'],
+              'isCorrect': score >= 1,
+              'studentAnswer': 'Jamil',
+              'correctAnswer': 'Jamil',
+            },
+            {
+              'number': 2,
+              'question': 'Ano ang banal na aklat ng mga Muslim na binanggit ni Tito Abdul?',
+              'choices': ['Bibliya', 'Koran', 'Karnak', 'Talmud'],
+              'isCorrect': score >= 2,
+              'studentAnswer': score >= 2 ? 'Koran' : 'Bibliya',
+              'correctAnswer': 'Koran',
+            },
+            {
+              'number': 3,
+              'question': 'Ano ang pinakabanal na gawain ng mga Muslim kung saan sila ay nag-aayuno?',
+              'choices': ['Ramadan', 'Pasko', 'Semana Santa', 'Fiesta'],
+              'isCorrect': score >= 3,
+              'studentAnswer': score >= 3 ? 'Ramadan' : 'Pasko',
+              'correctAnswer': 'Ramadan',
+            },
+          ];
 
     return Scaffold(
       backgroundColor: softCreamBg,

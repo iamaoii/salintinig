@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
@@ -349,26 +350,17 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                         : 'Set $rawSet';
 
                                     String icon = PhIcons.userSoundBold;
-                                    Color iconColor = const Color(0xFF1B64D8);
+                                    Color iconColor = primaryBlue;
                                     Color iconBg = const Color(0xFFD0E1F9);
-                                    Color btnColor = const Color(0xFF1B64D8);
-                                    Color btnTextColor = Colors.white;
 
                                     if (type == 'listening') {
                                       icon = PhIcons.earBold;
                                       iconColor = const Color(0xFFD97706);
                                       iconBg = const Color(0xFFFEF3C7);
-                                      btnColor = const Color(
-                                        0xFFFFC000,
-                                      ); // Bright Golden Yellow like Teacher portal
-                                      btnTextColor = const Color(
-                                        0xFF451A03,
-                                      ); // High-contrast dark text
                                     } else if (type == 'silent') {
                                       icon = PhIcons.bookOpenBold;
                                       iconColor = const Color(0xFF10B981);
                                       iconBg = const Color(0xFFD1FAE5);
-                                      btnColor = const Color(0xFF10B981);
                                     }
 
                                     final passageId = QuizProgressService.extractPassageId(item);
@@ -382,35 +374,49 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                                 .toLowerCase() ==
                                             'closed';
 
-                                    final tagText = isDone
-                                        ? 'Done'
-                                        : (hasDraft ? 'In Progress' : 'Required');
-                                    final tagBg = isDone
-                                        ? const Color(0xFFD1FAE5)
-                                        : (hasDraft
-                                            ? const Color(0xFFFEF3C7)
-                                            : const Color(0xFFFEE2E2));
-                                    final tagTextCol = isDone
-                                        ? const Color(0xFF059669)
-                                        : (hasDraft
-                                            ? const Color(0xFFD97706)
-                                            : const Color(0xFFEF4444));
+                                     final statusStr = (item['status'] ?? '').toString().toLowerCase();
+                                     final isPendingReview = type == 'oral' &&
+                                         (statusStr == 'pending_review' || statusStr == 'submitted');
 
-                                    final buttonLabel = isDone
-                                        ? 'View Result'
-                                        : (hasDraft
-                                            ? 'Continue'
-                                            : (isClosed ? 'Closed' : 'Start'));
-                                    final buttonBgColor = isDone
-                                        ? const Color(0xFF00A859)
-                                        : (isClosed
-                                            ? const Color(0xFFE4E4E7)
-                                            : btnColor);
-                                    final buttonTxtColor = isDone
-                                        ? Colors.white
-                                        : (isClosed
-                                            ? const Color(0xFF9CA3AF)
-                                            : btnTextColor);
+                                     final tagText = isPendingReview
+                                         ? 'In Review'
+                                         : (isDone
+                                             ? 'Done'
+                                             : (hasDraft ? 'In Progress' : 'Required'));
+                                     final tagBg = isPendingReview
+                                         ? const Color(0xFFFEF3C7)
+                                         : (isDone
+                                             ? const Color(0xFFD1FAE5)
+                                             : (hasDraft
+                                                 ? const Color(0xFFFEF3C7)
+                                                 : const Color(0xFFFEE2E2)));
+                                     final tagTextCol = isPendingReview
+                                         ? const Color(0xFFD97706)
+                                         : (isDone
+                                             ? const Color(0xFF059669)
+                                             : (hasDraft
+                                                 ? const Color(0xFFD97706)
+                                                 : const Color(0xFFEF4444)));
+
+                                     final buttonLabel = isPendingReview
+                                         ? 'In Review'
+                                         : (isDone
+                                             ? 'View Result'
+                                             : (hasDraft
+                                                 ? 'Continue'
+                                                 : (isClosed ? 'Closed' : 'Start')));
+                                     final buttonBgColor = isPendingReview
+                                         ? const Color(0xFFFFC000)
+                                         : (isDone
+                                             ? const Color(0xFF00A859)
+                                             : (isClosed
+                                                 ? const Color(0xFFE4E4E7)
+                                                 : primaryBlue));
+                                     final buttonTxtColor = isPendingReview
+                                         ? const Color(0xFF451A03)
+                                         : (isDone || !isClosed
+                                             ? Colors.white
+                                             : const Color(0xFF9CA3AF));
 
                                     return _buildAssessmentCard(
                                       title: title,
@@ -423,9 +429,11 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       icon: icon,
                                       iconColor: iconColor,
                                       iconBg: iconBg,
-                                      cardBg: isDone
-                                          ? const Color(0xFFEAF5EC)
-                                          : Colors.white,
+                                      cardBg: isPendingReview
+                                          ? const Color(0xFFFFFBEB)
+                                          : (isDone
+                                              ? const Color(0xFFEAF5EC)
+                                              : Colors.white),
                                       languageBadge: langBadge,
                                       passageSetBadge: setBadge,
                                       onPressed: () {
@@ -436,7 +444,10 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               context,
                                               MaterialPageRoute(
                                                 settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => const ListeningResultPage(),
+                                                builder: (context) => ListeningResultPage(
+                                                  passageId: passageId,
+                                                  language: item['rawLanguage'] ?? item['language'],
+                                                ),
                                               ),
                                             ).then((_) {
                                               if (mounted) {
@@ -513,7 +524,10 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               context,
                                               MaterialPageRoute(
                                                 settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => const SilentReadingResultPage(),
+                                                builder: (context) => SilentReadingResultPage(
+                                                  passageId: passageId,
+                                                  language: item['rawLanguage'] ?? item['language'],
+                                                ),
                                               ),
                                             ).then((_) {
                                               if (mounted) {
@@ -585,12 +599,22 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             });
                                           }
                                         } else {
+                                           if (isPendingReview) {
+                                             AppToast.warning(
+                                               context,
+                                               'Your recording is currently being reviewed by your teacher.',
+                                             );
+                                             return;
+                                           }
                                           if (isDone) {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => const OralReadingResultPage(),
+                                                builder: (context) => OralReadingResultPage(
+                                                  passageId: passageId,
+                                                  language: item['rawLanguage'] ?? item['language'],
+                                                ),
                                               ),
                                             ).then((_) {
                                               if (mounted) {

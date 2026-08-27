@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 
 class OralReadingComprehensionSummaryPage extends StatelessWidget {
@@ -136,6 +137,7 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                                 'readingTimeSeconds': 60,
                                 'wordsRead': 67,
                               });
+                              await QuizProgressService.clearAllQuizDrafts();
                             } catch (e) {
                               debugPrint('Assessment submission notice: $e');
                             }

@@ -27,26 +27,36 @@ const uploadAudio = async (fileInput, folder = 'salintinig/audio') => {
     }
   }
 
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload(
-      fileToUpload,
-      {
-        resource_type: 'video', // Cloudinary uses 'video' resource type for audio files (MP3, WAV, M4A)
-        folder: folder,
-        format: 'mp3', // Normalizes all student recordings to clean MP3 format
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve({
-          public_id: result.public_id,
-          secure_url: result.secure_url,
-          duration: result.duration, // Audio duration in seconds
-          format: result.format,
-          bytes: result.bytes,
-        });
-      }
-    );
-  });
+  try {
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload(
+        fileToUpload,
+        {
+          resource_type: 'video', // Cloudinary uses 'video' resource type for audio files (MP3, WAV, M4A)
+          folder: folder,
+          format: 'mp3', // Normalizes all student recordings to clean MP3 format
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        }
+      );
+    });
+
+    return {
+      public_id: result.public_id,
+      secure_url: result.secure_url,
+      duration: result.duration, // Audio duration in seconds
+      format: result.format,
+      bytes: result.bytes,
+    };
+  } finally {
+    // 🧹 Auto-cleanup temp original audio file and intermediate denoised wav files
+    if (typeof fileInput === 'string') {
+      const { cleanupTempAudio } = require('../utils/audioDenoise.util.js');
+      cleanupTempAudio(fileInput);
+    }
+  }
 };
 
 module.exports = {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_congratulations_page.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ListeningAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
@@ -169,12 +171,50 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       return;
     }
 
-    // Calculate score
+    // Calculate score & prepare answers payload
     int correctCount = 0;
+    final List<Map<String, dynamic>> answersPayload = [];
     for (int i = 0; i < _questions.length; i++) {
-      if (_selectedAnswers[i] == _questions[i]['correctAnswerIndex']) {
+      final q = _questions[i];
+      final selIdx = _selectedAnswers[i];
+      final options = (q['options'] as List?) ?? [];
+      final selText = (selIdx != null && selIdx >= 0 && selIdx < options.length)
+          ? options[selIdx].toString()
+          : '';
+      final targetCorrect = q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0;
+      if (selIdx == targetCorrect) {
         correctCount++;
       }
+      answersPayload.add({
+        'questionId': q['id'],
+        'questionIndex': i,
+        'selectedChoiceIndex': selIdx,
+        'selectedAnswerText': selText,
+        'isCorrect': selIdx == targetCorrect,
+      });
+    }
+
+    // Post submission to database & clear draft
+    try {
+      final user = AuthService.currentUser;
+      final studentId = user?.rawUser?['student_id']?.toString() ??
+          user?.rawUser?['studentId']?.toString() ??
+          user?.userId;
+      final lrn = user?.lrn;
+
+      ApiService.post('/students/assessment/submit', {
+        'studentId': studentId,
+        'lrn': lrn,
+        'passageId': widget.passageId,
+        'assessmentType': 'listening',
+        'score': correctCount,
+        'maxScore': _questions.length,
+        'answers': answersPayload,
+      });
+
+      QuizProgressService.clearQuizDraft(widget.passageId, 'listening');
+    } catch (e) {
+      debugPrint('[ListeningQuiz] submission error notice: $e');
     }
 
     Navigator.pushReplacement(

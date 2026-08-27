@@ -6,60 +6,63 @@ import 'package:salintinig/constants/ph_icons.dart';
 class ListeningComprehensionSummaryPage extends StatelessWidget {
   final int score;
   final int totalQuestions;
+  final List<Map<String, dynamic>>? questionsList;
 
   const ListeningComprehensionSummaryPage({
     super.key,
     required this.score,
     required this.totalQuestions,
+    this.questionsList,
   });
 
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    // Question data matching the result configuration
-    final List<Map<String, dynamic>> questions = [
-      {
-        'number': 1,
-        'question': 'Sino ang pangunahing tauhan sa kuwento?',
-        'choices': ['Si Sally', 'Si Billy', 'Si Pedro', 'Si Maria'],
-        'isCorrect': score >= 1,
-        'studentAnswer': 'Si Sally',
-        'correctAnswer': 'Si Sally',
-      },
-      {
-        'number': 2,
-        'question': 'Saan naganap ang kuwento?',
-        'choices': ['Sa bahay', 'Sa paaralan', 'Sa parke', 'Sa palengke'],
-        'isCorrect': score >= 2,
-        'studentAnswer': score >= 2 ? 'Sa paaralan' : 'Sa bahay',
-        'correctAnswer': 'Sa paaralan',
-      },
-      {
-        'number': 3,
-        'question': 'Ano ang naging problema ni Sally?',
-        'choices': ['Nawala ang kanyang laruan', 'Nawala ang kanyang lapis', 'Nawala ang kanyang pusa', 'Nawala ang kanyang pera'],
-        'isCorrect': score >= 3,
-        'studentAnswer': score >= 3 ? 'Nawala ang kanyang lapis' : 'Nawala ang kanyang libro',
-        'correctAnswer': 'Nawala ang kanyang lapis',
-      },
-      {
-        'number': 4,
-        'question': 'Paano nalutas ang suliranin?',
-        'choices': ['Tinulungan siya ng guro', 'Bumili siya ng bago', 'Umiyak na lamang siya', 'Hinamag niya ang klase'],
-        'isCorrect': score >= 4,
-        'studentAnswer': score >= 4 ? 'Tinulungan siya ng guro' : 'Bumili siya ng bago',
-        'correctAnswer': 'Tinulungan siya ng guro',
-      },
-      {
-        'number': 5,
-        'question': 'Ano ang aral ng kuwento?',
-        'choices': ['Maglaro maghapon', 'Ang pagtutulungan ay mahalaga', 'Huwag magsalita sa klase', 'Laging matulog nang maaga'],
-        'isCorrect': score >= 5,
-        'studentAnswer': score >= 5 ? 'Ang pagtutulungan ay mahalaga' : 'Maglaro maghapon',
-        'correctAnswer': 'Ang pagtutulungan ay mahalaga',
-      },
-    ];
+    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
+        ? questionsList!
+        : [
+            {
+              'number': 1,
+              'question': 'Sino ang pangunahing tauhan sa kuwento?',
+              'choices': ['Si Sally', 'Si Billy', 'Si Pedro', 'Si Maria'],
+              'isCorrect': score >= 1,
+              'studentAnswer': 'Si Sally',
+              'correctAnswer': 'Si Sally',
+            },
+            {
+              'number': 2,
+              'question': 'Saan naganap ang kuwento?',
+              'choices': ['Sa bahay', 'Sa paaralan', 'Sa parke', 'Sa palengke'],
+              'isCorrect': score >= 2,
+              'studentAnswer': score >= 2 ? 'Sa paaralan' : 'Sa bahay',
+              'correctAnswer': 'Sa paaralan',
+            },
+            {
+              'number': 3,
+              'question': 'Ano ang naging problema ni Sally?',
+              'choices': ['Nawala ang kanyang laruan', 'Nawala ang kanyang lapis', 'Nawala ang kanyang pusa', 'Nawala ang kanyang pera'],
+              'isCorrect': score >= 3,
+              'studentAnswer': score >= 3 ? 'Nawala ang kanyang lapis' : 'Nawala ang kanyang laruan',
+              'correctAnswer': 'Nawala ang kanyang lapis',
+            },
+            {
+              'number': 4,
+              'question': 'Paano nalutas ang suliranin?',
+              'choices': ['Tinulungan siya ng guro', 'Bumili siya ng bago', 'Umiyak na lamang siya', 'Hinamag niya ang klase'],
+              'isCorrect': score >= 4,
+              'studentAnswer': score >= 4 ? 'Tinulungan siya ng guro' : 'Bumili siya ng bago',
+              'correctAnswer': 'Tinulungan siya ng guro',
+            },
+            {
+              'number': 5,
+              'question': 'Ano ang aral ng kuwento?',
+              'choices': ['Maglaro maghapon', 'Ang pagtutulungan ay mahalaga', 'Huwag magsalita sa klase', 'Laging matulog nang maaga'],
+              'isCorrect': score >= 5,
+              'studentAnswer': score >= 5 ? 'Ang pagtutulungan ay mahalaga' : 'Maglaro maghapon',
+              'correctAnswer': 'Ang pagtutulungan ay mahalaga',
+            },
+          ];
 
     return Scaffold(
       backgroundColor: softCreamBg,

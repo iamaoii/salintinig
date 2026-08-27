@@ -139,21 +139,26 @@ class _OralReadingAssessmentCongratulationsPageState
                                 children: [
                                   const SizedBox(height: 16),
                                   Text(
-                                    'Congratulations!',
+                                    'Assessment Submitted!',
                                     style: GoogleFonts.inter(
-                                      fontSize: 36,
+                                      fontSize: 32,
                                       fontWeight: FontWeight.w900,
                                       color: Colors.white,
                                       letterSpacing: -0.5,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    'Natapos mo ang Oral Reading Assessment.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                                    child: Text(
+                                      'Your oral reading recording has been submitted. Your teacher will review and evaluate your performance.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white.withValues(alpha: 0.9),
+                                        height: 1.3,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 24),

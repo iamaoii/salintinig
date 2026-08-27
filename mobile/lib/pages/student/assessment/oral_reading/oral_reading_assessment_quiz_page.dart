@@ -205,6 +205,25 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       }
     }
 
+    // Prepare answers payload
+    final List<Map<String, dynamic>> answersPayload = [];
+    for (int i = 0; i < _questions.length; i++) {
+      final q = _questions[i];
+      final selIdx = _selectedAnswers[i];
+      final options = (q['options'] as List?) ?? [];
+      final selText = (selIdx != null && selIdx >= 0 && selIdx < options.length)
+          ? options[selIdx].toString()
+          : '';
+      final targetCorrect = q['correctIndex'] ?? 0;
+      answersPayload.add({
+        'questionId': q['id'],
+        'questionIndex': i,
+        'selectedChoiceIndex': selIdx,
+        'selectedAnswerText': selText,
+        'isCorrect': selIdx == targetCorrect,
+      });
+    }
+
     // Show loading dialog while sending to backend database
     showDialog(
       context: context,
@@ -226,11 +245,11 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
         'studentId': studentId,
         'lrn': lrn,
         'assessmentType': 'oral',
+        'passageId': widget.passageId,
         'score': correctCount,
         'maxScore': _questions.length,
         'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
-        'wordAccuracy': 95,
-        'wordsRead': 60,
+        'answers': answersPayload,
       });
 
       // 2. Upload recorded audio file to Cloudinary & save attempt to DB

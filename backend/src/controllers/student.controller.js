@@ -1270,10 +1270,15 @@ async function submitPhilIriAssessment(req, res) {
         if (!assessmentId) {
           const aRes = await db.query(
             `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
-             VALUES ($1, $2, $3, 'pre_test', 'submitted') RETURNING assessment_id`,
+             VALUES ($1, $2, $3, 'pre_test', 'completed') RETURNING assessment_id`,
             [resolvedStudentId, req.body.passageId || 1, assessmentType || 'oral']
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
+        } else {
+          await db.query(
+            `UPDATE assessments SET status = 'completed', reading_level_result = $1, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $2`,
+            [newLevel, assessmentId]
+          );
         }
 
         // Record attempt in assessment_attempts
@@ -1298,6 +1303,28 @@ async function submitPhilIriAssessment(req, res) {
                VALUES ($1, $2, $3)`,
               [attemptId, readingTimeSeconds || 60, compPct]
             );
+          }
+          if (attemptId && Array.isArray(req.body.answers)) {
+            for (const ans of req.body.answers) {
+              if (ans.questionId) {
+                let selChoiceId = null;
+                if (ans.selectedChoiceIndex !== undefined && ans.selectedChoiceIndex !== null) {
+                  const cRes = await db.query(
+                    `SELECT choice_id FROM phil_iri_question_choices WHERE question_id = $1 ORDER BY choice_id ASC OFFSET $2 LIMIT 1`,
+                    [ans.questionId, ans.selectedChoiceIndex]
+                  );
+                  if (cRes.rows?.[0]?.choice_id) {
+                    selChoiceId = cRes.rows[0].choice_id;
+                  }
+                }
+                await db.query(
+                  `INSERT INTO assessment_answers (
+                     assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct
+                   ) VALUES ($1, $2, $3, $4, $5)`,
+                  [attemptId, ans.questionId, selChoiceId, ans.selectedAnswerText || '', ans.isCorrect === true]
+                );
+              }
+            }
           }
         } catch (attErr) {
           console.warn('Notice saving assessment details:', attErr.message);
@@ -1637,16 +1664,22 @@ async function getStudentActiveAssignment(req, res) {
              LOWER(a.assessment_period) AS "period",
              a.due_date        AS "dueDate",
              a.instructions    AS "instructions",
-             COALESCE(a.status, 'open') AS status,
+             COALESCE(aa.status, a.status, 'open') AS status,
              a.created_at      AS "assignedAt",
              p.title,
              p.grade_level     AS "gradeLevel",
              p.passage_set     AS "set",
-               COALESCE(p.language, 'fil') AS language,
+             COALESCE(p.language, 'fil') AS language,
              p.content_text    AS text,
              p.word_count      AS words
            FROM assessments a
            JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+           LEFT JOIN LATERAL (
+             SELECT status FROM assessment_attempts
+             WHERE assessment_id = a.assessment_id
+             ORDER BY completed_at DESC NULLS LAST, created_at DESC NULLS LAST
+             LIMIT 1
+           ) aa ON true
            WHERE a.student_id = $1
              AND LOWER(COALESCE(a.status, 'open')) != 'cancelled'
            ORDER BY a.created_at DESC`,
@@ -1659,7 +1692,7 @@ async function getStudentActiveAssignment(req, res) {
           const attRes = await db.query(
             `SELECT DISTINCT 
                CASE 
-                 WHEN orr.result_id IS NOT NULL THEN 'oral'
+                 WHEN orr.oral_result_id IS NOT NULL THEN 'oral'
                  ELSE LOWER(a.assessment_type)
                END AS type
              FROM assessment_attempts aa
@@ -1689,10 +1722,9 @@ async function getStudentActiveAssignment(req, res) {
             const rawSet      = row.set ? String(row.set).trim() : 'Set A';
             const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
 
-            const isDone = Boolean(
-              attemptsStatus[row.assessmentType] ||
-              (row.status && row.status.toLowerCase() === 'completed')
-            );
+            const statusLower = (row.status || 'open').toLowerCase();
+            const isCompleted = statusLower === 'completed';
+            const isDone = ['completed', 'submitted', 'pending_review'].includes(statusLower);
 
             let questions = [];
             try {
@@ -1733,21 +1765,25 @@ async function getStudentActiveAssignment(req, res) {
             }
 
             return {
+              id:            row.assessmentId,
               assessmentId:  row.assessmentId,
+              passageId:     row.passageId,
               title:         `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
               passageTitle:  row.title,
               assessmentType: row.assessmentType,
+              type:          row.assessmentType,
+              typeLabel,
               period:        periodLabel,
               rawPeriod:     row.period,
               language:      langLabel,
               rawLanguage:   row.language || 'fil',
+              languageLabel: langLabel,
               gradeLevel:    row.gradeLevel || targetGrade,
               passageSet:    setLabel,
               dueDate:       row.dueDate,
               instructions:  row.instructions || null,
-              status:        row.status,
+              status:        row.status || 'open',
               isCompleted:   isDone,
-              passageId:     row.passageId,
               questions:     questions,
               passage: {
                 id:         row.passageId,
@@ -1786,6 +1822,9 @@ async function getStudentActiveAssignment(req, res) {
 // POST /api/students/assessment/submit-oral-audio â€” Submit Oral Audio & Speech-to-Text Miscue Analysis
 // ---------------------------------------------------------------------------
 async function submitStudentOralAudio(req, res) {
+  const fs = require('fs');
+  const tempPath = req.file?.path;
+
   try {
     const studentId = req.body.studentId || req.body.student_id;
     const passageId = req.body.passageId || req.body.passage_id || 1;
@@ -1795,11 +1834,10 @@ async function submitStudentOralAudio(req, res) {
     let audioUrl = req.body.audioUrl || req.body.audio_url || '';
 
     // Upload recorded audio to Cloudinary if file or path provided
-    const fs = require('fs');
-    if (req.file && req.file.path) {
+    if (tempPath && fs.existsSync(tempPath)) {
       try {
         const { uploadAudio } = require('../config/cloudinary.js');
-        const cloudRes = await uploadAudio(req.file.path, 'salintinig/oral_recordings');
+        const cloudRes = await uploadAudio(tempPath, 'salintinig/oral_recordings');
         if (cloudRes?.secure_url) {
           audioUrl = cloudRes.secure_url;
         }
@@ -1865,7 +1903,7 @@ async function submitStudentOralAudio(req, res) {
 
       const attemptRes = await db.query(
         `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
-         VALUES ($1, 'completed', CURRENT_TIMESTAMP) RETURNING attempt_id`,
+         VALUES ($1, 'pending_review', CURRENT_TIMESTAMP) RETURNING attempt_id`,
         [activeAssessmentId]
       );
       const attemptId = attemptRes.rows?.[0]?.attempt_id;
@@ -1916,6 +1954,16 @@ async function submitStudentOralAudio(req, res) {
   } catch (err) {
     console.error('Error in submitStudentOralAudio:', err);
     return res.status(500).json({ success: false, error: 'Failed to submit oral assessment audio.' });
+  } finally {
+    // 🧹 Auto cleanup temporary file from uploads folder
+    if (tempPath && fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+        console.log(`[submitStudentOralAudio] Cleaned up temporary upload file: ${tempPath}`);
+      } catch (cleanupErr) {
+        console.warn('[submitStudentOralAudio] Temp file cleanup error:', cleanupErr.message);
+      }
+    }
   }
 }
 
@@ -2085,12 +2133,40 @@ async function getStudentAssessmentResults(req, res) {
                 const choices = cRows.map((c) => c.choice_text);
                 const correctChoice = cRows.find((c) => c.is_correct);
 
+                // Fetch actual submitted student answer for this attempt and question
+                let studentAnswer = '';
+                let isCorrect = false;
+
+                if (row.attemptId) {
+                  const { rows: ansRows } = await db.query(
+                    `SELECT selected_choice_id, answer_text, is_correct
+                     FROM assessment_answers
+                     WHERE assessment_attempt_id = $1 AND phil_iri_question_id = $2
+                     LIMIT 1`,
+                    [row.attemptId, q.question_id]
+                  );
+                  if (ansRows?.[0]) {
+                    isCorrect = ansRows[0].is_correct === true;
+                    if (ansRows[0].selected_choice_id) {
+                      const sel = cRows.find((c) => String(c.choice_id) === String(ansRows[0].selected_choice_id));
+                      studentAnswer = sel?.choice_text || ansRows[0].answer_text || '';
+                    } else {
+                      studentAnswer = ansRows[0].answer_text || '';
+                    }
+                  }
+                }
+
+                if (!studentAnswer) {
+                  studentAnswer = correctChoice?.choice_text || choices[0] || '';
+                  isCorrect = true;
+                }
+
                 return {
                   number: index + 1,
                   question: q.question_text,
                   choices: choices.length > 0 ? choices : ['Oo', 'Hindi'],
-                  isCorrect: true,
-                  studentAnswer: correctChoice?.choice_text || choices[0] || '',
+                  isCorrect: isCorrect,
+                  studentAnswer: studentAnswer,
                   correctAnswer: correctChoice?.choice_text || choices[0] || '',
                 };
               })
@@ -2099,10 +2175,11 @@ async function getStudentAssessmentResults(req, res) {
             console.warn('[getStudentAssessmentResults] question fetch notice:', qErr.message);
           }
 
-          const totalQ = questions.length > 0 ? questions.length : 3;
+          const totalQ = questions.length;
+          const actualCorrectCount = questions.filter((q) => q.isCorrect === true).length;
           const scoreNum = row.comprehensionScore !== null && row.comprehensionScore !== undefined
-            ? Math.round((Number(row.comprehensionScore) / 100) * totalQ)
-            : totalQ;
+            ? Math.round((Number(row.comprehensionScore) / 100) * (totalQ > 0 ? totalQ : 1))
+            : actualCorrectCount;
 
           return {
             ...row,

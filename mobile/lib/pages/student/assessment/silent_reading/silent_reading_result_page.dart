@@ -3,16 +3,98 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_comprehension_summary_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
-class SilentReadingResultPage extends StatelessWidget {
+import 'package:salintinig/services/api_service.dart';
+
+class SilentReadingResultPage extends StatefulWidget {
   final int score;
   final int totalQuestions;
+  final List<Map<String, dynamic>>? questionsList;
+  final dynamic passageId;
+  final String? language;
 
   const SilentReadingResultPage({
     super.key,
     this.score = 3,
     this.totalQuestions = 3,
+    this.questionsList,
+    this.passageId,
+    this.language,
   });
+
+  @override
+  State<SilentReadingResultPage> createState() => _SilentReadingResultPageState();
+}
+
+class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
+  late int _score;
+  late int _totalQuestions;
+  String _dateStr = 'Recently Completed';
+  List<Map<String, dynamic>> _questions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _score = widget.score;
+    _totalQuestions = widget.totalQuestions;
+    _questions = widget.questionsList ?? [];
+    _fetchLiveResult();
+  }
+
+  Future<void> _fetchLiveResult() async {
+    try {
+      final res = await ApiService.get('/students/assessment/my-results');
+      if (res.success && res.data != null && res.data['results'] is List) {
+        final list = List<Map<String, dynamic>>.from(res.data['results']);
+        final match = list.firstWhere(
+          (r) {
+            final typeMatch = (r['assessmentType'] ?? '').toString().toLowerCase() == 'silent';
+            if (!typeMatch) return false;
+            if (widget.passageId != null && r['passageId'] != null) {
+              return r['passageId'].toString() == widget.passageId.toString();
+            }
+            if (widget.language != null && r['language'] != null) {
+              final rLang = r['language'].toString().toLowerCase();
+              final wLang = widget.language!.toLowerCase();
+              if (wLang.startsWith('en')) return rLang.startsWith('en');
+              return !rLang.startsWith('en');
+            }
+            return true;
+          },
+          orElse: () => {},
+        );
+
+        if (match.isNotEmpty && mounted) {
+          setState(() {
+            if (match['score'] != null) {
+              _score = (match['score'] as num).toInt();
+            }
+            if (match['totalQuestions'] != null) {
+              _totalQuestions = (match['totalQuestions'] as num).toInt();
+            }
+            if (match['questions'] is List && (match['questions'] as List).isNotEmpty) {
+              _questions = (match['questions'] as List)
+                  .map((q) => Map<String, dynamic>.from(q as Map))
+                  .toList();
+            }
+            if (match['completedAt'] != null) {
+              final dt = DateTime.tryParse(match['completedAt'].toString());
+              if (dt != null) {
+                final dateFormatted = '${dt.month}/${dt.day}/${dt.year}';
+                final hourStr = (dt.hour % 12 == 0 ? 12 : dt.hour % 12).toString().padLeft(2, '0');
+                final minStr = dt.minute.toString().padLeft(2, '0');
+                final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+                _dateStr = '$dateFormatted, $hourStr:$minStr $ampm';
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[SilentReadingResultPage] fetch live error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,119 +163,134 @@ class SilentReadingResultPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Mint Green Accomplishment Card
+                            // 🌟 Result Hero Badge & Praise Header (Matching Mockup)
                             Container(
+                              padding: const EdgeInsets.all(24.0),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEAF5EC), // Soft mint green
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.02),
-                                    blurRadius: 10,
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 16,
                                     offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.all(24.0),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 52,
-                                        height: 52,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFD1FAE5), // Soft green circle background
-                                          shape: BoxShape.circle,
+                                  // Radial Score Gauge Ring
+                                  SizedBox(
+                                    width: 140,
+                                    height: 140,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 140,
+                                          height: 140,
+                                          child: CircularProgressIndicator(
+                                            value: (_score / (_totalQuestions > 0 ? _totalQuestions : 1)).clamp(0.0, 1.0),
+                                            strokeWidth: 10,
+                                            backgroundColor: const Color(0xFFE2E8F0),
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              (_score / (_totalQuestions > 0 ? _totalQuestions : 1)) >= 0.8
+                                                  ? const Color(0xFF059669)
+                                                  : ((_score / (_totalQuestions > 0 ? _totalQuestions : 1)) >= 0.6
+                                                      ? const Color(0xFFD97706)
+                                                      : const Color(0xFFDC2626)),
+                                            ),
+                                            strokeCap: StrokeCap.round,
+                                          ),
                                         ),
-                                        alignment: Alignment.center,
-                                        child: const Iconify(
-                                          PhIcons.bookOpenRegular,
-                                          color: Color(0xFF10B981), // Vivid Emerald Green
-                                          size: 26,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              'Date Accomplished: May 18, 11:59 PM',
+                                              '${((_score / (_totalQuestions > 0 ? _totalQuestions : 1)) * 100).round()}%',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 32,
+                                                fontWeight: FontWeight.w900,
+                                                color: const Color(0xFF059669),
+                                                letterSpacing: -1,
+                                              ),
+                                            ),
+                                            Text(
+                                              '$_score/$_totalQuestions Score',
                                               style: GoogleFonts.inter(
                                                 fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: const Color(0xFF475569),
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF64748B),
                                               ),
                                             ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              'Silent Reading Test',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.black,
-                                                letterSpacing: -0.5,
+                                            if (_dateStr.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _dateStr,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: const Color(0xFF94A3B8),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFFD1FAE5),
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                                  child: Text(
-                                                    '100 Stars',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: const Color(0xFF059669),
-                                                    ),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '$score/$totalQuestions',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: const Color(0xFF059669),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                            ],
                                           ],
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16.0),
-                                    child: Divider(
-                                      color: Color(0xFFC7E2CE),
-                                      thickness: 1,
+                                      ],
                                     ),
                                   ),
-                                  Text(
-                                    'Instructions:',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black,
-                                    ),
+                                  const SizedBox(height: 20),
+
+                                  // Personalized Praise Banner
+                                  Builder(
+                                    builder: (context) {
+                                      final studentFirstName = AuthService.currentUser?.firstName ?? 'Student';
+                                      final pct = ((_score / (_totalQuestions > 0 ? _totalQuestions : 1)) * 100).round();
+                                      
+                                      String praiseTitle = 'Great job, $studentFirstName!';
+                                      String praiseSub = "You've mastered the core concepts. Keep up the momentum!";
+                                      
+                                      if (pct == 100) {
+                                        praiseTitle = 'Outstanding, $studentFirstName!';
+                                        praiseSub = 'Perfect silent reading score! Excellent reading comprehension!';
+                                      } else if (pct >= 80) {
+                                        praiseTitle = 'Great job, $studentFirstName!';
+                                        praiseSub = "You've mastered the core concepts. Keep up the momentum!";
+                                      } else if (pct >= 60) {
+                                        praiseTitle = 'Good effort, $studentFirstName!';
+                                        praiseSub = 'You are on the right track! Practice silent reading to boost your score.';
+                                      } else {
+                                        praiseTitle = 'Keep trying, $studentFirstName!';
+                                        praiseSub = 'Every attempt makes you stronger. Review the answers and try again!';
+                                      }
+
+                                      return Column(
+                                        children: [
+                                          Text(
+                                            praiseTitle,
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w800,
+                                              color: const Color(0xFF0F172A),
+                                              letterSpacing: -0.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            praiseSub,
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              color: const Color(0xFF64748B),
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                  const SizedBox(height: 8),
-                                  _buildInstructionStep('1.', 'Read the passage silently and understand the story carefully.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('2.', 'Pay attention to important details and unfamiliar words.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('3.', 'Answer the comprehension questions after reading.'),
-                                  const SizedBox(height: 6),
-                                  _buildInstructionStep('4.', 'Complete all answers correctly to earn a higher score.'),
                                 ],
                               ),
                             ),
@@ -215,7 +312,7 @@ class SilentReadingResultPage extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _buildMetricCard(
-                                    valueNumber: '${(score / totalQuestions * 100).round()}%',
+                                    valueNumber: '${(_score / (_totalQuestions > 0 ? _totalQuestions : 1) * 100).round()}%',
                                     label: 'Comprehension',
                                     iconSvg: PhIcons.lightbulbRegular,
                                     iconColor: const Color(0xFF00AA5A),
@@ -247,8 +344,9 @@ class SilentReadingResultPage extends StatelessWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => SilentReadingComprehensionSummaryPage(
-                                        score: score,
-                                        totalQuestions: totalQuestions,
+                                        score: _score,
+                                        totalQuestions: _totalQuestions,
+                                        questionsList: _questions,
                                       ),
                                     ),
                                   );
@@ -296,36 +394,6 @@ class SilentReadingResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInstructionStep(String number, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 18,
-          child: Text(
-            number,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E293B),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF334155),
-              height: 1.35,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMetricCard({
     required String valueNumber,
     String? valueUnit,
@@ -335,75 +403,81 @@ class SilentReadingResultPage extends StatelessWidget {
     required Color iconBgColor,
   }) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
       ),
-      padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF1E293B),
+                ),
+                children: [
+                  TextSpan(
+                    text: valueNumber,
+                    style: GoogleFonts.inter(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (valueUnit != null) ...[
+                    const TextSpan(text: ' '),
+                    TextSpan(
+                      text: valueUnit,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF475569),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               Container(
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: iconBgColor,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
                 child: Iconify(
                   iconSvg,
                   color: iconColor,
-                  size: 20,
+                  size: 18,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                valueNumber,
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.black,
-                  letterSpacing: -1,
-                ),
-              ),
-              if (valueUnit != null) ...[
-                const SizedBox(width: 2),
-                Text(
-                  valueUnit,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF64748B),
-            ),
           ),
         ],
       ),

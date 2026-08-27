@@ -6,6 +6,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
@@ -543,20 +544,15 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                       String icon = PhIcons.userSoundBold;
                                       Color iconColor = primaryBlue;
                                       Color iconBg = const Color(0xFFD0E1F9);
-                                      Color btnColor = primaryBlue;
-                                      Color btnTextColor = Colors.white;
 
                                       if (type == 'listening') {
                                         icon = PhIcons.earBold;
                                         iconColor = const Color(0xFFD97706);
                                         iconBg = const Color(0xFFFEF3C7);
-                                        btnColor = const Color(0xFFFFC000);
-                                        btnTextColor = const Color(0xFF451A03);
                                       } else if (type == 'silent') {
                                         icon = PhIcons.bookOpenBold;
                                         iconColor = const Color(0xFF10B981);
                                         iconBg = const Color(0xFFD1FAE5);
-                                        btnColor = const Color(0xFF10B981);
                                       }
 
                                       final passageId = QuizProgressService.extractPassageId(item);
@@ -569,35 +565,49 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                               .toLowerCase() ==
                                           'closed';
 
-                                      final tagText = isDone
-                                          ? 'Done'
-                                          : (hasDraft ? 'In Progress' : 'Required');
-                                      final tagBg = isDone
-                                          ? const Color(0xFFD1FAE5)
-                                          : (hasDraft
-                                              ? const Color(0xFFFEF3C7)
-                                              : const Color(0xFFFEE2E2));
-                                      final tagTextCol = isDone
-                                          ? const Color(0xFF059669)
-                                          : (hasDraft
-                                              ? const Color(0xFFD97706)
-                                              : const Color(0xFFEF4444));
+                                      final statusStr = (item['status'] ?? '').toString().toLowerCase();
+                                      final isPendingReview = type == 'oral' &&
+                                          (statusStr == 'pending_review' || statusStr == 'submitted');
 
-                                      final buttonLabel = isDone
-                                          ? 'View Result'
-                                          : (hasDraft
-                                              ? 'Continue'
-                                              : (isClosed ? 'Closed' : 'Start'));
-                                      final buttonBgColor = isDone
-                                          ? const Color(0xFF00A859)
-                                          : (isClosed
-                                              ? const Color(0xFFE4E4E7)
-                                              : btnColor);
-                                      final buttonTxtColor = isDone
-                                          ? Colors.white
-                                          : (isClosed
-                                              ? const Color(0xFF9CA3AF)
-                                              : btnTextColor);
+                                      final tagText = isPendingReview
+                                          ? 'In Review'
+                                          : (isDone
+                                              ? 'Done'
+                                              : (hasDraft ? 'In Progress' : 'Required'));
+                                      final tagBg = isPendingReview
+                                          ? const Color(0xFFFEF3C7)
+                                          : (isDone
+                                              ? const Color(0xFFD1FAE5)
+                                              : (hasDraft
+                                                  ? const Color(0xFFFEF3C7)
+                                                  : const Color(0xFFFEE2E2)));
+                                      final tagTextCol = isPendingReview
+                                          ? const Color(0xFFD97706)
+                                          : (isDone
+                                              ? const Color(0xFF059669)
+                                              : (hasDraft
+                                                  ? const Color(0xFFD97706)
+                                                  : const Color(0xFFEF4444)));
+
+                                      final buttonLabel = isPendingReview
+                                          ? 'In Review'
+                                          : (isDone
+                                              ? 'View Result'
+                                              : (hasDraft
+                                                  ? 'Continue'
+                                                  : (isClosed ? 'Closed' : 'Start')));
+                                      final buttonBgColor = isPendingReview
+                                          ? const Color(0xFFFFC000)
+                                          : (isDone
+                                              ? const Color(0xFF00A859)
+                                              : (isClosed
+                                                  ? const Color(0xFFE4E4E7)
+                                                  : primaryBlue));
+                                      final buttonTxtColor = isPendingReview
+                                          ? const Color(0xFF451A03)
+                                          : (isDone || !isClosed
+                                              ? Colors.white
+                                              : const Color(0xFF9CA3AF));
 
                                       return _buildAssessmentCard(
                                         title: title,
@@ -610,9 +620,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                         icon: icon,
                                         iconColor: iconColor,
                                         iconBg: iconBg,
-                                        cardBg: isDone
-                                            ? const Color(0xFFEAF5EC)
-                                            : Colors.white,
+                                        cardBg: isPendingReview
+                                            ? const Color(0xFFFFFBEB)
+                                            : (isDone
+                                                ? const Color(0xFFEAF5EC)
+                                                : Colors.white),
                                         languageBadge: langBadge,
                                         passageSetBadge: setBadge,
                                         onPressed: () {
@@ -622,7 +634,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (context) => const ListeningResultPage(),
+                                                  builder: (context) => ListeningResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                    questionsList: item['questions'] is List
+                                                        ? List<Map<String, dynamic>>.from(item['questions'])
+                                                        : null,
+                                                  ),
                                                 ),
                                               );
                                             } else {
@@ -693,12 +711,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      SilentReadingResultPage(
-                                                        score: PhilIriAssessmentPage
-                                                            .silentReadingScore,
-                                                        totalQuestions: 3,
-                                                      ),
+                                                  builder: (context) => SilentReadingResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                  ),
                                                 ),
                                               );
                                             } else {
@@ -765,17 +781,21 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                               });
                                             }
                                           } else {
+                                            if (isPendingReview) {
+                                              AppToast.warning(
+                                                context,
+                                                'Your recording is currently being reviewed by your teacher.',
+                                              );
+                                              return;
+                                            }
                                             if (isDone) {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      OralReadingResultPage(
-                                                        score:
-                                                            PhilIriAssessmentPage
-                                                                .oralReadingScore,
-                                                        totalQuestions: 3,
-                                                      ),
+                                                  builder: (context) => OralReadingResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                  ),
                                                 ),
                                               );
                                             } else {
