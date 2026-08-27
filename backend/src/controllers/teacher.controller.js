@@ -1032,6 +1032,14 @@ async function verifyOralReadingResult(req, res) {
         [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
       );
 
+      // Update assessment attempt status to completed
+      await db.query(
+        `UPDATE assessment_attempts
+         SET status = 'completed'
+         WHERE attempt_id = $1`,
+        [attemptId]
+      );
+
       // Update main assessment record status, reading profile, and remarks
       const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
       await db.query(

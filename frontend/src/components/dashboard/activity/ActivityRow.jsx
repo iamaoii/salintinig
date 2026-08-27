@@ -18,7 +18,7 @@ function getAssessmentTheme(activity) {
       icon: 'ph:ear-bold',
       iconBg: 'bg-amber-100/90',
       iconColor: 'text-amber-700',
-      buttonBg: 'bg-[#ffc300] hover:bg-amber-500 text-amber-950 font-bold',
+      buttonBg: 'bg-brand-blue hover:bg-blue-700 text-white font-bold',
       badgeBg: 'bg-amber-100/90 text-amber-950 border border-amber-200/80',
     };
   }
@@ -31,7 +31,7 @@ function getAssessmentTheme(activity) {
       iconBg: 'bg-blue-100/90',
       iconColor: 'text-blue-700',
       buttonBg: 'bg-brand-blue hover:bg-blue-700 text-white font-bold',
-      badgeBg: 'bg-blue-100/90 text-blue-950 border border-blue-200/80',
+      badgeBg: 'bg-blue-100/90 text-blue-200/80',
     };
   }
 
@@ -42,7 +42,7 @@ function getAssessmentTheme(activity) {
       icon: 'ph:book-open-bold',
       iconBg: 'bg-emerald-100/90',
       iconColor: 'text-emerald-700',
-      buttonBg: 'bg-[#00a652] hover:bg-emerald-700 text-white font-bold',
+      buttonBg: 'bg-brand-blue hover:bg-blue-700 text-white font-bold',
       badgeBg: 'bg-emerald-100/90 text-emerald-950 border border-emerald-200/80',
     };
   }
@@ -54,7 +54,7 @@ function getAssessmentTheme(activity) {
     icon: 'ph:puzzle-piece-bold',
     iconBg: 'bg-purple-100/90',
     iconColor: 'text-purple-700',
-    buttonBg: 'bg-purple-600 hover:bg-purple-700 text-white font-bold',
+    buttonBg: 'bg-brand-blue hover:bg-blue-700 text-white font-bold',
     badgeBg: 'bg-purple-100/90 text-purple-950 border border-purple-200/80',
   };
 }
@@ -68,14 +68,14 @@ function TitleBlock({ activity, theme, className = '' }) {
     <div className={`flex flex-col items-start gap-1 ${className}`}>
       <p className="text-sm font-bold text-ink leading-snug">{activity.title}</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${theme.badgeBg}`}>
+        <span className="rounded-md bg-brand-red/10 text-brand-red border border-brand-red/20 px-2 py-0.5 text-[10px] font-bold">
           {activity.tag || 'Phil-IRI'}
         </span>
         <span
           className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ${
             isEn
-              ? 'bg-blue-100 text-blue-950 border border-blue-200'
-              : 'bg-emerald-100 text-emerald-950 border border-emerald-200'
+              ? 'bg-cyan-100 text-cyan-800 border border-cyan-200'
+              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
           }`}
         >
           {langBadge}

@@ -1664,7 +1664,7 @@ async function getStudentActiveAssignment(req, res) {
              LOWER(a.assessment_period) AS "period",
              a.due_date        AS "dueDate",
              a.instructions    AS "instructions",
-             COALESCE(aa.status, a.status, 'open') AS status,
+             CASE WHEN LOWER(a.status) = 'completed' THEN 'completed' ELSE COALESCE(aa.status, a.status, 'open') END AS status,
              a.created_at      AS "assignedAt",
              p.title,
              p.grade_level     AS "gradeLevel",
