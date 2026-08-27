@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:record/record.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 
 class OralReadingAssessmentReaderPage extends StatefulWidget {
@@ -22,10 +24,12 @@ class _OralReadingAssessmentReaderPageState
   final PageController _pageController = PageController();
 
   double _recordingProgress = 0.0;
+  bool _isPaused = false;
   Timer? _progressTimer;
 
   String _fullStoryText = '';
   String _storyTitle = 'Oral Reading Passage';
+  String _assessmentLanguage = 'fil';
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _recordedAudioPath;
   int _countdown = 3;
@@ -33,6 +37,12 @@ class _OralReadingAssessmentReaderPageState
   Timer? _countdownTimer;
   int _readingSecondsElapsed = 0;
   Timer? _readingTimer;
+
+  bool get _isEnglish {
+    final lang = _assessmentLanguage.toLowerCase();
+    final title = _storyTitle.toLowerCase();
+    return lang.startsWith('en') || lang.contains('english') || title.contains('english');
+  }
 
   @override
   void initState() {
@@ -46,7 +56,7 @@ class _OralReadingAssessmentReaderPageState
     ) async {
       double level = 0.0;
       try {
-        if (await _audioRecorder.isRecording()) {
+        if (!_isPaused && await _audioRecorder.isRecording() && !(await _audioRecorder.isPaused())) {
           final amp = await _audioRecorder.getAmplitude();
           final db = amp.current; // dB level (-160 to 0)
 
@@ -54,16 +64,17 @@ class _OralReadingAssessmentReaderPageState
           if (db > -32.0) {
             level = ((db + 32.0) / 28.0).clamp(0.0, 1.0);
           } else {
-            level =
-                0.0; // Bar stays completely still on ambient background noise
+            level = 0.0;
           }
+        } else {
+          level = 0.0;
         }
       } catch (_) {
         level = 0.0;
       }
       if (mounted) {
         setState(() {
-          _recordingProgress = level;
+          _recordingProgress = _isPaused ? 0.0 : level;
         });
       }
     });
@@ -120,9 +131,41 @@ class _OralReadingAssessmentReaderPageState
     }
   }
 
-  Future<void> _stopVoiceRecording() async {
+  Future<void> _pauseVoiceRecording() async {
+    _isPaused = true;
+    if (mounted) {
+      setState(() {
+        _recordingProgress = 0.0;
+      });
+    }
     try {
       if (await _audioRecorder.isRecording()) {
+        await _audioRecorder.pause();
+      }
+    } catch (e) {
+      debugPrint('[OralReader] Audio recording pause notice: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _recordingProgress = 0.0;
+      });
+    }
+  }
+
+  Future<void> _resumeVoiceRecording() async {
+    _isPaused = false;
+    try {
+      if (await _audioRecorder.isPaused()) {
+        await _audioRecorder.resume();
+      }
+    } catch (e) {
+      debugPrint('[OralReader] Audio recording resume notice: $e');
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      if (await _audioRecorder.isRecording() || await _audioRecorder.isPaused()) {
         final path = await _audioRecorder.stop();
         if (path != null) _recordedAudioPath = path;
       }
@@ -149,6 +192,11 @@ class _OralReadingAssessmentReaderPageState
           item['content_text'];
       final List<dynamic>? questions =
           item['questions'] ?? passageObj?['questions'];
+      final String? lang =
+          item['rawLanguage'] ??
+          item['language'] ??
+          passageObj?['language'] ??
+          passageObj?['rawLanguage'];
 
       if (title != null && title.trim().isNotEmpty) {
         _storyTitle = title.trim();
@@ -156,11 +204,15 @@ class _OralReadingAssessmentReaderPageState
       if (text != null && text.trim().isNotEmpty) {
         _fullStoryText = text.trim();
       }
+      if (lang != null && lang.trim().isNotEmpty) {
+        _assessmentLanguage = lang.trim();
+      }
       if (questions != null && questions.isNotEmpty) {
         _dynamicQuestions = questions;
       }
+      _passageId = QuizProgressService.extractPassageId(item);
       debugPrint(
-        '[OralReader] Extracted passed item: title="$_storyTitle", text length=${_fullStoryText.length}',
+        '[OralReader] Extracted passed item: title="$_storyTitle", passageId="$_passageId", lang="$_assessmentLanguage", text length=${_fullStoryText.length}',
       );
     }
   }
@@ -580,7 +632,7 @@ class _OralReadingAssessmentReaderPageState
                                                           width:
                                                               barConstraints
                                                                   .maxWidth *
-                                                              _recordingProgress,
+                                                              (_isPaused ? 0.0 : _recordingProgress),
                                                           decoration: BoxDecoration(
                                                             color: primaryBlue,
                                                             borderRadius:
@@ -918,7 +970,7 @@ class _OralReadingAssessmentReaderPageState
     );
   }
 
-  void _confirmStartQuiz(BuildContext context) {
+  void _confirmStartQuiz(BuildContext context) async {
     final titleColor = _isDarkMode
         ? const Color(0xFFECE8E4)
         : const Color(0xFF1E293B);
@@ -930,7 +982,14 @@ class _OralReadingAssessmentReaderPageState
         ? const Color(0xFFC5C0BA)
         : const Color(0xFF64748B);
 
-    showDialog(
+    // 1. Pause audio recording and timer while modal is open
+    await _pauseVoiceRecording();
+    _readingTimer?.cancel();
+
+    if (!mounted) return;
+    bool didStart = false;
+
+    await showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -939,21 +998,25 @@ class _OralReadingAssessmentReaderPageState
             borderRadius: BorderRadius.circular(20),
           ),
           title: Text(
-            'Start Quiz?',
+            _isEnglish ? 'Start Quiz?' : 'Simulan ang Pagsusulit?',
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w800,
               color: titleColor,
             ),
           ),
           content: Text(
-            'You won\'t be able to read the story again once you start the quiz. Are you ready to begin?',
+            _isEnglish
+                ? 'You won\'t be able to read the story again once you start the quiz. Are you ready to begin?'
+                : 'Hindi mo na mababasa ulit ang kuwento kapag nasimulan mo na ang pagsusulit. Handa ka na bang magsimula?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
               child: Text(
-                'Cancel',
+                _isEnglish ? 'Cancel' : 'Kanselahin',
                 style: GoogleFonts.inter(
                   color: cancelColor,
                   fontWeight: FontWeight.w600,
@@ -962,11 +1025,12 @@ class _OralReadingAssessmentReaderPageState
             ),
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
-                _finishReading(); // Transition to Quiz Page
+                didStart = true;
+                Navigator.pop(dialogContext);
+                _finishReading(); // Stop recording & transition to Quiz Page
               },
               child: Text(
-                'Start',
+                _isEnglish ? 'Start' : 'Simulan',
                 style: GoogleFonts.inter(
                   color: const Color(0xFF1B64D8),
                   fontWeight: FontWeight.w700,
@@ -977,22 +1041,72 @@ class _OralReadingAssessmentReaderPageState
         );
       },
     );
+
+    // 2. If student cancelled or dismissed modal without clicking Start, resume recording & timer
+    if (!didStart && mounted) {
+      await _resumeVoiceRecording();
+      _startReadingTimer();
+    }
   }
 
   List<dynamic>? _dynamicQuestions;
+  dynamic _passageId;
 
   void _finishReading() async {
     await _stopVoiceRecording();
     if (!mounted) return;
+    final item = widget.item;
+    _passageId ??= QuizProgressService.extractPassageId(item);
+
+    final readingSecs = _readingSecondsElapsed > 0 ? _readingSecondsElapsed : 60;
+
+    final existingDraft = await QuizProgressService.getQuizDraft(_passageId, 'oral');
+    if (existingDraft == null) {
+      await QuizProgressService.saveQuizDraft(
+        _passageId,
+        assessmentType: 'oral',
+        recordedAudioPath: _recordedAudioPath,
+        readingTimeSeconds: readingSecs,
+        storyTitle: _storyTitle,
+        assessmentLanguage: _assessmentLanguage,
+        dynamicQuestions: _dynamicQuestions,
+      );
+    }
+
+    // Sync status = 'in_progress' to PostgreSQL database for real-time teacher tracking
+    final user = AuthService.currentUser;
+    final studentId = user?.rawUser?['student_id']?.toString() ??
+        user?.rawUser?['studentId']?.toString() ??
+        user?.userId;
+
+    ApiService.post('/api/students/assessment/start-progress', {
+      'studentId': studentId,
+      'passageId': _passageId,
+    });
+
+    if (!mounted) return;
+
+    Map<int, int>? initialAnswersMap;
+    if (existingDraft != null && existingDraft['selectedAnswers'] != null) {
+      if (existingDraft['selectedAnswers'] is Map) {
+        initialAnswersMap = (existingDraft['selectedAnswers'] as Map).map(
+          (k, v) => MapEntry(int.parse(k.toString()), int.parse(v.toString())),
+        );
+      }
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => OralReadingAssessmentQuizPage(
-          dynamicQuestions: _dynamicQuestions,
-          recordedAudioPath: _recordedAudioPath,
-          readingTimeSeconds: _readingSecondsElapsed > 0
-              ? _readingSecondsElapsed
-              : 60,
+          dynamicQuestions: existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
+          recordedAudioPath: existingDraft?['recordedAudioPath'] as String? ?? _recordedAudioPath,
+          readingTimeSeconds: (existingDraft?['readingTimeSeconds'] as int?) ?? readingSecs,
+          storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
+          assessmentLanguage: existingDraft?['assessmentLanguage'] as String? ?? _assessmentLanguage,
+          passageId: _passageId,
+          currentQuestionIndex: (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
+          initialSelectedAnswers: initialAnswersMap,
         ),
       ),
     );

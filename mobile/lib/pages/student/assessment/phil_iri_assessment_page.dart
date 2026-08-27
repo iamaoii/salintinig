@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_quiz_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
@@ -17,6 +21,7 @@ import 'package:salintinig/pages/student/progress_page.dart';
 
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
@@ -35,20 +40,72 @@ class PhilIriAssessmentPage extends StatefulWidget {
 
 class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  bool _isOralReadingDone = false;
-  bool _isListeningDone = false;
-  bool _isSilentReadingDone = false;
   bool _isLoading = true;
 
   List<Map<String, dynamic>> _assignedList = [];
+  Map<dynamic, bool> _activeDrafts = {};
+  dynamic _realtimeSubscription;
 
   @override
   void initState() {
     super.initState();
-    _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
-    _isListeningDone = PhilIriAssessmentPage.isListeningDone;
-    _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+    QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
     _fetchTeacherAssignment();
+    _setupRealtimeSubscription();
+  }
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeSubscription = client
+          .channel('public:phil_iri_page_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'student_grade_history',
+            callback: (payload) {
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assessments',
+            callback: (payload) {
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_assignments',
+            callback: (payload) {
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assigned_activities',
+            callback: (payload) {
+              _fetchTeacherAssignment();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Realtime stream subscription notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    QuizProgressService.draftChangeNotifier.removeListener(_checkLocalDrafts);
+    if (_realtimeSubscription != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeSubscription);
+      } catch (_) {}
+    }
+    super.dispose();
   }
 
   int _getTypePriority(String type) {
@@ -64,16 +121,26 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     }
   }
 
+  Future<void> _checkLocalDrafts() async {
+    final drafts = await QuizProgressService.checkActiveDrafts(_assignedList);
+    if (mounted) {
+      setState(() {
+        _activeDrafts = drafts;
+      });
+    }
+  }
+
   Future<void> _fetchTeacherAssignment() async {
     try {
       final res = await ApiService.get('/students/assessment/my-assignment');
-      debugPrint('[PhilIRI] API success=${res.success} statusCode=${res.statusCode}');
+      debugPrint(
+        '[PhilIRI] API success=${res.success} statusCode=${res.statusCode}',
+      );
       debugPrint('[PhilIRI] raw data=${res.data}');
       if (res.data is Map) {
         debugPrint('[PhilIRI] debug=${(res.data as Map)['debug']}');
       }
       if (res.success && res.data != null) {
-        final attempts = res.data['attemptsStatus'];
         final activitiesList = res.data['assignedActivities'];
         debugPrint('[PhilIRI] assignedActivities=$activitiesList');
         if (mounted) {
@@ -82,8 +149,12 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
-                final typeA = (a['assessmentType'] ?? 'oral').toString().toLowerCase();
-                final typeB = (b['assessmentType'] ?? 'oral').toString().toLowerCase();
+                final typeA = (a['assessmentType'] ?? 'oral')
+                    .toString()
+                    .toLowerCase();
+                final typeB = (b['assessmentType'] ?? 'oral')
+                    .toString()
+                    .toLowerCase();
                 final priorityA = _getTypePriority(typeA);
                 final priorityB = _getTypePriority(typeB);
                 if (priorityA != priorityB) {
@@ -94,12 +165,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                 return titleA.compareTo(titleB);
               });
             }
-            if (attempts != null) {
-              if (attempts['listening'] == true) _isListeningDone = true;
-              if (attempts['oral'] == true) _isOralReadingDone = true;
-              if (attempts['silent'] == true) _isSilentReadingDone = true;
-            }
           });
+
+          await _checkLocalDrafts();
         }
         return;
       }
@@ -220,6 +288,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                           color: primaryBlue,
                           backgroundColor: Colors.white,
                           onRefresh: () async {
+                            await QuizProgressService.clearAllQuizDrafts();
                             await AuthService.fetchMe();
                             await _fetchTeacherAssignment();
                           },
@@ -256,17 +325,13 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                   ..._assignedList.map((item) {
                                     final title =
                                         item['title'] ?? 'Phil-IRI Assessment';
-                                    final type =
-                                        (item['assessmentType'] ?? 'oral')
-                                            .toString()
-                                            .toLowerCase();
-                                    final isDone =
-                                        item['isCompleted'] == true ||
-                                        (type == 'listening' &&
-                                            _isListeningDone) ||
-                                        (type == 'silent' &&
-                                            _isSilentReadingDone) ||
-                                        (type == 'oral' && _isOralReadingDone);
+                                    final type = QuizProgressService.normalizeType(item['assessmentType'] ?? item['type']);
+                                    final isDone = item['isCompleted'] == true ||
+                                        (item['status'] != null &&
+                                            item['status']
+                                                .toString()
+                                                .toLowerCase() ==
+                                                'completed');
 
                                     final rawLang =
                                         (item['rawLanguage'] ?? 'fil')
@@ -293,8 +358,12 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       icon = PhIcons.earBold;
                                       iconColor = const Color(0xFFD97706);
                                       iconBg = const Color(0xFFFEF3C7);
-                                      btnColor = const Color(0xFFFFC000); // Bright Golden Yellow like Teacher portal
-                                      btnTextColor = const Color(0xFF451A03); // High-contrast dark text
+                                      btnColor = const Color(
+                                        0xFFFFC000,
+                                      ); // Bright Golden Yellow like Teacher portal
+                                      btnTextColor = const Color(
+                                        0xFF451A03,
+                                      ); // High-contrast dark text
                                     } else if (type == 'silent') {
                                       icon = PhIcons.bookOpenBold;
                                       iconColor = const Color(0xFF10B981);
@@ -302,34 +371,55 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       btnColor = const Color(0xFF10B981);
                                     }
 
-                                    final isClosed = !isDone &&
+                                    final passageId = QuizProgressService.extractPassageId(item);
+                                    final hasDraft = _activeDrafts['${type}_$passageId'] == true;
+
+                                    final isClosed =
+                                        !isDone &&
+                                        !hasDraft &&
                                         (item['status'] ?? 'open')
                                                 .toString()
                                                 .toLowerCase() ==
                                             'closed';
 
+                                    final tagText = isDone
+                                        ? 'Done'
+                                        : (hasDraft ? 'In Progress' : 'Required');
+                                    final tagBg = isDone
+                                        ? const Color(0xFFD1FAE5)
+                                        : (hasDraft
+                                            ? const Color(0xFFFEF3C7)
+                                            : const Color(0xFFFEE2E2));
+                                    final tagTextCol = isDone
+                                        ? const Color(0xFF059669)
+                                        : (hasDraft
+                                            ? const Color(0xFFD97706)
+                                            : const Color(0xFFEF4444));
+
+                                    final buttonLabel = isDone
+                                        ? 'View Result'
+                                        : (hasDraft
+                                            ? 'Continue'
+                                            : (isClosed ? 'Closed' : 'Start'));
+                                    final buttonBgColor = isDone
+                                        ? const Color(0xFF00A859)
+                                        : (isClosed
+                                            ? const Color(0xFFE4E4E7)
+                                            : btnColor);
+                                    final buttonTxtColor = isDone
+                                        ? Colors.white
+                                        : (isClosed
+                                            ? const Color(0xFF9CA3AF)
+                                            : btnTextColor);
+
                                     return _buildAssessmentCard(
                                       title: title,
-                                      tag: isDone ? 'Done' : 'Required',
-                                      tagBgColor: isDone
-                                          ? const Color(0xFFD1FAE5)
-                                          : const Color(0xFFFEE2E2),
-                                      tagTextColor: isDone
-                                          ? const Color(0xFF059669)
-                                          : const Color(0xFFEF4444),
-                                      buttonText: isDone
-                                          ? 'View Result'
-                                          : (isClosed ? 'Closed' : 'Start'),
-                                      buttonColor: isDone
-                                          ? const Color(0xFF00A859)
-                                          : (isClosed
-                                              ? const Color(0xFFE4E4E7)
-                                              : btnColor),
-                                      buttonTextColor: isDone
-                                          ? Colors.white
-                                          : (isClosed
-                                              ? const Color(0xFF9CA3AF)
-                                              : btnTextColor),
+                                      tag: tagText,
+                                      tagBgColor: tagBg,
+                                      tagTextColor: tagTextCol,
+                                      buttonText: buttonLabel,
+                                      buttonColor: buttonBgColor,
+                                      buttonTextColor: buttonTxtColor,
                                       icon: icon,
                                       iconColor: iconColor,
                                       iconBg: iconBg,
@@ -345,33 +435,74 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) =>
-                                                    ListeningResultPage(
-                                                      score:
-                                                          PhilIriAssessmentPage
-                                                              .listeningScore,
-                                                      totalQuestions: 5,
-                                                    ),
+                                                settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                builder: (context) => const ListeningResultPage(),
                                               ),
-                                            );
+                                            ).then((_) {
+                                              if (mounted) {
+                                                _checkLocalDrafts();
+                                                _fetchTeacherAssignment();
+                                              }
+                                            });
                                           } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    ListeningAssessmentInstructionsPage(
-                                                  item: item,
-                                                  customInstructions:
-                                                      item['instructions'],
-                                                ),
-                                              ),
-                                            ).then((completed) {
-                                              if (completed == true) {
-                                                setState(() {
-                                                  _isListeningDone = true;
-                                                  PhilIriAssessmentPage
-                                                          .isListeningDone =
-                                                      true;
+                                            QuizProgressService.getQuizDraft(passageId, 'listening').then((draft) {
+                                              if (draft != null && context.mounted) {
+                                                List<int?>? initialAnswersList;
+                                                if (draft['selectedAnswers'] != null) {
+                                                  if (draft['selectedAnswers'] is List) {
+                                                    initialAnswersList = (draft['selectedAnswers'] as List)
+                                                        .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                        .toList();
+                                                  } else if (draft['selectedAnswers'] is Map) {
+                                                    final map = draft['selectedAnswers'] as Map;
+                                                    initialAnswersList = [];
+                                                    for (var entry in map.entries) {
+                                                      final idx = int.tryParse(entry.key.toString());
+                                                      final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                      if (idx != null) {
+                                                        while (initialAnswersList.length <= idx) {
+                                                          initialAnswersList.add(null);
+                                                        }
+                                                        initialAnswersList[idx] = val;
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) => ListeningAssessmentQuizPage(
+                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                      storyTitle: draft['storyTitle'] as String?,
+                                                      passageId: passageId,
+                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                      initialSelectedAnswers: initialAnswersList,
+                                                    ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
+                                                });
+                                              } else if (context.mounted) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) =>
+                                                        ListeningAssessmentInstructionsPage(
+                                                          item: item,
+                                                          customInstructions:
+                                                              item['instructions'],
+                                                        ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
                                                 });
                                               }
                                             });
@@ -381,31 +512,76 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) =>
-                                                    SilentReadingResultPage(
-                                                      score: PhilIriAssessmentPage
-                                                          .silentReadingScore,
-                                                      totalQuestions: 3,
-                                                    ),
-                                              ),
-                                            );
-                                          } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    SilentReadingAssessmentInstructionsPage(
-                                                  item: item,
-                                                  customInstructions:
-                                                      item['instructions'],
-                                                ),
+                                                settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                builder: (context) => const SilentReadingResultPage(),
                                               ),
                                             ).then((_) {
-                                              setState(() {
-                                                _isSilentReadingDone =
-                                                    PhilIriAssessmentPage
-                                                        .isSilentReadingDone;
-                                              });
+                                              if (mounted) {
+                                                _checkLocalDrafts();
+                                                _fetchTeacherAssignment();
+                                              }
+                                            });
+                                          } else {
+                                            QuizProgressService.getQuizDraft(passageId, 'silent').then((draft) {
+                                              if (draft != null && context.mounted) {
+                                                List<int?>? initialAnswersList;
+                                                if (draft['selectedAnswers'] != null) {
+                                                  if (draft['selectedAnswers'] is List) {
+                                                    initialAnswersList = (draft['selectedAnswers'] as List)
+                                                        .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                        .toList();
+                                                  } else if (draft['selectedAnswers'] is Map) {
+                                                    final map = draft['selectedAnswers'] as Map;
+                                                    initialAnswersList = [];
+                                                    for (var entry in map.entries) {
+                                                      final idx = int.tryParse(entry.key.toString());
+                                                      final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                      if (idx != null) {
+                                                        while (initialAnswersList.length <= idx) {
+                                                          initialAnswersList.add(null);
+                                                        }
+                                                        initialAnswersList[idx] = val;
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) => SilentReadingAssessmentQuizPage(
+                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                      storyTitle: draft['storyTitle'] as String?,
+                                                      passageId: passageId,
+                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                      initialSelectedAnswers: initialAnswersList,
+                                                    ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
+                                                });
+                                              } else if (context.mounted) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) =>
+                                                        SilentReadingAssessmentInstructionsPage(
+                                                          item: item,
+                                                          customInstructions:
+                                                              item['instructions'],
+                                                        ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
+                                                });
+                                              }
                                             });
                                           }
                                         } else {
@@ -413,32 +589,74 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) =>
-                                                    OralReadingResultPage(
-                                                      score:
-                                                          PhilIriAssessmentPage
-                                                              .oralReadingScore,
-                                                      totalQuestions: 3,
-                                                    ),
-                                              ),
-                                            );
-                                          } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    OralReadingAssessmentInstructionsPage(
-                                                  item: item,
-                                                  customInstructions:
-                                                      item['instructions'],
-                                                ),
+                                                settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                builder: (context) => const OralReadingResultPage(),
                                               ),
                                             ).then((_) {
-                                              setState(() {
-                                                _isOralReadingDone =
-                                                    PhilIriAssessmentPage
-                                                        .isOralReadingDone;
-                                              });
+                                              if (mounted) {
+                                                _checkLocalDrafts();
+                                                _fetchTeacherAssignment();
+                                              }
+                                            });
+                                          } else {
+                                            QuizProgressService.getQuizDraft(passageId, type).then((draft) {
+                                              if (draft != null && context.mounted) {
+                                                Map<int, int>? initialAnswersMap;
+                                                if (draft['selectedAnswers'] != null) {
+                                                  if (draft['selectedAnswers'] is Map) {
+                                                    initialAnswersMap = (draft['selectedAnswers'] as Map).map(
+                                                      (k, v) => MapEntry(int.parse(k.toString()), int.parse(v.toString())),
+                                                    );
+                                                  } else if (draft['selectedAnswers'] is List) {
+                                                    final list = draft['selectedAnswers'] as List;
+                                                    initialAnswersMap = {};
+                                                    for (int i = 0; i < list.length; i++) {
+                                                      if (list[i] != null) {
+                                                        final val = int.tryParse(list[i].toString());
+                                                        if (val != null) initialAnswersMap[i] = val;
+                                                      }
+                                                    }
+                                                  }
+                                                }
+
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) => OralReadingAssessmentQuizPage(
+                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                      recordedAudioPath: draft['recordedAudioPath'] as String?,
+                                                      readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 60,
+                                                      storyTitle: draft['storyTitle'] as String?,
+                                                      assessmentLanguage: draft['assessmentLanguage'] as String?,
+                                                      passageId: passageId,
+                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                      initialSelectedAnswers: initialAnswersMap,
+                                                    ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
+                                                });
+                                              } else if (context.mounted) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                    builder: (context) => OralReadingAssessmentInstructionsPage(
+                                                      item: item,
+                                                      customInstructions: item['instructions'],
+                                                    ),
+                                                  ),
+                                                ).then((_) {
+                                                  if (mounted) {
+                                                    _checkLocalDrafts();
+                                                    _fetchTeacherAssignment();
+                                                  }
+                                                });
+                                              }
                                             });
                                           }
                                         }
@@ -586,17 +804,65 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    // Language badge (FIL / ENG)
-                    if (languageBadge != null)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Language badge (FIL / ENG)
+                      if (languageBadge != null) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isFil
+                                ? const Color(0xFFCCFBF1)
+                                : const Color(0xFFDBEAFE),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            languageBadge,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: isFil
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF1E40AF),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      // Set badge (e.g. Set A)
+                      if (passageSetBadge != null) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            passageSetBadge,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF52525B),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      // Status Tag (Done / In Progress / Required / Optional)
                       Container(
                         decoration: BoxDecoration(
-                          color: isFil
-                              ? const Color(0xFFCCFBF1)
-                              : const Color(0xFFDBEAFE),
+                          color: tagBgColor,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         padding: const EdgeInsets.symmetric(
@@ -604,93 +870,61 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                           vertical: 2,
                         ),
                         child: Text(
-                          languageBadge,
+                          tag,
+                          softWrap: false,
+                          overflow: TextOverflow.visible,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
-                            color: isFil
-                                ? const Color(0xFF0F766E)
-                                : const Color(0xFF1E40AF),
+                            color: tagTextColor,
                           ),
                         ),
                       ),
-                    // Set badge (e.g. Set A)
-                    if (passageSetBadge != null)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF4F4F5),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        child: Text(
-                          passageSetBadge,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF52525B),
-                          ),
-                        ),
-                      ),
-                    // Status Tag (Done / Required / Optional)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: tagBgColor,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        tag,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: tagTextColor,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          // Action Button
-          ElevatedButton(
-            onPressed: buttonColor == const Color(0xFFE4E4E7)
-                ? null
-                : () {
-                    Feedback.forTap(context);
-                    if (onPressed != null) {
-                      onPressed();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Starting $title...')),
-                      );
-                    }
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: buttonColor,
-              foregroundColor: buttonTextColor,
-              disabledBackgroundColor: buttonColor,
-              disabledForegroundColor: buttonTextColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              buttonText,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          // Action Button in reserved minWidth container
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 104),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: buttonColor == const Color(0xFFE4E4E7)
+                    ? null
+                    : () {
+                        Feedback.forTap(context);
+                        if (onPressed != null) {
+                          onPressed();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Starting $title...')),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  foregroundColor: buttonTextColor,
+                  disabledBackgroundColor: buttonColor,
+                  disabledForegroundColor: buttonTextColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  buttonText,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ),
@@ -699,3 +933,4 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     );
   }
 }
+

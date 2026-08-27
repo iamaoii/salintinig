@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_congratulations_page.dart';
-import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 
 class SilentReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
+  final String? storyTitle;
+  final dynamic passageId;
+  final int? currentQuestionIndex;
+  final List<int?>? initialSelectedAnswers;
 
   const SilentReadingAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
+    this.storyTitle,
+    this.passageId,
+    this.currentQuestionIndex,
+    this.initialSelectedAnswers,
   });
 
   @override
@@ -56,6 +64,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
   @override
   void initState() {
     super.initState();
+    debugPrint('[SilentReadingQuiz] initState passageId=${widget.passageId} currentQuestionIndex=${widget.currentQuestionIndex} initialAnswers=${widget.initialSelectedAnswers}');
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
       _questions = widget.dynamicQuestions!.map((q) => {
         'questionText': q['questionText'] ?? '',
@@ -66,13 +75,51 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       _questions = _defaultQuestions;
     }
     _selectedAnswers = List<int?>.filled(_questions.length, null);
+    if (widget.currentQuestionIndex != null &&
+        widget.currentQuestionIndex! >= 0 &&
+        widget.currentQuestionIndex! < _questions.length) {
+      _currentQuestionIndex = widget.currentQuestionIndex!;
+      _maxQuestionIndex = widget.currentQuestionIndex!;
+    }
+    if (widget.initialSelectedAnswers != null) {
+      for (int i = 0; i < widget.initialSelectedAnswers!.length && i < _selectedAnswers.length; i++) {
+        _selectedAnswers[i] = widget.initialSelectedAnswers![i];
+      }
+    }
+    _saveCurrentProgress();
+    debugPrint('[SilentReadingQuiz] After initState _currentQuestionIndex=$_currentQuestionIndex _selectedAnswers=$_selectedAnswers');
+  }
+
+  int _maxQuestionIndex = 0;
+
+  Future<void> _saveCurrentProgress() async {
+    if (_currentQuestionIndex > _maxQuestionIndex) {
+      _maxQuestionIndex = _currentQuestionIndex;
+    }
+    debugPrint('[SilentReadingQuiz] _saveCurrentProgress passageId=${widget.passageId} qIndex=$_currentQuestionIndex answers=$_selectedAnswers');
+    await QuizProgressService.saveQuizDraft(
+      widget.passageId,
+      assessmentType: 'silent',
+      recordedAudioPath: null,
+      readingTimeSeconds: 0,
+      storyTitle: widget.storyTitle,
+      assessmentLanguage: 'fil',
+      dynamicQuestions: widget.dynamicQuestions,
+      currentQuestionIndex: _currentQuestionIndex,
+      selectedAnswers: _selectedAnswers,
+    );
   }
 
   void _onOptionSelected(int index) {
     Feedback.forTap(context);
     setState(() {
-      _selectedAnswers[_currentQuestionIndex] = index;
+      if (_selectedAnswers[_currentQuestionIndex] == index) {
+        _selectedAnswers[_currentQuestionIndex] = null;
+      } else {
+        _selectedAnswers[_currentQuestionIndex] = index;
+      }
     });
+    _saveCurrentProgress();
   }
 
   void _goNext() {
@@ -97,6 +144,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       setState(() {
         _currentQuestionIndex++;
       });
+      _saveCurrentProgress();
     }
   }
 
@@ -106,6 +154,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       setState(() {
         _currentQuestionIndex--;
       });
+      _saveCurrentProgress();
+    } else {
+      _confirmExit(context);
     }
   }
 
@@ -162,28 +213,37 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
           ),
           content: Text(
-            'Your quiz progress will be lost and you will return to the Home page. Are you sure you want to exit?',
+            'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Cancel',
+                'Kanselahin',
                 style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StudentOverviewPage()),
-                  (route) => false,
+                await QuizProgressService.saveQuizDraft(
+                  widget.passageId,
+                  assessmentType: 'silent',
+                  recordedAudioPath: null,
+                  readingTimeSeconds: 0,
+                  storyTitle: widget.storyTitle,
+                  assessmentLanguage: 'fil',
+                  dynamicQuestions: widget.dynamicQuestions,
+                  currentQuestionIndex: _currentQuestionIndex,
+                  selectedAnswers: _selectedAnswers,
                 );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
               },
               child: Text(
-                'Exit',
+                'Lumabas',
                 style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
               ),
             ),
@@ -221,12 +281,27 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                   ),
                   child: Column(
                     children: [
-                      // 1. Header
+                      // 1. Header with X Exit Button on Right Side
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
+                            const SizedBox(width: 48),
+                            Expanded(
+                              child: Text(
+                                widget.storyTitle?.toUpperCase() ?? 'SILENT READING ASSESSMENT',
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF475569),
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ),
                             IconButton(
                               onPressed: () {
                                 Feedback.forTap(context);
@@ -237,17 +312,8 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                                 size: 26,
                                 color: Color(0xFF475569),
                               ),
+                              tooltip: 'Exit Quiz',
                             ),
-                            Text(
-                              'ISANG PANGARAP',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF475569),
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            const SizedBox(width: 48),
                           ],
                         ),
                       ),
@@ -404,48 +470,45 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
 
                       // 6. Navigation Buttons
                       Padding(
-                        padding: const EdgeInsets.all(20.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                         child: Row(
                           children: [
                             if (_currentQuestionIndex > 0) ...[
-                              Container(
-                                height: 56,
-                                width: 56,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-                                ),
-                                child: IconButton(
-                                  onPressed: _goBack,
-                                  icon: const Icon(
-                                    Icons.arrow_back_rounded,
-                                    color: Color(0xFF475569),
-                                    size: 24,
+                              Expanded(
+                                child: SizedBox(
+                                  height: 52,
+                                  child: OutlinedButton(
+                                    onPressed: _goBack,
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Back',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 12),
                             ],
                             Expanded(
-                              child: Container(
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryBlue.withValues(alpha: 0.15),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
+                              child: SizedBox(
+                                height: 52,
                                 child: ElevatedButton(
                                   onPressed: _currentQuestionIndex == _questions.length - 1
                                       ? _finishAssessment
                                       : _goNext,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryBlue,
+                                    backgroundColor: _currentQuestionIndex == _questions.length - 1
+                                        ? const Color(0xFF00AA5A)
+                                        : primaryBlue,
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
@@ -453,10 +516,10 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                                   ),
                                   child: Text(
                                     _currentQuestionIndex == _questions.length - 1
-                                        ? 'Finish Assessment'
-                                        : 'Next Question',
+                                        ? 'Finish'
+                                        : 'Next',
                                     style: GoogleFonts.inter(
-                                      fontSize: 16,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white,
                                     ),

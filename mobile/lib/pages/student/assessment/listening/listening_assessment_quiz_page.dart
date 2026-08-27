@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_congratulations_page.dart';
-import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 
 class ListeningAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
+  final String? storyTitle;
+  final dynamic passageId;
+  final int? currentQuestionIndex;
+  final List<int?>? initialSelectedAnswers;
 
   const ListeningAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
+    this.storyTitle,
+    this.passageId,
+    this.currentQuestionIndex,
+    this.initialSelectedAnswers,
   });
 
   @override
@@ -46,6 +54,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
   @override
   void initState() {
     super.initState();
+    debugPrint('[ListeningQuiz] initState passageId=${widget.passageId} currentQuestionIndex=${widget.currentQuestionIndex} initialAnswers=${widget.initialSelectedAnswers}');
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
       _questions = widget.dynamicQuestions!.map((q) => {
         'questionText': q['questionText'] ?? '',
@@ -56,13 +65,51 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       _questions = _defaultQuestions;
     }
     _selectedAnswers = List<int?>.filled(_questions.length, null);
+    if (widget.currentQuestionIndex != null &&
+        widget.currentQuestionIndex! >= 0 &&
+        widget.currentQuestionIndex! < _questions.length) {
+      _currentQuestionIndex = widget.currentQuestionIndex!;
+      _maxQuestionIndex = widget.currentQuestionIndex!;
+    }
+    if (widget.initialSelectedAnswers != null) {
+      for (int i = 0; i < widget.initialSelectedAnswers!.length && i < _selectedAnswers.length; i++) {
+        _selectedAnswers[i] = widget.initialSelectedAnswers![i];
+      }
+    }
+    _saveCurrentProgress();
+    debugPrint('[ListeningQuiz] After initState _currentQuestionIndex=$_currentQuestionIndex _selectedAnswers=$_selectedAnswers');
+  }
+
+  int _maxQuestionIndex = 0;
+
+  Future<void> _saveCurrentProgress() async {
+    if (_currentQuestionIndex > _maxQuestionIndex) {
+      _maxQuestionIndex = _currentQuestionIndex;
+    }
+    debugPrint('[ListeningQuiz] _saveCurrentProgress passageId=${widget.passageId} qIndex=$_currentQuestionIndex answers=$_selectedAnswers');
+    await QuizProgressService.saveQuizDraft(
+      widget.passageId,
+      assessmentType: 'listening',
+      recordedAudioPath: null,
+      readingTimeSeconds: 0,
+      storyTitle: widget.storyTitle,
+      assessmentLanguage: 'fil',
+      dynamicQuestions: widget.dynamicQuestions,
+      currentQuestionIndex: _currentQuestionIndex,
+      selectedAnswers: _selectedAnswers,
+    );
   }
 
   void _onOptionSelected(int index) {
     Feedback.forTap(context);
     setState(() {
-      _selectedAnswers[_currentQuestionIndex] = index;
+      if (_selectedAnswers[_currentQuestionIndex] == index) {
+        _selectedAnswers[_currentQuestionIndex] = null;
+      } else {
+        _selectedAnswers[_currentQuestionIndex] = index;
+      }
     });
+    _saveCurrentProgress();
   }
 
   void _goNext() {
@@ -88,6 +135,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       setState(() {
         _currentQuestionIndex++;
       });
+      _saveCurrentProgress();
     }
   }
 
@@ -97,6 +145,9 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       setState(() {
         _currentQuestionIndex--;
       });
+      _saveCurrentProgress();
+    } else {
+      _confirmExit(context);
     }
   }
 
@@ -154,28 +205,37 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
           ),
           content: Text(
-            'Your quiz progress will be lost and you will return to the Home page. Are you sure you want to exit?',
+            'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Cancel',
+                'Kanselahin',
                 style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext); // Close dialog
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StudentOverviewPage()),
-                  (route) => false,
+                await QuizProgressService.saveQuizDraft(
+                  widget.passageId,
+                  assessmentType: 'listening',
+                  recordedAudioPath: null,
+                  readingTimeSeconds: 0,
+                  storyTitle: widget.storyTitle,
+                  assessmentLanguage: 'fil',
+                  dynamicQuestions: widget.dynamicQuestions,
+                  currentQuestionIndex: _currentQuestionIndex,
+                  selectedAnswers: _selectedAnswers,
                 );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
               },
               child: Text(
-                'Exit',
+                'Lumabas',
                 style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
               ),
             ),
@@ -213,12 +273,27 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                 ),
                 child: Column(
                   children: [
-                    // 1. Header
+                    // 1. Header with X Exit Button on Right Side
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
+                          const SizedBox(width: 48),
+                          Expanded(
+                            child: Text(
+                              widget.storyTitle?.toUpperCase() ?? 'LISTENING ASSESSMENT',
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF475569),
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
                           IconButton(
                             onPressed: () {
                               Feedback.forTap(context);
@@ -229,17 +304,8 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                               size: 26,
                               color: Color(0xFF475569),
                             ),
+                            tooltip: 'Exit Quiz',
                           ),
-                          Text(
-                            'ISANG PANGARAP',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF475569),
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          const SizedBox(width: 48),
                         ],
                       ),
                     ),
@@ -387,73 +453,53 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                     // 6. Footer Button Navigation
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                      child: _currentQuestionIndex == _questions.length - 1
-                          ? Row(
-                              children: [
-                                // Back Button
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 52,
-                                    child: OutlinedButton(
-                                      onPressed: _goBack,
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Back',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF64748B),
-                                        ),
-                                      ),
+                      child: Row(
+                        children: [
+                          if (_currentQuestionIndex > 0) ...[
+                            Expanded(
+                              child: SizedBox(
+                                height: 52,
+                                child: OutlinedButton(
+                                  onPressed: _goBack,
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Back',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF64748B),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                // Finish Button
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 52,
-                                    child: ElevatedButton(
-                                      onPressed: _finishAssessment,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF00AA5A),
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Finish',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : SizedBox(
-                              width: double.infinity,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          Expanded(
+                            child: SizedBox(
                               height: 52,
                               child: ElevatedButton(
-                                onPressed: _goNext,
+                                onPressed: _currentQuestionIndex == _questions.length - 1
+                                    ? _finishAssessment
+                                    : _goNext,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryBlue,
+                                  backgroundColor: _currentQuestionIndex == _questions.length - 1
+                                      ? const Color(0xFF00AA5A)
+                                      : primaryBlue,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
                                 child: Text(
-                                  'Next',
+                                  _currentQuestionIndex == _questions.length - 1
+                                      ? 'Finish'
+                                      : 'Next',
                                   style: GoogleFonts.inter(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
@@ -462,6 +508,9 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                                 ),
                               ),
                             ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

@@ -423,7 +423,7 @@ class ListeningAssessmentInstructionsPage extends StatelessWidget {
   }
 
   void _startAssessment(BuildContext context) {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => ListeningAssessmentStoryPage(item: item),

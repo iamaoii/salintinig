@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/services/api_config.dart';
@@ -209,6 +210,44 @@ class ApiService {
     return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
   }
 
+  static Future<ApiResponse> uploadMultipartFile(
+    String endpoint,
+    String filePath,
+    String fileFieldName, {
+    Map<String, String>? fields,
+  }) async {
+    final cleanEndpoint = endpoint.startsWith('/api')
+        ? endpoint.substring(4)
+        : (endpoint.startsWith('/') ? endpoint : '/$endpoint');
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}$cleanEndpoint',
+      'http://10.0.2.2:5000/api$cleanEndpoint',
+      'http://192.168.1.146:5000/api$cleanEndpoint',
+    ];
+    String lastErr = '';
+
+    for (final urlStr in urlsToTry) {
+      try {
+        final request = http.MultipartRequest('POST', Uri.parse(urlStr));
+        if (_authToken != null && _authToken!.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $_authToken';
+        }
+        if (fields != null) {
+          request.fields.addAll(fields);
+        }
+        if (filePath.isNotEmpty) {
+          request.files.add(await http.MultipartFile.fromPath(fileFieldName, filePath));
+        }
+        final streamedResponse = await request.send().timeout(const Duration(seconds: 25));
+        final response = await http.Response.fromStream(streamedResponse);
+        return ApiResponse.fromResponse(response);
+      } catch (e) {
+        lastErr = e.toString();
+      }
+    }
+    return ApiResponse.error('Network error: Unable to upload audio to server. ($lastErr)');
+  }
+
   static Future<List<int>?> uploadAudioForDenoising(String filePath) async {
     final urlsToTry = [
       '${ApiConfig.baseUrl}/students/assessment/denoise-test-audio',
@@ -229,7 +268,7 @@ class ApiService {
           return response.bodyBytes;
         }
       } catch (e) {
-        print('[ApiService] Denoise upload attempt notice: $e');
+        debugPrint('[ApiService] Denoise upload attempt notice: $e');
       }
     }
     return null;

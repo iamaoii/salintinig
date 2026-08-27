@@ -1,19 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_congratulations_page.dart';
-import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 
 class OralReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
   final String? recordedAudioPath;
   final int? readingTimeSeconds;
+  final String? storyTitle;
+  final String? assessmentLanguage;
+  final dynamic passageId;
+  final int? currentQuestionIndex;
+  final Map<int, int>? initialSelectedAnswers;
 
   const OralReadingAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
     this.recordedAudioPath,
     this.readingTimeSeconds,
+    this.storyTitle,
+    this.assessmentLanguage,
+    this.passageId,
+    this.currentQuestionIndex,
+    this.initialSelectedAnswers,
   });
 
   @override
@@ -22,57 +34,126 @@ class OralReadingAssessmentQuizPage extends StatefulWidget {
 
 class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQuizPage> {
   int _currentQuestionIndex = 0;
+  int _maxQuestionIndex = 0;
   final Map<int, int> _selectedAnswers = {};
   
   late List<Map<String, dynamic>> _questions;
 
+  bool get _isEnglish {
+    final lang = (widget.assessmentLanguage ?? '').toLowerCase();
+    final title = (widget.storyTitle ?? '').toLowerCase();
+    if (lang.startsWith('en') || lang.contains('english') || title.contains('english')) {
+      return true;
+    }
+    if (_questions.isNotEmpty) {
+      final qText = (_questions[0]['questionText'] ?? _questions[0]['question'] ?? '').toString().toLowerCase();
+      final opts = (_questions[0]['options'] is List ? _questions[0]['options'] as List : []).join(' ').toLowerCase();
+      final combined = '$qText $opts';
+
+      if (combined.contains('who ') ||
+          combined.contains('what ') ||
+          combined.contains('where ') ||
+          combined.contains('why ') ||
+          combined.contains('how ') ||
+          combined.contains('which ') ||
+          combined.contains('the ') ||
+          combined.contains(' is ') ||
+          combined.contains(' was ') ||
+          combined.contains(' are ') ||
+          combined.contains(' story')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   final List<Map<String, dynamic>> _defaultQuestions = [
     {
-      'question': 'Sino ang pangunahing tauhan sa kuwento?',
-      'options': ['Ang pangunahing tauhan', 'Ang kaniyang kaibigan', 'Ang kapitbahay', 'Ang guro'],
+      'questionText': 'Sino ang pangunahing tauhan sa kwento?',
+      'options': ['Bata', 'Guro', 'Nanay', 'Ama'],
       'correctIndex': 0,
     },
     {
-      'question': 'Tungkol saan ang binasang kuwento?',
-      'options': ['Pagtulong sa kapwa', 'Pagsasaka', 'Paglalakbay', 'Pakikipagsapalaran'],
+      'questionText': 'Ano ang ginagawa ng pangunahing tauhan?',
+      'options': ['Nababasa', 'Nagtuturo', 'Naglalaro', 'Nagtatrabaho'],
       'correctIndex': 0,
     },
     {
-      'question': 'Ano ang magandang katangian na ipinakita sa kuwento?',
-      'options': ['Kabutihan at katapangan', 'Katamaran', 'Kagalitan', 'Katakutan'],
-      'correctIndex': 0,
-    },
-    {
-      'question': 'Ano ang magandang aral na matututuhan sa kuwento?',
-      'options': [
-        'Maging matulungin at mabuti sa kapwa',
-        'Huwag tumulong sa nangangailangan',
-        'Umasa lamang sa iba',
-        'Maging makasarili'
-      ],
-      'correctIndex': 0,
+      'questionText': 'Ano ang aral na makukuha sa kwento?',
+      'options': ['Maging mabait', 'Maging masipag', 'Maging matulungin', 'Lahat ng nabanggit'],
+      'correctIndex': 3,
     },
   ];
 
   @override
   void initState() {
     super.initState();
+    debugPrint('[OralReadingQuiz] initState passageId=${widget.passageId} currentQuestionIndex=${widget.currentQuestionIndex} initialAnswers=${widget.initialSelectedAnswers}');
+    final List<Map<String, dynamic>> parsedList = [];
+
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
-      _questions = widget.dynamicQuestions!.map((q) => {
-        'question': q['questionText'] ?? q['question'] ?? '',
-        'options': List<String>.from(q['options'] ?? []),
-        'correctIndex': q['correctIndex'] ?? 0,
-      }).toList();
-    } else {
-      _questions = _defaultQuestions;
+      for (final q in widget.dynamicQuestions!) {
+        if (q == null) continue;
+        final cIndex = q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0;
+        final rawOpts = q['options'];
+        List<String> parsedOptions = [];
+        if (rawOpts is List) {
+          parsedOptions = rawOpts
+              .map((e) => e?.toString() ?? '')
+              .where((s) => s.isNotEmpty)
+              .toList();
+        }
+        parsedList.add({
+          'questionText': (q['questionText'] ?? q['question'] ?? '').toString(),
+          'options': parsedOptions,
+          'correctIndex': cIndex is int ? cIndex : 0,
+        });
+      }
     }
+
+    _questions = parsedList.isNotEmpty ? parsedList : _defaultQuestions;
+
+    if (widget.currentQuestionIndex != null &&
+        widget.currentQuestionIndex! >= 0 &&
+        widget.currentQuestionIndex! < _questions.length) {
+      _currentQuestionIndex = widget.currentQuestionIndex!;
+      _maxQuestionIndex = widget.currentQuestionIndex!;
+    }
+    if (widget.initialSelectedAnswers != null) {
+      _selectedAnswers.addAll(widget.initialSelectedAnswers!);
+    }
+    _saveCurrentProgress();
+    debugPrint('[OralReadingQuiz] After initState _currentQuestionIndex=$_currentQuestionIndex _selectedAnswers=$_selectedAnswers _questions.length=${_questions.length}');
+  }
+
+  Future<void> _saveCurrentProgress() async {
+    if (_currentQuestionIndex > _maxQuestionIndex) {
+      _maxQuestionIndex = _currentQuestionIndex;
+    }
+    debugPrint('[OralReadingQuiz] _saveCurrentProgress passageId=${widget.passageId} qIndex=$_currentQuestionIndex answers=$_selectedAnswers');
+    await QuizProgressService.saveQuizDraft(
+      widget.passageId,
+      assessmentType: 'oral',
+      recordedAudioPath: widget.recordedAudioPath,
+      readingTimeSeconds: widget.readingTimeSeconds ?? 0,
+      storyTitle: widget.storyTitle,
+      assessmentLanguage: widget.assessmentLanguage,
+      dynamicQuestions: widget.dynamicQuestions,
+      currentQuestionIndex: _currentQuestionIndex,
+      selectedAnswers: _selectedAnswers,
+    );
   }
 
   void _selectAnswer(int index) {
     Feedback.forTap(context);
     setState(() {
-      _selectedAnswers[_currentQuestionIndex] = index;
+      if (_selectedAnswers[_currentQuestionIndex] == index) {
+        _selectedAnswers.remove(_currentQuestionIndex);
+      } else {
+        _selectedAnswers[_currentQuestionIndex] = index;
+      }
     });
+    _saveCurrentProgress();
   }
 
   void _goNext() {
@@ -80,7 +161,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
     if (_selectedAnswers[_currentQuestionIndex] == null) {
       AppToast.warning(
         context,
-        'Pumili muna ng isang sagot.',
+        _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -89,6 +170,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       setState(() {
         _currentQuestionIndex++;
       });
+      _saveCurrentProgress();
     }
   }
 
@@ -98,15 +180,18 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       setState(() {
         _currentQuestionIndex--;
       });
+      _saveCurrentProgress();
+    } else {
+      _confirmExit(context);
     }
   }
 
-  void _finishAssessment() {
+  void _finishAssessment() async {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
       AppToast.warning(
         context,
-        'Pumili muna ng isang sagot.',
+        _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -114,10 +199,73 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
     // Calculate score
     int correctCount = 0;
     for (int i = 0; i < _questions.length; i++) {
-      if (_selectedAnswers[i] == _questions[i]['correctAnswerIndex']) {
+      final targetCorrect = _questions[i]['correctIndex'] ?? 0;
+      if (_selectedAnswers[i] == targetCorrect) {
         correctCount++;
       }
     }
+
+    // Show loading dialog while sending to backend database
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1B64D8)),
+      ),
+    );
+
+    try {
+      final user = AuthService.currentUser;
+      final studentId = user?.rawUser?['student_id']?.toString() ??
+          user?.rawUser?['studentId']?.toString() ??
+          user?.userId;
+      final lrn = user?.lrn;
+
+      // 1. Post quiz score & calculate Phil-IRI profile in PostgreSQL DB
+      await ApiService.post('/api/students/assessment/submit', {
+        'studentId': studentId,
+        'lrn': lrn,
+        'assessmentType': 'oral',
+        'score': correctCount,
+        'maxScore': _questions.length,
+        'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
+        'wordAccuracy': 95,
+        'wordsRead': 60,
+      });
+
+      // 2. Upload recorded audio file to Cloudinary & save attempt to DB
+      final audioPath = widget.recordedAudioPath ?? '';
+      if (audioPath.isNotEmpty) {
+        await ApiService.uploadMultipartFile(
+          '/api/students/assessment/submit-oral-audio',
+          audioPath,
+          'audio',
+          fields: {
+            'studentId': studentId ?? '',
+            'passageId': (widget.passageId ?? 1).toString(),
+            'transcriptText': widget.storyTitle ?? 'Oral Reading Assessment',
+            'readingTimeSeconds': (widget.readingTimeSeconds ?? 60).toString(),
+          },
+        );
+      } else {
+        await ApiService.post('/api/students/assessment/submit-oral-audio', {
+          'studentId': studentId,
+          'passageId': widget.passageId ?? 1,
+          'transcriptText': widget.storyTitle ?? 'Oral Reading Assessment',
+          'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
+        });
+      }
+      // Clear active quiz draft on successful completion
+      await QuizProgressService.clearQuizDraft(widget.passageId, 'oral');
+    } catch (e) {
+      debugPrint('[QuizPage] Submission to database notice: $e');
+    } finally {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // Safely close progress dialog
+      }
+    }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -143,32 +291,43 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
           backgroundColor: dialogBg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Exit Quiz?',
+            _isEnglish ? 'Exit Quiz?' : 'Lumabas sa Pagsusulit?',
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
           ),
           content: Text(
-            'Your quiz progress will be lost and you will return to the Home page. Are you sure you want to exit?',
+            _isEnglish
+                ? 'Your progress will be saved so you can continue later. Are you sure you want to exit?'
+                : 'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Cancel',
+                _isEnglish ? 'Cancel' : 'Kanselahin',
                 style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext); // Close dialog
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StudentOverviewPage()),
-                  (route) => false,
+                await QuizProgressService.saveQuizDraft(
+                  widget.passageId,
+                  assessmentType: 'oral',
+                  recordedAudioPath: widget.recordedAudioPath,
+                  readingTimeSeconds: widget.readingTimeSeconds ?? 0,
+                  storyTitle: widget.storyTitle,
+                  assessmentLanguage: widget.assessmentLanguage,
+                  dynamicQuestions: widget.dynamicQuestions,
+                  currentQuestionIndex: _currentQuestionIndex,
+                  selectedAnswers: _selectedAnswers,
                 );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
               },
               child: Text(
-                'Exit',
+                _isEnglish ? 'Exit' : 'Lumabas',
                 style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
               ),
             ),
@@ -182,6 +341,64 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
+
+    if (_questions.isEmpty) {
+      return Scaffold(
+        backgroundColor: softCreamBg,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.assignment_turned_in_outlined, size: 56, color: Color(0xFF94A3B8)),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isEnglish ? 'No Quiz Questions' : 'Walang Tanong sa Pagsusulit',
+                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _isEnglish
+                        ? 'Great job completing the reading! Click finish to proceed.'
+                        : 'Magaling! Natapos mo ang pagbabasa. Pindutin ang tapusin para magpatuloy.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const OralReadingAssessmentCongratulationsPage(
+                              score: 0,
+                              totalQuestions: 0,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00AA5A),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        _isEnglish ? 'Finish' : 'Tapusin',
+                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     final currentQuestion = _questions[_currentQuestionIndex];
     final selectedAnswerIndex = _selectedAnswers[_currentQuestionIndex];
@@ -206,12 +423,27 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                   ),
                   child: Column(
                     children: [
-                      // 1. Header
+                      // 1. Header with X Exit Button on Right Side
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
+                            const SizedBox(width: 48),
+                            Expanded(
+                              child: Text(
+                                widget.storyTitle?.toUpperCase() ?? 'ORAL READING ASSESSMENT',
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF475569),
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ),
                             IconButton(
                               onPressed: () {
                                 Feedback.forTap(context);
@@ -222,17 +454,8 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                                 size: 26,
                                 color: Color(0xFF475569),
                               ),
+                              tooltip: _isEnglish ? 'Exit Quiz' : 'Lumabas sa Pagsusulit',
                             ),
-                            Text(
-                              'ISANG PANGARAP',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF475569),
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            const SizedBox(width: 48),
                           ],
                         ),
                       ),
@@ -244,7 +467,9 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'QUESTION ${_currentQuestionIndex + 1}',
+                              _isEnglish
+                                  ? 'QUESTION ${_currentQuestionIndex + 1}'
+                                  : 'TANONG ${_currentQuestionIndex + 1}',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
@@ -285,7 +510,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                currentQuestion['questionText'],
+                                (currentQuestion['questionText'] ?? currentQuestion['question'] ?? '').toString(),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 24,
@@ -305,7 +530,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            'SELECT ONLY ONE',
+                            _isEnglish ? 'SELECT ONLY ONE' : 'PUMILI NG ISANG SAGOT',
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -331,7 +556,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                                 child: GestureDetector(
                                   onTap: () => _selectAnswer(index),
                                   child: Container(
-                                    height: 64,
+                                    constraints: const BoxConstraints(minHeight: 56),
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? const Color(0xFFD3E2F8)
@@ -344,7 +569,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                                         width: isSelected ? 1.5 : 1.0,
                                       ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
                                     child: Row(
                                       children: [
                                         Icon(
@@ -382,73 +607,53 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                       // 6. Footer Button Navigation
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                        child: _currentQuestionIndex == _questions.length - 1
-                            ? Row(
-                                children: [
-                                  // Back Button
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 52,
-                                      child: OutlinedButton(
-                                        onPressed: _goBack,
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Back',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF64748B),
-                                          ),
-                                        ),
+                        child: Row(
+                          children: [
+                            if (_currentQuestionIndex > 0) ...[
+                              Expanded(
+                                child: SizedBox(
+                                  height: 52,
+                                  child: OutlinedButton(
+                                    onPressed: _goBack,
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _isEnglish ? 'Back' : 'Bumalik',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF64748B),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  // Finish Button
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 52,
-                                      child: ElevatedButton(
-                                        onPressed: _finishAssessment,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF00AA5A),
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Finish',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : SizedBox(
-                                width: double.infinity,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              child: SizedBox(
                                 height: 52,
                                 child: ElevatedButton(
-                                  onPressed: _goNext,
+                                  onPressed: _currentQuestionIndex == _questions.length - 1
+                                      ? _finishAssessment
+                                      : _goNext,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryBlue,
+                                    backgroundColor: _currentQuestionIndex == _questions.length - 1
+                                        ? const Color(0xFF00AA5A)
+                                        : primaryBlue,
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                   ),
                                   child: Text(
-                                    'Next',
+                                    _currentQuestionIndex == _questions.length - 1
+                                        ? (_isEnglish ? 'Finish' : 'Tapusin')
+                                        : (_isEnglish ? 'Next' : 'Susunod'),
                                     style: GoogleFonts.inter(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,
@@ -457,6 +662,9 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                                   ),
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

@@ -8,84 +8,47 @@ import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dar
 class OralReadingComprehensionSummaryPage extends StatelessWidget {
   final int score;
   final int totalQuestions;
+  final List<Map<String, dynamic>>? questionsList;
 
   const OralReadingComprehensionSummaryPage({
     super.key,
     this.score = 3,
-    this.totalQuestions = 8,
+    this.totalQuestions = 3,
+    this.questionsList,
   });
 
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    // Mock question data matching the 37% Comprehension Score (3/8 correct)
-    final List<Map<String, dynamic>> questions = [
-      {
-        'number': 1,
-        'question': 'Sino ang pangunahing tauhan sa kuwento?',
-        'choices': ['Si Mang Tomas', 'Si Mang Juan', 'Si Mang Pedro', 'Si Mang Lito'],
-        'isCorrect': true,
-        'studentAnswer': 'Si Mang Tomas',
-        'correctAnswer': 'Si Mang Tomas',
-      },
-      {
-        'number': 2,
-        'question': 'Ano ang kanyang pangunahing hanapbuhay?',
-        'choices': ['Pangingisda', 'Pagsasaka', 'Pagtuturo', 'Pagtitinda'],
-        'isCorrect': true,
-        'studentAnswer': 'Pagsasaka',
-        'correctAnswer': 'Pagsasaka',
-      },
-      {
-        'number': 3,
-        'question': 'Saan matatagpuan ang kanyang bukid?',
-        'choices': ['Sa tabi ng ilog', 'Sa paanan ng bundok', 'Sa gitna ng lungsod', 'Sa tabing-dagat'],
-        'isCorrect': true,
-        'studentAnswer': 'Sa paanan ng bundok',
-        'correctAnswer': 'Sa paanan ng bundok',
-      },
-      {
-        'number': 4,
-        'question': 'Ano ang alagang hayop na tumutulong sa kanya sa bukid?',
-        'choices': ['Aso', 'Kalabaw', 'Baka', 'Kambing'],
-        'isCorrect': false,
-        'studentAnswer': 'Baka',
-        'correctAnswer': 'Kalabaw',
-      },
-      {
-        'number': 5,
-        'question': 'Anong kalamidad ang sumira sa kanyang pananim?',
-        'choices': ['Baha/Bagyo', 'Tagtuyot', 'Lindol', 'Peste'],
-        'isCorrect': false,
-        'studentAnswer': 'Tagtuyot',
-        'correctAnswer': 'Baha/Bagyo',
-      },
-      {
-        'number': 6,
-        'question': 'Sino ang tumulong sa kanya upang makabangon muli?',
-        'choices': ['Ang kanyang pamilya', 'Ang pamahalaan', 'Ang kanyang mga kapitbahay', 'Wala sihang kasama'],
-        'isCorrect': false,
-        'studentAnswer': 'Ang pamahalaan',
-        'correctAnswer': 'Ang kanyang mga kapitbahay',
-      },
-      {
-        'number': 7,
-        'question': 'Ano ang ginawa ng mga kapitbahay para tulungan siya?',
-        'choices': ['Nag-ambag ng binhi', 'Binasura ang kanyang bukid', 'Pinautang siya ng pera', 'Pinaalis siya sa lugar'],
-        'isCorrect': false,
-        'studentAnswer': 'Pinautang siya ng pera',
-        'correctAnswer': 'Nag-ambag ng binhi',
-      },
-      {
-        'number': 8,
-        'question': 'Ano ang aral na mapupulot sa kuwento?',
-        'choices': ['Huwag magtiwala sa iba', 'Ang pagkakaisa ay susi sa tagumpay', 'Magtrabaho nang mag-isa', 'Maging tamad kung mahirap ang buhay'],
-        'isCorrect': false,
-        'studentAnswer': 'Huwag magtiwala sa iba',
-        'correctAnswer': 'Ang pagkakaisa ay susi sa tagumpay',
-      },
-    ];
+    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
+        ? questionsList!
+        : [
+            {
+              'number': 1,
+              'question': 'Sino ang pangunahing tauhan sa kuwento?',
+              'choices': ['Si Mang Tomas', 'Si Mang Juan', 'Si Mang Pedro', 'Si Mang Lito'],
+              'isCorrect': true,
+              'studentAnswer': 'Si Mang Tomas',
+              'correctAnswer': 'Si Mang Tomas',
+            },
+            {
+              'number': 2,
+              'question': 'Ano ang kanyang pangunahing hanapbuhay?',
+              'choices': ['Pangingisda', 'Pagsasaka', 'Pagtuturo', 'Pagtitinda'],
+              'isCorrect': true,
+              'studentAnswer': 'Pagsasaka',
+              'correctAnswer': 'Pagsasaka',
+            },
+            {
+              'number': 3,
+              'question': 'Saan matatagpuan ang kanyang bukid?',
+              'choices': ['Sa tabi ng ilog', 'Sa paanan ng bundok', 'Sa gitna ng lungsod', 'Sa tabing-dagat'],
+              'isCorrect': true,
+              'studentAnswer': 'Sa paanan ng bundok',
+              'correctAnswer': 'Sa paanan ng bundok',
+            },
+          ];
 
     return Scaffold(
       backgroundColor: softCreamBg,

@@ -25,15 +25,19 @@ const {
   completeActivityProgress,
   submitStudentOralAudio,
   denoiseTestAudio,
+  updateAssessmentStartProgress,
+  getStudentAssessmentResults,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
 router.get('/', getStudents);
 router.get('/assessment/passages', getPhilIriPassages);
 router.get('/assessment/my-assignment', verifyToken, getStudentActiveAssignment);
+router.get('/assessment/my-results', verifyToken, getStudentAssessmentResults);
 router.post('/assessment/assign', assignPhilIriToStudent);
+router.post('/assessment/start-progress', updateAssessmentStartProgress);
 router.post('/assessment/submit', submitPhilIriAssessment);
-router.post('/assessment/submit-oral-audio', submitStudentOralAudio);
+router.post('/assessment/submit-oral-audio', upload.single('audio'), submitStudentOralAudio);
 router.post('/assessment/denoise-test-audio', upload.single('audio'), denoiseTestAudio);
 router.post('/story/complete', completeStoryProgress);
 router.post('/activity/complete', completeActivityProgress);

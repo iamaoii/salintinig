@@ -431,7 +431,7 @@ class _SilentReadingAssessmentStoryPageState extends State<SilentReadingAssessme
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const SilentReadingAssessmentReaderPage(),
+        builder: (context) => SilentReadingAssessmentReaderPage(item: widget.item),
       ),
     );
   }

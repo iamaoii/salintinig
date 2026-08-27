@@ -431,7 +431,7 @@ class _ListeningAssessmentStoryPageState extends State<ListeningAssessmentStoryP
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ListeningAssessmentReaderPage(),
+        builder: (context) => ListeningAssessmentReaderPage(item: widget.item),
       ),
     );
   }

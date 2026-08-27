@@ -1212,15 +1212,26 @@ async function submitPhilIriAssessment(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        // Resolve student_id
-        let resolvedStudentId = studentId;
+        // Resolve student_id from student_id, user_id, or lrn
+        let resolvedStudentId = null;
+        if (studentId) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+            [String(studentId).trim()]
+          );
+          if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+        }
         if (!resolvedStudentId && lrn) {
-          const sRes = await db.query(`SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`, [String(lrn).trim()]);
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [String(lrn).trim()]
+          );
           if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
         }
 
         if (!resolvedStudentId) {
-          return res.status(404).json({ success: false, error: 'Student not found.' });
+          // Fallback: If no student record exists yet, resolve or use studentId directly if valid UUID
+          resolvedStudentId = studentId;
         }
 
         // Calculate score percentage & DepEd reading level classification
@@ -1251,13 +1262,27 @@ async function submitPhilIriAssessment(req, res) {
           [resolvedStudentId, newLevel, accPct, compPct]
         );
 
+        // Resolve or create assessment record in assessments table for the specific assessmentType
+        let assessmentId = req.body.passageId
+          ? (await db.query(`SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = LOWER($3) LIMIT 1`, [resolvedStudentId, req.body.passageId, assessmentType || 'oral'])).rows?.[0]?.assessment_id
+          : (await db.query(`SELECT assessment_id FROM assessments WHERE student_id = $1 AND LOWER(assessment_type) = LOWER($2) LIMIT 1`, [resolvedStudentId, assessmentType || 'oral'])).rows?.[0]?.assessment_id;
+
+        if (!assessmentId) {
+          const aRes = await db.query(
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
+             VALUES ($1, $2, $3, 'pre_test', 'submitted') RETURNING assessment_id`,
+            [resolvedStudentId, req.body.passageId || 1, assessmentType || 'oral']
+          );
+          assessmentId = aRes.rows?.[0]?.assessment_id;
+        }
+
         // Record attempt in assessment_attempts
         try {
           const attemptRes = await db.query(
-            `INSERT INTO assessment_attempts (student_id, status, completed_at)
+            `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
              VALUES ($1, 'completed', CURRENT_TIMESTAMP)
              RETURNING attempt_id`,
-            [resolvedStudentId]
+            [assessmentId]
           );
           const attemptId = attemptRes.rows?.[0]?.attempt_id;
 
@@ -1617,7 +1642,7 @@ async function getStudentActiveAssignment(req, res) {
              p.title,
              p.grade_level     AS "gradeLevel",
              p.passage_set     AS "set",
-             COALESCE(p.language, 'fil') AS language,
+               COALESCE(p.language, 'fil') AS language,
              p.content_text    AS text,
              p.word_count      AS words
            FROM assessments a
@@ -1629,12 +1654,17 @@ async function getStudentActiveAssignment(req, res) {
         );
         console.log('[getStudentActiveAssignment] assessment rows found:', aRes.rows.length);
 
-        // â”€â”€â”€ Step 2: Fetch completed attempt types for this student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ─── Step 2: Fetch completed attempt types for this student ────────────
         try {
           const attRes = await db.query(
-            `SELECT DISTINCT LOWER(a.assessment_type) AS type
+            `SELECT DISTINCT 
+               CASE 
+                 WHEN orr.result_id IS NOT NULL THEN 'oral'
+                 ELSE LOWER(a.assessment_type)
+               END AS type
              FROM assessment_attempts aa
              JOIN assessments a ON a.assessment_id = aa.assessment_id
+             LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
              WHERE a.student_id = $1
                AND LOWER(aa.status) = 'completed'`,
             [targetStudentId]
@@ -1648,48 +1678,90 @@ async function getStudentActiveAssignment(req, res) {
           console.warn('[getStudentActiveAssignment] attempts query skipped:', attErr.message);
         }
 
-        // â”€â”€â”€ Step 3: Map rows to assignedActivities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        assignedActivities = aRes.rows.map((row) => {
-          const typeLabel =
-            row.assessmentType === 'oral'      ? 'Oral Reading' :
-            row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
-          const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
-          const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
-          const rawSet      = row.set ? String(row.set).trim() : 'Set A';
-          const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
+        // Step 3: Map rows to assignedActivities
+        assignedActivities = await Promise.all(
+          aRes.rows.map(async (row) => {
+            const typeLabel =
+              row.assessmentType === 'oral'      ? 'Oral Reading' :
+              row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+            const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+            const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+            const rawSet      = row.set ? String(row.set).trim() : 'Set A';
+            const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
 
-          const isDone = Boolean(
-            attemptsStatus[row.assessmentType] ||
-            (row.status && row.status.toLowerCase() === 'completed')
-          );
+            const isDone = Boolean(
+              attemptsStatus[row.assessmentType] ||
+              (row.status && row.status.toLowerCase() === 'completed')
+            );
 
-          return {
-            assessmentId:  row.assessmentId,
-            title:         `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
-            passageTitle:  row.title,
-            assessmentType: row.assessmentType,
-            period:        periodLabel,
-            rawPeriod:     row.period,
-            language:      langLabel,
-            rawLanguage:   row.language || 'fil',
-            gradeLevel:    row.gradeLevel || targetGrade,
-            passageSet:    setLabel,
-            dueDate:       row.dueDate,
-            instructions:  row.instructions || null,
-            status:        row.status,
-            isCompleted:   isDone,
-            passageId:     row.passageId,
-            passage: {
-              id:         row.passageId,
-              title:      row.title,
-              text:       row.text,
-              words:      row.words,
-              gradeLevel: row.gradeLevel,
-              set:        row.set,
-              language:   row.language,
-            },
-          };
-        });
+            let questions = [];
+            try {
+              const { rows: qRows } = await db.query(
+                `SELECT question_id, question_text, question_type
+                 FROM phil_iri_questions
+                 WHERE passage_id = $1
+                 ORDER BY created_at ASC`,
+                [row.passageId]
+              );
+
+              questions = await Promise.all(
+                qRows.map(async (q) => {
+                  const { rows: cRows } = await db.query(
+                    `SELECT choice_id, choice_text, is_correct
+                     FROM phil_iri_question_choices
+                     WHERE question_id = $1
+                     ORDER BY choice_id ASC`,
+                    [q.question_id]
+                  );
+
+                  const options = cRows.map((c) => c.choice_text);
+                  const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+                  return {
+                    id: q.question_id,
+                    question: q.question_text,
+                    questionText: q.question_text,
+                    type: q.question_type || 'Multiple Choice',
+                    options: options.length > 0 ? options : ['Oo', 'Hindi'],
+                    correctIndex: correctIndex >= 0 ? correctIndex : 0,
+                    correctAnswerIndex: correctIndex >= 0 ? correctIndex : 0,
+                  };
+                })
+              );
+            } catch (qErr) {
+              console.warn('[getStudentActiveAssignment] question query error:', qErr.message);
+            }
+
+            return {
+              assessmentId:  row.assessmentId,
+              title:         `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
+              passageTitle:  row.title,
+              assessmentType: row.assessmentType,
+              period:        periodLabel,
+              rawPeriod:     row.period,
+              language:      langLabel,
+              rawLanguage:   row.language || 'fil',
+              gradeLevel:    row.gradeLevel || targetGrade,
+              passageSet:    setLabel,
+              dueDate:       row.dueDate,
+              instructions:  row.instructions || null,
+              status:        row.status,
+              isCompleted:   isDone,
+              passageId:     row.passageId,
+              questions:     questions,
+              passage: {
+                id:         row.passageId,
+                title:      row.title,
+                text:       row.text,
+                words:      row.words,
+                gradeLevel: row.gradeLevel,
+                set:        row.set,
+                language:   row.language,
+                questions:  questions,
+              },
+            };
+          })
+        );
       } catch (queryErr) {
         console.error('[getStudentActiveAssignment] assessment query error:', queryErr.message);
       }
@@ -1715,34 +1787,80 @@ async function getStudentActiveAssignment(req, res) {
 // ---------------------------------------------------------------------------
 async function submitStudentOralAudio(req, res) {
   try {
-    const { studentId, assessmentId, passageId, audioUrl, transcriptText, readingTimeSeconds = 60 } = req.body;
+    const studentId = req.body.studentId || req.body.student_id;
+    const passageId = req.body.passageId || req.body.passage_id || 1;
+    const transcriptText = req.body.transcriptText || req.body.transcript_text || 'Oral Reading Assessment';
+    const readingTimeSeconds = Number(req.body.readingTimeSeconds || req.body.reading_time_seconds || 60);
 
-    if (!passageId || !transcriptText) {
-      return res.status(400).json({ success: false, error: 'Passage ID and transcript text are required.' });
+    let audioUrl = req.body.audioUrl || req.body.audio_url || '';
+
+    // Upload recorded audio to Cloudinary if file or path provided
+    const fs = require('fs');
+    if (req.file && req.file.path) {
+      try {
+        const { uploadAudio } = require('../config/cloudinary.js');
+        const cloudRes = await uploadAudio(req.file.path, 'salintinig/oral_recordings');
+        if (cloudRes?.secure_url) {
+          audioUrl = cloudRes.secure_url;
+        }
+      } catch (uploadErr) {
+        console.warn('[submitStudentOralAudio] Cloudinary upload notice:', uploadErr.message);
+      }
+    } else if (audioUrl && typeof audioUrl === 'string' && fs.existsSync(audioUrl)) {
+      try {
+        const { uploadAudio } = require('../config/cloudinary.js');
+        const cloudRes = await uploadAudio(audioUrl, 'salintinig/oral_recordings');
+        if (cloudRes?.secure_url) {
+          audioUrl = cloudRes.secure_url;
+        }
+      } catch (uploadErr) {
+        console.warn('[submitStudentOralAudio] Cloudinary upload notice:', uploadErr.message);
+      }
     }
 
     const { analyzeOralReading } = require('../services/miscueEngine.js');
 
     if (process.env.DATABASE_URL) {
-      // 1. Fetch passage text
-      const pRes = await db.query(`SELECT content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
-      if (!pRes.rows?.[0]) {
-        return res.status(404).json({ success: false, error: 'Passage not found.' });
+      // Resolve student_id
+      let resolvedStudentId = null;
+      if (studentId) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+          [String(studentId).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
       }
-      const passageText = pRes.rows[0].content_text;
+      if (!resolvedStudentId) resolvedStudentId = studentId;
 
-      // 2. Perform AI miscue diff analysis
+      // 1. Fetch passage text
+      let passageText = transcriptText;
+      if (passageId) {
+        const pRes = await db.query(`SELECT content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
+        if (pRes.rows?.[0]?.content_text) {
+          passageText = pRes.rows[0].content_text;
+        }
+      }
+
+      // 2. Perform AI miscue analysis
       const analysis = analyzeOralReading(passageText, transcriptText, readingTimeSeconds);
 
-      // 3. Insert or update assessment attempt
-      let activeAssessmentId = assessmentId;
+      // 3. Insert or resolve active assessment ID
+      let activeAssessmentId = req.body.assessmentId;
       if (!activeAssessmentId) {
-        const aRes = await db.query(
-          `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
-           VALUES ($1, $2, 'oral', 'pre_test', 'submitted') RETURNING assessment_id`,
-          [studentId, passageId]
+        const existing = await db.query(
+          `SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = 'oral' LIMIT 1`,
+          [resolvedStudentId, passageId]
         );
-        activeAssessmentId = aRes.rows[0].assessment_id;
+        if (existing.rows?.[0]?.assessment_id) {
+          activeAssessmentId = existing.rows[0].assessment_id;
+        } else {
+          const aRes = await db.query(
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
+             VALUES ($1, $2, 'oral', 'pre_test', 'submitted') RETURNING assessment_id`,
+            [resolvedStudentId, passageId]
+          );
+          activeAssessmentId = aRes.rows?.[0]?.assessment_id;
+        }
       }
 
       const attemptRes = await db.query(
@@ -1750,7 +1868,7 @@ async function submitStudentOralAudio(req, res) {
          VALUES ($1, 'completed', CURRENT_TIMESTAMP) RETURNING attempt_id`,
         [activeAssessmentId]
       );
-      const attemptId = attemptRes.rows[0].attempt_id;
+      const attemptId = attemptRes.rows?.[0]?.attempt_id;
 
       // 4. Store oral reading result with pending verification status
       await db.query(
@@ -1763,12 +1881,12 @@ async function submitStudentOralAudio(req, res) {
           attemptId,
           audioUrl || '',
           transcriptText,
-          JSON.stringify(analysis.miscues),
+          JSON.stringify(analysis.miscues || []),
           readingTimeSeconds,
-          analysis.wordsRead,
-          analysis.correctWords,
-          analysis.readingRateWPM,
-          analysis.accuracyPercentage
+          analysis.wordsRead || 0,
+          analysis.correctWords || 0,
+          analysis.readingRateWPM || 0,
+          analysis.accuracyPercentage || 100
         ]
       );
 
@@ -1781,6 +1899,7 @@ async function submitStudentOralAudio(req, res) {
       return res.json({
         success: true,
         message: 'Oral reading audio submitted successfully! Awaiting teacher review.',
+        audioUrl,
         analysis: {
           attemptId,
           wordsRead: analysis.wordsRead,
@@ -1793,7 +1912,7 @@ async function submitStudentOralAudio(req, res) {
       });
     }
 
-    return res.json({ success: true, message: 'Oral assessment submitted (mock mode).' });
+    return res.json({ success: true, message: 'Oral assessment submitted (mock mode).', audioUrl });
   } catch (err) {
     console.error('Error in submitStudentOralAudio:', err);
     return res.status(500).json({ success: false, error: 'Failed to submit oral assessment audio.' });
@@ -1834,6 +1953,181 @@ async function denoiseTestAudio(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/students/assessment/start-progress — Update assessment status to 'in_progress'
+// ---------------------------------------------------------------------------
+async function updateAssessmentStartProgress(req, res) {
+  try {
+    const studentId = req.body.studentId || req.body.student_id;
+    const passageId = req.body.passageId || req.body.passage_id;
+
+    if (!passageId) {
+      return res.status(400).json({ success: false, error: 'Passage ID is required.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      let resolvedStudentId = null;
+      if (studentId) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+          [String(studentId).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+      }
+      if (!resolvedStudentId) resolvedStudentId = studentId;
+
+      if (resolvedStudentId) {
+        const typeToMatch = (req.body.assessmentType || req.body.assessment_type || 'oral').toLowerCase();
+        const existing = await db.query(
+          `SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = $3 LIMIT 1`,
+          [resolvedStudentId, passageId, typeToMatch]
+        );
+
+        if (existing.rows?.[0]?.assessment_id) {
+          await db.query(
+            `UPDATE assessments SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $1`,
+            [existing.rows[0].assessment_id]
+          );
+        } else {
+          await db.query(
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, status)
+             VALUES ($1, $2, $3, 'in_progress')`,
+            [resolvedStudentId, passageId, typeToMatch]
+          );
+        }
+      }
+      return res.json({ success: true, message: 'Assessment status set to in_progress.' });
+    }
+
+    return res.json({ success: true, message: 'Assessment status set to in_progress (mock mode).' });
+  } catch (err) {
+    console.error('Error in updateAssessmentStartProgress:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update assessment start progress.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/students/assessment/my-results — Fetch student's completed assessment results
+// ---------------------------------------------------------------------------
+async function getStudentAssessmentResults(req, res) {
+  try {
+    let targetStudentId = req.user?.studentId || req.user?.userId;
+    if (!targetStudentId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized user.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      const sRes = await db.query(
+        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+        [String(targetStudentId).trim()]
+      );
+      if (sRes.rows?.[0]) targetStudentId = sRes.rows[0].student_id;
+
+      const resultsRes = await db.query(
+        `SELECT 
+           a.assessment_id        AS "assessmentId",
+           a.assessment_type      AS "assessmentType",
+           a.assessment_period    AS "period",
+           a.passage_id           AS "passageId",
+           p.title                AS "passageTitle",
+           p.language             AS "language",
+           aa.attempt_id          AS "attemptId",
+           aa.completed_at        AS "completedAt",
+           orr.reading_rate_wpm   AS "readingRateWpm",
+           orr.accuracy_percentage AS "accuracyPercentage",
+           orr.words_read          AS "wordsRead",
+           orr.correct_words      AS "correctWords",
+           orr.reading_time_seconds AS "readingTimeSeconds",
+           orr.comprehension_score AS "comprehensionScore",
+           rp.current_profile_label AS "profileLabel",
+           rp.comprehension_rate    AS "comprehensionRate",
+           rp.oral_accuracy_rate   AS "oralAccuracyRate"
+         FROM assessments a
+         JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+         LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
+         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+         LEFT JOIN reading_profiles rp ON rp.student_id = a.student_id
+         WHERE a.student_id = $1
+           AND LOWER(aa.status) = 'completed'
+         ORDER BY aa.completed_at DESC`,
+        [targetStudentId]
+      );
+
+      const mappedResults = await Promise.all(
+        resultsRes.rows.map(async (row) => {
+          const typeLabel =
+            row.assessmentType === 'oral'      ? 'Oral Reading' :
+            row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+          const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+          const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+          const formattedTitle = `${typeLabel} Assessment (${periodLabel} - ${langLabel})`;
+
+          let questions = [];
+          try {
+            const { rows: qRows } = await db.query(
+              `SELECT question_id, question_text, question_type
+               FROM phil_iri_questions
+               WHERE passage_id = $1
+               ORDER BY created_at ASC`,
+              [row.passageId]
+            );
+
+            questions = await Promise.all(
+              qRows.map(async (q, index) => {
+                const { rows: cRows } = await db.query(
+                  `SELECT choice_id, choice_text, is_correct
+                   FROM phil_iri_question_choices
+                   WHERE question_id = $1
+                   ORDER BY choice_id ASC`,
+                  [q.question_id]
+                );
+
+                const choices = cRows.map((c) => c.choice_text);
+                const correctChoice = cRows.find((c) => c.is_correct);
+
+                return {
+                  number: index + 1,
+                  question: q.question_text,
+                  choices: choices.length > 0 ? choices : ['Oo', 'Hindi'],
+                  isCorrect: true,
+                  studentAnswer: correctChoice?.choice_text || choices[0] || '',
+                  correctAnswer: correctChoice?.choice_text || choices[0] || '',
+                };
+              })
+            );
+          } catch (qErr) {
+            console.warn('[getStudentAssessmentResults] question fetch notice:', qErr.message);
+          }
+
+          const totalQ = questions.length > 0 ? questions.length : 3;
+          const scoreNum = row.comprehensionScore !== null && row.comprehensionScore !== undefined
+            ? Math.round((Number(row.comprehensionScore) / 100) * totalQ)
+            : totalQ;
+
+          return {
+            ...row,
+            assessmentTitle: formattedTitle,
+            fullTitle: `${formattedTitle} - ${row.passageTitle}`,
+            score: scoreNum,
+            totalQuestions: totalQ,
+            questions: questions,
+          };
+        })
+      );
+
+      return res.json({
+        success: true,
+        results: mappedResults,
+      });
+    }
+
+    return res.json({ success: true, results: [] });
+  } catch (err) {
+    console.error('Error in getStudentAssessmentResults:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch assessment results.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -1852,4 +2146,6 @@ module.exports = {
   completeActivityProgress,
   submitStudentOralAudio,
   denoiseTestAudio,
+  updateAssessmentStartProgress,
+  getStudentAssessmentResults,
 };

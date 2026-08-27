@@ -18,6 +18,7 @@ import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/api_service.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -38,6 +39,25 @@ class _ProgressPageState extends State<ProgressPage> {
     _isListeningDone = PhilIriAssessmentPage.isListeningDone;
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+    _fetchLiveProgressData();
+  }
+
+  Future<void> _fetchLiveProgressData() async {
+    try {
+      final res = await ApiService.get('/students/assessment/my-assignment');
+      if (res.success && res.data != null && res.data['attemptsStatus'] != null) {
+        final attempts = res.data['attemptsStatus'];
+        if (mounted) {
+          setState(() {
+            if (attempts['listening'] == true) _isListeningDone = true;
+            if (attempts['oral'] == true) _isOralReadingDone = true;
+            if (attempts['silent'] == true) _isSilentReadingDone = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[ProgressPage] fetch progress error: $e');
+    }
   }
 
   @override
@@ -493,10 +513,7 @@ class _ProgressPageState extends State<ProgressPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ListeningResultPage(
-                  score: PhilIriAssessmentPage.listeningScore,
-                  totalQuestions: 5,
-                ),
+                builder: (context) => const ListeningResultPage(),
               ),
             );
           },
@@ -528,10 +545,7 @@ class _ProgressPageState extends State<ProgressPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => SilentReadingResultPage(
-                  score: PhilIriAssessmentPage.silentReadingScore,
-                  totalQuestions: 3,
-                ),
+                builder: (context) => const SilentReadingResultPage(),
               ),
             );
           },
@@ -562,10 +576,7 @@ class _ProgressPageState extends State<ProgressPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => OralReadingResultPage(
-                  score: PhilIriAssessmentPage.oralReadingScore,
-                  totalQuestions: 3,
-                ),
+                builder: (context) => const OralReadingResultPage(),
               ),
             );
           },

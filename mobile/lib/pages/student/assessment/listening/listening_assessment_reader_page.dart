@@ -3,8 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
 
+import 'package:salintinig/services/quiz_progress_service.dart';
+
 class ListeningAssessmentReaderPage extends StatefulWidget {
-  const ListeningAssessmentReaderPage({super.key});
+  final Map<String, dynamic>? item;
+  const ListeningAssessmentReaderPage({super.key, this.item});
 
   @override
   State<ListeningAssessmentReaderPage> createState() => _ListeningAssessmentReaderPageState();
@@ -16,10 +19,16 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
   final PageController _pageController = PageController();
 
   String _fullStoryText = '';
+  dynamic _passageId;
+  String? _storyTitle;
 
   @override
   void initState() {
     super.initState();
+    final item = widget.item;
+    final passageObj = item?['passage'] is Map ? item!['passage'] : item;
+    _passageId = item?['passage_id'] ?? item?['passageId'] ?? passageObj?['passage_id'] ?? passageObj?['passageId'];
+    _storyTitle = item?['title'] ?? item?['storyTitle'] ?? passageObj?['title'];
     _fetchPassageFromApi();
   }
 
@@ -32,6 +41,8 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
           setState(() {
             _fullStoryText = passage['contentText'] ?? '';
             _dynamicQuestions = passage['questions'];
+            _passageId ??= passage['passage_id'] ?? passage['id'];
+            _storyTitle ??= passage['title'];
           });
         }
         return;
@@ -579,12 +590,39 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
 
   List<dynamic>? _dynamicQuestions;
 
-  void _finishReading() {
+  void _finishReading() async {
+    final existingDraft = await QuizProgressService.getQuizDraft(_passageId, 'listening');
+    if (existingDraft == null) {
+      await QuizProgressService.saveQuizDraft(
+        _passageId,
+        assessmentType: 'listening',
+        recordedAudioPath: null,
+        readingTimeSeconds: 0,
+        storyTitle: _storyTitle,
+        assessmentLanguage: 'fil',
+        dynamicQuestions: _dynamicQuestions,
+      );
+    }
+    if (!mounted) return;
+
+    List<int?>? initialAnswersList;
+    if (existingDraft != null && existingDraft['selectedAnswers'] != null) {
+      if (existingDraft['selectedAnswers'] is List) {
+        initialAnswersList = (existingDraft['selectedAnswers'] as List)
+            .map((e) => e != null ? int.tryParse(e.toString()) : null)
+            .toList();
+      }
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => ListeningAssessmentQuizPage(
-          dynamicQuestions: _dynamicQuestions,
+          dynamicQuestions: existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
+          storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
+          passageId: _passageId,
+          currentQuestionIndex: (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
+          initialSelectedAnswers: initialAnswersList,
         ),
       ),
     );
