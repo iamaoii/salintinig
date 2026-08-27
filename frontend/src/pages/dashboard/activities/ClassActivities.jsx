@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { NavLink, Link, useLocation } from 'react-router-dom';
-import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass } from '@phosphor-icons/react';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
+import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass, X, User } from '@phosphor-icons/react';
 import ActivityRow from '../../../components/dashboard/activity/ActivityRow.jsx';
 import ActivityDetailPanel from '../../../components/dashboard/activity/ActivityDetailPanel.jsx';
+import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
@@ -43,6 +44,7 @@ function consolidateActivities(rawList) {
 }
 
 export default function ClassActivities() {
+  const navigate = useNavigate();
   const location = useLocation();
   const isPractice = location.pathname.includes('/practice');
   const activeTabKey = isPractice ? 'practice' : 'phil-iri';
@@ -51,6 +53,7 @@ export default function ClassActivities() {
   const [students, setStudents] = useState([]);
   const [passages, setPassages] = useState([]);
   const [activeReviewData, setActiveReviewData] = useState(null);
+  const [showPendingListModal, setShowPendingListModal] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [philIriActivitiesList, setPhilIriActivitiesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -194,24 +197,21 @@ export default function ClassActivities() {
     fetchPhilIriActivities();
   }, []);
 
-  if (activeReviewData) {
-    return (
-      <PhilIriReviewDetail
-        reviewData={activeReviewData}
-        onBack={() => setActiveReviewData(null)}
-        onVerified={() => {
-          setActiveReviewData(null);
-          // refresh pending list
-          const token = getToken();
-          fetch('/api/teacher/assessments/pending-reviews', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-            .then(res => res.json())
-            .then(data => {
-              if (data.success) setPendingReviews(data.pendingReviews || []);
-            });
-        }}
-      />
-    );
-  }
+  useEffect(() => {
+    if (activeReviewData || showPendingListModal || deleteTargetId) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [activeReviewData, showPendingListModal, deleteTargetId]);
+
+
 
   return (
     <div className="flex min-h-[calc(100vh-140px)] flex-col">
@@ -250,6 +250,21 @@ export default function ClassActivities() {
         </div>
 
         <div className="mb-1 flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (pendingReviews.length > 0) setShowPendingListModal(true);
+            }}
+            disabled={pendingReviews.length === 0}
+            className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+              pendingReviews.length > 0
+                ? 'border-brand-red/30 bg-white text-brand-red shadow-2xs hover:bg-brand-red/5 cursor-pointer'
+                : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-75'
+            }`}
+          >
+            <Microphone size={16} weight="bold" />
+            <span>Review Oral Assessments ({pendingReviews.length})</span>
+          </button>
+
           <Link
             to="/teacher/phil-iri-passages"
             className="flex items-center gap-2 rounded-xl border border-brand-red/30 bg-white px-3.5 py-2 text-xs font-bold text-brand-red shadow-2xs hover:bg-brand-red/5 transition-all cursor-pointer"
@@ -277,30 +292,6 @@ export default function ClassActivities() {
           )}
         </div>
       </div>
-
-      {/* Pending Oral Reviews Banner */}
-      {activeTabKey === 'phil-iri' && pendingReviews.length > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-amber-800 font-bold text-sm">
-              <Microphone size={20} />
-              <span>{pendingReviews.length} Student Oral Assessment(s) Awaiting Teacher Review</span>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {pendingReviews.map((rev) => (
-              <button
-                key={rev.attemptId || rev.oralResultId}
-                onClick={() => setActiveReviewData(rev)}
-                className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm border border-amber-200 hover:bg-amber-100/50"
-              >
-                <span>{rev.studentName}</span>
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{rev.passageSet || 'Set A'}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="mt-6 flex flex-1 flex-col gap-8 xl:flex-row">
         <div className="relative min-w-0 flex-1">
@@ -496,6 +487,82 @@ export default function ClassActivities() {
                 className="rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-brand-red/90 cursor-pointer"
               >
                 Delete Assessment
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Pending Oral Reviews List Modal — Matching Add Student / Teacher Modal style */}
+      {showPendingListModal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red font-bold">
+                  <Microphone size={20} weight="bold" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900">Students Awaiting Oral Review</h3>
+                  <p className="text-xs text-gray-500 font-medium">Select a student recording to evaluate miscues and reading profile</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPendingListModal(false)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer"
+              >
+                <X size={18} weight="bold" />
+              </button>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto space-y-2.5 pr-1">
+              {pendingReviews.map((rev) => (
+                <div
+                  key={rev.attemptId || rev.oralResultId}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 hover:border-brand-red/30 hover:bg-red-50/30 transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar
+                      name={rev.studentName || rev.name || ''}
+                      src={rev.studentAvatar || rev.profileImage || rev.profile_image || null}
+                      color="#0097b2"
+                      size={36}
+                    />
+                    <div className="min-w-0">
+                      <h4 className="truncate text-xs font-bold text-gray-900">
+                        {rev.studentName || [rev.firstName, rev.middleName, rev.lastName].filter(Boolean).join(' ') || rev.name}
+                      </h4>
+                      <div className="flex items-center gap-2 text-[11px] text-gray-500 font-medium mt-0.5">
+                        <span>Passage: {rev.passageSet || 'Set A'}</span>
+                        <span>•</span>
+                        <span>{rev.language ? (String(rev.language).toLowerCase().startsWith('en') ? 'English' : 'Filipino') : 'Filipino'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPendingListModal(false);
+                      navigate(`/teacher/class-activities/phil-iri/review/${rev.attemptId}`);
+                    }}
+                    className="shrink-0 rounded-lg bg-brand-red px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-brand-red/90 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Review Now
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowPendingListModal(false)}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

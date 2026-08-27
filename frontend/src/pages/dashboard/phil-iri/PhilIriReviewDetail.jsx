@@ -1,22 +1,103 @@
-import { useState } from 'react';
-import { Play, Pause, CheckCircle, ArrowLeft, Microphone, Warning, ShieldCheck } from '@phosphor-icons/react';
+import { useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Play, Pause, CheckCircle, Microphone, Warning, ShieldCheck, SpeakerHigh, SpeakerSlash, Gauge } from '@phosphor-icons/react';
+import BackButton from '../../../components/common/BackButton.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 const MISCUE_TYPES = [
-  { type: 'omission', label: 'Omission', color: 'bg-red-100 text-red-700 border-red-300' },
-  { type: 'substitution', label: 'Substitution', color: 'bg-amber-100 text-amber-700 border-amber-300' },
-  { type: 'insertion', label: 'Insertion', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { type: 'repetition', label: 'Repetition', color: 'bg-purple-100 text-purple-700 border-purple-300' },
-  { type: 'hesitation', label: 'Hesitation', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-  { type: 'self_correction', label: 'Self Correction', color: 'bg-green-100 text-green-700 border-green-300' }
+  { type: 'omission', label: 'Omission', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
+  { type: 'substitution', label: 'Substitution', color: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' },
+  { type: 'insertion', label: 'Insertion', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+  { type: 'repetition', label: 'Repetition', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
+  { type: 'hesitation', label: 'Hesitation', color: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100' },
+  { type: 'self_correction', label: 'Self Correction', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }
 ];
 
+const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
+
 export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) {
+  const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [miscues, setMiscues] = useState(reviewData?.miscues || []);
   const [selectedWordIdx, setSelectedWordIdx] = useState(null);
   const [selectedMiscueType, setSelectedMiscueType] = useState('omission');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const audioUrl = reviewData?.audioUrl || reviewData?.audio_recording_url || reviewData?.audio;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
+    const handleEnded = () => setIsPlaying(false);
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [audioUrl]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(err => console.error('Audio playback error:', err));
+    }
+  };
+
+  const handleSeek = (e) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const newTime = (e.target.value / 100) * duration;
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleVolumeChange = (newVol) => {
+    const vol = parseFloat(newVol);
+    setVolume(vol);
+    if (audioRef.current) {
+      audioRef.current.volume = vol;
+    }
+    setIsMuted(vol === 0);
+  };
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      const nextState = !isMuted;
+      audioRef.current.muted = nextState;
+      setIsMuted(nextState);
+    }
+  };
+
+  const handleSpeedChange = (speed) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  };
+
+  const formatTime = (secs) => {
+    if (isNaN(secs) || !secs) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   const passageText = reviewData?.passageText || 'Ang aso at ang pusa ay magkaibigan sa bakuran.';
   const words = passageText.split(/\s+/).filter(Boolean);
@@ -35,10 +116,8 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
     setSelectedWordIdx(idx);
     const existing = miscues.find(m => m.word_position === idx + 1);
     if (existing) {
-      // Toggle off miscue
       setMiscues(prev => prev.filter(m => m.word_position !== idx + 1));
     } else {
-      // Add miscue
       setMiscues(prev => [
         ...prev,
         {
@@ -81,71 +160,156 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-gray-900">
-          <ArrowLeft size={16} /> Back to Verification List
-        </button>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
-          <Warning size={14} /> Pending Teacher Approval
+    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-6xl mx-auto">
+      {/* Top Header Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <BackButton
+          onClick={onBack}
+          label="Back to Verification List"
+          size={18}
+        />
+
+        <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-900 shadow-2xs">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Pending Teacher Approval
         </span>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{reviewData?.studentName || 'Student Oral Reading Test'}</h2>
-            <p className="text-xs text-gray-500">Passage: {reviewData?.passageTitle || 'Set A - Filipino Grade 3'}</p>
+      {/* Main Container Card */}
+      <div className="rounded-3xl border border-ink/10 bg-cream p-6 sm:p-8 shadow-[0px_6px_20px_0px_rgba(26,24,22,0.05)] space-y-6">
+        {/* Student & Passage Info Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-5">
+          <div className="space-y-1">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-ink">
+              {reviewData?.studentName || 'Student Oral Reading Test'}
+            </h2>
+            <div className="flex items-center gap-2 text-xs text-ink/60 font-medium">
+              <span className="font-semibold text-ink/80">Passage:</span>
+              <span>{reviewData?.passageTitle || 'Set A - Filipino Grade 3'}</span>
+              <span>•</span>
+              <span className="rounded bg-amber-100/80 px-2 py-0.5 font-bold text-amber-800 border border-amber-200">
+                {reviewData?.passageSet || 'Set A'}
+              </span>
+            </div>
           </div>
+
           <button
             onClick={handleSaveVerification}
             disabled={isSubmitting}
-            className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-green-700 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-xs font-bold text-white shadow-2xs hover:bg-brand-red/90 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
-            <ShieldCheck size={18} /> Approve & Lock Official Result
+            <ShieldCheck size={18} weight="bold" />
+            <span>{isSubmitting ? 'Saving...' : 'Approve & Lock Official Result'}</span>
           </button>
         </div>
 
-        {/* Audio Player */}
-        <div className="mt-6 flex items-center gap-4 rounded-xl bg-gray-50 p-4">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="flex size-12 items-center justify-center rounded-full bg-brand-red text-white shadow-md hover:bg-red-700"
-          >
-            {isPlaying ? <Pause size={20} weight="fill" /> : <Play size={20} weight="fill" className="ml-0.5" />}
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center justify-between text-xs font-medium text-gray-600">
-              <span className="flex items-center gap-1"><Microphone size={14} /> Audio Playback</span>
-              <span>0:45 / 1:12</span>
+        {/* Audio Player Component — Modern & Simple Inline Layout */}
+        <div className="rounded-2xl border border-ink/10 bg-white p-3.5 sm:p-4 shadow-2xs">
+          {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" className="hidden" />}
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Play/Pause Button */}
+            <button
+              onClick={togglePlay}
+              disabled={!audioUrl}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-red text-white shadow-xs hover:bg-brand-red/90 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isPlaying ? <Pause size={18} weight="fill" /> : <Play size={18} weight="fill" className="ml-0.5" />}
+            </button>
+
+            {/* Audio Waveform Seeker */}
+            <div className="flex flex-1 items-center gap-3 min-w-[200px]">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={duration ? (currentTime / duration) * 100 : 0}
+                onChange={handleSeek}
+                className="w-full accent-brand-red cursor-pointer h-2 bg-cream rounded-full"
+              />
+              <span className="shrink-0 font-mono text-[11px] font-semibold text-ink/60 min-w-[64px]">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div className="h-full w-1/3 bg-brand-red transition-all"></div>
+
+            {/* Compact Control Accessories */}
+            <div className="flex items-center gap-2 shrink-0 border-l border-ink/10 pl-3">
+              {/* Speed Pill */}
+              <div className="flex items-center gap-1 bg-cream/80 px-2 py-1 rounded-lg border border-ink/10 text-xs font-semibold text-ink/70">
+                <span className="text-[10px] text-ink/50 uppercase font-bold">Speed</span>
+                <select
+                  value={playbackSpeed}
+                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                  className="bg-transparent text-xs font-bold text-ink outline-none cursor-pointer"
+                >
+                  {SPEED_OPTIONS.map((spd) => (
+                    <option key={spd} value={spd}>
+                      {spd}x
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Volume Button & Slider */}
+              <div className="flex items-center gap-1.5 bg-cream/80 px-2 py-1 rounded-lg border border-ink/10">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="text-ink/70 hover:text-brand-red transition-colors cursor-pointer"
+                >
+                  {isMuted || volume === 0 ? (
+                    <SpeakerSlash size={15} weight="bold" className="text-brand-red" />
+                  ) : (
+                    <SpeakerHigh size={15} weight="bold" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => handleVolumeChange(e.target.value)}
+                  className="w-14 accent-brand-red cursor-pointer h-1.5 bg-ink/10 rounded-full"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Miscue Classification Selector */}
-        <div className="mt-6">
-          <label className="block text-xs font-bold text-gray-700 mb-2">Click any word below to mark or remove a miscue:</label>
+        {/* Miscue Type Selection Pills */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-ink">
+              Miscue Classification Toolbar
+            </label>
+            <span className="text-[11px] text-ink/50 font-medium">Click any word below to tag or remove a miscue</span>
+          </div>
+
           <div className="flex flex-wrap gap-2">
-            {MISCUE_TYPES.map(m => (
-              <button
-                key={m.type}
-                onClick={() => setSelectedMiscueType(m.type)}
-                className={`rounded-lg border px-3 py-1 text-xs font-medium transition-all ${
-                  selectedMiscueType === m.type ? `${m.color} ring-2 ring-brand-red/30` : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
+            {MISCUE_TYPES.map(m => {
+              const isSelected = selectedMiscueType === m.type;
+              return (
+                <button
+                  key={m.type}
+                  onClick={() => setSelectedMiscueType(m.type)}
+                  className={`rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    isSelected
+                      ? `${m.color} ring-2 ring-brand-red/30 shadow-2xs scale-102`
+                      : 'border-ink/15 bg-white text-ink/70 hover:bg-cream hover:text-ink'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Interactive Passage Text */}
-        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/50 p-6 leading-relaxed">
-          <div className="flex flex-wrap gap-2 text-base font-medium text-gray-800">
+        {/* Interactive Passage Text Container */}
+        <div className="rounded-2xl border border-ink/10 bg-white p-5 sm:p-6 shadow-2xs">
+          <p className="text-xs font-bold text-ink/40 uppercase tracking-wider mb-3">Passage Text Transcript</p>
+          <div className="flex flex-wrap gap-2 text-base font-medium leading-relaxed text-ink">
             {words.map((word, idx) => {
               const miscue = miscues.find(m => m.word_position === idx + 1);
               const miscueType = MISCUE_TYPES.find(t => t.type === miscue?.miscue_type);
@@ -153,40 +317,95 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
                 <span
                   key={idx}
                   onClick={() => handleWordClick(idx)}
-                  className={`cursor-pointer rounded px-1.5 py-0.5 transition-all hover:ring-2 hover:ring-gray-400 ${
-                    miscue ? `${miscueType?.color || 'bg-red-100 text-red-700'} font-bold border` : ''
+                  className={`cursor-pointer rounded-lg px-2 py-0.5 transition-all hover:ring-2 hover:ring-brand-blue/40 ${
+                    miscue
+                      ? `${miscueType?.color || 'bg-red-100 text-red-700'} font-semibold border`
+                      : 'hover:bg-cream'
                   }`}
                 >
                   {word}
-                  {miscue && <sup className="ml-0.5 text-[10px] uppercase font-bold">{miscue.miscue_type.substring(0, 3)}</sup>}
+                  {miscue && (
+                    <sup className="ml-1 text-[8.5px] uppercase font-bold px-1 py-0.1 rounded bg-white/80 border border-current">
+                      {miscue.miscue_type.substring(0, 3)}
+                    </sup>
+                  )}
                 </span>
               );
             })}
           </div>
         </div>
 
-        {/* Real-Time Score Bar */}
-        <div className="mt-6 grid grid-cols-4 gap-4 rounded-xl bg-gray-900 p-4 text-white">
-          <div>
-            <span className="text-[11px] text-gray-400">Total Words</span>
-            <p className="text-xl font-bold">{totalWords}</p>
+        {/* Live Reading Metrics Footer — Clean & Simple White Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-ink/50 uppercase tracking-wider">Total Words</span>
+            <p className="mt-1 text-2xl font-extrabold text-ink">{totalWords}</p>
           </div>
-          <div>
-            <span className="text-[11px] text-gray-400">Miscues Count</span>
-            <p className="text-xl font-bold text-amber-400">{miscueCount}</p>
+
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-ink/50 uppercase tracking-wider">Miscues Count</span>
+            <p className="mt-1 text-2xl font-extrabold text-amber-600">{miscueCount}</p>
           </div>
-          <div>
-            <span className="text-[11px] text-gray-400">Accuracy %</span>
-            <p className="text-xl font-bold text-emerald-400">{accuracyPct}%</p>
+
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-ink/50 uppercase tracking-wider">Accuracy</span>
+            <p className="mt-1 text-2xl font-extrabold text-brand-blue">{accuracyPct}%</p>
           </div>
-          <div>
-            <span className="text-[11px] text-gray-400">Phil-IRI Profile</span>
-            <p className={`text-lg font-bold ${profileLabel === 'Independent' ? 'text-green-400' : profileLabel === 'Instructional' ? 'text-blue-400' : 'text-red-400'}`}>
+
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
+            <span className="text-[11px] font-bold text-ink/50 uppercase tracking-wider">Phil-IRI Profile</span>
+            <p className={`mt-1 text-xl font-extrabold ${
+              profileLabel === 'Independent' ? 'text-emerald-600' : profileLabel === 'Instructional' ? 'text-brand-blue' : 'text-brand-red'
+            }`}>
               {profileLabel}
             </p>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export function PhilIriReviewPage() {
+  const { attemptId } = useParams();
+  const navigate = useNavigate();
+  const [reviewData, setReviewData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchReview() {
+      try {
+        const token = getToken();
+        const res = await fetch('/api/teacher/assessments/pending-reviews', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.pendingReviews)) {
+          const match = data.pendingReviews.find(r => String(r.attemptId) === String(attemptId));
+          if (match) setReviewData(match);
+        }
+      } catch (err) {
+        console.error('Failed to fetch review data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchReview();
+  }, [attemptId]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center p-6">
+        <div className="size-8 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <PhilIriReviewDetail
+      reviewData={reviewData}
+      onBack={() => navigate('/teacher/class-activities/phil-iri')}
+      onVerified={() => navigate('/teacher/class-activities/phil-iri')}
+    />
   );
 }

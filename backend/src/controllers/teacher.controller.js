@@ -975,13 +975,14 @@ async function getPendingOralReviews(req, res) {
           a.assessment_id AS "assessmentId",
           aa.attempt_id AS "attemptId",
           s.student_id AS "studentId",
-          CONCAT(s.first_name, ' ', s.last_name) AS "studentName",
+          CONCAT_WS(' ', s.first_name, NULLIF(s.middle_name, ''), s.last_name) AS "studentName",
           s.lrn,
           p.passage_id AS "passageId",
           p.title AS "passageTitle",
           p.grade_level AS "gradeLevel",
           p.passage_set AS "passageSet",
           p.language,
+          p.content_text AS "passageText",
           orr.oral_result_id AS "oralResultId",
           orr.audio_recording_url AS "audioUrl",
           orr.reading_rate_wpm AS "wpm",
@@ -993,6 +994,8 @@ async function getPendingOralReviews(req, res) {
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
         JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        WHERE LOWER(COALESCE(orr.verification_status, 'pending')) != 'verified'
+          AND LOWER(COALESCE(a.status, 'open')) != 'completed'
         ORDER BY aa.completed_at DESC
       `;
       const { rows } = await db.query(query);
@@ -1024,8 +1027,7 @@ async function verifyOralReadingResult(req, res) {
              reading_rate_wpm = $2,
              accuracy_percentage = $3,
              comprehension_score = $4,
-             verification_status = 'verified',
-             updated_at = CURRENT_TIMESTAMP
+             verification_status = 'verified'
          WHERE assessment_attempt_id = $5`,
         [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
       );

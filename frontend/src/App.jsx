@@ -33,6 +33,7 @@ import PhilIriForm4Detail from './pages/dashboard/phil-iri/PhilIriForm4Detail.js
 import PhilIriExportSuccess from './pages/dashboard/phil-iri/PhilIriExportSuccess.jsx';
 import PhilIriAssignPage from './pages/dashboard/phil-iri/PhilIriAssignPage.jsx';
 import PhilIriPassageBank from './pages/dashboard/phil-iri/PhilIriPassageBank.jsx';
+import { PhilIriReviewPage } from './pages/dashboard/phil-iri/PhilIriReviewDetail.jsx';
 import GradeLevelPage from './pages/dashboard/grade-level/GradeLevelPage.jsx';
 import FicTeacherProfilePage from './pages/dashboard/grade-level/FicTeacherProfilePage.jsx';
 
@@ -186,6 +187,7 @@ export default function App() {
         <Route path="class-activities/phil-iri/assign" element={<PhilIriAssignPage />} />
         <Route path="class-activities/phil-iri/edit/:editId" element={<PhilIriAssignPage />} />
         <Route path="class-activities/phil-iri/view/:id" element={<ActivityDetailPage />} />
+        <Route path="class-activities/phil-iri/review/:attemptId" element={<PhilIriReviewPage />} />
 
         {/* Practice Activity Routes */}
         <Route path="class-activities/practice/create" element={<ActivityFormPage />} />

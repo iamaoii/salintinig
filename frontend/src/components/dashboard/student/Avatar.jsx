@@ -11,7 +11,7 @@ function initialsFor(name) {
   return ((parts[0]?.[0] || '') + (parts[parts.length - 1]?.[0] || '')).toUpperCase();
 }
 
-export default function Avatar({ name = '', src, size = 32, className = '' }) {
+export default function Avatar({ name = '', src, size = 32, className = '', color }) {
   if (src) {
     return (
       <img
@@ -23,10 +23,12 @@ export default function Avatar({ name = '', src, size = 32, className = '' }) {
     );
   }
 
+  const bgColor = color || colorFor(name);
+
   return (
     <div
       className={`flex shrink-0 items-center justify-center rounded-full font-medium text-cream ${className}`}
-      style={{ width: size, height: size, backgroundColor: colorFor(name), fontSize: size * 0.4 }}
+      style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
     >
       {initialsFor(name)}
     </div>
