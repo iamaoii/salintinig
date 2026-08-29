@@ -219,11 +219,12 @@ CREATE TABLE IF NOT EXISTS assessments (
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     passage_id UUID REFERENCES phil_iri_passages(passage_id) ON DELETE SET NULL,
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
-    assessment_type VARCHAR(50) NOT NULL, -- 'oral' or 'silent'
+    assessment_type VARCHAR(50) NOT NULL, -- 'oral', 'silent', or 'listening'
     assessment_period VARCHAR(50) NOT NULL, -- 'pre_test' or 'post_test'
     date_assigned TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50) DEFAULT 'open', -- 'open' or 'closed'
+    instructions TEXT,
+    status VARCHAR(50) DEFAULT 'open', -- 'open', 'in_progress', 'completed', or 'closed'
     reading_level_result VARCHAR(50), -- 'Independent', 'Instructional', 'Frustration'
     remarks TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -267,6 +268,14 @@ CREATE TABLE IF NOT EXISTS silent_reading_results (
     assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
     reading_time_seconds INT,
     comprehension_score DECIMAL(5,2)
+);
+
+CREATE TABLE IF NOT EXISTS listening_reading_results (
+    listening_result_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
+    audio_duration_seconds INT,
+    comprehension_score DECIMAL(5,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS assessment_answers (

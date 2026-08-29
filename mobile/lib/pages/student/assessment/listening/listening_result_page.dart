@@ -9,16 +9,16 @@ import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 
 class ListeningResultPage extends StatefulWidget {
-  final int score;
-  final int totalQuestions;
+  final int? score;
+  final int? totalQuestions;
   final List<Map<String, dynamic>>? questionsList;
   final dynamic passageId;
   final String? language;
 
   const ListeningResultPage({
     super.key,
-    this.score = 5,
-    this.totalQuestions = 5,
+    this.score,
+    this.totalQuestions,
     this.questionsList,
     this.passageId,
     this.language,
@@ -29,27 +29,49 @@ class ListeningResultPage extends StatefulWidget {
 }
 
 class _ListeningResultPageState extends State<ListeningResultPage> {
-  late int _score;
-  late int _totalQuestions;
-  String _dateStr = 'Recently Completed';
+  bool _isLoading = true;
+  int _score = 0;
+  int _totalQuestions = 0;
+  String _profileLevel = 'Instructional';
+  String _dateStr = '';
   List<Map<String, dynamic>> _questions = [];
+
+  String _calculateProfileLevel(int score, int total) {
+    if (total <= 0) return 'Instructional';
+    final pct = ((score / total) * 100).round();
+    if (pct >= 80) return 'Independent';
+    if (pct >= 59) return 'Instructional';
+    return 'Frustration';
+  }
 
   @override
   void initState() {
     super.initState();
-    _score = widget.score;
-    _totalQuestions = widget.totalQuestions;
+    _score = widget.score ?? 0;
+    _totalQuestions = widget.totalQuestions ?? 0;
     _questions = widget.questionsList ?? [];
+    if (_score > 0 && _totalQuestions > 0) {
+      _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
+      _isLoading = false;
+    }
     _fetchLiveResult();
   }
 
   Future<void> _fetchLiveResult() async {
     try {
-      final res = await ApiService.get('/students/assessment/my-results');
+      final user = AuthService.currentUser;
+      final studentId = user?.rawUser?['student_id']?.toString() ??
+          user?.rawUser?['studentId']?.toString() ??
+          user?.userId;
+      final url = (studentId != null && studentId.isNotEmpty)
+          ? '/students/assessment/my-results?studentId=$studentId'
+          : '/students/assessment/my-results';
+
+      final res = await ApiService.get(url);
       if (res.success && res.data != null && res.data['results'] is List) {
         final list = List<Map<String, dynamic>>.from(res.data['results']);
         final listeningList = list.where((r) => (r['assessmentType'] ?? '').toString().toLowerCase() == 'listening').toList();
-        final attemptedListening = listeningList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['totalScore'] != null).toList();
+        final attemptedListening = listeningList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['totalScore'] != null || r['score'] != null).toList();
         final searchPool = attemptedListening.isNotEmpty ? attemptedListening : (listeningList.isNotEmpty ? listeningList : list);
 
         Map<String, dynamic> match = {};
@@ -85,13 +107,21 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
             if (match['score'] != null) {
               _score = (match['score'] as num).toInt();
             }
-            if (match['totalQuestions'] != null) {
+            if (match['totalQuestions'] != null && (match['totalQuestions'] as num) > 0) {
               _totalQuestions = (match['totalQuestions'] as num).toInt();
             }
             if (match['questions'] is List && (match['questions'] as List).isNotEmpty) {
               _questions = (match['questions'] as List)
                   .map((q) => Map<String, dynamic>.from(q as Map))
                   .toList();
+            }
+            if (_totalQuestions <= 0) {
+              _totalQuestions = _questions.isNotEmpty ? _questions.length : 5;
+            }
+            if (match['profileLabel'] != null && match['profileLabel'].toString().isNotEmpty) {
+              _profileLevel = match['profileLabel'].toString();
+            } else {
+              _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
             }
             if (match['completedAt'] != null) {
               final dt = DateTime.tryParse(match['completedAt'].toString());
@@ -108,6 +138,15 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
       }
     } catch (e) {
       debugPrint('[ListeningResultPage] fetch live error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (_totalQuestions <= 0) {
+            _totalQuestions = _questions.isNotEmpty ? _questions.length : 5;
+          }
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -149,7 +188,7 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
                           ),
                           // Title
                           Text(
-                            'Listening Result',
+                            'Listening Assessment',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -174,14 +213,21 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
 
                     // 2. Content Section
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 12),
-                            // 🌟 Result Hero Badge & Praise Header (Matching Mockup)
+                      child: _isLoading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF1B64D8),
+                                strokeWidth: 3.5,
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 12),
+                            // 🌟 Result Hero Badge & Praise Header
                             Container(
                               padding: const EdgeInsets.all(24.0),
                               decoration: BoxDecoration(
@@ -314,31 +360,29 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Metric Cards Rows
+                            // Metric Cards (Listening Comprehension: Comprehension & Listening Profile)
                             Row(
                               children: [
                                 Expanded(
                                   child: _buildMetricCard(
                                     valueNumber: '${(_score / (_totalQuestions > 0 ? _totalQuestions : 1) * 100).round()}%',
                                     label: 'Comprehension',
-                                    iconSvg: PhIcons.lightbulbRegular,
-                                    iconColor: const Color(0xFF00AA5A),
+                                    iconWidget: const Iconify(PhIcons.lightbulbRegular, color: Color(0xFF00AA5A), size: 18),
                                     iconBgColor: const Color(0xFFD1FAE5),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _buildMetricCard(
-                                    valueNumber: '1m 45s',
-                                    label: 'Time Taken',
-                                    iconSvg: PhIcons.hourglassRegular,
-                                    iconColor: const Color(0xFFF59E0B),
-                                    iconBgColor: const Color(0xFFFEF3C7),
+                                    valueNumber: _profileLevel,
+                                    label: 'PHIL-IRI Level',
+                                    iconWidget: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF8B5CF6), size: 20),
+                                    iconBgColor: const Color(0xFFEDE9FE),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 24),
 
                             // View Comprehension Summary Button
                             Container(
@@ -413,9 +457,9 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
 
   Widget _buildMetricCard({
     required String valueNumber,
+    String? valueUnit,
     required String label,
-    required String iconSvg,
-    required Color iconColor,
+    required Widget iconWidget,
     required Color iconBgColor,
   }) {
     return Container(
@@ -434,12 +478,31 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(
-              valueNumber,
-              style: GoogleFonts.inter(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1E293B),
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF1E293B),
+                ),
+                children: [
+                  TextSpan(
+                    text: valueNumber,
+                    style: GoogleFonts.inter(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (valueUnit != null) ...[
+                    const TextSpan(text: ' '),
+                    TextSpan(
+                      text: valueUnit,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -468,11 +531,7 @@ class _ListeningResultPageState extends State<ListeningResultPage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
-                child: Iconify(
-                  iconSvg,
-                  color: iconColor,
-                  size: 18,
-                ),
+                child: iconWidget,
               ),
             ],
           ),

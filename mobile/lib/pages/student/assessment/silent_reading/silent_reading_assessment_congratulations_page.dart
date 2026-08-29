@@ -146,7 +146,7 @@ class _SilentReadingAssessmentCongratulationsPageState
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Natapos mo ang Silent Reading Test.',
+                                    'Natapos mo ang Silent Reading Assessment.',
                                     style: GoogleFonts.inter(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,

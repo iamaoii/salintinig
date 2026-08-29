@@ -19,50 +19,7 @@ class ListeningComprehensionSummaryPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
-        ? questionsList!
-        : [
-            {
-              'number': 1,
-              'question': 'Sino ang pangunahing tauhan sa kuwento?',
-              'choices': ['Si Sally', 'Si Billy', 'Si Pedro', 'Si Maria'],
-              'isCorrect': score >= 1,
-              'studentAnswer': 'Si Sally',
-              'correctAnswer': 'Si Sally',
-            },
-            {
-              'number': 2,
-              'question': 'Saan naganap ang kuwento?',
-              'choices': ['Sa bahay', 'Sa paaralan', 'Sa parke', 'Sa palengke'],
-              'isCorrect': score >= 2,
-              'studentAnswer': score >= 2 ? 'Sa paaralan' : 'Sa bahay',
-              'correctAnswer': 'Sa paaralan',
-            },
-            {
-              'number': 3,
-              'question': 'Ano ang naging problema ni Sally?',
-              'choices': ['Nawala ang kanyang laruan', 'Nawala ang kanyang lapis', 'Nawala ang kanyang pusa', 'Nawala ang kanyang pera'],
-              'isCorrect': score >= 3,
-              'studentAnswer': score >= 3 ? 'Nawala ang kanyang lapis' : 'Nawala ang kanyang laruan',
-              'correctAnswer': 'Nawala ang kanyang lapis',
-            },
-            {
-              'number': 4,
-              'question': 'Paano nalutas ang suliranin?',
-              'choices': ['Tinulungan siya ng guro', 'Bumili siya ng bago', 'Umiyak na lamang siya', 'Hinamag niya ang klase'],
-              'isCorrect': score >= 4,
-              'studentAnswer': score >= 4 ? 'Tinulungan siya ng guro' : 'Bumili siya ng bago',
-              'correctAnswer': 'Tinulungan siya ng guro',
-            },
-            {
-              'number': 5,
-              'question': 'Ano ang aral ng kuwento?',
-              'choices': ['Maglaro maghapon', 'Ang pagtutulungan ay mahalaga', 'Huwag magsalita sa klase', 'Laging matulog nang maaga'],
-              'isCorrect': score >= 5,
-              'studentAnswer': score >= 5 ? 'Ang pagtutulungan ay mahalaga' : 'Maglaro maghapon',
-              'correctAnswer': 'Ang pagtutulungan ay mahalaga',
-            },
-          ];
+    final List<Map<String, dynamic>> questions = questionsList ?? [];
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -110,15 +67,41 @@ class ListeningComprehensionSummaryPage extends StatelessWidget {
 
                     // 2. Questions List
                     Expanded(
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        itemCount: questions.length,
-                        itemBuilder: (context, index) {
-                          final item = questions[index];
-                          return _buildQuestionCard(item);
-                        },
-                      ),
+                      child: questions.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      PhIcons.examRegular,
+                                      size: 48,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No comprehension questions found for this assessment.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                              itemCount: questions.length,
+                              itemBuilder: (context, index) {
+                                final item = questions[index];
+                                return _buildQuestionCard(item);
+                              },
+                            ),
                     ),
                   ],
                 ),

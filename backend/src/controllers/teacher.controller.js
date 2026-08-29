@@ -1677,8 +1677,9 @@ async function getActivityDetail(req, res) {
           orr.audio_recording_url AS "audioUrl",
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
-          orr.comprehension_score AS "comprehensionScore",
-          orr.verification_status AS "verificationStatus"
+          COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
+          orr.verification_status AS "verificationStatus",
+          COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds"
         FROM assessments a
         JOIN students s ON a.student_id = s.student_id
         LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
@@ -1686,6 +1687,8 @@ async function getActivityDetail(req, res) {
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
+        LEFT JOIN listening_reading_results lrr ON lrr.assessment_attempt_id = aa.attempt_id
         WHERE ${whereClause}
         ORDER BY s.last_name ASC, s.first_name ASC
       `;

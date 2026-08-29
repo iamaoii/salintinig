@@ -41,7 +41,9 @@ class _OralReadingAssessmentReaderPageState
   bool get _isEnglish {
     final lang = _assessmentLanguage.toLowerCase();
     final title = _storyTitle.toLowerCase();
-    return lang.startsWith('en') || lang.contains('english') || title.contains('english');
+    return lang.startsWith('en') ||
+        lang.contains('english') ||
+        title.contains('english');
   }
 
   @override
@@ -56,7 +58,9 @@ class _OralReadingAssessmentReaderPageState
     ) async {
       double level = 0.0;
       try {
-        if (!_isPaused && await _audioRecorder.isRecording() && !(await _audioRecorder.isPaused())) {
+        if (!_isPaused &&
+            await _audioRecorder.isRecording() &&
+            !(await _audioRecorder.isPaused())) {
           final amp = await _audioRecorder.getAmplitude();
           final db = amp.current; // dB level (-160 to 0)
 
@@ -165,7 +169,8 @@ class _OralReadingAssessmentReaderPageState
 
   Future<void> _stopVoiceRecording() async {
     try {
-      if (await _audioRecorder.isRecording() || await _audioRecorder.isPaused()) {
+      if (await _audioRecorder.isRecording() ||
+          await _audioRecorder.isPaused()) {
         final path = await _audioRecorder.stop();
         if (path != null) _recordedAudioPath = path;
       }
@@ -261,9 +266,10 @@ class _OralReadingAssessmentReaderPageState
                   _storyTitle = title;
                   _fullStoryText = text.trim();
                   _dynamicQuestions = questions;
+                  _passageId ??= QuizProgressService.extractPassageId(oralActivity);
                 });
                 debugPrint(
-                  '[OralReader] Successfully loaded student assignment passage: $title',
+                  '[OralReader] Successfully loaded student assignment passage: $title (passageId=$_passageId)',
                 );
                 return;
               }
@@ -308,9 +314,10 @@ class _OralReadingAssessmentReaderPageState
               _fullStoryText = text.trim();
             }
             _dynamicQuestions = questions;
+            _passageId ??= QuizProgressService.extractPassageId(passage);
           });
           debugPrint(
-            '[OralReader] Successfully loaded general passage: $title',
+            '[OralReader] Successfully loaded general passage: $title (passageId=$_passageId)',
           );
         }
         return;
@@ -331,8 +338,7 @@ class _OralReadingAssessmentReaderPageState
     super.dispose();
   }
 
-  // Dynamic pagination algorithm
-  // Dynamic pagination algorithm that prevents layout cutoff
+  // Dynamic pagination algorithm that maximizes screen utilization while preserving paragraph breaks
   List<List<String>> _paginateStory({
     required String fullText,
     required double maxWidth,
@@ -340,19 +346,45 @@ class _OralReadingAssessmentReaderPageState
     required TextStyle textStyle,
     required double paragraphSpacing,
   }) {
-    final String normalizedText = fullText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    final List<String> rawParagraphs = normalizedText.contains('\n\n')
-        ? normalizedText.split('\n\n')
-        : normalizedText.split('\n');
-    final List<String> paragraphs = rawParagraphs
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
+    final String normalizedText = fullText
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+
+    // Check if the passage has explicit paragraph breaks
+    List<String> rawParagraphs;
+    if (normalizedText.contains('\n\n')) {
+      rawParagraphs = normalizedText
+          .split('\n\n')
+          .map((p) => p.trim())
+          .where((p) => p.isNotEmpty)
+          .toList();
+    } else if (normalizedText.contains('\n')) {
+      rawParagraphs = normalizedText
+          .split('\n')
+          .map((p) => p.trim())
+          .where((p) => p.isNotEmpty)
+          .toList();
+    } else {
+      // If it's a single continuous block, split it into natural 2-sentence thought groups
+      final allSentences = _splitIntoSentences(normalizedText);
+      if (allSentences.length > 3) {
+        rawParagraphs = [];
+        for (int i = 0; i < allSentences.length; i += 2) {
+          final end = (i + 2 < allSentences.length)
+              ? i + 2
+              : allSentences.length;
+          rawParagraphs.add(allSentences.sublist(i, end).join(' '));
+        }
+      } else {
+        rawParagraphs = [normalizedText.trim()];
+      }
+    }
+
     final List<List<String>> pages = [];
     List<String> currentPage = [];
     double currentHeight = 0.0;
 
-    for (final paragraph in paragraphs) {
+    for (final paragraph in rawParagraphs) {
       final textPainter = TextPainter(
         text: TextSpan(text: paragraph.trim(), style: textStyle),
         textDirection: TextDirection.ltr,
@@ -362,43 +394,84 @@ class _OralReadingAssessmentReaderPageState
 
       final double spacing = currentPage.isEmpty ? 0.0 : paragraphSpacing;
 
+      // 1. If entire paragraph fits comfortably on current page, add it
       if (currentHeight + spacing + paraHeight <= maxHeight) {
         currentPage.add(paragraph);
         currentHeight += spacing + paraHeight;
       } else {
-        // The paragraph doesn't fit as a whole on the current page.
-        // If current page already has text, push it to pages and start a new clean page with this paragraph.
-        if (currentPage.isNotEmpty) {
+        // 2. If it doesn't fit completely, try fitting sentences of this paragraph into the remaining space
+        // so that the page is fully filled instead of leaving a huge empty gap!
+        final sentences = _splitIntoSentences(paragraph);
+        List<String> fittingSentences = [];
+        List<String> overflowSentences = [];
+
+        for (final sentence in sentences) {
+          final candidateSentences = [...fittingSentences, sentence].join(' ');
+          final sentPainter = TextPainter(
+            text: TextSpan(text: candidateSentences, style: textStyle),
+            textDirection: TextDirection.ltr,
+          );
+          sentPainter.layout(maxWidth: maxWidth);
+          final double candidateHeight = sentPainter.height;
+          final double testSpacing = currentPage.isEmpty
+              ? 0.0
+              : paragraphSpacing;
+
+          if (overflowSentences.isEmpty &&
+              (currentHeight + testSpacing + candidateHeight <= maxHeight)) {
+            fittingSentences.add(sentence);
+          } else {
+            overflowSentences.add(sentence);
+          }
+        }
+
+        if (fittingSentences.isNotEmpty) {
+          currentPage.add(fittingSentences.join(' '));
+          pages.add(currentPage);
+          currentPage = [];
+          currentHeight = 0.0;
+        } else if (currentPage.isNotEmpty) {
           pages.add(currentPage);
           currentPage = [];
           currentHeight = 0.0;
         }
 
-        // Check if paragraph fits on a clean new page
-        if (paraHeight <= maxHeight) {
-          currentPage.add(paragraph);
-          currentHeight = paraHeight;
-        } else {
-          // If a single paragraph is larger than an entire page, split into sentences for safety
-          final sentences = _splitIntoSentences(paragraph);
-          for (final sentence in sentences) {
-            final textPainterSent = TextPainter(
-              text: TextSpan(text: sentence.trim(), style: textStyle),
-              textDirection: TextDirection.ltr,
-            );
-            textPainterSent.layout(maxWidth: maxWidth);
-            final double sentHeight = textPainterSent.height;
-            final double sentSpacing = currentPage.isEmpty ? 0.0 : paragraphSpacing;
+        // Process any remaining sentences of this paragraph on subsequent page(s)
+        if (overflowSentences.isNotEmpty) {
+          final remainderPara = overflowSentences.join(' ');
+          final remPainter = TextPainter(
+            text: TextSpan(text: remainderPara, style: textStyle),
+            textDirection: TextDirection.ltr,
+          );
+          remPainter.layout(maxWidth: maxWidth);
+          final double remHeight = remPainter.height;
 
-            if (currentHeight + sentSpacing + sentHeight <= maxHeight) {
-              currentPage.add(sentence);
-              currentHeight += sentSpacing + sentHeight;
-            } else {
-              if (currentPage.isNotEmpty) {
-                pages.add(currentPage);
+          if (remHeight <= maxHeight) {
+            currentPage.add(remainderPara);
+            currentHeight = remHeight;
+          } else {
+            // If remainder is still larger than a whole page, add sentence by sentence
+            for (final s in overflowSentences) {
+              final sPainter = TextPainter(
+                text: TextSpan(text: s, style: textStyle),
+                textDirection: TextDirection.ltr,
+              );
+              sPainter.layout(maxWidth: maxWidth);
+              final double sHeight = sPainter.height;
+              final double sSpacing = currentPage.isEmpty
+                  ? 0.0
+                  : paragraphSpacing;
+
+              if (currentHeight + sSpacing + sHeight <= maxHeight) {
+                currentPage.add(s);
+                currentHeight += sSpacing + sHeight;
+              } else {
+                if (currentPage.isNotEmpty) {
+                  pages.add(currentPage);
+                }
+                currentPage = [s];
+                currentHeight = sHeight;
               }
-              currentPage = [sentence];
-              currentHeight = sentHeight;
             }
           }
         }
@@ -424,8 +497,8 @@ class _OralReadingAssessmentReaderPageState
         final char = paragraph[i];
         final nextChar = paragraph[i + 1];
         if ((char == '.' || char == '?' || char == '!') &&
-            (nextChar == ' ' || nextChar == '”')) {
-          final int end = (nextChar == '”') ? i + 2 : i + 1;
+            (nextChar == ' ' || nextChar == '”' || nextChar == '"')) {
+          final int end = (nextChar == '”' || nextChar == '"') ? i + 2 : i + 1;
           result.add(paragraph.substring(start, end).trim());
           start = end;
           i = end - 1;
@@ -505,8 +578,13 @@ class _OralReadingAssessmentReaderPageState
                                 final double verticalPadding = 24.0;
                                 // Accurate height for bottom page count indicator and mic bar
                                 final double footerControlsHeight = 90.0;
-                                final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
-                                final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight;
+                                final double maxWidth =
+                                    viewConstraints.maxWidth -
+                                    horizontalPadding;
+                                final double maxHeight =
+                                    viewConstraints.maxHeight -
+                                    verticalPadding -
+                                    footerControlsHeight;
 
                                 final TextStyle textStyle = GoogleFonts.lora(
                                   fontSize: 22.0,
@@ -542,7 +620,8 @@ class _OralReadingAssessmentReaderPageState
                                           });
                                         },
                                         itemBuilder: (context, pageIndex) {
-                                          final pageParagraphs = dynamicPages[pageIndex];
+                                          final pageParagraphs =
+                                              dynamicPages[pageIndex];
 
                                           return Padding(
                                             padding: const EdgeInsets.symmetric(
@@ -550,15 +629,21 @@ class _OralReadingAssessmentReaderPageState
                                               vertical: 12.0,
                                             ),
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                              mainAxisAlignment: MainAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.start,
                                               children: List.generate(
                                                 pageParagraphs.length,
                                                 (pIndex) {
-                                                  final isLast = pIndex == pageParagraphs.length - 1;
+                                                  final isLast =
+                                                      pIndex ==
+                                                      pageParagraphs.length - 1;
                                                   return Padding(
                                                     padding: EdgeInsets.only(
-                                                      bottom: isLast ? 0.0 : 30.0,
+                                                      bottom: isLast
+                                                          ? 0.0
+                                                          : 30.0,
                                                     ),
                                                     child: Text(
                                                       pageParagraphs[pIndex]
@@ -632,7 +717,9 @@ class _OralReadingAssessmentReaderPageState
                                                           width:
                                                               barConstraints
                                                                   .maxWidth *
-                                                              (_isPaused ? 0.0 : _recordingProgress),
+                                                              (_isPaused
+                                                                  ? 0.0
+                                                                  : _recordingProgress),
                                                           decoration: BoxDecoration(
                                                             color: primaryBlue,
                                                             borderRadius:
@@ -990,7 +1077,7 @@ class _OralReadingAssessmentReaderPageState
     bool didStart = false;
 
     await showDialog(
-      context: context,
+      context: mounted ? context : context,
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: dialogBg,
@@ -1058,9 +1145,14 @@ class _OralReadingAssessmentReaderPageState
     final item = widget.item;
     _passageId ??= QuizProgressService.extractPassageId(item);
 
-    final readingSecs = _readingSecondsElapsed > 0 ? _readingSecondsElapsed : 60;
+    final readingSecs = _readingSecondsElapsed > 0
+        ? _readingSecondsElapsed
+        : 60;
 
-    final existingDraft = await QuizProgressService.getQuizDraft(_passageId, 'oral');
+    final existingDraft = await QuizProgressService.getQuizDraft(
+      _passageId,
+      'oral',
+    );
     if (existingDraft == null) {
       await QuizProgressService.saveQuizDraft(
         _passageId,
@@ -1075,7 +1167,8 @@ class _OralReadingAssessmentReaderPageState
 
     // Sync status = 'in_progress' to PostgreSQL database for real-time teacher tracking
     final user = AuthService.currentUser;
-    final studentId = user?.rawUser?['student_id']?.toString() ??
+    final studentId =
+        user?.rawUser?['student_id']?.toString() ??
         user?.rawUser?['studentId']?.toString() ??
         user?.userId;
 
@@ -1086,12 +1179,25 @@ class _OralReadingAssessmentReaderPageState
 
     if (!mounted) return;
 
-    Map<int, int>? initialAnswersMap;
+    List<int?>? initialAnswersList;
     if (existingDraft != null && existingDraft['selectedAnswers'] != null) {
-      if (existingDraft['selectedAnswers'] is Map) {
-        initialAnswersMap = (existingDraft['selectedAnswers'] as Map).map(
-          (k, v) => MapEntry(int.parse(k.toString()), int.parse(v.toString())),
-        );
+      if (existingDraft['selectedAnswers'] is List) {
+        initialAnswersList = (existingDraft['selectedAnswers'] as List)
+            .map((e) => e != null ? int.tryParse(e.toString()) : null)
+            .toList();
+      } else if (existingDraft['selectedAnswers'] is Map) {
+        final map = existingDraft['selectedAnswers'] as Map;
+        initialAnswersList = [];
+        for (var entry in map.entries) {
+          final idx = int.tryParse(entry.key.toString());
+          final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+          if (idx != null) {
+            while (initialAnswersList.length <= idx) {
+              initialAnswersList.add(null);
+            }
+            initialAnswersList[idx] = val;
+          }
+        }
       }
     }
 
@@ -1099,14 +1205,21 @@ class _OralReadingAssessmentReaderPageState
       context,
       MaterialPageRoute(
         builder: (context) => OralReadingAssessmentQuizPage(
-          dynamicQuestions: existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
-          recordedAudioPath: existingDraft?['recordedAudioPath'] as String? ?? _recordedAudioPath,
-          readingTimeSeconds: (existingDraft?['readingTimeSeconds'] as int?) ?? readingSecs,
+          dynamicQuestions:
+              existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
+          recordedAudioPath:
+              existingDraft?['recordedAudioPath'] as String? ??
+              _recordedAudioPath,
+          readingTimeSeconds:
+              (existingDraft?['readingTimeSeconds'] as int?) ?? readingSecs,
           storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
-          assessmentLanguage: existingDraft?['assessmentLanguage'] as String? ?? _assessmentLanguage,
+          assessmentLanguage:
+              existingDraft?['assessmentLanguage'] as String? ??
+              _assessmentLanguage,
           passageId: _passageId,
-          currentQuestionIndex: (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
-          initialSelectedAnswers: initialAnswersMap,
+          currentQuestionIndex:
+              (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
+          initialSelectedAnswers: initialAnswersList,
         ),
       ),
     );

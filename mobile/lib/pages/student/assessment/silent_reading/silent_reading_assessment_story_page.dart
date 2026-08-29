@@ -428,10 +428,178 @@ class _SilentReadingAssessmentStoryPageState extends State<SilentReadingAssessme
   }
 
   void _startReading(BuildContext context) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SilentReadingAssessmentReaderPage(item: widget.item),
+    _showStartAssessmentDialog(context);
+  }
+
+  void _showStartAssessmentDialog(BuildContext parentContext) {
+    showDialog(
+      context: parentContext,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon Header
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B64D8).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      color: Color(0xFF1B64D8),
+                      size: 32,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Ready to Begin?',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please review these reminders before starting your assessment:',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildReminderRow(
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Locked Progress',
+                  description: 'You cannot go back or exit once you start reading.',
+                ),
+                const SizedBox(height: 12),
+                _buildReminderRow(
+                  icon: Icons.phonelink_lock_outlined,
+                  title: 'Stay in the App',
+                  description: 'Do not close or minimize the app while reading.',
+                ),
+                const SizedBox(height: 12),
+                _buildReminderRow(
+                  icon: Icons.quiz_outlined,
+                  title: 'Comprehension Quiz',
+                  description: 'A quiz will follow immediately after reading.',
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'Not Yet',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          if (parentContext.mounted) {
+                            Navigator.pushReplacement(
+                              parentContext,
+                              MaterialPageRoute(
+                                builder: (context) => SilentReadingAssessmentReaderPage(item: widget.item),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: const Color(0xFF1B64D8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'Start Reading',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReminderRow({required IconData icon, required String title, required String description}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF1B64D8), size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -153,7 +153,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
     }
   }
 
-  void _finishAssessment() {
+  void _finishAssessment() async {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,6 +194,15 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       });
     }
 
+    // Show loading dialog while sending to backend database
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1B64D8)),
+      ),
+    );
+
     // Post submission to database & clear draft
     try {
       final user = AuthService.currentUser;
@@ -202,7 +211,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
           user?.userId;
       final lrn = user?.lrn;
 
-      ApiService.post('/students/assessment/submit', {
+      final res = await ApiService.post('/students/assessment/submit', {
         'studentId': studentId,
         'lrn': lrn,
         'passageId': widget.passageId,
@@ -211,11 +220,18 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
         'maxScore': _questions.length,
         'answers': answersPayload,
       });
+      debugPrint('[ListeningQuiz] Submission result: ${res.success}, msg: ${res.message ?? res.error}');
 
-      QuizProgressService.clearQuizDraft(widget.passageId, 'listening');
+      await QuizProgressService.clearQuizDraft(widget.passageId, 'listening');
     } catch (e) {
       debugPrint('[ListeningQuiz] submission error notice: $e');
+    } finally {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // Safely close progress dialog
+      }
     }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,

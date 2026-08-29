@@ -14,7 +14,7 @@ class OralReadingAssessmentQuizPage extends StatefulWidget {
   final String? assessmentLanguage;
   final dynamic passageId;
   final int? currentQuestionIndex;
-  final Map<int, int>? initialSelectedAnswers;
+  final List<int?>? initialSelectedAnswers;
 
   const OralReadingAssessmentQuizPage({
     super.key,
@@ -35,7 +35,7 @@ class OralReadingAssessmentQuizPage extends StatefulWidget {
 class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQuizPage> {
   int _currentQuestionIndex = 0;
   int _maxQuestionIndex = 0;
-  final Map<int, int> _selectedAnswers = {};
+  late List<int?> _selectedAnswers;
   
   late List<Map<String, dynamic>> _questions;
 
@@ -107,12 +107,13 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
           'id': q['question_id'] ?? q['questionId'] ?? q['id'],
           'questionText': (q['questionText'] ?? q['question'] ?? '').toString(),
           'options': parsedOptions,
-          'correctIndex': cIndex is int ? cIndex : 0,
+          'correctIndex': cIndex is int ? cIndex : (int.tryParse(cIndex.toString()) ?? 0),
         });
       }
     }
 
     _questions = parsedList.isNotEmpty ? parsedList : _defaultQuestions;
+    _selectedAnswers = List<int?>.filled(_questions.length, null);
 
     if (widget.currentQuestionIndex != null &&
         widget.currentQuestionIndex! >= 0 &&
@@ -121,7 +122,9 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       _maxQuestionIndex = widget.currentQuestionIndex!;
     }
     if (widget.initialSelectedAnswers != null) {
-      _selectedAnswers.addAll(widget.initialSelectedAnswers!);
+      for (int i = 0; i < widget.initialSelectedAnswers!.length && i < _selectedAnswers.length; i++) {
+        _selectedAnswers[i] = widget.initialSelectedAnswers![i];
+      }
     }
     _saveCurrentProgress();
     debugPrint('[OralReadingQuiz] After initState _currentQuestionIndex=$_currentQuestionIndex _selectedAnswers=$_selectedAnswers _questions.length=${_questions.length}');
@@ -138,8 +141,8 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       recordedAudioPath: widget.recordedAudioPath,
       readingTimeSeconds: widget.readingTimeSeconds ?? 0,
       storyTitle: widget.storyTitle,
-      assessmentLanguage: widget.assessmentLanguage,
-      dynamicQuestions: widget.dynamicQuestions,
+      assessmentLanguage: widget.assessmentLanguage ?? 'fil',
+      dynamicQuestions: _questions,
       currentQuestionIndex: _currentQuestionIndex,
       selectedAnswers: _selectedAnswers,
     );
@@ -149,7 +152,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
     Feedback.forTap(context);
     setState(() {
       if (_selectedAnswers[_currentQuestionIndex] == index) {
-        _selectedAnswers.remove(_currentQuestionIndex);
+        _selectedAnswers[_currentQuestionIndex] = null;
       } else {
         _selectedAnswers[_currentQuestionIndex] = index;
       }
@@ -341,8 +344,8 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
                   recordedAudioPath: widget.recordedAudioPath,
                   readingTimeSeconds: widget.readingTimeSeconds ?? 0,
                   storyTitle: widget.storyTitle,
-                  assessmentLanguage: widget.assessmentLanguage,
-                  dynamicQuestions: widget.dynamicQuestions,
+                  assessmentLanguage: widget.assessmentLanguage ?? 'fil',
+                  dynamicQuestions: _questions,
                   currentQuestionIndex: _currentQuestionIndex,
                   selectedAnswers: _selectedAnswers,
                 );

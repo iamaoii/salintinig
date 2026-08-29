@@ -608,18 +608,18 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
 }
 
 /**
- * Calculate Official Phil-IRI Reading Profile Label
+ * 1. Oral Reading Profile (Word Accuracy % + Comprehension Score %)
  * 
  * DepEd Phil-IRI Matrix:
  * - Independent: Word Reading >= 97% AND Comprehension >= 80%
- * - Instructional: Word Reading 90-96% OR Comprehension 59-79%
+ * - Instructional: Word Reading 90-96% AND Comprehension 59-79% (or mixed Ind/Inst)
  * - Frustration: Word Reading < 90% OR Comprehension < 59%
  * 
  * @param {number} accuracyPercentage - Word reading accuracy percentage
  * @param {number} comprehensionScorePercentage - Reading comprehension score percentage
  * @returns {'Independent'|'Instructional'|'Frustration'}
  */
-function getPhilIriProfile(accuracyPercentage, comprehensionScorePercentage) {
+function getPhilIriOralProfile(accuracyPercentage, comprehensionScorePercentage) {
   let wordLevel = 'Frustration';
   if (accuracyPercentage >= 97) wordLevel = 'Independent';
   else if (accuracyPercentage >= 90) wordLevel = 'Instructional';
@@ -637,9 +637,82 @@ function getPhilIriProfile(accuracyPercentage, comprehensionScorePercentage) {
   return 'Independent';
 }
 
+/**
+ * 2. Listening Comprehension Profile (Comprehension Score % only)
+ * 
+ * DepEd Phil-IRI Listening Cutoffs:
+ * - Independent: Comprehension 80% - 100%
+ * - Instructional: Comprehension 59% - 79%
+ * - Frustration: Comprehension 58% and below
+ * 
+ * @param {number} comprehensionScorePercentage - Listening comprehension score percentage
+ * @returns {'Independent'|'Instructional'|'Frustration'}
+ */
+function getPhilIriListeningProfile(comprehensionScorePercentage) {
+  const comp = Number(comprehensionScorePercentage) || 0;
+  if (comp >= 80) return 'Independent';
+  if (comp >= 59) return 'Instructional';
+  return 'Frustration';
+}
+
+/**
+ * 3. Silent Reading Profile (Reading Speed WPM + Comprehension Score %)
+ * 
+ * DepEd Phil-IRI Silent Reading Matrix:
+ * - Independent: Fast/Standard Speed AND Comprehension >= 80%
+ * - Instructional: Average Speed AND Comprehension >= 59%
+ * - Frustration: Slow Speed OR Comprehension < 59%
+ * 
+ * @param {number} readingSpeedWpm - Silent reading rate in Words Per Minute
+ * @param {number} comprehensionScorePercentage - Reading comprehension score percentage
+ * @param {string} [gradeLevel='Grade 4'] - Student grade level
+ * @param {string} [language='fil'] - Passage language ('en' | 'fil')
+ * @returns {'Independent'|'Instructional'|'Frustration'}
+ */
+function getPhilIriSilentProfile(readingSpeedWpm, comprehensionScorePercentage, gradeLevel = 'Grade 4', language = 'fil') {
+  let compLevel = 'Frustration';
+  const comp = Number(comprehensionScorePercentage) || 0;
+  if (comp >= 80) compLevel = 'Independent';
+  else if (comp >= 59) compLevel = 'Instructional';
+
+  const speed = Number(readingSpeedWpm) || 0;
+  if (speed <= 0) {
+    return compLevel;
+  }
+
+  const isEnglish = (language || '').toLowerCase().startsWith('en');
+  let speedLevel = 'Instructional';
+
+  if (isEnglish) {
+    if (speed >= 100) speedLevel = 'Independent';
+    else if (speed >= 70) speedLevel = 'Instructional';
+    else speedLevel = 'Frustration';
+  } else {
+    // Filipino
+    if (speed >= 80) speedLevel = 'Independent';
+    else if (speed >= 60) speedLevel = 'Instructional';
+    else speedLevel = 'Frustration';
+  }
+
+  if (speedLevel === 'Frustration' || compLevel === 'Frustration') {
+    return 'Frustration';
+  }
+  if (speedLevel === 'Instructional' || compLevel === 'Instructional') {
+    return 'Instructional';
+  }
+  return 'Independent';
+}
+
+function getPhilIriProfile(accuracyPercentage, comprehensionScorePercentage) {
+  return getPhilIriOralProfile(accuracyPercentage, comprehensionScorePercentage);
+}
+
 module.exports = {
   analyzeOralReading,
   getPhilIriProfile,
+  getPhilIriOralProfile,
+  getPhilIriListeningProfile,
+  getPhilIriSilentProfile,
   alignSequences,
   detectRepetitions,
   normalizeWord,

@@ -10,8 +10,8 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
 
   const OralReadingComprehensionSummaryPage({
     super.key,
-    this.score = 3,
-    this.totalQuestions = 3,
+    required this.score,
+    required this.totalQuestions,
     this.questionsList,
   });
 

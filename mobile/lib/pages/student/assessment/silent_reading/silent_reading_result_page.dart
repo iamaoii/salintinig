@@ -8,16 +8,20 @@ import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 
 class SilentReadingResultPage extends StatefulWidget {
-  final int score;
-  final int totalQuestions;
+  final int? score;
+  final int? totalQuestions;
+  final int? readingTimeSeconds;
+  final int? wpm;
   final List<Map<String, dynamic>>? questionsList;
   final dynamic passageId;
   final String? language;
 
   const SilentReadingResultPage({
     super.key,
-    this.score = 3,
-    this.totalQuestions = 3,
+    this.score,
+    this.totalQuestions,
+    this.readingTimeSeconds,
+    this.wpm,
     this.questionsList,
     this.passageId,
     this.language,
@@ -28,27 +32,63 @@ class SilentReadingResultPage extends StatefulWidget {
 }
 
 class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
-  late int _score;
-  late int _totalQuestions;
-  String _dateStr = 'Recently Completed';
+  bool _isLoading = true;
+  int _score = 0;
+  int _totalQuestions = 0;
+  int _wpm = 0;
+  int _readingTimeSeconds = 0;
+  String _profileLevel = 'Instructional';
+  String _dateStr = '';
   List<Map<String, dynamic>> _questions = [];
+
+  String _formatTime(int totalSeconds) {
+    if (totalSeconds <= 0) return '0s';
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    if (mins > 0) {
+      return '${mins}m ${secs.toString().padLeft(2, '0')}s';
+    }
+    return '${secs}s';
+  }
+
+  String _calculateProfileLevel(int score, int total) {
+    if (total <= 0) return 'Instructional';
+    final pct = ((score / total) * 100).round();
+    if (pct >= 80) return 'Independent';
+    if (pct >= 59) return 'Instructional';
+    return 'Frustration';
+  }
 
   @override
   void initState() {
     super.initState();
-    _score = widget.score;
-    _totalQuestions = widget.totalQuestions;
+    _score = widget.score ?? 0;
+    _totalQuestions = widget.totalQuestions ?? 0;
+    _readingTimeSeconds = widget.readingTimeSeconds ?? 0;
+    _wpm = widget.wpm ?? 0;
     _questions = widget.questionsList ?? [];
+    if (_score > 0 && _totalQuestions > 0) {
+      _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
+      _isLoading = false;
+    }
     _fetchLiveResult();
   }
 
   Future<void> _fetchLiveResult() async {
     try {
-      final res = await ApiService.get('/students/assessment/my-results');
+      final user = AuthService.currentUser;
+      final studentId = user?.rawUser?['student_id']?.toString() ??
+          user?.rawUser?['studentId']?.toString() ??
+          user?.userId;
+      final url = (studentId != null && studentId.isNotEmpty)
+          ? '/students/assessment/my-results?studentId=$studentId'
+          : '/students/assessment/my-results';
+
+      final res = await ApiService.get(url);
       if (res.success && res.data != null && res.data['results'] is List) {
         final list = List<Map<String, dynamic>>.from(res.data['results']);
         final silentList = list.where((r) => (r['assessmentType'] ?? '').toString().toLowerCase() == 'silent').toList();
-        final attemptedSilent = silentList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['totalScore'] != null).toList();
+        final attemptedSilent = silentList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['totalScore'] != null || r['score'] != null).toList();
         final searchPool = attemptedSilent.isNotEmpty ? attemptedSilent : (silentList.isNotEmpty ? silentList : list);
 
         Map<String, dynamic> match = {};
@@ -84,13 +124,32 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
             if (match['score'] != null) {
               _score = (match['score'] as num).toInt();
             }
-            if (match['totalQuestions'] != null) {
+            if (match['totalQuestions'] != null && (match['totalQuestions'] as num) > 0) {
               _totalQuestions = (match['totalQuestions'] as num).toInt();
             }
             if (match['questions'] is List && (match['questions'] as List).isNotEmpty) {
               _questions = (match['questions'] as List)
                   .map((q) => Map<String, dynamic>.from(q as Map))
                   .toList();
+            }
+            if (_totalQuestions <= 0) {
+              _totalQuestions = _questions.isNotEmpty ? _questions.length : 3;
+            }
+            if (match['readingTimeSeconds'] != null) {
+              _readingTimeSeconds = (match['readingTimeSeconds'] as num).toInt();
+            }
+            if (match['readingRateWpm'] != null && (match['readingRateWpm'] as num) > 0) {
+              _wpm = (match['readingRateWpm'] as num).toInt();
+            } else if (_readingTimeSeconds > 0) {
+              final passageWords = (match['wordCount'] as num?)?.toInt() ?? 115;
+              _wpm = ((passageWords / _readingTimeSeconds) * 60).round().clamp(20, 350);
+            } else if (_wpm <= 0) {
+              _wpm = 115;
+            }
+            if (match['profileLabel'] != null && match['profileLabel'].toString().isNotEmpty) {
+              _profileLevel = match['profileLabel'].toString();
+            } else {
+              _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
             }
             if (match['completedAt'] != null) {
               final dt = DateTime.tryParse(match['completedAt'].toString());
@@ -107,6 +166,16 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
       }
     } catch (e) {
       debugPrint('[SilentReadingResultPage] fetch live error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (_totalQuestions <= 0) {
+            _totalQuestions = _questions.isNotEmpty ? _questions.length : 3;
+          }
+          if (_wpm <= 0) _wpm = 115;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -147,7 +216,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                             ),
                           ),
                           Text(
-                            'Silent Reading Test',
+                            'Silent Reading Assessment',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -171,13 +240,20 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
 
                     // 2. Scrollable content
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 🌟 Result Hero Badge & Praise Header (Matching Mockup)
+                      child: _isLoading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF1B64D8),
+                                strokeWidth: 3.5,
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                            // 🌟 Result Hero Badge & Praise Header
                             Container(
                               padding: const EdgeInsets.all(24.0),
                               decoration: BoxDecoration(
@@ -310,16 +386,15 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Metric Cards Row
+                            // Metric Cards Grid (Phil-IRI 4-Metric Grid: Speed, Comprehension, Time, Level)
                             Row(
                               children: [
                                 Expanded(
                                   child: _buildMetricCard(
-                                    valueNumber: '92',
-                                    valueUnit: 'wps',
+                                    valueNumber: '$_wpm',
+                                    valueUnit: 'wpm',
                                     label: 'Reading Speed',
-                                    iconSvg: PhIcons.lightningRegular,
-                                    iconColor: const Color(0xFFF59E0B),
+                                    iconWidget: const Iconify(PhIcons.lightningRegular, color: Color(0xFFF59E0B), size: 18),
                                     iconBgColor: const Color(0xFFFEF3C7),
                                   ),
                                 ),
@@ -328,9 +403,30 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                                   child: _buildMetricCard(
                                     valueNumber: '${(_score / (_totalQuestions > 0 ? _totalQuestions : 1) * 100).round()}%',
                                     label: 'Comprehension',
-                                    iconSvg: PhIcons.lightbulbRegular,
-                                    iconColor: const Color(0xFF00AA5A),
+                                    iconWidget: const Iconify(PhIcons.lightbulbRegular, color: Color(0xFF00AA5A), size: 18),
                                     iconBgColor: const Color(0xFFD1FAE5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildMetricCard(
+                                    valueNumber: _formatTime(_readingTimeSeconds),
+                                    label: 'Reading Time',
+                                    iconWidget: const Iconify(PhIcons.hourglassRegular, color: Color(0xFF3B82F6), size: 18),
+                                    iconBgColor: const Color(0xFFDBEAFE),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildMetricCard(
+                                    valueNumber: _profileLevel,
+                                    label: 'PHIL-IRI Level',
+                                    iconWidget: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF8B5CF6), size: 20),
+                                    iconBgColor: const Color(0xFFEDE9FE),
                                   ),
                                 ),
                               ],
@@ -412,8 +508,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
     required String valueNumber,
     String? valueUnit,
     required String label,
-    required String iconSvg,
-    required Color iconColor,
+    required Widget iconWidget,
     required Color iconBgColor,
   }) {
     return Container(
@@ -485,11 +580,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
-                child: Iconify(
-                  iconSvg,
-                  color: iconColor,
-                  size: 18,
-                ),
+                child: iconWidget,
               ),
             ],
           ),

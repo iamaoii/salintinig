@@ -8,17 +8,21 @@ import 'package:salintinig/services/auth_service.dart';
 class SilentReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
   final String? storyTitle;
+  final String? assessmentLanguage;
   final dynamic passageId;
   final int? currentQuestionIndex;
   final List<int?>? initialSelectedAnswers;
+  final int? readingTimeSeconds;
 
   const SilentReadingAssessmentQuizPage({
     super.key,
     this.dynamicQuestions,
     this.storyTitle,
+    this.assessmentLanguage,
     this.passageId,
     this.currentQuestionIndex,
     this.initialSelectedAnswers,
+    this.readingTimeSeconds,
   });
 
   @override
@@ -29,6 +33,34 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
   int _currentQuestionIndex = 0;
   late List<int?> _selectedAnswers;
   late List<Map<String, dynamic>> _questions;
+
+  bool get _isEnglish {
+    final lang = (widget.assessmentLanguage ?? '').toLowerCase();
+    final title = (widget.storyTitle ?? '').toLowerCase();
+    if (lang.startsWith('en') || lang.contains('english') || title.contains('english')) {
+      return true;
+    }
+    if (_questions.isNotEmpty) {
+      final qText = (_questions[0]['questionText'] ?? _questions[0]['question'] ?? '').toString().toLowerCase();
+      final opts = (_questions[0]['options'] is List ? _questions[0]['options'] as List : []).join(' ').toLowerCase();
+      final combined = '$qText $opts';
+
+      if (combined.contains('who ') ||
+          combined.contains('what ') ||
+          combined.contains('where ') ||
+          combined.contains('why ') ||
+          combined.contains('how ') ||
+          combined.contains('which ') ||
+          combined.contains('the ') ||
+          combined.contains(' is ') ||
+          combined.contains(' was ') ||
+          combined.contains(' are ') ||
+          combined.contains(' story')) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   final List<Map<String, dynamic>> _defaultQuestions = [
     {
@@ -69,9 +101,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
     debugPrint('[SilentReadingQuiz] initState passageId=${widget.passageId} currentQuestionIndex=${widget.currentQuestionIndex} initialAnswers=${widget.initialSelectedAnswers}');
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
       _questions = widget.dynamicQuestions!.map((q) => {
-        'questionText': q['questionText'] ?? '',
+        'questionText': q['questionText'] ?? q['question'] ?? '',
         'options': List<String>.from(q['options'] ?? []),
-        'correctAnswerIndex': q['correctAnswerIndex'] ?? 0,
+        'correctAnswerIndex': q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0,
       }).toList();
     } else {
       _questions = _defaultQuestions;
@@ -103,9 +135,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       widget.passageId,
       assessmentType: 'silent',
       recordedAudioPath: null,
-      readingTimeSeconds: 0,
+      readingTimeSeconds: widget.readingTimeSeconds ?? 0,
       storyTitle: widget.storyTitle,
-      assessmentLanguage: 'fil',
+      assessmentLanguage: widget.assessmentLanguage ?? 'fil',
       dynamicQuestions: widget.dynamicQuestions,
       currentQuestionIndex: _currentQuestionIndex,
       selectedAnswers: _selectedAnswers,
@@ -130,7 +162,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pumili muna ng isang sagot.',
+            _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
           backgroundColor: Colors.orangeAccent,
@@ -162,13 +194,13 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
     }
   }
 
-  void _finishAssessment() {
+  void _finishAssessment() async {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pumili muna ng isang sagot.',
+            _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
           backgroundColor: Colors.orangeAccent,
@@ -180,9 +212,59 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       return;
     }
 
-    // Calculate score & prepare answers payload
+    _confirmSubmitQuiz();
+  }
+
+  void _confirmSubmitQuiz() {
+    final titleColor = const Color(0xFF1E293B);
+    final descColor = const Color(0xFF475569);
+    final dialogBg = Colors.white;
+    final cancelColor = const Color(0xFF64748B);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            _isEnglish ? 'Submit Quiz?' : 'Ipasa ang Pagsusulit?',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
+          ),
+          content: Text(
+            _isEnglish
+                ? 'Are you sure you want to finish and submit your quiz answers?'
+                : 'Sigurado ka bang nais mo nang tapusin at ipasa ang iyong mga sagot?',
+            style: GoogleFonts.inter(fontSize: 14, color: descColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                _isEnglish ? 'Cancel' : 'Kanselahin',
+                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+                _submitQuiz();                // Perform submission
+              },
+              child: Text(
+                _isEnglish ? 'Submit' : 'Ipasa',
+                style: GoogleFonts.inter(color: const Color(0xFF1B64D8), fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _submitQuiz() async {
     int correctCount = 0;
     final List<Map<String, dynamic>> answersPayload = [];
+
     for (int i = 0; i < _questions.length; i++) {
       final q = _questions[i];
       final selIdx = _selectedAnswers[i];
@@ -203,7 +285,14 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       });
     }
 
-    // Post submission to database & clear draft
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF1B64D8)),
+      ),
+    );
+
     try {
       final user = AuthService.currentUser;
       final studentId = user?.rawUser?['student_id']?.toString() ??
@@ -211,20 +300,28 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
           user?.userId;
       final lrn = user?.lrn;
 
-      ApiService.post('/students/assessment/submit', {
+      final res = await ApiService.post('/students/assessment/submit', {
         'studentId': studentId,
         'lrn': lrn,
         'passageId': widget.passageId,
         'assessmentType': 'silent',
         'score': correctCount,
         'maxScore': _questions.length,
+        'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
         'answers': answersPayload,
       });
+      debugPrint('[SilentQuiz] Submission result: ${res.success}, msg: ${res.message ?? res.error}');
 
-      QuizProgressService.clearQuizDraft(widget.passageId, 'silent');
+      await QuizProgressService.clearQuizDraft(widget.passageId, 'silent');
     } catch (e) {
       debugPrint('[SilentQuiz] submission error notice: $e');
+    } finally {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // Safely close progress dialog
+      }
     }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -250,18 +347,20 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
           backgroundColor: dialogBg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Exit Quiz?',
+            _isEnglish ? 'Exit Quiz?' : 'Lumabas sa Pagsusulit?',
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
           ),
           content: Text(
-            'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
+            _isEnglish
+                ? 'Your progress will be saved so you can continue later. Are you sure you want to exit?'
+                : 'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Kanselahin',
+                _isEnglish ? 'Cancel' : 'Kanselahin',
                 style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
               ),
             ),
@@ -272,9 +371,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                   widget.passageId,
                   assessmentType: 'silent',
                   recordedAudioPath: null,
-                  readingTimeSeconds: 0,
+                  readingTimeSeconds: widget.readingTimeSeconds ?? 0,
                   storyTitle: widget.storyTitle,
-                  assessmentLanguage: 'fil',
+                  assessmentLanguage: widget.assessmentLanguage ?? 'fil',
                   dynamicQuestions: widget.dynamicQuestions,
                   currentQuestionIndex: _currentQuestionIndex,
                   selectedAnswers: _selectedAnswers,
@@ -284,7 +383,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                 }
               },
               child: Text(
-                'Lumabas',
+                _isEnglish ? 'Exit' : 'Lumabas',
                 style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
               ),
             ),
@@ -297,13 +396,11 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
-    const softCreamBg = Color(0xFFFCFAF7);
-
     final currentQuestion = _questions[_currentQuestionIndex];
     final selectedAnswerIndex = _selectedAnswers[_currentQuestionIndex];
 
     return Scaffold(
-      backgroundColor: softCreamBg,
+      backgroundColor: const Color(0xFFFCFAF7),
       body: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, result) {
@@ -322,59 +419,57 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                   ),
                   child: Column(
                     children: [
-                      // 1. Header with X Exit Button on Right Side
+                      // 1. Header Bar with Title and Close Button
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const SizedBox(width: 48),
+                            const SizedBox(width: 40),
                             Expanded(
                               child: Text(
-                                widget.storyTitle?.toUpperCase() ?? 'SILENT READING ASSESSMENT',
+                                (widget.storyTitle ?? 'Silent Reading Quiz').toUpperCase(),
                                 textAlign: TextAlign.center,
-                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
                                   color: const Color(0xFF475569),
                                   letterSpacing: 1.0,
                                 ),
                               ),
                             ),
                             IconButton(
-                              onPressed: () {
-                                Feedback.forTap(context);
-                                _confirmExit(context);
-                              },
+                              onPressed: () => _confirmExit(context),
                               icon: const Icon(
                                 Icons.close_rounded,
-                                size: 26,
+                                size: 28,
                                 color: Color(0xFF475569),
                               ),
-                              tooltip: 'Exit Quiz',
                             ),
                           ],
                         ),
                       ),
 
-                      // 2. Progress Indicator
+                      // 2. Segmented Progress Bar & Question Counter
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'QUESTION ${_currentQuestionIndex + 1}',
+                              _isEnglish
+                                  ? 'QUESTION ${_currentQuestionIndex + 1}'
+                                  : 'TANONG ${_currentQuestionIndex + 1}',
                               style: GoogleFonts.inter(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 color: const Color(0xFF64748B),
                                 letterSpacing: 0.5,
                               ),
                             ),
                             const SizedBox(height: 8),
+                            // Segmented bar
                             Row(
                               children: List.generate(_questions.length, (index) {
                                 final isActive = index <= _currentQuestionIndex;
@@ -406,7 +501,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                currentQuestion['questionText'],
+                                (currentQuestion['questionText'] ?? currentQuestion['question'] ?? '').toString(),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 24,
@@ -422,80 +517,74 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
 
                       // 4. Select instruction text
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Text(
-                          'Select one answer:',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF94A3B8),
-                            letterSpacing: 0.5,
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _isEnglish ? 'SELECT ONE ANSWER' : 'PUMILI NG ISANG SAGOT',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF94A3B8),
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
 
-                      // 5. Options
+                      // 5. Options (Picture 1 style: Radio with checkmark/circle, no letters)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
                         child: Column(
                           children: List.generate(
                             (currentQuestion['options'] as List<String>).length,
                             (index) {
                               final optionText = currentQuestion['options'][index];
                               final isSelected = selectedAnswerIndex == index;
-                              final optionLetter = String.fromCharCode(65 + index);
 
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12.0),
-                                child: Container(
-                                  width: double.infinity,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: isSelected ? primaryBlue : const Color(0xFFE2E8F0),
-                                      width: isSelected ? 2 : 1.5,
-                                    ),
-                                  ),
-                                  child: ElevatedButton(
-                                    onPressed: () => _onOptionSelected(index),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      elevation: 0,
-                                      shadowColor: Colors.transparent,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
+                                child: GestureDetector(
+                                  onTap: () => _onOptionSelected(index),
+                                  child: Container(
+                                    constraints: const BoxConstraints(minHeight: 56),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFD3E2F8)
+                                          : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? primaryBlue
+                                            : const Color(0xFFE2E8F0),
+                                        width: isSelected ? 1.5 : 1.0,
                                       ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0,
+                                      vertical: 14.0,
                                     ),
                                     child: Row(
                                       children: [
-                                        Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: isSelected ? primaryBlue : const Color(0xFFF1F5F9),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            optionLetter,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: isSelected ? Colors.white : const Color(0xFF64748B),
-                                            ),
-                                          ),
+                                        Icon(
+                                          isSelected
+                                              ? Icons.check_circle_rounded
+                                              : Icons.circle_outlined,
+                                          color: isSelected
+                                              ? primaryBlue
+                                              : const Color(0xFF94A3B8),
+                                          size: 24,
                                         ),
-                                        const SizedBox(width: 16),
+                                        const SizedBox(width: 14),
                                         Expanded(
                                           child: Text(
                                             optionText,
                                             style: GoogleFonts.inter(
                                               fontSize: 16,
-                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                              color: isSelected ? primaryBlue : const Color(0xFF1E293B),
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected
+                                                  ? primaryBlue
+                                                  : const Color(0xFF334155),
                                             ),
                                           ),
                                         ),
@@ -527,7 +616,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                                       ),
                                     ),
                                     child: Text(
-                                      'Back',
+                                      _isEnglish ? 'Back' : 'Bumalik',
                                       style: GoogleFonts.inter(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w700,
@@ -557,8 +646,8 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
                                   ),
                                   child: Text(
                                     _currentQuestionIndex == _questions.length - 1
-                                        ? 'Finish'
-                                        : 'Next',
+                                        ? (_isEnglish ? 'Finish' : 'Tapusin')
+                                        : (_isEnglish ? 'Next' : 'Susunod'),
                                     style: GoogleFonts.inter(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,

@@ -87,7 +87,7 @@ class SilentReadingAssessmentInstructionsPage extends StatelessWidget {
                           ),
                           // Title
                           Text(
-                            'Silent Reading Test',
+                            'Silent Reading Assessment',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,

@@ -10,8 +10,8 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
 
   const SilentReadingComprehensionSummaryPage({
     super.key,
-    this.score = 3,
-    this.totalQuestions = 3,
+    required this.score,
+    required this.totalQuestions,
     this.questionsList,
   });
 
@@ -19,34 +19,7 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
-        ? questionsList!
-        : [
-            {
-              'number': 1,
-              'question': 'Sino ang batang Muslim sa kwento na sumalubong sa kanyang tiyuhin?',
-              'choices': ['Jamil', 'Abdul', 'Mohammed', 'Allah'],
-              'isCorrect': score >= 1,
-              'studentAnswer': 'Jamil',
-              'correctAnswer': 'Jamil',
-            },
-            {
-              'number': 2,
-              'question': 'Ano ang banal na aklat ng mga Muslim na binanggit ni Tito Abdul?',
-              'choices': ['Bibliya', 'Koran', 'Karnak', 'Talmud'],
-              'isCorrect': score >= 2,
-              'studentAnswer': score >= 2 ? 'Koran' : 'Bibliya',
-              'correctAnswer': 'Koran',
-            },
-            {
-              'number': 3,
-              'question': 'Ano ang pinakabanal na gawain ng mga Muslim kung saan sila ay nag-aayuno?',
-              'choices': ['Ramadan', 'Pasko', 'Semana Santa', 'Fiesta'],
-              'isCorrect': score >= 3,
-              'studentAnswer': score >= 3 ? 'Ramadan' : 'Pasko',
-              'correctAnswer': 'Ramadan',
-            },
-          ];
+    final List<Map<String, dynamic>> questions = questionsList ?? [];
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -94,15 +67,41 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
 
                     // 2. Questions List
                     Expanded(
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        itemCount: questions.length,
-                        itemBuilder: (context, index) {
-                          final item = questions[index];
-                          return _buildQuestionCard(item);
-                        },
-                      ),
+                      child: questions.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      PhIcons.examRegular,
+                                      size: 48,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No comprehension questions found for this assessment.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                              itemCount: questions.length,
+                              itemBuilder: (context, index) {
+                                final item = questions[index];
+                                return _buildQuestionCard(item);
+                              },
+                            ),
                     ),
                   ],
                 ),

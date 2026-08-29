@@ -801,19 +801,23 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                             } else {
                                               QuizProgressService.getQuizDraft(passageId, type).then((draft) {
                                                 if (draft != null && context.mounted) {
-                                                  Map<int, int>? initialAnswersMap;
+                                                  List<int?>? initialAnswersList;
                                                   if (draft['selectedAnswers'] != null) {
-                                                    if (draft['selectedAnswers'] is Map) {
-                                                      initialAnswersMap = (draft['selectedAnswers'] as Map).map(
-                                                        (k, v) => MapEntry(int.parse(k.toString()), int.parse(v.toString())),
-                                                      );
-                                                    } else if (draft['selectedAnswers'] is List) {
-                                                      final list = draft['selectedAnswers'] as List;
-                                                      initialAnswersMap = {};
-                                                      for (int i = 0; i < list.length; i++) {
-                                                        if (list[i] != null) {
-                                                          final val = int.tryParse(list[i].toString());
-                                                          if (val != null) initialAnswersMap[i] = val;
+                                                    if (draft['selectedAnswers'] is List) {
+                                                      initialAnswersList = (draft['selectedAnswers'] as List)
+                                                          .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                          .toList();
+                                                    } else if (draft['selectedAnswers'] is Map) {
+                                                      final map = draft['selectedAnswers'] as Map;
+                                                      initialAnswersList = [];
+                                                      for (var entry in map.entries) {
+                                                        final idx = int.tryParse(entry.key.toString());
+                                                        final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                        if (idx != null) {
+                                                          while (initialAnswersList.length <= idx) {
+                                                            initialAnswersList.add(null);
+                                                          }
+                                                          initialAnswersList[idx] = val;
                                                         }
                                                       }
                                                     }
@@ -831,7 +835,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                         assessmentLanguage: draft['assessmentLanguage'] as String?,
                                                         passageId: passageId,
                                                         currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
-                                                        initialSelectedAnswers: initialAnswersMap,
+                                                        initialSelectedAnswers: initialAnswersList,
                                                       ),
                                                     ),
                                                   ).then((_) {

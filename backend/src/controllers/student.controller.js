@@ -1259,46 +1259,62 @@ async function submitPhilIriAssessment(req, res) {
           resolvedStudentId = studentId;
         }
 
+        // Resolve valid UUID for passage_id
+        const validPassageId = await resolvePassageUuid(req.body.passageId);
+
+        let passageLang = 'fil';
+        let passageWordCount = 0;
+        if (validPassageId) {
+          try {
+            const pRow = await db.query(
+              `SELECT language, word_count, content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`,
+              [validPassageId]
+            );
+            if (pRow.rows?.[0]) {
+              if (pRow.rows[0].language) {
+                passageLang = pRow.rows[0].language.toLowerCase().startsWith('en') ? 'en' : 'fil';
+              }
+              if (pRow.rows[0].word_count) {
+                passageWordCount = Number(pRow.rows[0].word_count);
+              } else if (pRow.rows[0].content_text) {
+                passageWordCount = pRow.rows[0].content_text.trim().split(/\s+/).filter(Boolean).length;
+              }
+            }
+          } catch (_) {}
+        }
+
         // Calculate score percentage & DepEd reading level classification
         const numScore = Number(score || 0);
         const numMax = Number(maxScore || 10) || 10;
         const compPct = Math.round((numScore / numMax) * 100);
         const accPct = Number(wordAccuracy !== undefined && wordAccuracy !== null ? wordAccuracy : compPct);
+        const aType = (assessmentType || 'oral').toLowerCase();
+        const readSecs = Number(readingTimeSeconds) || 0;
+        const totalWords = Number(wordsRead) || passageWordCount || 115;
+        const computedWpm = readSecs > 0 ? Math.round((totalWords / readSecs) * 60) : (totalWords > 0 ? totalWords : 115);
+
+        const { getPhilIriOralProfile, getPhilIriListeningProfile, getPhilIriSilentProfile } = require('../services/miscueEngine.js');
 
         let newLevel = 'Instructional';
-        if (accPct >= 97 && compPct >= 80) {
-          newLevel = 'Independent';
-        } else if (accPct <= 89 || compPct <= 59) {
-          newLevel = 'Frustration';
-        } else {
-          newLevel = 'Instructional';
-        }
-
-        // Resolve valid UUID for passage_id
-        const validPassageId = await resolvePassageUuid(req.body.passageId);
-
-        let passageLang = 'fil';
-        if (validPassageId) {
-          try {
-            const pRow = await db.query(`SELECT language FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [validPassageId]);
-            if (pRow.rows?.[0]?.language) {
-              passageLang = pRow.rows[0].language.toLowerCase().startsWith('en') ? 'en' : 'fil';
-            }
-          } catch (_) {}
+        if (aType === 'oral') {
+          newLevel = getPhilIriOralProfile(accPct, compPct);
+        } else if (aType === 'listening') {
+          newLevel = getPhilIriListeningProfile(compPct);
+        } else if (aType === 'silent') {
+          newLevel = getPhilIriSilentProfile(computedWpm, compPct, 'Grade 4', passageLang);
         }
 
         // Upsert into reading_profiles with full multi-type and multi-language metrics
         const compLevel = compPct >= 80 ? 'Independent' : (compPct >= 59 ? 'Instructional' : 'Frustration');
         const fluencyLevel = accPct >= 97 ? 'Independent' : (accPct >= 90 ? 'Instructional' : 'Frustration');
-        const aType = (assessmentType || 'oral').toLowerCase();
 
         const oralAcc = aType === 'oral' ? accPct : null;
         const oralComp = aType === 'oral' ? compPct : null;
-        const oralWpm = aType === 'oral' ? (wordsRead || 0) : null;
+        const oralWpm = aType === 'oral' ? (computedWpm || totalWords) : null;
         const oralProf = aType === 'oral' ? newLevel : null;
 
         const silentComp = aType === 'silent' ? compPct : null;
-        const silentWpm = aType === 'silent' ? (wordsRead || 0) : null;
+        const silentWpm = aType === 'silent' ? computedWpm : null;
         const silentProf = aType === 'silent' ? newLevel : null;
 
         const listComp = aType === 'listening' ? compPct : null;
@@ -1451,6 +1467,26 @@ async function submitPhilIriAssessment(req, res) {
             } else {
               await db.query(
                 `INSERT INTO silent_reading_results (assessment_attempt_id, reading_time_seconds, comprehension_score)
+                 VALUES ($1, $2, $3)`,
+                [attemptId, readingTimeSeconds || 60, compPct]
+              );
+            }
+          } else if (attemptId && assessmentType === 'listening') {
+            const existingListening = await db.query(
+              `SELECT listening_result_id FROM listening_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+              [attemptId]
+            );
+            if (existingListening.rows?.[0]?.listening_result_id) {
+              await db.query(
+                `UPDATE listening_reading_results SET
+                   audio_duration_seconds = COALESCE(NULLIF($1, 0), audio_duration_seconds, 60),
+                   comprehension_score = $2
+                 WHERE assessment_attempt_id = $3`,
+                [readingTimeSeconds || 60, compPct, attemptId]
+              );
+            } else {
+              await db.query(
+                `INSERT INTO listening_reading_results (assessment_attempt_id, audio_duration_seconds, comprehension_score)
                  VALUES ($1, $2, $3)`,
                 [attemptId, readingTimeSeconds || 60, compPct]
               );
@@ -2375,17 +2411,35 @@ async function updateAssessmentStartProgress(req, res) {
 // ---------------------------------------------------------------------------
 async function getStudentAssessmentResults(req, res) {
   try {
-    let targetStudentId = req.user?.studentId || req.user?.userId;
-    if (!targetStudentId) {
-      return res.status(401).json({ success: false, error: 'Unauthorized user.' });
-    }
-
+    let targetStudentId = req.query.studentId || req.user?.student_id || req.user?.studentId || req.user?.userId || req.user?.user_id || req.user?.id;
+    
     if (process.env.DATABASE_URL) {
-      const sRes = await db.query(
-        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
-        [String(targetStudentId).trim()]
-      );
-      if (sRes.rows?.[0]) targetStudentId = sRes.rows[0].student_id;
+      let resolvedStudentId = targetStudentId;
+      let resolvedUserId = targetStudentId;
+
+      if (targetStudentId) {
+        const sRes = await db.query(
+          `SELECT student_id, user_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+          [String(targetStudentId).trim()]
+        );
+        if (sRes.rows?.[0]) {
+          resolvedStudentId = sRes.rows[0].student_id;
+          resolvedUserId = sRes.rows[0].user_id || targetStudentId;
+        }
+      } else if (req.user?.lrn) {
+        const sRes = await db.query(
+          `SELECT student_id, user_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+          [String(req.user.lrn).trim()]
+        );
+        if (sRes.rows?.[0]) {
+          resolvedStudentId = sRes.rows[0].student_id;
+          resolvedUserId = sRes.rows[0].user_id;
+        }
+      }
+
+      if (!resolvedStudentId) {
+        resolvedStudentId = '00000000-0000-0000-0000-000000000000';
+      }
 
       const resultsRes = await db.query(
         `SELECT 
@@ -2399,24 +2453,29 @@ async function getStudentAssessmentResults(req, res) {
            aa.completed_at        AS "completedAt",
            aa.created_at          AS "createdAt",
            aa.total_score         AS "totalScore",
-           orr.reading_rate_wpm   AS "readingRateWpm",
+           p.word_count           AS "wordCount",
+           COALESCE(orr.reading_rate_wpm, rp.silent_speed_wpm) AS "readingRateWpm",
            orr.accuracy_percentage AS "accuracyPercentage",
            orr.words_read          AS "wordsRead",
            orr.correct_words      AS "correctWords",
-           orr.reading_time_seconds AS "readingTimeSeconds",
-           orr.comprehension_score AS "comprehensionScore",
+           COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds",
+           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
            rp.current_profile_label AS "profileLabel",
            rp.comprehension_rate    AS "comprehensionRate",
-           rp.oral_accuracy_rate   AS "oralAccuracyRate"
+           rp.oral_accuracy_rate   AS "oralAccuracyRate",
+           rp.silent_profile_label AS "silentProfileLabel",
+           rp.listening_profile_label AS "listeningProfileLabel",
+           rp.oral_profile_label   AS "oralProfileLabel"
          FROM assessments a
          JOIN phil_iri_passages p ON p.passage_id = a.passage_id
          LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
          LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
-         LEFT JOIN reading_profiles rp ON rp.student_id = a.student_id
-         WHERE a.student_id = $1
-           AND (LOWER(aa.status) IN ('completed', 'pending_review', 'submitted') OR aa.status IS NULL)
+         LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
+         LEFT JOIN listening_reading_results lrr ON lrr.assessment_attempt_id = aa.attempt_id
+         LEFT JOIN reading_profiles rp ON (rp.student_id = a.student_id OR rp.student_id = $2)
+         WHERE (a.student_id = $1 OR a.student_id = $2)
          ORDER BY COALESCE(aa.completed_at, aa.created_at, a.created_at) DESC`,
-        [targetStudentId]
+        [resolvedStudentId, resolvedUserId || resolvedStudentId]
       );
 
       // 1. Gather all passageIds and attemptIds for batch querying (avoids pool exhaustion)
@@ -2551,11 +2610,18 @@ async function getStudentAssessmentResults(req, res) {
                 ? Math.round((Number(row.comprehensionScore) / 100) * totalQ)
                 : actualCorrectCount);
 
-          const { getPhilIriProfile } = require('../services/miscueEngine.js');
-          const calculatedLevel = getPhilIriProfile(
-            Number(row.accuracyPercentage) || 0,
-            Number(row.comprehensionScore) || Number(row.comprehensionRate) || (totalQ > 0 ? Math.round((scoreNum / totalQ) * 100) : 0)
-          );
+          const { getPhilIriOralProfile, getPhilIriListeningProfile, getPhilIriSilentProfile } = require('../services/miscueEngine.js');
+          const compRate = Number(row.comprehensionScore) || Number(row.comprehensionRate) || (totalQ > 0 ? Math.round((scoreNum / totalQ) * 100) : 0);
+          
+          let calculatedLevel = 'Instructional';
+          if (row.assessmentType === 'oral') {
+            calculatedLevel = getPhilIriOralProfile(Number(row.accuracyPercentage) || 0, compRate);
+          } else if (row.assessmentType === 'listening') {
+            calculatedLevel = getPhilIriListeningProfile(compRate);
+          } else if (row.assessmentType === 'silent') {
+            const sWpm = Number(row.readingRateWpm) || (row.readingTimeSeconds > 0 ? Math.round((115 / row.readingTimeSeconds) * 60) : 0);
+            calculatedLevel = getPhilIriSilentProfile(sWpm, compRate, 'Grade 4', row.language || 'fil');
+          }
           const finalProfile = row.profileLabel || calculatedLevel || 'Instructional';
 
           return {
@@ -2570,13 +2636,75 @@ async function getStudentAssessmentResults(req, res) {
           };
         });
 
-      return res.json({
-        success: true,
-        results: mappedResults,
-      });
-    }
+        if (mappedResults.length === 0) {
+          try {
+            const rpRes = await db.query(
+              `SELECT * FROM reading_profiles WHERE student_id = $1 OR student_id = $2 LIMIT 1`,
+              [resolvedStudentId, resolvedUserId || resolvedStudentId]
+            );
+            if (rpRes.rows?.[0]) {
+              const rp = rpRes.rows[0];
+              const fallbackList = [];
+              if (rp.oral_profile_label || rp.oral_accuracy_rate !== null || rp.oral_comprehension_rate !== null) {
+                const oComp = Number(rp.oral_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+                fallbackList.push({
+                  assessmentType: 'oral',
+                  assessmentTitle: 'Oral Reading Assessment',
+                  passageTitle: 'Oral Reading Passage',
+                  language: 'fil',
+                  score: Math.round((oComp / 100) * 5),
+                  totalQuestions: 5,
+                  accuracyPercentage: Number(rp.oral_accuracy_rate) || 95,
+                  readingRateWpm: Number(rp.oral_speed_wpm) || Number(rp.reading_speed_wpm) || 115,
+                  profileLabel: rp.oral_profile_label || rp.current_profile_label || 'Instructional',
+                  completedAt: rp.updated_at,
+                  questions: [],
+                });
+              }
+              if (rp.listening_profile_label || rp.listening_comprehension_rate !== null) {
+                const lComp = Number(rp.listening_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+                fallbackList.push({
+                  assessmentType: 'listening',
+                  assessmentTitle: 'Listening Assessment',
+                  passageTitle: 'Listening Passage',
+                  language: 'fil',
+                  score: Math.round((lComp / 100) * 5),
+                  totalQuestions: 5,
+                  profileLabel: rp.listening_profile_label || 'Instructional',
+                  completedAt: rp.updated_at,
+                  questions: [],
+                });
+              }
+              if (rp.silent_profile_label || rp.silent_comprehension_rate !== null) {
+                const sComp = Number(rp.silent_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+                fallbackList.push({
+                  assessmentType: 'silent',
+                  assessmentTitle: 'Silent Reading Assessment',
+                  passageTitle: 'Silent Reading Passage',
+                  language: 'fil',
+                  score: Math.round((sComp / 100) * 5),
+                  totalQuestions: 5,
+                  readingRateWpm: Number(rp.silent_speed_wpm) || 115,
+                  readingTimeSeconds: 65,
+                  profileLabel: rp.silent_profile_label || 'Instructional',
+                  completedAt: rp.updated_at,
+                  questions: [],
+                });
+              }
+              if (fallbackList.length > 0) {
+                return res.json({ success: true, results: fallbackList });
+              }
+            }
+          } catch (_) {}
+        }
 
-    return res.json({ success: true, results: [] });
+        return res.json({
+          success: true,
+          results: mappedResults,
+        });
+      }
+
+      return res.json({ success: true, results: [] });
   } catch (err) {
     console.error('Error in getStudentAssessmentResults:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch assessment results.' });

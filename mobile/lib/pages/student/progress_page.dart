@@ -485,7 +485,7 @@ class _ProgressPageState extends State<ProgressPage> {
     return Column(
       children: [
         _buildAssessmentRowCard(
-          title: 'Listening Comprehension Test',
+          title: 'Listening Assessment',
           isDone: _isListeningDone,
           tagText: 'Required',
           tagBg: const Color(0xFFFEE2E2),
@@ -519,7 +519,7 @@ class _ProgressPageState extends State<ProgressPage> {
           },
         ),
         _buildAssessmentRowCard(
-          title: 'Silent Reading Test',
+          title: 'Silent Reading Assessment',
           isDone: _isSilentReadingDone,
           tagText: 'Optional',
           tagBg: const Color(0xFFF3F4F6),
@@ -551,7 +551,7 @@ class _ProgressPageState extends State<ProgressPage> {
           },
         ),
         _buildAssessmentRowCard(
-          title: 'Oral Reading Test',
+          title: 'Oral Reading Assessment',
           isDone: _isOralReadingDone,
           tagText: 'Required',
           tagBg: const Color(0xFFFEE2E2),
