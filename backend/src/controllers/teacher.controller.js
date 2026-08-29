@@ -985,6 +985,8 @@ async function getPendingOralReviews(req, res) {
           p.content_text AS "passageText",
           orr.oral_result_id AS "oralResultId",
           orr.audio_recording_url AS "audioUrl",
+          orr.transcript_text AS "spokenTranscript",
+          orr.ai_miscues_json AS "aiMiscues",
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
           orr.verification_status AS "verificationStatus",
@@ -1010,6 +1012,58 @@ async function getPendingOralReviews(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/teacher/assessments/review/:attemptId — Get individual oral assessment review details
+// ---------------------------------------------------------------------------
+async function getOralReviewDetail(req, res) {
+  try {
+    const { attemptId } = req.params;
+    if (process.env.DATABASE_URL) {
+      const query = `
+        SELECT 
+          a.assessment_id AS "assessmentId",
+          aa.attempt_id AS "attemptId",
+          s.student_id AS "studentId",
+          CONCAT_WS(' ', s.first_name, NULLIF(s.middle_name, ''), s.last_name) AS "studentName",
+          s.lrn,
+          p.passage_id AS "passageId",
+          p.title AS "passageTitle",
+          p.grade_level AS "gradeLevel",
+          p.passage_set AS "passageSet",
+          p.language,
+          p.content_text AS "passageText",
+          orr.oral_result_id AS "oralResultId",
+          orr.audio_recording_url AS "audioUrl",
+          orr.transcript_text AS "spokenTranscript",
+          orr.ai_miscues_json AS "aiMiscues",
+          orr.verified_miscues_json AS "verifiedMiscues",
+          orr.reading_rate_wpm AS "wpm",
+          orr.accuracy_percentage AS "accuracyPct",
+          orr.comprehension_score AS "comprehensionScore",
+          orr.verification_status AS "verificationStatus",
+          aa.completed_at AS "submittedAt"
+        FROM assessment_attempts aa
+        JOIN assessments a ON aa.assessment_id = a.assessment_id
+        JOIN students s ON a.student_id = s.student_id
+        JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+        LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        WHERE aa.attempt_id::text = $1 OR a.assessment_id::text = $1
+        LIMIT 1
+      `;
+      const { rows } = await db.query(query, [attemptId]);
+      if (rows.length > 0) {
+        return res.json({ success: true, review: rows[0] });
+      }
+      return res.status(404).json({ success: false, error: 'Review attempt not found.' });
+    }
+
+    return res.status(404).json({ success: false, error: 'Database not configured.' });
+  } catch (err) {
+    console.error('Error in getOralReviewDetail:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch review detail.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // PUT /api/teacher/assessments/:attemptId/verify-oral — Save Verified Miscues
 // ---------------------------------------------------------------------------
 async function verifyOralReadingResult(req, res) {
@@ -1031,6 +1085,36 @@ async function verifyOralReadingResult(req, res) {
          WHERE assessment_attempt_id = $5`,
         [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
       );
+
+      // Insert individual miscues into oral_reading_miscues table
+      if (Array.isArray(verifiedMiscues) && verifiedMiscues.length > 0) {
+        try {
+          const oralRes = await db.query(
+            `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+            [attemptId]
+          );
+          const oralResultId = oralRes.rows?.[0]?.oral_result_id;
+          if (oralResultId) {
+            await db.query(`DELETE FROM oral_reading_miscues WHERE oral_result_id = $1`, [oralResultId]);
+            for (const m of verifiedMiscues) {
+              await db.query(
+                `INSERT INTO oral_reading_miscues (oral_result_id, word_position, expected_word, spoken_word, miscue_type, is_corrected)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [
+                  oralResultId,
+                  m.word_position || 1,
+                  m.expected_word || '',
+                  m.spoken_word || '',
+                  m.miscue_type || 'omission',
+                  m.is_corrected === true
+                ]
+              );
+            }
+          }
+        } catch (miscueErr) {
+          console.warn('[verifyOralReadingResult] oral_reading_miscues insertion notice:', miscueErr.message);
+        }
+      }
 
       // Update assessment attempt status to completed
       await db.query(
@@ -1542,6 +1626,10 @@ async function getActivityDetail(req, res) {
           p.title AS "passageTitle",
           p.passage_set AS "passageSet",
           p.language AS "passageLanguage",
+          p.content_text AS "passageText",
+          orr.transcript_text AS "spokenTranscript",
+          orr.ai_miscues_json AS "aiMiscues",
+          orr.verified_miscues_json AS "verifiedMiscues",
           LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
           a.status,
@@ -1677,6 +1765,7 @@ module.exports = {
   assignPhilIriSetToClass,
   assignPhilIriToStudents,
   getPendingOralReviews,
+  getOralReviewDetail,
   verifyOralReadingResult,
   getPhilIriActivities,
   getPhilIriPassages,

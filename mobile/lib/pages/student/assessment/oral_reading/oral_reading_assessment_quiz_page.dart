@@ -104,6 +104,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
               .toList();
         }
         parsedList.add({
+          'id': q['question_id'] ?? q['questionId'] ?? q['id'],
           'questionText': (q['questionText'] ?? q['question'] ?? '').toString(),
           'options': parsedOptions,
           'correctIndex': cIndex is int ? cIndex : 0,

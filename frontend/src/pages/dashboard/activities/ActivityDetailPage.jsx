@@ -380,9 +380,13 @@ export default function ActivityDetailPage() {
                                     passageSet: std.passageSet,
                                     gradeLevel: std.gradeLevel,
                                     language: std.passageLanguage,
+                                    passageText: std.passageText,
+                                    aiMiscues: std.aiMiscues,
+                                    miscues: std.verifiedMiscues,
                                     audioUrl: std.audioUrl,
                                     wpm: std.wpm,
                                     accuracyPct: std.accuracyPct,
+                                    comprehensionScore: std.comprehensionScore,
                                     verificationStatus: std.verificationStatus,
                                   })
                                 }

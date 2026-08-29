@@ -1305,13 +1305,27 @@ async function submitPhilIriAssessment(req, res) {
             );
           }
           if (attemptId && Array.isArray(req.body.answers)) {
-            for (const ans of req.body.answers) {
-              if (ans.questionId) {
+            for (let i = 0; i < req.body.answers.length; i++) {
+              const ans = req.body.answers[i];
+              let qId = ans.questionId;
+
+              // Fallback to resolving question_id by passage_id & index if missing
+              if (!qId && req.body.passageId) {
+                const qRes = await db.query(
+                  `SELECT question_id FROM phil_iri_questions WHERE passage_id = $1 ORDER BY created_at ASC, question_id ASC OFFSET $2 LIMIT 1`,
+                  [req.body.passageId, ans.questionIndex !== undefined ? ans.questionIndex : i]
+                );
+                if (qRes.rows?.[0]?.question_id) {
+                  qId = qRes.rows[0].question_id;
+                }
+              }
+
+              if (qId) {
                 let selChoiceId = null;
                 if (ans.selectedChoiceIndex !== undefined && ans.selectedChoiceIndex !== null) {
                   const cRes = await db.query(
                     `SELECT choice_id FROM phil_iri_question_choices WHERE question_id = $1 ORDER BY choice_id ASC OFFSET $2 LIMIT 1`,
-                    [ans.questionId, ans.selectedChoiceIndex]
+                    [qId, ans.selectedChoiceIndex]
                   );
                   if (cRes.rows?.[0]?.choice_id) {
                     selChoiceId = cRes.rows[0].choice_id;
@@ -1321,7 +1335,7 @@ async function submitPhilIriAssessment(req, res) {
                   `INSERT INTO assessment_answers (
                      assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct
                    ) VALUES ($1, $2, $3, $4, $5)`,
-                  [attemptId, ans.questionId, selChoiceId, ans.selectedAnswerText || '', ans.isCorrect === true]
+                  [attemptId, qId, selChoiceId, ans.selectedAnswerText || '', ans.isCorrect === true]
                 );
               }
             }
@@ -1823,6 +1837,9 @@ async function getStudentActiveAssignment(req, res) {
 // ---------------------------------------------------------------------------
 async function submitStudentOralAudio(req, res) {
   const fs = require('fs');
+  const { analyzeOralReading } = require('../services/miscueEngine.js');
+  const { transcribeAudio } = require('../services/sttService.js');
+
   const tempPath = req.file?.path;
 
   try {
@@ -1833,30 +1850,85 @@ async function submitStudentOralAudio(req, res) {
 
     let audioUrl = req.body.audioUrl || req.body.audio_url || '';
 
-    // Upload recorded audio to Cloudinary if file or path provided
+    // 1. Process audio through FFmpeg & DeepFilterNet AI Denoising Pipeline first
+    let audioToProcess = tempPath;
+    let denoisedFilePath = tempPath;
+
     if (tempPath && fs.existsSync(tempPath)) {
       try {
-        const { uploadAudio } = require('../config/cloudinary.js');
-        const cloudRes = await uploadAudio(tempPath, 'salintinig/oral_recordings');
-        if (cloudRes?.secure_url) {
-          audioUrl = cloudRes.secure_url;
-        }
-      } catch (uploadErr) {
-        console.warn('[submitStudentOralAudio] Cloudinary upload notice:', uploadErr.message);
-      }
-    } else if (audioUrl && typeof audioUrl === 'string' && fs.existsSync(audioUrl)) {
-      try {
-        const { uploadAudio } = require('../config/cloudinary.js');
-        const cloudRes = await uploadAudio(audioUrl, 'salintinig/oral_recordings');
-        if (cloudRes?.secure_url) {
-          audioUrl = cloudRes.secure_url;
-        }
-      } catch (uploadErr) {
-        console.warn('[submitStudentOralAudio] Cloudinary upload notice:', uploadErr.message);
+        const { denoiseAudio } = require('../utils/audioDenoise.util.js');
+        const denoiseResult = await denoiseAudio(tempPath);
+        denoisedFilePath = typeof denoiseResult === 'string'
+          ? denoiseResult
+          : (denoiseResult.enhancedPath || denoiseResult.originalPath || tempPath);
+      } catch (denoiseErr) {
+        console.warn('[submitStudentOralAudio] Denoise notice:', denoiseErr.message);
       }
     }
 
-    const { analyzeOralReading } = require('../services/miscueEngine.js');
+    // Resolve passage text & language before STT to condition vocabulary prompt
+    let passageLanguage = 'tl';
+    let passageText = transcriptText;
+    if (passageId && process.env.DATABASE_URL) {
+      try {
+        const pRes = await db.query(`SELECT content_text, COALESCE(language, 'fil') AS language FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
+        if (pRes.rows?.[0]) {
+          if (pRes.rows[0].content_text) passageText = pRes.rows[0].content_text;
+          if (pRes.rows[0].language) passageLanguage = pRes.rows[0].language;
+        }
+      } catch (pErr) {
+        console.warn('[submitStudentOralAudio] Notice resolving passage:', pErr.message);
+      }
+    }
+
+    // 2. Perform Groq STT Transcription on the Denoised & Enhanced Audio with vocabulary conditioning
+    let sttResult = null;
+    let spokenTranscriptText = transcriptText || '';
+    const sttAudioPath = (denoisedFilePath && fs.existsSync(denoisedFilePath)) ? denoisedFilePath : tempPath;
+
+    if (sttAudioPath && fs.existsSync(sttAudioPath)) {
+      try {
+        sttResult = await transcribeAudio(sttAudioPath, passageLanguage, req.file?.originalname || '', passageText);
+        if (sttResult) {
+          spokenTranscriptText = typeof sttResult === 'string' ? sttResult : (sttResult.text || '');
+          console.log('[submitStudentOralAudio] Groq STT transcription text:', spokenTranscriptText);
+        }
+      } catch (sttErr) {
+        console.warn('[submitStudentOralAudio] STT transcription notice:', sttErr.message);
+      }
+    }
+
+    // 3. Upload the single denoised audio file to Cloudinary and cleanup temp files
+    if (tempPath && fs.existsSync(tempPath)) {
+      try {
+        const { cloudinary } = require('../config/cloudinary.js');
+        const fileToUpload = (denoisedFilePath && fs.existsSync(denoisedFilePath)) ? denoisedFilePath : tempPath;
+        
+        const cloudRes = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload(
+            fileToUpload,
+            {
+              resource_type: 'video',
+              folder: 'salintinig/oral_recordings',
+              format: 'mp3',
+            },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+        });
+
+        if (cloudRes?.secure_url) {
+          audioUrl = cloudRes.secure_url;
+        }
+      } catch (uploadErr) {
+        console.warn('[submitStudentOralAudio] Cloudinary upload notice:', uploadErr.message);
+      } finally {
+        const { cleanupTempAudio } = require('../utils/audioDenoise.util.js');
+        cleanupTempAudio(tempPath);
+      }
+    }
 
     if (process.env.DATABASE_URL) {
       // Resolve student_id
@@ -1870,19 +1942,10 @@ async function submitStudentOralAudio(req, res) {
       }
       if (!resolvedStudentId) resolvedStudentId = studentId;
 
-      // 1. Fetch passage text
-      let passageText = transcriptText;
-      if (passageId) {
-        const pRes = await db.query(`SELECT content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
-        if (pRes.rows?.[0]?.content_text) {
-          passageText = pRes.rows[0].content_text;
-        }
-      }
+      // Perform AI miscue analysis with timestamped hesitation & repetition detection
+      const analysis = analyzeOralReading(passageText, sttResult || spokenTranscriptText, readingTimeSeconds);
 
-      // 2. Perform AI miscue analysis
-      const analysis = analyzeOralReading(passageText, transcriptText, readingTimeSeconds);
-
-      // 3. Insert or resolve active assessment ID
+      // 3. Insert or resolve active assessment ID and attempt ID
       let activeAssessmentId = req.body.assessmentId;
       if (!activeAssessmentId) {
         const existing = await db.query(
@@ -1901,32 +1964,77 @@ async function submitStudentOralAudio(req, res) {
         }
       }
 
-      const attemptRes = await db.query(
-        `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
-         VALUES ($1, 'pending_review', CURRENT_TIMESTAMP) RETURNING attempt_id`,
+      // Check if an attempt was just created by the quiz submission API or grab latest attempt
+      let attemptId = null;
+      const recentAttempt = await db.query(
+        `SELECT attempt_id FROM assessment_attempts 
+         WHERE assessment_id = $1 
+         ORDER BY created_at DESC LIMIT 1`,
         [activeAssessmentId]
       );
-      const attemptId = attemptRes.rows?.[0]?.attempt_id;
+      if (recentAttempt.rows?.[0]?.attempt_id) {
+        attemptId = recentAttempt.rows[0].attempt_id;
+        await db.query(`UPDATE assessment_attempts SET status = 'pending_review' WHERE attempt_id = $1`, [attemptId]);
+      } else {
+        const attemptRes = await db.query(
+          `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
+           VALUES ($1, 'pending_review', CURRENT_TIMESTAMP) RETURNING attempt_id`,
+          [activeAssessmentId]
+        );
+        attemptId = attemptRes.rows?.[0]?.attempt_id;
+      }
 
-      // 4. Store oral reading result with pending verification status
-      await db.query(
-        `INSERT INTO oral_reading_results (
-           assessment_attempt_id, audio_recording_url, transcript_text,
-           ai_miscues_json, verification_status, reading_time_seconds,
-           words_read, correct_words, reading_rate_wpm, accuracy_percentage
-         ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)`,
-        [
-          attemptId,
-          audioUrl || '',
-          transcriptText,
-          JSON.stringify(analysis.miscues || []),
-          readingTimeSeconds,
-          analysis.wordsRead || 0,
-          analysis.correctWords || 0,
-          analysis.readingRateWPM || 0,
-          analysis.accuracyPercentage || 100
-        ]
+      // 4. Check if oral_reading_results record already exists for this attempt
+      const existingOral = await db.query(
+        `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+        [attemptId]
       );
+
+      if (existingOral.rows?.[0]?.oral_result_id) {
+        await db.query(
+          `UPDATE oral_reading_results SET
+             audio_recording_url = $1,
+             transcript_text = $2,
+             ai_miscues_json = $3,
+             verification_status = 'pending',
+             reading_time_seconds = $4,
+             words_read = $5,
+             correct_words = $6,
+             reading_rate_wpm = $7,
+             accuracy_percentage = $8
+           WHERE assessment_attempt_id = $9`,
+          [
+            audioUrl || '',
+            spokenTranscriptText,
+            JSON.stringify(analysis.miscues || []),
+            readingTimeSeconds,
+            analysis.wordsRead || 0,
+            analysis.correctWords || 0,
+            analysis.readingRateWPM || 0,
+            analysis.accuracyPercentage || 100,
+            attemptId
+          ]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO oral_reading_results (
+             assessment_attempt_id, audio_recording_url, transcript_text,
+             ai_miscues_json, verification_status, reading_time_seconds,
+             words_read, correct_words, reading_rate_wpm, accuracy_percentage
+           ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)`,
+          [
+            attemptId,
+            audioUrl || '',
+            spokenTranscriptText,
+            JSON.stringify(analysis.miscues || []),
+            readingTimeSeconds,
+            analysis.wordsRead || 0,
+            analysis.correctWords || 0,
+            analysis.readingRateWPM || 0,
+            analysis.accuracyPercentage || 100
+          ]
+        );
+      }
 
       // Update assessment status to pending teacher review
       await db.query(

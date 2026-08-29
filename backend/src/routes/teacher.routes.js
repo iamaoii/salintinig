@@ -323,6 +323,7 @@ router.get('/class-students', teacherController.getTeacherClassStudents);
 router.put('/students/:studentId/promotion', teacherController.updateStudentPromotionByTeacher);
 router.post('/assessments/assign-phil-iri-students', teacherController.assignPhilIriToStudents);
 router.get('/assessments/pending-reviews', teacherController.getPendingOralReviews);
+router.get('/assessments/review/:attemptId', teacherController.getOralReviewDetail);
 router.put('/assessments/:attemptId/verify-oral', teacherController.verifyOralReadingResult);
 router.get('/assessments/phil-iri-activities', teacherController.getPhilIriActivities);
 router.get('/assessments/activity-detail/:id', teacherController.getActivityDetail);
