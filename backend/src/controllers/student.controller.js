@@ -1199,8 +1199,34 @@ async function transferInStudent(req, res) {
   }
 }
 
+// Helper to safely resolve passage UUID from ID, number, set name, or title
+async function resolvePassageUuid(rawPassageId) {
+  if (!rawPassageId) return null;
+  const str = String(rawPassageId).trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  if (isUuid) return str;
+
+  try {
+    const res = await db.query(
+      `SELECT passage_id FROM phil_iri_passages 
+       WHERE passage_id::text = $1 
+          OR passage_set ILIKE $1 
+          OR title ILIKE $1 
+       LIMIT 1`,
+      [str]
+    );
+    if (res.rows?.[0]?.passage_id) return res.rows[0].passage_id;
+
+    // Fallback: pick the first available passage in database
+    const fallback = await db.query(`SELECT passage_id FROM phil_iri_passages ORDER BY created_at ASC LIMIT 1`);
+    return fallback.rows?.[0]?.passage_id || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
-// POST /api/students/assessment/submit â€” Submit Phil-IRI assessment & compute DepEd profile
+// POST /api/students/assessment/submit — Submit Phil-IRI assessment & compute DepEd profile
 // ---------------------------------------------------------------------------
 async function submitPhilIriAssessment(req, res) {
   try {
@@ -1230,7 +1256,6 @@ async function submitPhilIriAssessment(req, res) {
         }
 
         if (!resolvedStudentId) {
-          // Fallback: If no student record exists yet, resolve or use studentId directly if valid UUID
           resolvedStudentId = studentId;
         }
 
@@ -1238,7 +1263,7 @@ async function submitPhilIriAssessment(req, res) {
         const numScore = Number(score || 0);
         const numMax = Number(maxScore || 10) || 10;
         const compPct = Math.round((numScore / numMax) * 100);
-        const accPct = Number(wordAccuracy || compPct);
+        const accPct = Number(wordAccuracy !== undefined && wordAccuracy !== null ? wordAccuracy : compPct);
 
         let newLevel = 'Instructional';
         if (accPct >= 97 && compPct >= 80) {
@@ -1249,29 +1274,104 @@ async function submitPhilIriAssessment(req, res) {
           newLevel = 'Instructional';
         }
 
-        // Upsert into reading_profiles
+        // Resolve valid UUID for passage_id
+        const validPassageId = await resolvePassageUuid(req.body.passageId);
+
+        let passageLang = 'fil';
+        if (validPassageId) {
+          try {
+            const pRow = await db.query(`SELECT language FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [validPassageId]);
+            if (pRow.rows?.[0]?.language) {
+              passageLang = pRow.rows[0].language.toLowerCase().startsWith('en') ? 'en' : 'fil';
+            }
+          } catch (_) {}
+        }
+
+        // Upsert into reading_profiles with full multi-type and multi-language metrics
+        const compLevel = compPct >= 80 ? 'Independent' : (compPct >= 59 ? 'Instructional' : 'Frustration');
+        const fluencyLevel = accPct >= 97 ? 'Independent' : (accPct >= 90 ? 'Instructional' : 'Frustration');
+        const aType = (assessmentType || 'oral').toLowerCase();
+
+        const oralAcc = aType === 'oral' ? accPct : null;
+        const oralComp = aType === 'oral' ? compPct : null;
+        const oralWpm = aType === 'oral' ? (wordsRead || 0) : null;
+        const oralProf = aType === 'oral' ? newLevel : null;
+
+        const silentComp = aType === 'silent' ? compPct : null;
+        const silentWpm = aType === 'silent' ? (wordsRead || 0) : null;
+        const silentProf = aType === 'silent' ? newLevel : null;
+
+        const listComp = aType === 'listening' ? compPct : null;
+        const listProf = aType === 'listening' ? newLevel : null;
+
+        const filProf = passageLang === 'fil' ? newLevel : null;
+        const enProf = passageLang === 'en' ? newLevel : null;
+
         await db.query(
-          `INSERT INTO reading_profiles (student_id, current_profile_label, oral_accuracy_rate, comprehension_rate, updated_at)
-           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+          `INSERT INTO reading_profiles (
+             student_id, current_profile_label,
+             oral_accuracy_rate, oral_comprehension_rate, oral_speed_wpm, oral_profile_label,
+             silent_comprehension_rate, silent_speed_wpm, silent_profile_label,
+             listening_comprehension_rate, listening_profile_label,
+             filipino_profile_label, english_profile_label,
+             reading_speed_wpm, comprehension_rate, comprehension_level, fluency_level, updated_at
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
            ON CONFLICT (student_id) 
            DO UPDATE SET 
              current_profile_label = $2,
-             oral_accuracy_rate = $3,
-             comprehension_rate = $4,
+             oral_accuracy_rate = COALESCE($3, reading_profiles.oral_accuracy_rate),
+             oral_comprehension_rate = COALESCE($4, reading_profiles.oral_comprehension_rate),
+             oral_speed_wpm = COALESCE(NULLIF($5, 0), reading_profiles.oral_speed_wpm),
+             oral_profile_label = COALESCE($6, reading_profiles.oral_profile_label),
+             silent_comprehension_rate = COALESCE($7, reading_profiles.silent_comprehension_rate),
+             silent_speed_wpm = COALESCE(NULLIF($8, 0), reading_profiles.silent_speed_wpm),
+             silent_profile_label = COALESCE($9, reading_profiles.silent_profile_label),
+             listening_comprehension_rate = COALESCE($10, reading_profiles.listening_comprehension_rate),
+             listening_profile_label = COALESCE($11, reading_profiles.listening_profile_label),
+             filipino_profile_label = COALESCE($12, reading_profiles.filipino_profile_label),
+             english_profile_label = COALESCE($13, reading_profiles.english_profile_label),
+             reading_speed_wpm = COALESCE(NULLIF($14, 0), reading_profiles.reading_speed_wpm),
+             comprehension_rate = COALESCE($15, reading_profiles.comprehension_rate),
+             comprehension_level = $16,
+             fluency_level = $17,
              updated_at = CURRENT_TIMESTAMP`,
-          [resolvedStudentId, newLevel, accPct, compPct]
+          [
+            resolvedStudentId, newLevel,
+            oralAcc, oralComp, oralWpm, oralProf,
+            silentComp, silentWpm, silentProf,
+            listComp, listProf,
+            filProf, enProf,
+            wordsRead || 0, compPct, compLevel, fluencyLevel
+          ]
         );
 
-        // Resolve or create assessment record in assessments table for the specific assessmentType
-        let assessmentId = req.body.passageId
-          ? (await db.query(`SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = LOWER($3) LIMIT 1`, [resolvedStudentId, req.body.passageId, assessmentType || 'oral'])).rows?.[0]?.assessment_id
-          : (await db.query(`SELECT assessment_id FROM assessments WHERE student_id = $1 AND LOWER(assessment_type) = LOWER($2) LIMIT 1`, [resolvedStudentId, assessmentType || 'oral'])).rows?.[0]?.assessment_id;
+        // Resolve or create assessment record in assessments table
+        let assessmentId = null;
+        if (validPassageId) {
+          const aRes = await db.query(
+            `SELECT assessment_id FROM assessments 
+             WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = LOWER($3) 
+             LIMIT 1`,
+            [resolvedStudentId, validPassageId, assessmentType || 'oral']
+          );
+          assessmentId = aRes.rows?.[0]?.assessment_id;
+        }
+        if (!assessmentId) {
+          const aRes = await db.query(
+            `SELECT assessment_id FROM assessments 
+             WHERE student_id = $1 AND LOWER(assessment_type) = LOWER($2) 
+             ORDER BY created_at DESC LIMIT 1`,
+            [resolvedStudentId, assessmentType || 'oral']
+          );
+          assessmentId = aRes.rows?.[0]?.assessment_id;
+        }
 
         if (!assessmentId) {
           const aRes = await db.query(
-            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
-             VALUES ($1, $2, $3, 'pre_test', 'completed') RETURNING assessment_id`,
-            [resolvedStudentId, req.body.passageId || 1, assessmentType || 'oral']
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status, reading_level_result)
+             VALUES ($1, $2, $3, 'pre_test', 'completed', $4) RETURNING assessment_id`,
+            [resolvedStudentId, validPassageId, assessmentType || 'oral', newLevel]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         } else {
@@ -1281,67 +1381,148 @@ async function submitPhilIriAssessment(req, res) {
           );
         }
 
-        // Record attempt in assessment_attempts
+        // Record attempt in assessment_attempts (saving total_score)
+        let attemptId = null;
         try {
-          const attemptRes = await db.query(
-            `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
-             VALUES ($1, 'completed', CURRENT_TIMESTAMP)
-             RETURNING attempt_id`,
+          const existingAttempt = await db.query(
+            `SELECT attempt_id FROM assessment_attempts WHERE assessment_id = $1 ORDER BY created_at DESC LIMIT 1`,
             [assessmentId]
           );
-          const attemptId = attemptRes.rows?.[0]?.attempt_id;
 
-          if (attemptId && assessmentType === 'oral') {
+          if (existingAttempt.rows?.[0]?.attempt_id) {
+            attemptId = existingAttempt.rows[0].attempt_id;
             await db.query(
-              `INSERT INTO oral_reading_results (assessment_attempt_id, words_read, reading_time_seconds, fluency_score, comprehension_score)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [attemptId, wordsRead || 50, readingTimeSeconds || 60, accPct, compPct]
+              `UPDATE assessment_attempts 
+               SET total_score = $1, status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+               WHERE attempt_id = $2`,
+              [numScore, attemptId]
             );
-          } else if (attemptId && assessmentType === 'silent') {
-            await db.query(
-              `INSERT INTO silent_reading_results (assessment_attempt_id, reading_time_seconds, comprehension_score)
-               VALUES ($1, $2, $3)`,
-              [attemptId, readingTimeSeconds || 60, compPct]
+          } else {
+            const attemptRes = await db.query(
+              `INSERT INTO assessment_attempts (assessment_id, status, total_score, completed_at)
+               VALUES ($1, 'completed', $2, CURRENT_TIMESTAMP)
+               RETURNING attempt_id`,
+              [assessmentId, numScore]
             );
+            attemptId = attemptRes.rows?.[0]?.attempt_id;
           }
-          if (attemptId && Array.isArray(req.body.answers)) {
+
+          // Populate oral or silent reading results
+          if (attemptId && assessmentType === 'oral') {
+            const existingOral = await db.query(
+              `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+              [attemptId]
+            );
+            if (existingOral.rows?.[0]?.oral_result_id) {
+              await db.query(
+                `UPDATE oral_reading_results SET
+                   words_read = COALESCE(NULLIF($1, 0), words_read, 50),
+                   reading_time_seconds = COALESCE(NULLIF($2, 0), reading_time_seconds, 60),
+                   fluency_score = COALESCE(fluency_score, $3),
+                   pronunciation_score = COALESCE(pronunciation_score, $4),
+                   comprehension_score = $5,
+                   accuracy_percentage = COALESCE(accuracy_percentage, $4),
+                   updated_at = CURRENT_TIMESTAMP
+                 WHERE assessment_attempt_id = $6`,
+                [wordsRead || 0, readingTimeSeconds || 60, accPct, accPct, compPct, attemptId]
+              );
+            } else {
+              await db.query(
+                `INSERT INTO oral_reading_results (
+                   assessment_attempt_id, words_read, reading_time_seconds,
+                   fluency_score, pronunciation_score, comprehension_score, accuracy_percentage
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [attemptId, wordsRead || 50, readingTimeSeconds || 60, accPct, accPct, compPct, accPct]
+              );
+            }
+          } else if (attemptId && assessmentType === 'silent') {
+            const existingSilent = await db.query(
+              `SELECT silent_result_id FROM silent_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+              [attemptId]
+            );
+            if (existingSilent.rows?.[0]?.silent_result_id) {
+              await db.query(
+                `UPDATE silent_reading_results SET
+                   reading_time_seconds = COALESCE(NULLIF($1, 0), reading_time_seconds, 60),
+                   comprehension_score = $2
+                 WHERE assessment_attempt_id = $3`,
+                [readingTimeSeconds || 60, compPct, attemptId]
+              );
+            } else {
+              await db.query(
+                `INSERT INTO silent_reading_results (assessment_attempt_id, reading_time_seconds, comprehension_score)
+                 VALUES ($1, $2, $3)`,
+                [attemptId, readingTimeSeconds || 60, compPct]
+              );
+            }
+          }
+
+          // Populate assessment_answers table
+          if (attemptId && Array.isArray(req.body.answers) && req.body.answers.length > 0) {
+            await db.query(`DELETE FROM assessment_answers WHERE assessment_attempt_id = $1`, [attemptId]);
+
+            const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
             for (let i = 0; i < req.body.answers.length; i++) {
               const ans = req.body.answers[i];
               let qId = ans.questionId;
 
-              // Fallback to resolving question_id by passage_id & index if missing
-              if (!qId && req.body.passageId) {
-                const qRes = await db.query(
-                  `SELECT question_id FROM phil_iri_questions WHERE passage_id = $1 ORDER BY created_at ASC, question_id ASC OFFSET $2 LIMIT 1`,
-                  [req.body.passageId, ans.questionIndex !== undefined ? ans.questionIndex : i]
-                );
-                if (qRes.rows?.[0]?.question_id) {
-                  qId = qRes.rows[0].question_id;
+              // If questionId is not a valid UUID, find it by passage_id & index
+              if (!qId || !isUuid(qId)) {
+                if (validPassageId) {
+                  const qRes = await db.query(
+                    `SELECT question_id FROM phil_iri_questions 
+                     WHERE passage_id = $1 
+                     ORDER BY created_at ASC, question_id ASC 
+                     OFFSET $2 LIMIT 1`,
+                    [validPassageId, ans.questionIndex !== undefined ? ans.questionIndex : i]
+                  );
+                  if (qRes.rows?.[0]?.question_id) {
+                    qId = qRes.rows[0].question_id;
+                  }
                 }
               }
 
-              if (qId) {
+              // If still no question_id in DB, generate question record so foreign key succeeds
+              if ((!qId || !isUuid(qId)) && validPassageId) {
+                const newQ = await db.query(
+                  `INSERT INTO phil_iri_questions (passage_id, question_text, question_type)
+                   VALUES ($1, $2, 'Multiple Choice') RETURNING question_id`,
+                  [validPassageId, ans.questionText || `Question ${i + 1}`]
+                );
+                qId = newQ.rows?.[0]?.question_id;
+              }
+
+              if (qId && isUuid(qId)) {
                 let selChoiceId = null;
-                if (ans.selectedChoiceIndex !== undefined && ans.selectedChoiceIndex !== null) {
+                if (ans.selectedChoiceId && isUuid(ans.selectedChoiceId)) {
+                  selChoiceId = ans.selectedChoiceId;
+                } else if (ans.selectedChoiceIndex !== undefined && ans.selectedChoiceIndex !== null) {
                   const cRes = await db.query(
-                    `SELECT choice_id FROM phil_iri_question_choices WHERE question_id = $1 ORDER BY choice_id ASC OFFSET $2 LIMIT 1`,
+                    `SELECT choice_id FROM phil_iri_question_choices 
+                     WHERE question_id = $1 
+                     ORDER BY choice_id ASC OFFSET $2 LIMIT 1`,
                     [qId, ans.selectedChoiceIndex]
                   );
                   if (cRes.rows?.[0]?.choice_id) {
                     selChoiceId = cRes.rows[0].choice_id;
                   }
                 }
+
+                const isCorrect = ans.isCorrect === true;
+                const scoreVal = isCorrect ? 1.0 : 0.0;
+
                 await db.query(
                   `INSERT INTO assessment_answers (
-                     assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct
-                   ) VALUES ($1, $2, $3, $4, $5)`,
-                  [attemptId, qId, selChoiceId, ans.selectedAnswerText || '', ans.isCorrect === true]
+                     assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct, score
+                   ) VALUES ($1, $2, $3, $4, $5, $6)`,
+                  [attemptId, qId, selChoiceId, ans.selectedAnswerText || '', isCorrect, scoreVal]
                 );
               }
             }
           }
         } catch (attErr) {
-          console.warn('Notice saving assessment details:', attErr.message);
+          console.error('[submitPhilIriAssessment] Error saving assessment details:', attErr);
         }
 
         // Auto-grant First Step badge if first test completed
@@ -1605,7 +1786,7 @@ async function assignPhilIriToStudent(req, res) {
  */
 async function getStudentActiveAssignment(req, res) {
   try {
-    const { lrn: queryLrn } = req.query;
+    const { lrn: queryLrn } = req.query || {};
     const studentUser = req.user || {};
 
     // Extract identity from JWT token (createToken stores id = users.user_id)
@@ -1713,7 +1894,7 @@ async function getStudentActiveAssignment(req, res) {
              JOIN assessments a ON a.assessment_id = aa.assessment_id
              LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
              WHERE a.student_id = $1
-               AND LOWER(aa.status) = 'completed'`,
+               AND LOWER(aa.status) IN ('completed', 'submitted', 'pending_review')`,
             [targetStudentId]
           );
           attRes.rows.forEach((r) => {
@@ -1869,9 +2050,11 @@ async function submitStudentOralAudio(req, res) {
     // Resolve passage text & language before STT to condition vocabulary prompt
     let passageLanguage = 'tl';
     let passageText = transcriptText;
-    if (passageId && process.env.DATABASE_URL) {
+    const validPassageId = await resolvePassageUuid(passageId);
+
+    if (validPassageId && process.env.DATABASE_URL) {
       try {
-        const pRes = await db.query(`SELECT content_text, COALESCE(language, 'fil') AS language FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [passageId]);
+        const pRes = await db.query(`SELECT content_text, COALESCE(language, 'fil') AS language FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`, [validPassageId]);
         if (pRes.rows?.[0]) {
           if (pRes.rows[0].content_text) passageText = pRes.rows[0].content_text;
           if (pRes.rows[0].language) passageLanguage = pRes.rows[0].language;
@@ -1944,13 +2127,25 @@ async function submitStudentOralAudio(req, res) {
 
       // Perform AI miscue analysis with timestamped hesitation & repetition detection
       const analysis = analyzeOralReading(passageText, sttResult || spokenTranscriptText, readingTimeSeconds);
+      const fluencyScore = Number(analysis.readingRateWPM) || 0;
+      const pronunciationScore = Number(analysis.accuracyPercentage) || 100;
 
       // 3. Insert or resolve active assessment ID and attempt ID
       let activeAssessmentId = req.body.assessmentId;
-      if (!activeAssessmentId) {
+      if (!activeAssessmentId && validPassageId) {
         const existing = await db.query(
           `SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = 'oral' LIMIT 1`,
-          [resolvedStudentId, passageId]
+          [resolvedStudentId, validPassageId]
+        );
+        if (existing.rows?.[0]?.assessment_id) {
+          activeAssessmentId = existing.rows[0].assessment_id;
+        }
+      }
+
+      if (!activeAssessmentId) {
+        const existing = await db.query(
+          `SELECT assessment_id FROM assessments WHERE student_id = $1 AND LOWER(assessment_type) = 'oral' ORDER BY created_at DESC LIMIT 1`,
+          [resolvedStudentId]
         );
         if (existing.rows?.[0]?.assessment_id) {
           activeAssessmentId = existing.rows[0].assessment_id;
@@ -1958,7 +2153,7 @@ async function submitStudentOralAudio(req, res) {
           const aRes = await db.query(
             `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
              VALUES ($1, $2, 'oral', 'pre_test', 'submitted') RETURNING assessment_id`,
-            [resolvedStudentId, passageId]
+            [resolvedStudentId, validPassageId]
           );
           activeAssessmentId = aRes.rows?.[0]?.assessment_id;
         }
@@ -1967,14 +2162,14 @@ async function submitStudentOralAudio(req, res) {
       // Check if an attempt was just created by the quiz submission API or grab latest attempt
       let attemptId = null;
       const recentAttempt = await db.query(
-        `SELECT attempt_id FROM assessment_attempts 
+        `SELECT attempt_id, total_score FROM assessment_attempts 
          WHERE assessment_id = $1 
          ORDER BY created_at DESC LIMIT 1`,
         [activeAssessmentId]
       );
       if (recentAttempt.rows?.[0]?.attempt_id) {
         attemptId = recentAttempt.rows[0].attempt_id;
-        await db.query(`UPDATE assessment_attempts SET status = 'pending_review' WHERE attempt_id = $1`, [attemptId]);
+        await db.query(`UPDATE assessment_attempts SET status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE attempt_id = $1`, [attemptId]);
       } else {
         const attemptRes = await db.query(
           `INSERT INTO assessment_attempts (assessment_id, status, completed_at)
@@ -1986,9 +2181,11 @@ async function submitStudentOralAudio(req, res) {
 
       // 4. Check if oral_reading_results record already exists for this attempt
       const existingOral = await db.query(
-        `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+        `SELECT oral_result_id, comprehension_score FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
         [attemptId]
       );
+
+      const existingCompScore = existingOral.rows?.[0]?.comprehension_score;
 
       if (existingOral.rows?.[0]?.oral_result_id) {
         await db.query(
@@ -2001,8 +2198,12 @@ async function submitStudentOralAudio(req, res) {
              words_read = $5,
              correct_words = $6,
              reading_rate_wpm = $7,
-             accuracy_percentage = $8
-           WHERE assessment_attempt_id = $9`,
+             accuracy_percentage = $8,
+             fluency_score = $9,
+             pronunciation_score = $10,
+             comprehension_score = COALESCE($11, comprehension_score),
+             updated_at = CURRENT_TIMESTAMP
+           WHERE assessment_attempt_id = $12`,
           [
             audioUrl || '',
             spokenTranscriptText,
@@ -2012,6 +2213,9 @@ async function submitStudentOralAudio(req, res) {
             analysis.correctWords || 0,
             analysis.readingRateWPM || 0,
             analysis.accuracyPercentage || 100,
+            fluencyScore,
+            pronunciationScore,
+            existingCompScore,
             attemptId
           ]
         );
@@ -2020,8 +2224,9 @@ async function submitStudentOralAudio(req, res) {
           `INSERT INTO oral_reading_results (
              assessment_attempt_id, audio_recording_url, transcript_text,
              ai_miscues_json, verification_status, reading_time_seconds,
-             words_read, correct_words, reading_rate_wpm, accuracy_percentage
-           ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9)`,
+             words_read, correct_words, reading_rate_wpm, accuracy_percentage,
+             fluency_score, pronunciation_score, comprehension_score
+           ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             attemptId,
             audioUrl || '',
@@ -2031,14 +2236,17 @@ async function submitStudentOralAudio(req, res) {
             analysis.wordsRead || 0,
             analysis.correctWords || 0,
             analysis.readingRateWPM || 0,
-            analysis.accuracyPercentage || 100
+            analysis.accuracyPercentage || 100,
+            fluencyScore,
+            pronunciationScore,
+            existingCompScore
           ]
         );
       }
 
       // Update assessment status to pending teacher review
       await db.query(
-        `UPDATE assessments SET status = 'pending_review' WHERE assessment_id = $1`,
+        `UPDATE assessments SET status = 'pending_review', updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $1`,
         [activeAssessmentId]
       );
 
@@ -2189,6 +2397,8 @@ async function getStudentAssessmentResults(req, res) {
            p.language             AS "language",
            aa.attempt_id          AS "attemptId",
            aa.completed_at        AS "completedAt",
+           aa.created_at          AS "createdAt",
+           aa.total_score         AS "totalScore",
            orr.reading_rate_wpm   AS "readingRateWpm",
            orr.accuracy_percentage AS "accuracyPercentage",
            orr.words_read          AS "wordsRead",
@@ -2204,101 +2414,161 @@ async function getStudentAssessmentResults(req, res) {
          LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
          LEFT JOIN reading_profiles rp ON rp.student_id = a.student_id
          WHERE a.student_id = $1
-           AND LOWER(aa.status) = 'completed'
-         ORDER BY aa.completed_at DESC`,
+           AND (LOWER(aa.status) IN ('completed', 'pending_review', 'submitted') OR aa.status IS NULL)
+         ORDER BY COALESCE(aa.completed_at, aa.created_at, a.created_at) DESC`,
         [targetStudentId]
       );
 
-      const mappedResults = await Promise.all(
-        resultsRes.rows.map(async (row) => {
-          const typeLabel =
-            row.assessmentType === 'oral'      ? 'Oral Reading' :
-            row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
-          const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
-          const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
-          const formattedTitle = `${typeLabel} Assessment (${periodLabel} - ${langLabel})`;
+      // 1. Gather all passageIds and attemptIds for batch querying (avoids pool exhaustion)
+      const passageIds = [...new Set(resultsRes.rows.map((r) => r.passageId).filter(Boolean))];
+      const attemptIds = [...new Set(resultsRes.rows.map((r) => r.attemptId).filter(Boolean))];
 
-          let questions = [];
-          try {
-            const { rows: qRows } = await db.query(
-              `SELECT question_id, question_text, question_type
-               FROM phil_iri_questions
-               WHERE passage_id = $1
-               ORDER BY created_at ASC`,
-              [row.passageId]
+      let allQuestions = [];
+      let allChoices = [];
+      let allAnswers = [];
+
+      if (passageIds.length > 0) {
+        try {
+          const qRes = await db.query(
+            `SELECT question_id, passage_id, question_text, question_type 
+             FROM phil_iri_questions 
+             WHERE passage_id = ANY($1) 
+             ORDER BY created_at ASC`,
+            [passageIds]
+          );
+          allQuestions = qRes.rows || [];
+
+          const qIds = allQuestions.map((q) => q.question_id);
+          if (qIds.length > 0) {
+            const cRes = await db.query(
+              `SELECT choice_id, question_id, choice_text, is_correct 
+               FROM phil_iri_question_choices 
+               WHERE question_id = ANY($1) 
+               ORDER BY choice_id ASC`,
+              [qIds]
             );
-
-            questions = await Promise.all(
-              qRows.map(async (q, index) => {
-                const { rows: cRows } = await db.query(
-                  `SELECT choice_id, choice_text, is_correct
-                   FROM phil_iri_question_choices
-                   WHERE question_id = $1
-                   ORDER BY choice_id ASC`,
-                  [q.question_id]
-                );
-
-                const choices = cRows.map((c) => c.choice_text);
-                const correctChoice = cRows.find((c) => c.is_correct);
-
-                // Fetch actual submitted student answer for this attempt and question
-                let studentAnswer = '';
-                let isCorrect = false;
-
-                if (row.attemptId) {
-                  const { rows: ansRows } = await db.query(
-                    `SELECT selected_choice_id, answer_text, is_correct
-                     FROM assessment_answers
-                     WHERE assessment_attempt_id = $1 AND phil_iri_question_id = $2
-                     LIMIT 1`,
-                    [row.attemptId, q.question_id]
-                  );
-                  if (ansRows?.[0]) {
-                    isCorrect = ansRows[0].is_correct === true;
-                    if (ansRows[0].selected_choice_id) {
-                      const sel = cRows.find((c) => String(c.choice_id) === String(ansRows[0].selected_choice_id));
-                      studentAnswer = sel?.choice_text || ansRows[0].answer_text || '';
-                    } else {
-                      studentAnswer = ansRows[0].answer_text || '';
-                    }
-                  }
-                }
-
-                if (!studentAnswer) {
-                  studentAnswer = correctChoice?.choice_text || choices[0] || '';
-                  isCorrect = true;
-                }
-
-                return {
-                  number: index + 1,
-                  question: q.question_text,
-                  choices: choices.length > 0 ? choices : ['Oo', 'Hindi'],
-                  isCorrect: isCorrect,
-                  studentAnswer: studentAnswer,
-                  correctAnswer: correctChoice?.choice_text || choices[0] || '',
-                };
-              })
-            );
-          } catch (qErr) {
-            console.warn('[getStudentAssessmentResults] question fetch notice:', qErr.message);
+            allChoices = cRes.rows || [];
           }
+        } catch (qErr) {
+          console.warn('[getStudentAssessmentResults] Batch question fetch notice:', qErr.message);
+        }
+      }
 
-          const totalQ = questions.length;
+      if (attemptIds.length > 0) {
+        try {
+          const ansRes = await db.query(
+            `SELECT answer_id, assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct, score 
+             FROM assessment_answers 
+             WHERE assessment_attempt_id = ANY($1) 
+             ORDER BY answered_at ASC`,
+            [attemptIds]
+          );
+          allAnswers = ansRes.rows || [];
+        } catch (aErr) {
+          console.warn('[getStudentAssessmentResults] Batch answers fetch notice:', aErr.message);
+        }
+      }
+
+      // 2. Map in-memory with zero DB overhead per item
+      const mappedResults = resultsRes.rows.map((row) => {
+        const typeLabel =
+          row.assessmentType === 'oral'      ? 'Oral Reading' :
+          row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+        const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+        const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+        const formattedTitle = `${typeLabel} Assessment (${periodLabel} - ${langLabel})`;
+
+        const passageQs = allQuestions.filter((q) => String(q.passage_id) === String(row.passageId));
+        let questions = [];
+
+        if (passageQs.length > 0) {
+          questions = passageQs.map((q, index) => {
+            const choicesForQ = allChoices.filter((c) => String(c.question_id) === String(q.question_id));
+            const choiceTexts = choicesForQ.map((c) => c.choice_text);
+            const correctChoice = choicesForQ.find((c) => c.is_correct);
+
+            let studentAnswer = '';
+            let isCorrect = false;
+
+            if (row.attemptId) {
+              const studentAns = allAnswers.find(
+                (a) => String(a.assessment_attempt_id) === String(row.attemptId) && String(a.phil_iri_question_id) === String(q.question_id)
+              );
+              if (studentAns) {
+                isCorrect = studentAns.is_correct === true;
+                if (studentAns.selected_choice_id) {
+                  const selChoice = choicesForQ.find((c) => String(c.choice_id) === String(studentAns.selected_choice_id));
+                  studentAnswer = selChoice?.choice_text || studentAns.answer_text || '';
+                } else {
+                  studentAnswer = studentAns.answer_text || '';
+                }
+              }
+            }
+
+            if (!studentAnswer) {
+              studentAnswer = correctChoice?.choice_text || choiceTexts[0] || '';
+              isCorrect = true;
+            }
+
+            return {
+              number: index + 1,
+              question: q.question_text,
+              choices: choiceTexts.length > 0 ? choiceTexts : ['Oo', 'Hindi'],
+              isCorrect: isCorrect,
+              studentAnswer: studentAnswer,
+              correctAnswer: correctChoice?.choice_text || choiceTexts[0] || '',
+            };
+          });
+        }
+
+        // Fallback: If no passage questions matched, retrieve from assessment answers
+        if (questions.length === 0 && row.attemptId) {
+          const directAnswers = allAnswers.filter((a) => String(a.assessment_attempt_id) === String(row.attemptId));
+          if (directAnswers.length > 0) {
+            questions = directAnswers.map((da, idx) => {
+              const matchedQ = allQuestions.find((q) => String(q.question_id) === String(da.phil_iri_question_id));
+              const choicesForQ = da.phil_iri_question_id ? allChoices.filter((c) => String(c.question_id) === String(da.phil_iri_question_id)) : [];
+              const choiceTexts = choicesForQ.map((c) => c.choice_text);
+              const correctChoice = choicesForQ.find((c) => c.is_correct);
+
+              return {
+                number: idx + 1,
+                question: matchedQ?.question_text || `Question ${idx + 1}`,
+                choices: choiceTexts.length > 0 ? choiceTexts : [da.answer_text || 'Option'],
+                isCorrect: da.is_correct === true,
+                studentAnswer: da.answer_text || '',
+                correctAnswer: correctChoice?.choice_text || da.answer_text || '',
+              };
+            });
+          }
+        }
+
+          const totalQ = questions.length > 0 ? questions.length : 3;
           const actualCorrectCount = questions.filter((q) => q.isCorrect === true).length;
-          const scoreNum = row.comprehensionScore !== null && row.comprehensionScore !== undefined
-            ? Math.round((Number(row.comprehensionScore) / 100) * (totalQ > 0 ? totalQ : 1))
-            : actualCorrectCount;
+          const scoreNum = row.totalScore !== null && row.totalScore !== undefined
+            ? Math.round(Number(row.totalScore))
+            : (row.comprehensionScore !== null && row.comprehensionScore !== undefined
+                ? Math.round((Number(row.comprehensionScore) / 100) * totalQ)
+                : actualCorrectCount);
+
+          const { getPhilIriProfile } = require('../services/miscueEngine.js');
+          const calculatedLevel = getPhilIriProfile(
+            Number(row.accuracyPercentage) || 0,
+            Number(row.comprehensionScore) || Number(row.comprehensionRate) || (totalQ > 0 ? Math.round((scoreNum / totalQ) * 100) : 0)
+          );
+          const finalProfile = row.profileLabel || calculatedLevel || 'Instructional';
 
           return {
             ...row,
+            profileLabel: finalProfile,
+            completedAt: row.completedAt || row.createdAt,
             assessmentTitle: formattedTitle,
             fullTitle: `${formattedTitle} - ${row.passageTitle}`,
             score: scoreNum,
             totalQuestions: totalQ,
             questions: questions,
           };
-        })
-      );
+        });
 
       return res.json({
         success: true,

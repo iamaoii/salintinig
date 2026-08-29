@@ -47,23 +47,37 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
       final res = await ApiService.get('/students/assessment/my-results');
       if (res.success && res.data != null && res.data['results'] is List) {
         final list = List<Map<String, dynamic>>.from(res.data['results']);
-        final match = list.firstWhere(
-          (r) {
-            final typeMatch = (r['assessmentType'] ?? '').toString().toLowerCase() == 'silent';
-            if (!typeMatch) return false;
-            if (widget.passageId != null && r['passageId'] != null) {
-              return r['passageId'].toString() == widget.passageId.toString();
-            }
-            if (widget.language != null && r['language'] != null) {
-              final rLang = r['language'].toString().toLowerCase();
-              final wLang = widget.language!.toLowerCase();
-              if (wLang.startsWith('en')) return rLang.startsWith('en');
-              return !rLang.startsWith('en');
-            }
-            return true;
-          },
-          orElse: () => {},
-        );
+        final silentList = list.where((r) => (r['assessmentType'] ?? '').toString().toLowerCase() == 'silent').toList();
+        final attemptedSilent = silentList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['totalScore'] != null).toList();
+        final searchPool = attemptedSilent.isNotEmpty ? attemptedSilent : (silentList.isNotEmpty ? silentList : list);
+
+        Map<String, dynamic> match = {};
+
+        if (widget.passageId != null) {
+          final targetPassage = widget.passageId.toString().toLowerCase().trim();
+          match = searchPool.firstWhere(
+            (r) =>
+                r['passageId']?.toString().toLowerCase().trim() == targetPassage ||
+                r['passageTitle']?.toString().toLowerCase().trim() == targetPassage,
+            orElse: () => {},
+          );
+        }
+
+        if (match.isEmpty && widget.language != null) {
+          final wLang = widget.language!.toLowerCase().trim();
+          final isEnglish = wLang.startsWith('en');
+          match = searchPool.firstWhere(
+            (r) {
+              final rLang = (r['language'] ?? '').toString().toLowerCase().trim();
+              return isEnglish ? rLang.startsWith('en') : !rLang.startsWith('en');
+            },
+            orElse: () => {},
+          );
+        }
+
+        if (match.isEmpty && searchPool.isNotEmpty) {
+          match = searchPool.first;
+        }
 
         if (match.isNotEmpty && mounted) {
           setState(() {

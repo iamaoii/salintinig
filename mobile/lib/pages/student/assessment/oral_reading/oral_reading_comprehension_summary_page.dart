@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/services/api_service.dart';
-import 'package:salintinig/services/quiz_progress_service.dart';
-import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 
 class OralReadingComprehensionSummaryPage extends StatelessWidget {
   final int score;
@@ -22,34 +19,7 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
 
-    final List<Map<String, dynamic>> questions = (questionsList != null && questionsList!.isNotEmpty)
-        ? questionsList!
-        : [
-            {
-              'number': 1,
-              'question': 'Sino ang pangunahing tauhan sa kuwento?',
-              'choices': ['Si Mang Tomas', 'Si Mang Juan', 'Si Mang Pedro', 'Si Mang Lito'],
-              'isCorrect': true,
-              'studentAnswer': 'Si Mang Tomas',
-              'correctAnswer': 'Si Mang Tomas',
-            },
-            {
-              'number': 2,
-              'question': 'Ano ang kanyang pangunahing hanapbuhay?',
-              'choices': ['Pangingisda', 'Pagsasaka', 'Pagtuturo', 'Pagtitinda'],
-              'isCorrect': true,
-              'studentAnswer': 'Pagsasaka',
-              'correctAnswer': 'Pagsasaka',
-            },
-            {
-              'number': 3,
-              'question': 'Saan matatagpuan ang kanyang bukid?',
-              'choices': ['Sa tabi ng ilog', 'Sa paanan ng bundok', 'Sa gitna ng lungsod', 'Sa tabing-dagat'],
-              'isCorrect': true,
-              'studentAnswer': 'Sa paanan ng bundok',
-              'correctAnswer': 'Sa paanan ng bundok',
-            },
-          ];
+    final List<Map<String, dynamic>> questions = questionsList ?? [];
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -97,18 +67,44 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
 
                     // 2. Questions List
                     Expanded(
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        itemCount: questions.length,
-                        itemBuilder: (context, index) {
-                          final item = questions[index];
-                          return _buildQuestionCard(item);
-                        },
-                      ),
+                      child: questions.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      PhIcons.examRegular,
+                                      size: 48,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No comprehension questions found for this assessment.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                              itemCount: questions.length,
+                              itemBuilder: (context, index) {
+                                final item = questions[index];
+                                return _buildQuestionCard(item);
+                              },
+                            ),
                     ),
 
-                    // Submit & Finish Assessment Button
+                    // Back to Results Button
                     Container(
                       padding: const EdgeInsets.all(16.0),
                       decoration: const BoxDecoration(
@@ -124,29 +120,9 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: () async {
+                          onPressed: () {
                             Feedback.forTap(context);
-                            
-                            // Send submission to backend
-                            try {
-                              await ApiService.post('/students/assessment/submit', {
-                                'assessmentType': 'oral',
-                                'score': score,
-                                'maxScore': totalQuestions,
-                                'wordAccuracy': 87,
-                                'readingTimeSeconds': 60,
-                                'wordsRead': 67,
-                              });
-                              await QuizProgressService.clearAllQuizDrafts();
-                            } catch (e) {
-                              debugPrint('Assessment submission notice: $e');
-                            }
-
-                            // Mark assessment done & return to PhilIriAssessmentPage
-                            PhilIriAssessmentPage.isOralReadingDone = true;
-                            if (context.mounted) {
-                              Navigator.popUntil(context, (route) => route.isFirst);
-                            }
+                            Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1B64D8),
@@ -156,7 +132,7 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            'Finish & Complete Assessment',
+                            'Back to Assessment Results',
                             style: GoogleFonts.inter(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,

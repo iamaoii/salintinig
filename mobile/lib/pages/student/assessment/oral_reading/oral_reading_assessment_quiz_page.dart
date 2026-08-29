@@ -241,23 +241,11 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
           user?.userId;
       final lrn = user?.lrn;
 
-      // 1. Post quiz score & calculate Phil-IRI profile in PostgreSQL DB
-      await ApiService.post('/api/students/assessment/submit', {
-        'studentId': studentId,
-        'lrn': lrn,
-        'assessmentType': 'oral',
-        'passageId': widget.passageId,
-        'score': correctCount,
-        'maxScore': _questions.length,
-        'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
-        'answers': answersPayload,
-      });
-
-      // 2. Upload recorded audio file to Cloudinary & save attempt to DB
+      // 1. Upload recorded audio file to Cloudinary & process AI miscue analysis in DB
       final audioPath = widget.recordedAudioPath ?? '';
       if (audioPath.isNotEmpty) {
-        await ApiService.uploadMultipartFile(
-          '/api/students/assessment/submit-oral-audio',
+        final audioRes = await ApiService.uploadMultipartFile(
+          '/students/assessment/submit-oral-audio',
           audioPath,
           'audio',
           fields: {
@@ -267,14 +255,30 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
             'readingTimeSeconds': (widget.readingTimeSeconds ?? 60).toString(),
           },
         );
+        debugPrint('[QuizPage] Audio upload result: ${audioRes.success}, msg: ${audioRes.message ?? audioRes.error}');
       } else {
-        await ApiService.post('/api/students/assessment/submit-oral-audio', {
+        final audioRes = await ApiService.post('/students/assessment/submit-oral-audio', {
           'studentId': studentId,
           'passageId': widget.passageId ?? 1,
           'transcriptText': widget.storyTitle ?? 'Oral Reading Assessment',
           'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
         });
+        debugPrint('[QuizPage] Audio metadata result: ${audioRes.success}, msg: ${audioRes.message ?? audioRes.error}');
       }
+
+      // 2. Post quiz score & calculate Phil-IRI profile in PostgreSQL DB
+      final subRes = await ApiService.post('/students/assessment/submit', {
+        'studentId': studentId,
+        'lrn': lrn,
+        'assessmentType': 'oral',
+        'passageId': widget.passageId,
+        'score': correctCount,
+        'maxScore': _questions.length,
+        'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
+        'answers': answersPayload,
+      });
+      debugPrint('[QuizPage] Quiz score submission result: ${subRes.success}, msg: ${subRes.message ?? subRes.error}');
+
       // Clear active quiz draft on successful completion
       await QuizProgressService.clearQuizDraft(widget.passageId, 'oral');
     } catch (e) {

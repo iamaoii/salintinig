@@ -262,17 +262,6 @@ CREATE TABLE IF NOT EXISTS oral_reading_results (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS oral_reading_miscues (
-    miscue_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
-    word_position INT,
-    expected_word VARCHAR(100),
-    spoken_word VARCHAR(100),
-    miscue_type VARCHAR(50), -- 'omission', 'substitution', 'insertion', 'repetition', 'hesitation'
-    is_corrected BOOLEAN DEFAULT FALSE,
-    noted_at_second INT
-);
-
 CREATE TABLE IF NOT EXISTS silent_reading_results (
     silent_result_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
@@ -430,12 +419,36 @@ CREATE TABLE IF NOT EXISTS story_answers (
 CREATE TABLE IF NOT EXISTS reading_profiles (
     profile_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID UNIQUE REFERENCES students(student_id) ON DELETE CASCADE,
+    
+    -- Overall Composite Profile
+    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustration'
+    
+    -- Oral Reading Summary
+    oral_accuracy_rate DECIMAL(5,2),
+    oral_comprehension_rate DECIMAL(5,2),
+    oral_speed_wpm INT,
+    oral_profile_label VARCHAR(50),
+    
+    -- Silent Reading Summary
+    silent_comprehension_rate DECIMAL(5,2),
+    silent_speed_wpm INT,
+    silent_profile_label VARCHAR(50),
+    
+    -- Listening Comprehension Summary
+    listening_comprehension_rate DECIMAL(5,2),
+    listening_profile_label VARCHAR(50),
+    
+    -- Language Breakdown Summary
+    filipino_profile_label VARCHAR(50),
+    english_profile_label VARCHAR(50),
+    
+    -- Compatibility & DepEd Diagnostic Levels
     reading_speed_wpm INT,
+    comprehension_rate DECIMAL(5,2),
     comprehension_level VARCHAR(50),
     fluency_level VARCHAR(50),
     pronunciation_level VARCHAR(50),
-    miscue_pattern TEXT,
-    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustration'
+    
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

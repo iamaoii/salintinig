@@ -5,7 +5,6 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
-import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
@@ -19,7 +18,6 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
-
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
@@ -439,7 +437,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       onPressed: () {
                                         if (isClosed) return;
                                         if (type == 'listening') {
-                                          if (isDone) {
+                                          if (isDone || isPendingReview) {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -519,7 +517,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             });
                                           }
                                         } else if (type == 'silent') {
-                                          if (isDone) {
+                                          if (isDone || isPendingReview) {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -598,15 +596,8 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               }
                                             });
                                           }
-                                        } else {
-                                           if (isPendingReview) {
-                                             AppToast.warning(
-                                               context,
-                                               'Your recording is currently being reviewed by your teacher.',
-                                             );
-                                             return;
-                                           }
-                                          if (isDone) {
+                                        } else if (type == 'oral') {
+                                          if (isDone || isPendingReview) {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(

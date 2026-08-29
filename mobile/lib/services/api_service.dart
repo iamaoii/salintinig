@@ -92,11 +92,25 @@ class ApiService {
     return map;
   }
 
+  static String _cleanEndpoint(String endpoint) {
+    String clean = endpoint.trim();
+    if (clean.startsWith('/api/')) {
+      clean = clean.substring(4);
+    } else if (clean.startsWith('api/')) {
+      clean = clean.substring(3);
+    }
+    if (!clean.startsWith('/')) {
+      clean = '/$clean';
+    }
+    return clean;
+  }
+
   static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
+    final clean = _cleanEndpoint(endpoint);
     final urlsToTry = [
-      '${ApiConfig.baseUrl}$endpoint',
-      'http://10.0.2.2:5000/api$endpoint',
-      'http://192.168.1.146:5000/api$endpoint',
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
     ];
 
     String lastErr = '';
@@ -107,7 +121,7 @@ class ApiService {
           url,
           headers: _headers,
           body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 8));
         return ApiResponse.fromResponse(response);
       } catch (e) {
         lastErr = e.toString();
@@ -117,10 +131,11 @@ class ApiService {
   }
 
   static Future<ApiResponse> get(String endpoint) async {
+    final clean = _cleanEndpoint(endpoint);
     final urlsToTry = [
-      '${ApiConfig.baseUrl}$endpoint',
-      'http://10.0.2.2:5000/api$endpoint',
-      'http://192.168.1.146:5000/api$endpoint',
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
     ];
 
     String lastErr = '';
@@ -130,7 +145,7 @@ class ApiService {
         final response = await http.get(
           url,
           headers: _headers,
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 8));
         return ApiResponse.fromResponse(response);
       } catch (e) {
         lastErr = e.toString();
@@ -140,10 +155,11 @@ class ApiService {
   }
 
   static Future<ApiResponse> put(String endpoint, Map<String, dynamic> body) async {
+    final clean = _cleanEndpoint(endpoint);
     final urlsToTry = [
-      '${ApiConfig.baseUrl}$endpoint',
-      'http://10.0.2.2:5000/api$endpoint',
-      'http://192.168.1.146:5000/api$endpoint',
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
     ];
 
     String lastErr = '';
@@ -164,10 +180,11 @@ class ApiService {
   }
 
   static Future<ApiResponse> patch(String endpoint, Map<String, dynamic> body) async {
+    final clean = _cleanEndpoint(endpoint);
     final urlsToTry = [
-      '${ApiConfig.baseUrl}$endpoint',
-      'http://10.0.2.2:5000/api$endpoint',
-      'http://192.168.1.146:5000/api$endpoint',
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
     ];
 
     String lastErr = '';
@@ -188,10 +205,11 @@ class ApiService {
   }
 
   static Future<ApiResponse> delete(String endpoint) async {
+    final clean = _cleanEndpoint(endpoint);
     final urlsToTry = [
-      '${ApiConfig.baseUrl}$endpoint',
-      'http://10.0.2.2:5000/api$endpoint',
-      'http://192.168.1.146:5000/api$endpoint',
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
     ];
 
     String lastErr = '';
@@ -216,9 +234,7 @@ class ApiService {
     String fileFieldName, {
     Map<String, String>? fields,
   }) async {
-    final cleanEndpoint = endpoint.startsWith('/api')
-        ? endpoint.substring(4)
-        : (endpoint.startsWith('/') ? endpoint : '/$endpoint');
+    final cleanEndpoint = _cleanEndpoint(endpoint);
     final urlsToTry = [
       '${ApiConfig.baseUrl}$cleanEndpoint',
       'http://10.0.2.2:5000/api$cleanEndpoint',

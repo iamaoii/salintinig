@@ -19,8 +19,8 @@ class OralReadingResultPage extends StatefulWidget {
 
   const OralReadingResultPage({
     super.key,
-    this.score = 3,
-    this.totalQuestions = 3,
+    this.score = 0,
+    this.totalQuestions = 0,
     this.wpm,
     this.accuracyPct,
     this.level,
@@ -34,24 +34,28 @@ class OralReadingResultPage extends StatefulWidget {
 }
 
 class _OralReadingResultPageState extends State<OralReadingResultPage> {
-  int _wpm = 67;
-  int _accuracyPct = 87;
+  bool _isLoading = true;
+  int _wpm = 0;
+  int _accuracyPct = 0;
   String _level = 'Instructional';
-  String _dateStr = 'Recently Completed';
+  String _dateStr = '';
   String _title = 'Oral Reading Assessment';
-  int _score = 3;
-  int _totalQuestions = 3;
+  int _score = 0;
+  int _totalQuestions = 0;
   List<Map<String, dynamic>> _questions = [];
 
   @override
   void initState() {
     super.initState();
-    _wpm = widget.wpm ?? 67;
-    _accuracyPct = widget.accuracyPct ?? 87;
+    _wpm = widget.wpm ?? 0;
+    _accuracyPct = widget.accuracyPct ?? 0;
     _level = widget.level ?? 'Instructional';
-    _dateStr = widget.completedAt ?? 'Recently Completed';
+    _dateStr = widget.completedAt ?? '';
     _score = widget.score;
     _totalQuestions = widget.totalQuestions;
+    if (_wpm > 0 && _totalQuestions > 0) {
+      _isLoading = false;
+    }
     _fetchLiveResults();
   }
 
@@ -60,29 +64,50 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
       final res = await ApiService.get('/students/assessment/my-results');
       if (res.success && res.data != null && res.data['results'] is List) {
         final list = List<Map<String, dynamic>>.from(res.data['results']);
-        final oralRes = list.firstWhere(
-          (r) {
-            final typeMatch = (r['assessmentType'] ?? '').toString().toLowerCase() == 'oral';
-            if (!typeMatch) return false;
-            if (widget.passageId != null && r['passageId'] != null) {
-              return r['passageId'].toString() == widget.passageId.toString();
-            }
-            if (widget.language != null && r['language'] != null) {
-              final rLang = r['language'].toString().toLowerCase();
-              final wLang = widget.language!.toLowerCase();
-              if (wLang.startsWith('en')) return rLang.startsWith('en');
-              return !rLang.startsWith('en');
-            }
-            return true;
-          },
-          orElse: () => {},
-        );
+        
+        // 1. Filter oral assessments
+        final oralList = list.where((r) => (r['assessmentType'] ?? '').toString().toLowerCase() == 'oral').toList();
+        
+        // 2. Prioritize attempted/completed assessments with scores
+        final attemptedOral = oralList.where((r) => r['attemptId'] != null || r['completedAt'] != null || r['readingRateWpm'] != null || r['totalScore'] != null).toList();
+        final searchPool = attemptedOral.isNotEmpty ? attemptedOral : (oralList.isNotEmpty ? oralList : list);
+
+        Map<String, dynamic> oralRes = {};
+
+        // A. Match by passageId or passageTitle
+        if (widget.passageId != null) {
+          final targetPassage = widget.passageId.toString().toLowerCase().trim();
+          oralRes = searchPool.firstWhere(
+            (r) =>
+                r['passageId']?.toString().toLowerCase().trim() == targetPassage ||
+                r['passageTitle']?.toString().toLowerCase().trim() == targetPassage,
+            orElse: () => {},
+          );
+        }
+
+        // B. Match by language
+        if (oralRes.isEmpty && widget.language != null) {
+          final wLang = widget.language!.toLowerCase().trim();
+          final isEnglish = wLang.startsWith('en');
+          oralRes = searchPool.firstWhere(
+            (r) {
+              final rLang = (r['language'] ?? '').toString().toLowerCase().trim();
+              return isEnglish ? rLang.startsWith('en') : !rLang.startsWith('en');
+            },
+            orElse: () => {},
+          );
+        }
+
+        // C. Grab the first available attempted result, or first result
+        if (oralRes.isEmpty && searchPool.isNotEmpty) {
+          oralRes = searchPool.first;
+        }
 
         if (oralRes.isNotEmpty && mounted) {
           setState(() {
-            _wpm = (oralRes['readingRateWpm'] as num?)?.toInt() ?? _wpm;
-            _accuracyPct = (oralRes['accuracyPercentage'] as num?)?.toInt() ?? _accuracyPct;
-            if (oralRes['profileLabel'] != null) {
+            _wpm = (num.tryParse(oralRes['readingRateWpm']?.toString() ?? ''))?.toInt() ?? _wpm;
+            _accuracyPct = (num.tryParse(oralRes['accuracyPercentage']?.toString() ?? ''))?.toInt() ?? _accuracyPct;
+            if (oralRes['profileLabel'] != null && oralRes['profileLabel'].toString().isNotEmpty) {
               _level = oralRes['profileLabel'].toString();
             }
             if (oralRes['fullTitle'] != null) {
@@ -91,10 +116,12 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
               _title = oralRes['assessmentTitle'].toString();
             }
             if (oralRes['score'] != null) {
-              _score = (oralRes['score'] as num).toInt();
+              _score = (num.tryParse(oralRes['score']?.toString() ?? ''))?.toInt() ?? _score;
+            } else if (oralRes['totalScore'] != null) {
+              _score = (num.tryParse(oralRes['totalScore']?.toString() ?? ''))?.toInt() ?? _score;
             }
             if (oralRes['totalQuestions'] != null) {
-              _totalQuestions = (oralRes['totalQuestions'] as num).toInt();
+              _totalQuestions = (num.tryParse(oralRes['totalQuestions']?.toString() ?? ''))?.toInt() ?? _totalQuestions;
             }
             if (oralRes['questions'] is List) {
               _questions = (oralRes['questions'] as List)
@@ -116,6 +143,12 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
       }
     } catch (e) {
       debugPrint('[OralResultPage] fetch live results error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -189,15 +222,40 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
 
                     // 2. Scrollable content
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 🌟 Result Hero Badge & Praise Header (Matching Mockup)
-                            Container(
-                              padding: const EdgeInsets.all(24.0),
+                      child: _isLoading
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 44,
+                                    height: 44,
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFF1B64D8),
+                                      strokeWidth: 3.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading assessment results...',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // 🌟 Result Hero Badge & Praise Header (Matching Mockup)
+                                  Container(
+                                    padding: const EdgeInsets.all(24.0),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(24),

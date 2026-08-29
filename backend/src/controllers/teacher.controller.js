@@ -1080,61 +1080,95 @@ async function verifyOralReadingResult(req, res) {
          SET verified_miscues_json = $1,
              reading_rate_wpm = $2,
              accuracy_percentage = $3,
-             comprehension_score = $4,
-             verification_status = 'verified'
+             fluency_score = $2,
+             pronunciation_score = $3,
+             comprehension_score = COALESCE($4, comprehension_score),
+             verification_status = 'verified',
+             updated_at = CURRENT_TIMESTAMP
          WHERE assessment_attempt_id = $5`,
-        [JSON.stringify(verifiedMiscues), verifiedWpm, verifiedAccuracyPct, comprehensionScore, attemptId]
+        [JSON.stringify(verifiedMiscues || []), verifiedWpm || 0, verifiedAccuracyPct || 0, comprehensionScore ?? null, attemptId]
       );
-
-      // Insert individual miscues into oral_reading_miscues table
-      if (Array.isArray(verifiedMiscues) && verifiedMiscues.length > 0) {
-        try {
-          const oralRes = await db.query(
-            `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
-            [attemptId]
-          );
-          const oralResultId = oralRes.rows?.[0]?.oral_result_id;
-          if (oralResultId) {
-            await db.query(`DELETE FROM oral_reading_miscues WHERE oral_result_id = $1`, [oralResultId]);
-            for (const m of verifiedMiscues) {
-              await db.query(
-                `INSERT INTO oral_reading_miscues (oral_result_id, word_position, expected_word, spoken_word, miscue_type, is_corrected)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [
-                  oralResultId,
-                  m.word_position || 1,
-                  m.expected_word || '',
-                  m.spoken_word || '',
-                  m.miscue_type || 'omission',
-                  m.is_corrected === true
-                ]
-              );
-            }
-          }
-        } catch (miscueErr) {
-          console.warn('[verifyOralReadingResult] oral_reading_miscues insertion notice:', miscueErr.message);
-        }
-      }
 
       // Update assessment attempt status to completed
       await db.query(
         `UPDATE assessment_attempts
-         SET status = 'completed'
+         SET status = 'completed',
+             updated_at = CURRENT_TIMESTAMP
          WHERE attempt_id = $1`,
         [attemptId]
       );
 
       // Update main assessment record status, reading profile, and remarks
       const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
-      await db.query(
+      const aRes = await db.query(
         `UPDATE assessments
          SET status = 'completed',
              reading_level_result = $1,
              remarks = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $3)`,
+         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $3)
+         RETURNING student_id`,
         [profileLabel, remarksText, attemptId]
       );
+
+      // Also update student's overall reading_profiles
+      const studentId = aRes.rows?.[0]?.student_id;
+      if (studentId) {
+        try {
+          const compVal = Number(comprehensionScore) || 0;
+          const accVal = Number(verifiedAccuracyPct) || 0;
+          const compLevel = compVal >= 80 ? 'Independent' : (compVal >= 59 ? 'Instructional' : 'Frustration');
+          const fluencyLevel = accVal >= 97 ? 'Independent' : (accVal >= 90 ? 'Instructional' : 'Frustration');
+
+          // Check passage language
+          let isEng = false;
+          const passRow = await db.query(
+            `SELECT p.language FROM assessments a
+             JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+             WHERE a.assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $1)
+             LIMIT 1`,
+            [attemptId]
+          );
+          if (passRow.rows?.[0]?.language) {
+            isEng = passRow.rows[0].language.toLowerCase().startsWith('en');
+          }
+
+          const filProf = !isEng ? profileLabel : null;
+          const enProf = isEng ? profileLabel : null;
+
+          await db.query(
+            `INSERT INTO reading_profiles (
+               student_id, current_profile_label,
+               oral_accuracy_rate, oral_comprehension_rate, oral_speed_wpm, oral_profile_label,
+               filipino_profile_label, english_profile_label,
+               reading_speed_wpm, comprehension_rate, comprehension_level, fluency_level, updated_at
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+             ON CONFLICT (student_id)
+             DO UPDATE SET
+               current_profile_label = $2,
+               oral_accuracy_rate = $3,
+               oral_comprehension_rate = COALESCE($4, reading_profiles.oral_comprehension_rate),
+               oral_speed_wpm = COALESCE(NULLIF($5, 0), reading_profiles.oral_speed_wpm),
+               oral_profile_label = $6,
+               filipino_profile_label = COALESCE($7, reading_profiles.filipino_profile_label),
+               english_profile_label = COALESCE($8, reading_profiles.english_profile_label),
+               reading_speed_wpm = COALESCE(NULLIF($9, 0), reading_profiles.reading_speed_wpm),
+               comprehension_rate = COALESCE($10, reading_profiles.comprehension_rate),
+               comprehension_level = $11,
+               fluency_level = $12,
+               updated_at = CURRENT_TIMESTAMP`,
+            [
+              studentId, profileLabel,
+              accVal, comprehensionScore ?? null, verifiedWpm || 0, profileLabel,
+              filProf, enProf,
+              verifiedWpm || 0, comprehensionScore ?? null, compLevel, fluencyLevel
+            ]
+          );
+        } catch (rpErr) {
+          console.warn('[verifyOralReadingResult] Notice updating reading_profiles:', rpErr.message);
+        }
+      }
     }
 
     return res.json({
