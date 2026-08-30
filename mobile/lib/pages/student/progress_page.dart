@@ -17,6 +17,7 @@ import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 
@@ -31,6 +32,7 @@ class _ProgressPageState extends State<ProgressPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isListeningDone = false;
   bool _isOralReadingDone = false;
+  bool _isOralReadingPendingReview = false;
   bool _isSilentReadingDone = false;
 
   @override
@@ -38,6 +40,7 @@ class _ProgressPageState extends State<ProgressPage> {
     super.initState();
     _isListeningDone = PhilIriAssessmentPage.isListeningDone;
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+    _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
     _fetchLiveProgressData();
   }
@@ -50,7 +53,13 @@ class _ProgressPageState extends State<ProgressPage> {
         if (mounted) {
           setState(() {
             if (attempts['listening'] == true) _isListeningDone = true;
-            if (attempts['oral'] == true) _isOralReadingDone = true;
+            if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
+              _isOralReadingDone = true;
+              _isOralReadingPendingReview = false;
+            } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
+              _isOralReadingDone = false;
+              _isOralReadingPendingReview = true;
+            }
             if (attempts['silent'] == true) _isSilentReadingDone = true;
           });
         }
@@ -553,6 +562,7 @@ class _ProgressPageState extends State<ProgressPage> {
         _buildAssessmentRowCard(
           title: 'Oral Reading Assessment',
           isDone: _isOralReadingDone,
+          isPendingReview: _isOralReadingPendingReview,
           tagText: 'Required',
           tagBg: const Color(0xFFFEE2E2),
           tagTextCol: const Color(0xFFEF4444),
@@ -569,10 +579,18 @@ class _ProgressPageState extends State<ProgressPage> {
             ).then((_) {
               setState(() {
                 _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+                _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
               });
             });
           },
           onViewResult: () {
+            if (_isOralReadingPendingReview) {
+              AppToast.warning(
+                context,
+                'Your recording is currently being reviewed by your teacher.',
+              );
+              return;
+            }
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -588,6 +606,7 @@ class _ProgressPageState extends State<ProgressPage> {
   Widget _buildAssessmentRowCard({
     required String title,
     required bool isDone,
+    bool isPendingReview = false,
     required String tagText,
     required Color tagBg,
     required Color tagTextCol,
@@ -599,8 +618,12 @@ class _ProgressPageState extends State<ProgressPage> {
     required VoidCallback onViewResult,
     bool isNotAvailable = false,
   }) {
-    Color cardBg = isDone ? const Color(0xFFEAF5EC) : Colors.white;
-    Color borderCol = isDone ? const Color(0xFFBCE4CD) : const Color(0xFFE2E8F0);
+    Color cardBg = isPendingReview
+        ? const Color(0xFFFFFBEB)
+        : (isDone ? const Color(0xFFEAF5EC) : Colors.white);
+    Color borderCol = isPendingReview
+        ? const Color(0xFFFDE68A)
+        : (isDone ? const Color(0xFFBCE4CD) : const Color(0xFFE2E8F0));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -646,16 +669,22 @@ class _ProgressPageState extends State<ProgressPage> {
                 const SizedBox(height: 6),
                 Container(
                   decoration: BoxDecoration(
-                    color: isDone ? const Color(0xFFD1FAE5) : tagBg,
+                    color: isPendingReview
+                        ? const Color(0xFFFEF3C7)
+                        : (isDone ? const Color(0xFFD1FAE5) : tagBg),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   child: Text(
-                    isDone ? 'Done' : tagText,
+                    isPendingReview
+                        ? 'In Review'
+                        : (isDone ? 'Done' : tagText),
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: isDone ? const Color(0xFF059669) : tagTextCol,
+                      color: isPendingReview
+                          ? const Color(0xFFD97706)
+                          : (isDone ? const Color(0xFF059669) : tagTextCol),
                     ),
                   ),
                 ),
@@ -663,7 +692,32 @@ class _ProgressPageState extends State<ProgressPage> {
             ),
           ),
           const SizedBox(width: 8),
-          if (isDone)
+          if (isPendingReview)
+            ElevatedButton(
+              onPressed: () {
+                Feedback.forTap(context);
+                AppToast.warning(
+                  context,
+                  'Your recording is currently being reviewed by your teacher.',
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFC000),
+                foregroundColor: const Color(0xFF451A03),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+              child: Text(
+                'In Review',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF451A03)),
+              ),
+            )
+          else if (isDone)
             ElevatedButton(
               onPressed: () {
                 Feedback.forTap(context);

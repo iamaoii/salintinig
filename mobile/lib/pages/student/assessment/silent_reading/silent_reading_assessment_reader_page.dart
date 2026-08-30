@@ -463,7 +463,8 @@ if (remainder.isNotEmpty) {
                           builder: (context, viewConstraints) {
                             final double horizontalPadding = 40.0;
                             final double verticalPadding = 24.0;
-                            final double footerControlsHeight = 90.0;
+                            // Height for bottom page count indicator (35px) and footer controls (80px) + safety buffer
+                            final double footerControlsHeight = 135.0;
                             final double maxWidth =
                                 viewConstraints.maxWidth - horizontalPadding;
                             final double maxHeight =
@@ -509,7 +510,8 @@ if (remainder.isNotEmpty) {
                                       final pageParagraphs =
                                           dynamicPages[pageIndex];
 
-                                      return Padding(
+                                      return SingleChildScrollView(
+                                        physics: const BouncingScrollPhysics(),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 20.0,
                                           vertical: 12.0,

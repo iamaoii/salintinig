@@ -1383,17 +1383,19 @@ async function submitPhilIriAssessment(req, res) {
           assessmentId = aRes.rows?.[0]?.assessment_id;
         }
 
+        const targetStatus = aType === 'oral' ? 'pending_review' : 'completed';
+
         if (!assessmentId) {
           const aRes = await db.query(
             `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status, reading_level_result)
-             VALUES ($1, $2, $3, 'pre_test', 'completed', $4) RETURNING assessment_id`,
-            [resolvedStudentId, validPassageId, assessmentType || 'oral', newLevel]
+             VALUES ($1, $2, $3, 'pre_test', $4, $5) RETURNING assessment_id`,
+            [resolvedStudentId, validPassageId, assessmentType || 'oral', targetStatus, newLevel]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         } else {
           await db.query(
-            `UPDATE assessments SET status = 'completed', reading_level_result = $1, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $2`,
-            [newLevel, assessmentId]
+            `UPDATE assessments SET status = $1, reading_level_result = $2, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $3`,
+            [targetStatus, newLevel, assessmentId]
           );
         }
 
@@ -1409,16 +1411,16 @@ async function submitPhilIriAssessment(req, res) {
             attemptId = existingAttempt.rows[0].attempt_id;
             await db.query(
               `UPDATE assessment_attempts 
-               SET total_score = $1, status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-               WHERE attempt_id = $2`,
-              [numScore, attemptId]
+               SET total_score = $1, status = $2, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+               WHERE attempt_id = $3`,
+              [numScore, targetStatus, attemptId]
             );
           } else {
             const attemptRes = await db.query(
               `INSERT INTO assessment_attempts (assessment_id, status, total_score, completed_at)
-               VALUES ($1, 'completed', $2, CURRENT_TIMESTAMP)
+               VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
                RETURNING attempt_id`,
-              [assessmentId, numScore]
+              [assessmentId, targetStatus, numScore]
             );
             attemptId = attemptRes.rows?.[0]?.attempt_id;
           }
@@ -1883,7 +1885,7 @@ async function getStudentActiveAssignment(req, res) {
       console.error('[getStudentActiveAssignment] student resolve error:', resolveErr.message);
     }
 
-    // â”€â”€â”€ Step 1: Fetch assessments assigned to this student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ——— Step 1: Fetch assessments assigned to this student ————————————————————
     if (targetStudentId) {
       try {
         const aRes = await db.query(
@@ -1925,7 +1927,9 @@ async function getStudentActiveAssignment(req, res) {
                CASE 
                  WHEN orr.oral_result_id IS NOT NULL THEN 'oral'
                  ELSE LOWER(a.assessment_type)
-               END AS type
+               END AS type,
+               LOWER(COALESCE(aa.status, a.status, 'open')) AS status,
+               LOWER(COALESCE(orr.verification_status, 'pending')) AS vstatus
              FROM assessment_attempts aa
              JOIN assessments a ON a.assessment_id = aa.assessment_id
              LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
@@ -1934,9 +1938,21 @@ async function getStudentActiveAssignment(req, res) {
             [targetStudentId]
           );
           attRes.rows.forEach((r) => {
-            if (r.type === 'listening') attemptsStatus.listening = true;
-            if (r.type === 'oral')      attemptsStatus.oral = true;
-            if (r.type === 'silent')    attemptsStatus.silent = true;
+            if (r.type === 'listening') {
+              attemptsStatus.listening = true;
+              attemptsStatus.listening_status = r.status;
+            }
+            if (r.type === 'oral') {
+              const isOralVerified = r.status === 'completed' && r.vstatus === 'verified';
+              attemptsStatus.oral = isOralVerified;
+              attemptsStatus.oral_verified = isOralVerified;
+              attemptsStatus.oral_in_review = (r.status === 'pending_review' || r.status === 'submitted' || r.vstatus === 'pending');
+              attemptsStatus.oral_status = isOralVerified ? 'completed' : 'pending_review';
+            }
+            if (r.type === 'silent') {
+              attemptsStatus.silent = true;
+              attemptsStatus.silent_status = r.status;
+            }
           });
         } catch (attErr) {
           console.warn('[getStudentActiveAssignment] attempts query skipped:', attErr.message);
@@ -2465,7 +2481,9 @@ async function getStudentAssessmentResults(req, res) {
            rp.oral_accuracy_rate   AS "oralAccuracyRate",
            rp.silent_profile_label AS "silentProfileLabel",
            rp.listening_profile_label AS "listeningProfileLabel",
-           rp.oral_profile_label   AS "oralProfileLabel"
+           rp.oral_profile_label   AS "oralProfileLabel",
+           COALESCE(aa.status, a.status, 'open') AS "status",
+           orr.verification_status AS "verificationStatus"
          FROM assessments a
          JOIN phil_iri_passages p ON p.passage_id = a.passage_id
          LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id

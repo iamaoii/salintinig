@@ -103,45 +103,6 @@ class OralReadingComprehensionSummaryPage extends StatelessWidget {
                               },
                             ),
                     ),
-
-                    // Back to Results Button
-                    Container(
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: const BoxDecoration(
-                        color: softCreamBg,
-                        border: Border(
-                          top: BorderSide(
-                            color: Color(0xFFE5E7EB),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Feedback.forTap(context);
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1B64D8),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Text(
-                            'Back to Assessment Results',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

@@ -21,12 +21,14 @@ import 'package:salintinig/pages/student/progress_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class PhilIriAssessmentPage extends StatefulWidget {
   const PhilIriAssessmentPage({super.key});
 
   static bool isListeningDone = false;
   static bool isOralReadingDone = false;
+  static bool isOralReadingPendingReview = false;
   static bool isSilentReadingDone = false;
   static int listeningScore = 4;
   static int oralReadingScore = 3;
@@ -597,7 +599,14 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                             });
                                           }
                                         } else if (type == 'oral') {
-                                          if (isDone || isPendingReview) {
+                                          if (isPendingReview) {
+                                            AppToast.warning(
+                                              context,
+                                              'Your recording is currently being reviewed by your teacher.',
+                                            );
+                                            return;
+                                          }
+                                          if (isDone) {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(

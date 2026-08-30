@@ -150,8 +150,8 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                           // Measure available space inside the scroll container
                           final double horizontalPadding = 56.0; // 28 * 2
                           final double verticalPadding = 48.0; // 24 * 2
-                          // Subtract space occupied by the page indicator and bottom control buttons
-                          final double footerControlsHeight = 106.0;
+                          // Subtract space occupied by the page indicator and bottom control buttons + safety buffer
+                          final double footerControlsHeight = 135.0;
                           final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
                           final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight;
 
@@ -205,7 +205,8 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                                   itemBuilder: (context, pageIndex) {
                                     final pageParagraphs = _pages[pageIndex];
 
-                                    return Padding(
+                                    return SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
                                       padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.stretch,

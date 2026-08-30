@@ -1,16 +1,28 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Pause, WarningCircle, ShieldCheck, SpeakerHigh, SpeakerSlash, CheckCircle, Warning } from '@phosphor-icons/react';
+import {
+  Play,
+  Pause,
+  WarningCircle,
+  ShieldCheck,
+  SpeakerHigh,
+  SpeakerSlash,
+  CheckCircle,
+  Warning,
+  ArrowCounterClockwise,
+  Trash,
+} from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
+import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 const MISCUE_TYPES = [
-  { type: 'omission', label: 'Omission', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
-  { type: 'substitution', label: 'Substitution', color: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' },
-  { type: 'insertion', label: 'Insertion', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
-  { type: 'repetition', label: 'Repetition', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
-  { type: 'hesitation', label: 'Hesitation', color: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100' },
-  { type: 'self_correction', label: 'Self Correction', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }
+  { type: 'omission', label: 'Omission', code: 'OMI', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100', badgeStyle: 'bg-white text-red-600 border-red-400' },
+  { type: 'substitution', label: 'Substitution', code: 'SUB', color: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100', badgeStyle: 'bg-white text-amber-600 border-amber-400' },
+  { type: 'insertion', label: 'Insertion', code: 'INS', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100', badgeStyle: 'bg-white text-blue-600 border-blue-400' },
+  { type: 'repetition', label: 'Repetition', code: 'REP', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100', badgeStyle: 'bg-white text-purple-600 border-purple-400' },
+  { type: 'hesitation', label: 'Hesitation', code: 'HES', color: 'bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100', badgeStyle: 'bg-white text-cyan-700 border-cyan-400' },
+  { type: 'self_correction', label: 'Self Correction', code: 'SC', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100', badgeStyle: 'bg-white text-emerald-600 border-emerald-400' },
 ];
 
 const MISCUE_TYPE_MAP = new Map(MISCUE_TYPES.map((t) => [t.type, t]));
@@ -30,6 +42,30 @@ function parseMiscues(source) {
   return [];
 }
 
+function getDraftKey(id) {
+  return id ? `salintinig_review_draft_${id}` : null;
+}
+
+function saveDraftMiscues(id, data) {
+  const key = getDraftKey(id);
+  if (key) {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (_) {}
+  }
+}
+
+function loadDraftMiscues(id) {
+  const key = getDraftKey(id);
+  if (key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return parseMiscues(raw);
+    } catch (_) {}
+  }
+  return null;
+}
+
 function formatTime(secs) {
   if (isNaN(secs) || !secs) return '0:00';
   const m = Math.floor(secs / 60);
@@ -45,35 +81,47 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+  const attemptId = reviewData?.attemptId || reviewData?.assessmentId;
+
   const [miscues, setMiscues] = useState(() => {
-    const verified = parseMiscues(reviewData?.verifiedMiscues);
-    if (verified.length > 0) return verified;
-    const ai = parseMiscues(reviewData?.aiMiscues);
-    if (ai.length > 0) return ai;
+    const draft = loadDraftMiscues(attemptId);
+    if (draft) return draft;
+    if (reviewData?.verifiedMiscues !== undefined && reviewData?.verifiedMiscues !== null) {
+      return parseMiscues(reviewData.verifiedMiscues);
+    }
+    if (reviewData?.aiMiscues !== undefined && reviewData?.aiMiscues !== null) {
+      return parseMiscues(reviewData.aiMiscues);
+    }
     return parseMiscues(reviewData?.miscues);
   });
+
   const [selectedMiscueType, setSelectedMiscueType] = useState('omission');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessSaved, setIsSuccessSaved] = useState(false);
+  const [toastMsg, setToastMsg] = useState(null);
 
   const audioUrl = reviewData?.audioUrl || reviewData?.audio_recording_url || reviewData?.audio || null;
 
   useEffect(() => {
-    const verified = parseMiscues(reviewData?.verifiedMiscues);
-    if (verified.length > 0) {
-      setMiscues(verified);
+    const draft = loadDraftMiscues(attemptId);
+    if (draft) {
+      setMiscues(draft);
       return;
     }
-    const ai = parseMiscues(reviewData?.aiMiscues);
-    if (ai.length > 0) {
-      setMiscues(ai);
+    if (reviewData?.verifiedMiscues !== undefined && reviewData?.verifiedMiscues !== null) {
+      setMiscues(parseMiscues(reviewData.verifiedMiscues));
+      return;
+    }
+    if (reviewData?.aiMiscues !== undefined && reviewData?.aiMiscues !== null) {
+      setMiscues(parseMiscues(reviewData.aiMiscues));
       return;
     }
     const standard = parseMiscues(reviewData?.miscues);
     if (standard.length > 0) {
       setMiscues(standard);
     }
-  }, [reviewData]);
+  }, [reviewData, attemptId]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -146,7 +194,11 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
     const map = new Map();
     miscues.forEach((m) => {
       if (m?.word_position != null) {
-        map.set(Number(m.word_position), m);
+        const pos = Number(m.word_position);
+        if (!map.has(pos)) {
+          map.set(pos, []);
+        }
+        map.get(pos).push(m);
       }
     });
     return map;
@@ -178,24 +230,47 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   const handleWordClick = useCallback((idx) => {
     const position = idx + 1;
     setMiscues((prev) => {
-      const exists = prev.some((m) => m.word_position === position);
-      if (exists) {
-        return prev.filter((m) => m.word_position !== position);
+      let next;
+      // Check if this word already has the currently selected miscue category
+      const typeExists = prev.some(
+        (m) => Number(m.word_position) === position && m.miscue_type === selectedMiscueType
+      );
+
+      if (typeExists) {
+        // Toggle OFF only this specific category on this word
+        next = prev.filter(
+          (m) => !(Number(m.word_position) === position && m.miscue_type === selectedMiscueType)
+        );
+      } else {
+        // Add this category as an additional miscue tag on this word
+        next = [
+          ...prev,
+          {
+            word_position: position,
+            expected_word: words[idx] || '',
+            spoken_word: '',
+            miscue_type: selectedMiscueType,
+          },
+        ];
       }
-      return [
-        ...prev,
-        {
-          word_position: position,
-          expected_word: words[idx] || '',
-          spoken_word: '',
-          miscue_type: selectedMiscueType,
-        },
-      ];
+
+      saveDraftMiscues(attemptId, next);
+      return next;
     });
-  }, [words, selectedMiscueType]);
+  }, [words, selectedMiscueType, attemptId]);
+
+  const handleResetToAi = () => {
+    const ai = parseMiscues(reviewData?.aiMiscues);
+    setMiscues(ai);
+    saveDraftMiscues(attemptId, ai);
+  };
+
+  const handleClearAll = () => {
+    setMiscues([]);
+    saveDraftMiscues(attemptId, []);
+  };
 
   const handleSaveVerification = async () => {
-    const attemptId = reviewData?.attemptId;
     if (!attemptId) {
       console.warn('Attempt ID missing for verification save.');
       return;
@@ -220,19 +295,23 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
       const data = await res.json();
       if (data.success) {
         setIsSuccessSaved(true);
-        if (onVerified) {
-          onVerified();
-        }
+        saveDraftMiscues(attemptId, miscues);
+        setToastMsg({ text: 'Phil-IRI oral reading result saved & verified successfully!', type: 'success' });
+      } else {
+        setToastMsg({ text: data.error || 'Failed to save verification result.', type: 'error' });
       }
     } catch (err) {
       console.error('Failed to verify result:', err);
+      setToastMsg({ text: 'Failed to save verification result. Please try again.', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-6xl mx-auto relative">
+      <ToastNotification message={toastMsg} onClose={() => setToastMsg(null)} />
+
       {/* Top Header Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <BackButton
@@ -295,22 +374,27 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
 
           <button
             onClick={handleSaveVerification}
-            disabled={isSubmitting || isVerified}
-            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-2xs transition-all ${
+            disabled={isSubmitting}
+            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-2xs transition-all cursor-pointer ${
               isVerified
-                ? 'bg-emerald-600 cursor-default'
-                : 'bg-brand-red hover:bg-brand-red/90 active:scale-95 cursor-pointer disabled:opacity-50'
+                ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                : 'bg-brand-red hover:bg-brand-red/90 active:scale-95 disabled:opacity-50'
             }`}
           >
-            {isVerified ? (
+            {isSubmitting ? (
+              <>
+                <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span>Saving...</span>
+              </>
+            ) : isVerified ? (
               <>
                 <CheckCircle size={18} weight="bold" />
-                <span>Result Verified & Locked</span>
+                <span>Update & Save Verified Result</span>
               </>
             ) : (
               <>
                 <ShieldCheck size={18} weight="bold" />
-                <span>{isSubmitting ? 'Saving...' : 'Approve & Lock Official Result'}</span>
+                <span>Approve & Save Official Result</span>
               </>
             )}
           </button>
@@ -399,16 +483,41 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
           )}
         </div>
 
-        {/* Miscue Type Selection Pills */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-ink">
-              Miscue Classification Toolbar
-            </label>
-            <span className="text-[11px] text-ink/50 font-medium">Click any word below to tag or remove a miscue</span>
+        {/* Miscue Type Selection Pills & Controls */}
+        <div className="space-y-3 rounded-2xl border border-ink/10 bg-white p-4 sm:p-5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-3">
+            <div>
+              <label className="text-xs font-extrabold text-ink uppercase tracking-wider">
+                Miscue Classification Toolbar
+              </label>
+              <p className="text-[11px] text-ink/60 font-medium">Select a category below, then click any word in the transcript to tag or untag it.</p>
+            </div>
+
+            {/* Prominent Reset & Clear Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetToAi}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue/30 bg-blue-50/80 px-3.5 py-1.5 text-xs font-bold text-brand-blue shadow-2xs hover:bg-blue-100 hover:border-brand-blue/50 active:scale-95 transition-all cursor-pointer"
+                title="Restore original speech-to-text detected miscues"
+              >
+                <ArrowCounterClockwise size={15} weight="bold" />
+                <span>Reset to AI</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/80 px-3.5 py-1.5 text-xs font-bold text-red-700 shadow-2xs hover:bg-red-100 hover:border-red-300 active:scale-95 transition-all cursor-pointer"
+                title="Clear all miscue tags"
+              >
+                <Trash size={15} weight="bold" />
+                <span>Clear All</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 pt-1">
             {MISCUE_TYPES.map((m) => {
               const isSelected = selectedMiscueType === m.type;
               return (
@@ -416,9 +525,9 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
                   key={m.type}
                   type="button"
                   onClick={() => setSelectedMiscueType(m.type)}
-                  className={`rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${
                     isSelected
-                      ? `${m.color} ring-2 ring-brand-red/30 shadow-2xs scale-102`
+                      ? `${m.color} ring-2 ring-brand-red/30 shadow-2xs scale-102 font-extrabold`
                       : 'border-ink/15 bg-white text-ink/70 hover:bg-cream hover:text-ink'
                   }`}
                 >
@@ -435,24 +544,33 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
           {words.length > 0 ? (
             <div className="flex flex-wrap gap-2 text-base font-medium leading-relaxed text-ink">
               {words.map((word, idx) => {
-                const miscue = miscueMap.get(idx + 1);
-                const miscueType = miscue ? MISCUE_TYPE_MAP.get(miscue.miscue_type) : null;
+                const wordMiscues = miscueMap.get(idx + 1) || [];
+                const hasMiscues = wordMiscues.length > 0;
+
                 return (
                   <span
                     key={idx}
                     onClick={() => handleWordClick(idx)}
-                    className={`cursor-pointer rounded-lg px-2 py-0.5 transition-all hover:ring-2 hover:ring-brand-blue/40 ${
-                      miscue
-                        ? `${miscueType?.color || 'bg-red-100 text-red-700'} font-semibold border`
-                        : 'hover:bg-cream'
+                    className={`inline-flex items-center gap-1.5 cursor-pointer rounded-xl border px-3 py-1.5 text-sm font-semibold transition-all select-none ${
+                      hasMiscues
+                        ? 'bg-stone-100 border-stone-300 text-ink shadow-2xs ring-1 ring-stone-400/20'
+                        : 'border-ink/10 bg-white text-ink hover:bg-cream hover:border-ink/20 shadow-2xs'
                     }`}
                   >
-                    {word}
-                    {miscue && (
-                      <sup className="ml-1 text-[8.5px] uppercase font-bold px-1 py-0.1 rounded bg-white/80 border border-current">
-                        {miscue.miscue_type.substring(0, 3)}
-                      </sup>
-                    )}
+                    <span>{word}</span>
+                    {wordMiscues.map((m, mIdx) => {
+                      const mInfo = MISCUE_TYPE_MAP.get(m.miscue_type);
+                      return (
+                        <span
+                          key={mIdx}
+                          className={`text-[9.5px] uppercase font-extrabold px-1.5 py-0.5 rounded-md border shadow-2xs leading-none ${
+                            mInfo?.badgeStyle || 'bg-white text-red-600 border-red-400'
+                          }`}
+                        >
+                          {mInfo?.code || m.miscue_type.substring(0, 3)}
+                        </span>
+                      );
+                    })}
                   </span>
                 );
               })}

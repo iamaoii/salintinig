@@ -40,7 +40,8 @@ class _OralReadingAssessmentCongratulationsPageState
 
   void _goToHome() {
     Feedback.forTap(context);
-    PhilIriAssessmentPage.isOralReadingDone = true;
+    PhilIriAssessmentPage.isOralReadingDone = false;
+    PhilIriAssessmentPage.isOralReadingPendingReview = true;
     PhilIriAssessmentPage.oralReadingScore = widget.score;
     Navigator.pushAndRemoveUntil(
       context,

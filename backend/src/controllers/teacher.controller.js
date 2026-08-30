@@ -987,6 +987,7 @@ async function getPendingOralReviews(req, res) {
           orr.audio_recording_url AS "audioUrl",
           orr.transcript_text AS "spokenTranscript",
           orr.ai_miscues_json AS "aiMiscues",
+          orr.verified_miscues_json AS "verifiedMiscues",
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
           orr.verification_status AS "verificationStatus",
@@ -1047,6 +1048,7 @@ async function getOralReviewDetail(req, res) {
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
         WHERE aa.attempt_id::text = $1 OR a.assessment_id::text = $1
+        ORDER BY aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
         LIMIT 1
       `;
       const { rows } = await db.query(query, [attemptId]);
@@ -1075,45 +1077,102 @@ async function verifyOralReadingResult(req, res) {
     const profileLabel = getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0);
 
     if (process.env.DATABASE_URL) {
-      await db.query(
-        `UPDATE oral_reading_results
-         SET verified_miscues_json = $1,
-             reading_rate_wpm = $2,
-             accuracy_percentage = $3,
-             fluency_score = $2,
-             pronunciation_score = $3,
-             comprehension_score = COALESCE($4, comprehension_score),
-             verification_status = 'verified',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE assessment_attempt_id = $5`,
-        [JSON.stringify(verifiedMiscues || []), verifiedWpm || 0, verifiedAccuracyPct || 0, comprehensionScore ?? null, attemptId]
+      // 1. Resolve real attempt_id, assessment_id, and student_id
+      let resolvedAttemptId = attemptId;
+      let resolvedAssessmentId = null;
+      let resolvedStudentId = null;
+
+      const attemptCheck = await db.query(
+        `SELECT aa.attempt_id, aa.assessment_id, a.student_id 
+         FROM assessment_attempts aa
+         JOIN assessments a ON a.assessment_id = aa.assessment_id
+         WHERE aa.attempt_id::text = $1 OR a.assessment_id::text = $1
+         ORDER BY aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
+         LIMIT 1`,
+        [attemptId]
       );
 
-      // Update assessment attempt status to completed
+      if (attemptCheck.rows?.[0]) {
+        resolvedAttemptId = attemptCheck.rows[0].attempt_id;
+        resolvedAssessmentId = attemptCheck.rows[0].assessment_id;
+        resolvedStudentId = attemptCheck.rows[0].student_id;
+      }
+
+      if (!resolvedAssessmentId) {
+        const aDirect = await db.query(
+          `SELECT assessment_id, student_id FROM assessments WHERE assessment_id::text = $1 LIMIT 1`,
+          [attemptId]
+        );
+        if (aDirect.rows?.[0]) {
+          resolvedAssessmentId = aDirect.rows[0].assessment_id;
+          resolvedStudentId = aDirect.rows[0].student_id;
+        }
+      }
+
+      // 2. Update or Insert oral_reading_results record
+      const existingOral = await db.query(
+        `SELECT oral_result_id FROM oral_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
+        [resolvedAttemptId]
+      );
+
+      if (existingOral.rows?.[0]) {
+        await db.query(
+          `UPDATE oral_reading_results
+           SET verified_miscues_json = $1,
+               reading_rate_wpm = $2,
+               accuracy_percentage = $3,
+               fluency_score = $2,
+               pronunciation_score = $3,
+               comprehension_score = COALESCE($4, comprehension_score),
+               verification_status = 'verified',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE assessment_attempt_id = $5`,
+          [JSON.stringify(verifiedMiscues || []), verifiedWpm || 0, verifiedAccuracyPct || 0, comprehensionScore ?? null, resolvedAttemptId]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO oral_reading_results (
+             assessment_attempt_id, verified_miscues_json, reading_rate_wpm,
+             accuracy_percentage, fluency_score, pronunciation_score,
+             comprehension_score, verification_status, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'verified', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            resolvedAttemptId,
+            JSON.stringify(verifiedMiscues || []),
+            verifiedWpm || 0,
+            verifiedAccuracyPct || 0,
+            verifiedWpm || 0,
+            verifiedAccuracyPct || 0,
+            comprehensionScore ?? null
+          ]
+        );
+      }
+
+      // 3. Update assessment attempt status to completed
       await db.query(
         `UPDATE assessment_attempts
          SET status = 'completed',
              updated_at = CURRENT_TIMESTAMP
          WHERE attempt_id = $1`,
-        [attemptId]
+        [resolvedAttemptId]
       );
 
-      // Update main assessment record status, reading profile, and remarks
+      // 4. Update main assessment record status, reading profile, and remarks
       const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
-      const aRes = await db.query(
-        `UPDATE assessments
-         SET status = 'completed',
-             reading_level_result = $1,
-             remarks = $2,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $3)
-         RETURNING student_id`,
-        [profileLabel, remarksText, attemptId]
-      );
+      if (resolvedAssessmentId) {
+        await db.query(
+          `UPDATE assessments
+           SET status = 'completed',
+               reading_level_result = $1,
+               remarks = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE assessment_id = $3`,
+          [profileLabel, remarksText, resolvedAssessmentId]
+        );
+      }
 
-      // Also update student's overall reading_profiles
-      const studentId = aRes.rows?.[0]?.student_id;
-      if (studentId) {
+      // 5. Also update student's overall reading_profiles
+      if (resolvedStudentId) {
         try {
           const compVal = Number(comprehensionScore) || 0;
           const accVal = Number(verifiedAccuracyPct) || 0;
@@ -1122,15 +1181,17 @@ async function verifyOralReadingResult(req, res) {
 
           // Check passage language
           let isEng = false;
-          const passRow = await db.query(
-            `SELECT p.language FROM assessments a
-             JOIN phil_iri_passages p ON p.passage_id = a.passage_id
-             WHERE a.assessment_id = (SELECT assessment_id FROM assessment_attempts WHERE attempt_id = $1)
-             LIMIT 1`,
-            [attemptId]
-          );
-          if (passRow.rows?.[0]?.language) {
-            isEng = passRow.rows[0].language.toLowerCase().startsWith('en');
+          if (resolvedAssessmentId) {
+            const passRow = await db.query(
+              `SELECT p.language FROM assessments a
+               JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+               WHERE a.assessment_id = $1
+               LIMIT 1`,
+              [resolvedAssessmentId]
+            );
+            if (passRow.rows?.[0]?.language) {
+              isEng = passRow.rows[0].language.toLowerCase().startsWith('en');
+            }
           }
 
           const filProf = !isEng ? profileLabel : null;
@@ -1159,7 +1220,7 @@ async function verifyOralReadingResult(req, res) {
                fluency_level = $12,
                updated_at = CURRENT_TIMESTAMP`,
             [
-              studentId, profileLabel,
+              resolvedStudentId, profileLabel,
               accVal, comprehensionScore ?? null, verifiedWpm || 0, profileLabel,
               filProf, enProf,
               verifiedWpm || 0, comprehensionScore ?? null, compLevel, fluencyLevel
@@ -1169,13 +1230,18 @@ async function verifyOralReadingResult(req, res) {
           console.warn('[verifyOralReadingResult] Notice updating reading_profiles:', rpErr.message);
         }
       }
+
+      return res.json({
+        success: true,
+        message: 'Phil-IRI oral reading result verified successfully!',
+        profileLabel,
+        accuracyPct: verifiedAccuracyPct,
+        wpm: verifiedWpm,
+        attemptId: resolvedAttemptId,
+      });
     }
 
-    return res.json({
-      success: true,
-      message: 'Phil-IRI oral reading result verified successfully!',
-      profileLabel
-    });
+    return res.status(404).json({ success: false, error: 'Database not configured.' });
   } catch (err) {
     console.error('Error in verifyOralReadingResult:', err);
     return res.status(500).json({ success: false, error: 'Failed to verify oral reading result.' });
