@@ -1,291 +1,907 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:salintinig/services/api_service.dart';
-import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
-
+import 'package:salintinig/services/api_config.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
 
 class ListeningAssessmentReaderPage extends StatefulWidget {
   final Map<String, dynamic>? item;
   const ListeningAssessmentReaderPage({super.key, this.item});
 
   @override
-  State<ListeningAssessmentReaderPage> createState() => _ListeningAssessmentReaderPageState();
+  State<ListeningAssessmentReaderPage> createState() =>
+      _ListeningAssessmentReaderPageState();
 }
 
-class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReaderPage> {
+class _ListeningAssessmentReaderPageState
+    extends State<ListeningAssessmentReaderPage>
+    with SingleTickerProviderStateMixin {
   bool _isDarkMode = false;
-  int _currentPage = 0;
-  final PageController _pageController = PageController();
+  late final FlutterTts _flutterTts;
+  AudioPlayer? _audioPlayer;
 
   String _fullStoryText = '';
+  String _storyTitle = 'Listening Assessment Passage';
+  String _assessmentLanguage = 'fil';
   dynamic _passageId;
-  String? _storyTitle;
+  String? _audioUrl;
+  List<dynamic>? _dynamicQuestions;
+
+  bool _isPlaying = false;
+  bool _isPaused = false;
+  bool _isFinished = false;
+  bool _isSynthesizingAudio = false;
+  double _progress = 0.0;
+  int _listeningSeconds = 0;
+  Timer? _listeningTimer;
+
+  Duration _totalAudioDuration = Duration.zero;
+
+  // Accurate offset and live speech energy tracking
+  int _spokenCharOffset = 0;
+  int _lastChunkEnd = 0;
+  double _voiceEnergy = 0.0;
+  Timer? _voiceDecayTimer;
+
+  late AnimationController _waveformAnimController;
+
+  bool get _isEnglish {
+    final lang = _assessmentLanguage.toLowerCase();
+    final title = _storyTitle.toLowerCase();
+    return lang.startsWith('en') ||
+        lang.contains('english') ||
+        title.contains('english');
+  }
 
   @override
   void initState() {
     super.initState();
-    final item = widget.item;
-    final passageObj = item?['passage'] is Map ? item!['passage'] : item;
-    _passageId = item?['passage_id'] ?? item?['passageId'] ?? passageObj?['passage_id'] ?? passageObj?['passageId'];
-    _storyTitle = item?['title'] ?? item?['storyTitle'] ?? passageObj?['title'];
+    _waveformAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _initAudioPlayer();
+    _initTts();
+    _extractItemData();
     _fetchPassageFromApi();
+    _startTimer();
   }
 
-  void _fetchPassageFromApi() async {
+  void _initAudioPlayer() {
+    _audioPlayer = AudioPlayer();
+
+    _audioPlayer!.onDurationChanged.listen((d) {
+      if (mounted) {
+        setState(() {
+          _totalAudioDuration = d;
+        });
+      }
+    });
+
+    _audioPlayer!.onPositionChanged.listen((p) {
+      if (mounted && _totalAudioDuration.inMilliseconds > 0) {
+        final prog =
+            (p.inMilliseconds / _totalAudioDuration.inMilliseconds).clamp(0.0, 1.0);
+        setState(() {
+          _progress = prog;
+          // Generate lively voice waveform energy during playback
+          _voiceEnergy = 0.60 + (0.40 * (sin(p.inMilliseconds * 0.015)).abs());
+        });
+      }
+    });
+
+    _audioPlayer!.onPlayerComplete.listen((event) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _isPaused = false;
+          _isFinished = true;
+          _progress = 1.0;
+          _voiceEnergy = 0.0;
+        });
+        _waveformAnimController.stop();
+      }
+    });
+  }
+
+  void _initTts() async {
     try {
-      final res = await ApiService.get('/student/assessment/passages?grade=Grade%204&type=listening&period=Pre-Test');
-      if (res.success && res.data != null && res.data['passages'] != null && (res.data['passages'] as List).isNotEmpty) {
-        final passage = res.data['passages'][0];
+      _flutterTts = FlutterTts();
+
+      await _flutterTts.setSpeechRate(0.45); // Natural reading pace for learners
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(1.0);
+
+      _flutterTts.setStartHandler(() {
         if (mounted) {
           setState(() {
-            _fullStoryText = passage['contentText'] ?? '';
-            _dynamicQuestions = passage['questions'];
-            _passageId ??= passage['passage_id'] ?? passage['id'];
-            _storyTitle ??= passage['title'];
+            _isPlaying = true;
+            _isPaused = false;
+          });
+          _waveformAnimController.repeat();
+        }
+      });
+
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _isPlaying = false;
+            _isPaused = false;
+            _isFinished = true;
+            _progress = 1.0;
+            _spokenCharOffset = _fullStoryText.length;
+            _voiceEnergy = 0.0;
+          });
+          _voiceDecayTimer?.cancel();
+          _waveformAnimController.stop();
+        }
+      });
+
+      _flutterTts.setPauseHandler(() {
+        if (mounted) {
+          setState(() {
+            _isPlaying = false;
+            _isPaused = true;
+            _voiceEnergy = 0.0;
+          });
+          _voiceDecayTimer?.cancel();
+          _waveformAnimController.stop();
+        }
+      });
+
+      _flutterTts.setContinueHandler(() {
+        if (mounted) {
+          setState(() {
+            _isPlaying = true;
+            _isPaused = false;
+          });
+          _waveformAnimController.repeat();
+        }
+      });
+
+      _flutterTts.setProgressHandler((text, start, end, word) {
+        if (mounted && _fullStoryText.isNotEmpty) {
+          _lastChunkEnd = end;
+          final int absoluteTotalSpoken =
+              (_spokenCharOffset + end).clamp(0, _fullStoryText.length);
+
+          // Calculate speech energy dynamically based on spoken word & syllables
+          final vowels = RegExp(r'[aeiouAEIOU]');
+          final int vowelCount = vowels.allMatches(word).length;
+          final double energy = (0.50 + (vowelCount * 0.12) + (word.length * 0.04))
+              .clamp(0.40, 1.0);
+
+          setState(() {
+            _progress = (absoluteTotalSpoken / _fullStoryText.length).clamp(0.0, 1.0);
+            _voiceEnergy = energy;
+          });
+
+          // Fast decay when speaker pauses between words or sentences
+          _voiceDecayTimer?.cancel();
+          _voiceDecayTimer = Timer(const Duration(milliseconds: 260), () {
+            if (mounted && _isPlaying) {
+              setState(() {
+                _voiceEnergy = 0.10;
+              });
+            }
+          });
+        }
+      });
+
+      _flutterTts.setErrorHandler((msg) {
+        debugPrint('[ListeningReader] TTS Error: $msg');
+        if (mounted) {
+          setState(() {
+            _isPlaying = false;
+            _isPaused = false;
+            _voiceEnergy = 0.0;
+          });
+          _voiceDecayTimer?.cancel();
+          _waveformAnimController.stop();
+        }
+      });
+    } catch (e) {
+      debugPrint('[ListeningReader] TTS Init notice: $e');
+    }
+  }
+
+  void _startTimer() {
+    _listeningTimer?.cancel();
+    _listeningTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _listeningSeconds++;
+        });
+      }
+    });
+  }
+
+  void _extractItemData() {
+    final item = widget.item;
+    if (item != null) {
+      final passageObj = item['passage'] is Map ? item['passage'] : item;
+      final String? title =
+          item['passageTitle'] ??
+          item['title'] ??
+          passageObj?['title'] ??
+          passageObj?['passageTitle'];
+      final String? text =
+          passageObj?['text'] ??
+          passageObj?['contentText'] ??
+          passageObj?['content_text'] ??
+          item['text'] ??
+          item['contentText'] ??
+          item['content_text'];
+      final List<dynamic>? questions =
+          item['questions'] ?? passageObj?['questions'];
+      final String? lang =
+          item['rawLanguage'] ??
+          item['language'] ??
+          passageObj?['language'] ??
+          passageObj?['rawLanguage'];
+      final String? audio =
+          item['audioUrl'] ??
+          item['audio_url'] ??
+          passageObj?['audioUrl'] ??
+          passageObj?['audio_url'];
+
+      if (title != null && title.trim().isNotEmpty) {
+        _storyTitle = title.trim();
+      }
+      if (text != null && text.trim().isNotEmpty) {
+        _fullStoryText = text.trim();
+      }
+      if (lang != null && lang.trim().isNotEmpty) {
+        _assessmentLanguage = lang.trim();
+      }
+      if (audio != null && audio.trim().isNotEmpty) {
+        _audioUrl = audio.trim();
+      }
+      if (questions != null && questions.isNotEmpty) {
+        _dynamicQuestions = questions;
+      }
+      _passageId = QuizProgressService.extractPassageId(item);
+      _prepareNeuralAudio();
+    }
+  }
+
+  Future<void> _prepareNeuralAudio() async {
+    if (_fullStoryText.trim().isEmpty) return;
+    if (_audioUrl != null && _audioUrl!.isNotEmpty) return;
+
+    if (mounted) {
+      setState(() {
+        _isSynthesizingAudio = true;
+      });
+    }
+
+    try {
+      final res = await ApiService.post('/api/tts/synthesize', {
+        'text': _fullStoryText,
+        'language': _isEnglish ? 'en' : 'fil',
+      });
+
+      if (res.success && res.data != null && res.data['audioUrl'] != null) {
+        final rawPath = res.data['audioUrl'].toString();
+        final fullUrl = rawPath.startsWith('http')
+            ? rawPath
+            : '${ApiConfig.baseUrl}$rawPath';
+        if (mounted) {
+          setState(() {
+            _audioUrl = fullUrl;
+            _isSynthesizingAudio = false;
           });
         }
         return;
       }
     } catch (e) {
-      debugPrint('Passage API fetch notice: $e');
+      debugPrint('[ListeningReader] Neural audio synthesize notice: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSynthesizingAudio = false;
+      });
+    }
+  }
+
+  void _fetchPassageFromApi() async {
+    if (_fullStoryText.trim().isNotEmpty && widget.item != null) {
+      _prepareNeuralAudio();
+      _configureTtsLanguage();
+      return;
+    }
+
+    try {
+      final myAssignRes = await ApiService.get(
+        '/student/assessment/my-assignment',
+      );
+      if (myAssignRes.success &&
+          myAssignRes.data != null &&
+          myAssignRes.data['assignedActivities'] != null) {
+        final activities = myAssignRes.data['assignedActivities'] as List;
+        if (activities.isNotEmpty) {
+          final listeningActivity = activities.firstWhere(
+            (act) =>
+                act['assessmentType'] == 'listening' ||
+                act['assessmentType'] == 'listening comprehension',
+            orElse: () => activities[0],
+          );
+          if (listeningActivity != null) {
+            final passage =
+                listeningActivity['passage'] ?? listeningActivity;
+            final String title =
+                passage['title'] ??
+                listeningActivity['passageTitle'] ??
+                'Listening Assessment Passage';
+            final String text =
+                passage['text'] ??
+                passage['contentText'] ??
+                passage['content_text'] ??
+                '';
+            final List<dynamic>? questions = passage['questions'];
+            final String? audio =
+                passage['audioUrl'] ?? passage['audio_url'];
+
+            if (mounted) {
+              setState(() {
+                _storyTitle = title;
+                if (text.trim().isNotEmpty) {
+                  _fullStoryText = text.trim();
+                }
+                if (audio != null && audio.trim().isNotEmpty) {
+                  _audioUrl = audio.trim();
+                }
+                _dynamicQuestions = questions;
+                _passageId ??=
+                    QuizProgressService.extractPassageId(listeningActivity);
+              });
+              _prepareNeuralAudio();
+              _configureTtsLanguage();
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[ListeningReader] Passage API fetch notice: $e');
+    }
+    _prepareNeuralAudio();
+    _configureTtsLanguage();
+  }
+
+  void _configureTtsLanguage() async {
+    try {
+      if (_isEnglish) {
+        await _flutterTts.setLanguage("en-US");
+      } else {
+        final languages = await _flutterTts.getLanguages;
+        if (languages is List && (languages.contains("fil-PH") || languages.contains("fil_PH"))) {
+          await _flutterTts.setLanguage("fil-PH");
+        } else if (languages is List && (languages.contains("tl-PH") || languages.contains("tl_PH"))) {
+          await _flutterTts.setLanguage("tl-PH");
+        } else {
+          await _flutterTts.setLanguage("fil-PH");
+        }
+      }
+      await _flutterTts.setSpeechRate(0.45);
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.awaitSpeakCompletion(true);
+    } catch (e) {
+      debugPrint('[ListeningReader] TTS Language configure error: $e');
+    }
+  }
+
+  Future<void> _toggleAudioPlay() async {
+    Feedback.forTap(context);
+
+    // If story already finished, one-time listening rule prevents replay
+    if (_isFinished) return;
+
+    if (_isPlaying) {
+      if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+        await _audioPlayer?.pause();
+      } else {
+        await _flutterTts.stop();
+        _spokenCharOffset =
+            (_spokenCharOffset + _lastChunkEnd).clamp(0, _fullStoryText.length);
+        _lastChunkEnd = 0;
+      }
+      setState(() {
+        _isPlaying = false;
+        _isPaused = true;
+        _voiceEnergy = 0.0;
+      });
+      _voiceDecayTimer?.cancel();
+      _waveformAnimController.stop();
+    } else {
+      if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+        _audioPlayer ??= AudioPlayer();
+        if (_isPaused) {
+          await _audioPlayer!.resume();
+        } else {
+          await _audioPlayer!.play(UrlSource(_audioUrl!));
+        }
+        setState(() {
+          _isPlaying = true;
+          _isPaused = false;
+        });
+        _waveformAnimController.repeat();
+      } else {
+        if (_fullStoryText.trim().isEmpty) return;
+
+        _configureTtsLanguage();
+        setState(() {
+          _isPlaying = true;
+          _isPaused = false;
+        });
+        _waveformAnimController.repeat();
+
+        // Speak remaining text seamlessly from paused position without resetting progress!
+        if (_spokenCharOffset < _fullStoryText.length) {
+          final remaining = _fullStoryText.substring(_spokenCharOffset);
+          await _flutterTts.speak(remaining);
+        } else {
+          setState(() {
+            _isFinished = true;
+            _progress = 1.0;
+          });
+        }
+      }
     }
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _flutterTts.stop();
+    _audioPlayer?.dispose();
+    _listeningTimer?.cancel();
+    _voiceDecayTimer?.cancel();
+    _waveformAnimController.dispose();
     super.dispose();
-  }
-
-  // Dynamic pagination algorithm: measures text height and divides paragraphs into pages
-  List<List<String>> _paginateStory({
-    required String fullText,
-    required double maxWidth,
-    required double maxHeight,
-    required TextStyle textStyle,
-    required double paragraphSpacing,
-  }) {
-    final List<String> paragraphs = fullText.split('\n\n');
-    final List<List<String>> pages = [];
-    List<String> currentPage = [];
-    double currentHeight = 0.0;
-
-    for (final paragraph in paragraphs) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: paragraph.trim(), style: textStyle),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout(maxWidth: maxWidth);
-      final double paraHeight = textPainter.height;
-
-      // Space between paragraphs
-      final double spacing = currentPage.isEmpty ? 0.0 : paragraphSpacing;
-
-      if (currentHeight + spacing + paraHeight <= maxHeight) {
-        currentPage.add(paragraph);
-        currentHeight += spacing + paraHeight;
-      } else {
-        if (currentPage.isEmpty) {
-          // If a single paragraph is taller than the max height, add it anyway to avoid lock
-          currentPage.add(paragraph);
-          pages.add(currentPage);
-          currentPage = [];
-          currentHeight = 0.0;
-        } else {
-          // Finish current page and start a new page with this paragraph
-          pages.add(currentPage);
-          currentPage = [paragraph];
-          currentHeight = paraHeight;
-        }
-      }
-    }
-
-    if (currentPage.isNotEmpty) {
-      pages.add(currentPage);
-    }
-
-    if (pages.isEmpty) {
-      pages.add(['']);
-    }
-
-    return pages;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Theme coloring configuration
-    final Color bgColor = _isDarkMode ? const Color(0xFF1A1816) : const Color(0xFFFCFAF7);
-    final Color textColor = _isDarkMode ? const Color(0xFFE5E0DB) : const Color(0xFF2D2D2D);
-    final Color titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final Color secondaryTextColor = _isDarkMode ? const Color(0xFF8A8580) : const Color(0xFF64748B);
+    final Color bgColor =
+        _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFFCFAF7);
+    final Color cardBg =
+        _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+    final Color titleColor =
+        _isDarkMode ? Colors.white : const Color(0xFF1E293B);
+    final Color textColor =
+        _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    const Color primaryBlue = Color(0xFF1B64D8);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: PopScope(
         canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          _confirmExit(context);
-        },
+        onPopInvokedWithResult: (didPop, result) {},
         child: SafeArea(
           child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTablet = constraints.maxWidth > 600;
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth > 600;
 
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: isTablet ? 520 : double.infinity,
-                ),
-                child: Column(
-                  children: [
-                    // 1. Header with Close Button and Title
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const SizedBox(width: 48),
-                          Expanded(
-                            child: Text(
-                              'Isang Pangarap',
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.lora(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: titleColor,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              Feedback.forTap(context);
-                              _confirmExit(context);
-                            },
-                            icon: Icon(
-                              Icons.close_rounded,
-                              size: 28,
-                              color: titleColor,
-                            ),
-                          ),
-                        ],
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isTablet ? 540 : double.infinity,
+                  ),
+                  child: Column(
+                    children: [
+                      // 1. Header with Theme Switcher (Locked - No exit/back options)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20.0,
+                          vertical: 12.0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            _buildThemeSwitcher(),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // 2. Reading Text Block (PageView with dynamic pagination)
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, viewConstraints) {
-                          // Measure available space inside the scroll container
-                          final double horizontalPadding = 56.0; // 28 * 2
-                          final double verticalPadding = 48.0; // 24 * 2
-                          // Subtract space occupied by the page indicator and bottom control buttons
-                          final double footerControlsHeight = 106.0;
-                          final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
-                          final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight;
-
-                          // Text Style configuration for Painter measurements
-                          final TextStyle textStyle = GoogleFonts.lora(
-                            fontSize: 22,
-                            height: 1.65,
-                            fontWeight: FontWeight.w500,
-                            color: textColor,
-                          );
-
-                          // Dynamic calculation of pages based on constraints
-                          final dynamicPages = _paginateStory(
-                            fullText: _fullStoryText,
-                            maxWidth: maxWidth > 0 ? maxWidth : 100,
-                            maxHeight: maxHeight > 0 ? maxHeight : 100,
-                            textStyle: textStyle,
-                            paragraphSpacing: 28.0,
-                          );
-
-                          // Keep current index in safe bounds
-                          final int totalPages = dynamicPages.length;
-                          final int activePage = _currentPage.clamp(0, totalPages - 1);
-
-                          return Column(
+                      // 2. Main Studio Content Area (Hero Audio Card)
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 16.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Swipable pages
-                              Expanded(
-                                child: PageView.builder(
-                                  controller: _pageController,
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: totalPages,
-                                  onPageChanged: (pageIndex) {
-                                    setState(() {
-                                      _currentPage = pageIndex;
-                                    });
-                                  },
-                                  itemBuilder: (context, pageIndex) {
-                                    final pageParagraphs = dynamicPages[pageIndex];
+                              const SizedBox(height: 40),
 
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        mainAxisAlignment: MainAxisAlignment.start,
-                                        children: List.generate(pageParagraphs.length, (pIndex) {
-                                          final isLast = pIndex == pageParagraphs.length - 1;
-                                          return Padding(
-                                            padding: EdgeInsets.only(bottom: isLast ? 0.0 : 28.0),
-                                            child: Text(
-                                              pageParagraphs[pIndex].trim(),
-                                              style: textStyle,
-                                            ),
-                                          );
-                                        }),
-                                      ),
-                                    );
-                                  },
+                              // Central Animated Listening Artwork / Avatar
+                              _buildListeningHeroArt(primaryBlue),
+
+                              const SizedBox(height: 28),
+
+                              // Story Title
+                              Text(
+                                _storyTitle,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.lora(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
+                                  letterSpacing: -0.5,
                                 ),
                               ),
 
-                              // 3. Centered page count indicator
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Text(
-                                  '${activePage + 1}/$totalPages',
+                              const SizedBox(height: 8),
+
+                              // Language Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _isDarkMode
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  _isEnglish ? 'English' : 'Filipino',
                                   style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: secondaryTextColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
                                   ),
                                 ),
                               ),
 
-                              // 4. Footer navigation controls
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    left: 24.0, right: 24.0, bottom: 20.0, top: 12.0),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              const SizedBox(height: 32),
+
+                              // Audio Player Box
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(24.0),
+                                decoration: BoxDecoration(
+                                  color: cardBg,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: _isDarkMode
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: _isDarkMode ? 0.2 : 0.04,
+                                      ),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
                                   children: [
-                                    _buildThemeSwitcher(),
-                                    _buildActionButton(activePage, totalPages),
+                                    // Audio Progress Bar
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: LinearProgressIndicator(
+                                        value: _progress,
+                                        minHeight: 8,
+                                        backgroundColor: _isDarkMode
+                                            ? const Color(0xFF334155)
+                                            : const Color(0xFFE2E8F0),
+                                        valueColor:
+                                            const AlwaysStoppedAnimation<Color>(
+                                          primaryBlue,
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 14),
+
+                                    // Status subtitle
+                                    Text(
+                                      _isFinished
+                                          ? (_isEnglish
+                                              ? 'Story Completed'
+                                              : 'Tapos na ang Kuwento')
+                                          : _isPlaying
+                                          ? (_isEnglish
+                                              ? 'Playing story audio...'
+                                              : 'Binabasa ang kuwento...')
+                                          : _isPaused
+                                          ? (_isEnglish
+                                              ? 'Audio Paused (Tap to resume)'
+                                              : 'Naka-pause (Pindutin upang ituloy)')
+                                          : _isSynthesizingAudio
+                                          ? (_isEnglish
+                                              ? 'Preparing natural audio...'
+                                              : 'Inihahanda ang audio...')
+                                          : (_isEnglish
+                                              ? 'Tap play to listen to the story'
+                                              : 'Pindutin ang play upang makinig'),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isFinished
+                                            ? const Color(0xFF059669)
+                                            : _isPlaying
+                                            ? primaryBlue
+                                            : textColor,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 20),
+
+                                    // Main Playback Controls (Single Centered Button)
+                                    if (_isFinished)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFD1FAE5),
+                                          borderRadius:
+                                              BorderRadius.circular(24),
+                                          border: Border.all(
+                                            color: const Color(0xFFA7F3D0),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Color(0xFF059669),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _isEnglish
+                                                  ? 'Finished Listening'
+                                                  : 'Tapos nang Pakinggan',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF065F46),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      GestureDetector(
+                                        onTap: _toggleAudioPlay,
+                                        child: Container(
+                                          width: 68,
+                                          height: 68,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: primaryBlue,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: primaryBlue
+                                                    .withValues(alpha: 0.35),
+                                                blurRadius: 18,
+                                                offset: const Offset(0, 6),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Center(
+                                            child: Icon(
+                                              _isPlaying
+                                                  ? Icons.pause_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              color: Colors.white,
+                                              size: 38,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // Reminder Notice Card
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: _isDarkMode
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: _isDarkMode
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      _isFinished
+                                          ? Icons.check_circle_outline_rounded
+                                          : Icons.info_outline_rounded,
+                                      color: _isFinished
+                                          ? const Color(0xFF059669)
+                                          : primaryBlue,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _isFinished
+                                            ? (_isEnglish
+                                                ? 'You have finished listening to the story. Tap the button below to start your comprehension quiz.'
+                                                : 'Napakinggan mo na ang buong kuwento. Pindutin ang button sa ibaba upang simulan ang pagsusulit sa pag-unawa.')
+                                            : (_isEnglish
+                                                ? 'Listen carefully to the audio narration. In Phil-IRI, you will hear the story only once before answering the quiz.'
+                                                : 'Makinig nang mabuti sa binabasang kuwento. Sa Phil-IRI, isang beses mo lamang maririnig ang kuwento bago sagutan ang pagsusulit.'),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          height: 1.4,
+                                          fontWeight: FontWeight.w500,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
                             ],
-                          );
-                        },
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+
+                      // 3. Footer Action Button (Only visible once story listening is complete)
+                      if (_isFinished)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 16.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            border: Border(
+                              top: BorderSide(
+                                color: _isDarkMode
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: _finishReading,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _isEnglish
+                                        ? 'Start Comprehension Quiz'
+                                        : 'Simulan ang Pagsusulit',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
-    ),
     );
   }
 
-  // Custom Animated Theme Switcher (Light / Dark mode toggle)
+  Widget _buildListeningHeroArt(Color primaryBlue) {
+    final List<double> barRatios = [
+      0.50, 0.38, 0.22, 0.58, 0.72, 0.96, 0.82, 0.48, 0.88, 0.78,
+      0.32, 1.00, 0.70, 0.86, 0.62, 0.40, 0.78, 0.66, 0.42, 0.30, 0.48
+    ];
+
+    final Color activeColor = _isDarkMode ? const Color(0xFF60A5FA) : primaryBlue;
+    final Color inactiveColor = _isDarkMode
+        ? const Color(0xFF334155)
+        : const Color(0xFFCBD5E1);
+
+    return Container(
+      height: 90,
+      width: double.infinity,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedBuilder(
+        animation: _waveformAnimController,
+        builder: (context, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(barRatios.length, (index) {
+              final double base = barRatios[index];
+              double height;
+
+              if (_isPlaying) {
+                final double waveVal =
+                    (sin((_waveformAnimController.value * 2 * pi) + (index * 0.48)))
+                        .abs();
+                // Dynamically scales with live voice energy from spoken syllables:
+                final double liveSpeechFactor = 0.25 + (0.75 * _voiceEnergy);
+                final double animatedRatio =
+                    0.12 + (0.88 * base * liveSpeechFactor * (0.35 + 0.65 * waveVal));
+                height = animatedRatio * 68.0;
+              } else if (_isFinished) {
+                height = 10.0;
+              } else {
+                height = base * 48.0;
+              }
+
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2.8),
+                width: 5.5,
+                height: height.clamp(8.0, 68.0),
+                decoration: BoxDecoration(
+                  color: _isPlaying ? activeColor : inactiveColor,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _isPlaying
+                      ? [
+                          BoxShadow(
+                            color: activeColor.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildThemeSwitcher() {
     return GestureDetector(
       onTap: () {
@@ -295,21 +911,25 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
         });
       },
       child: Container(
-        width: 90,
-        height: 48,
+        width: 80,
+        height: 40,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: _isDarkMode ? const Color(0xFF141A24) : const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(20),
+          color: _isDarkMode
+              ? const Color(0xFF1E293B)
+              : const Color(0xFFE2E8F0),
         ),
         child: Stack(
           children: [
             AnimatedAlign(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOutCubic,
-              alignment: _isDarkMode ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: _isDarkMode
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: Container(
-                width: 44,
-                height: 44,
+                width: 36,
+                height: 36,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
@@ -320,22 +940,22 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
-                padding: const EdgeInsets.only(left: 12),
+                padding: const EdgeInsets.only(left: 10),
                 child: Icon(
                   Icons.wb_sunny_rounded,
-                  color: _isDarkMode ? const Color(0xFF4A5568) : Colors.white,
-                  size: 20,
+                  color: _isDarkMode ? const Color(0xFF64748B) : Colors.white,
+                  size: 18,
                 ),
               ),
             ),
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 10),
                 child: Icon(
                   Icons.nightlight_round,
                   color: _isDarkMode ? Colors.white : const Color(0xFF94A3B8),
-                  size: 20,
+                  size: 18,
                 ),
               ),
             ),
@@ -345,265 +965,35 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
     );
   }
 
-  // Action Button at bottom right (Next Page caret, Intermediate Dual, OR Start Quiz)
-  Widget _buildActionButton(int activePage, int totalPages) {
-    final isFirstPage = activePage == 0;
-    final isLastPage = activePage == totalPages - 1;
-    final Color buttonBgColor = _isDarkMode ? const Color(0xFF1E2530) : const Color(0xFFE2E8F0);
-    final Color iconColor = _isDarkMode ? Colors.white : const Color(0xFF475569);
-
-    if (totalPages <= 1) {
-      return GestureDetector(
-        key: const ValueKey('finish_reading_btn_single'),
-        onTap: () {
-          Feedback.forTap(context);
-          _finishReading();
-        },
-        child: _buildStartQuizButton(),
-      );
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: isLastPage
-          ? Row(
-              key: const ValueKey('last_page_nav_row'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Back button to previous page
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _pageController.previousPage(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOutCubic,
-                    );
-                  },
-                  child: Container(
-                    width: 50,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: buttonBgColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      color: iconColor,
-                      size: 26,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Start Quiz Button
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _confirmStartQuiz(context);
-                  },
-                  child: _buildStartQuizButton(),
-                ),
-              ],
-            )
-          : Container(
-              key: const ValueKey('capsule_page_nav_btn'),
-              width: 100,
-              height: 48,
-              decoration: BoxDecoration(
-                color: buttonBgColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  // Left button (Back) - visible only if not on the first page
-                  isFirstPage
-                      ? const SizedBox(width: 50)
-                      : GestureDetector(
-                          onTap: () {
-                            Feedback.forTap(context);
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeInOutCubic,
-                            );
-                          },
-                          child: Container(
-                            width: 50,
-                            height: 48,
-                            color: Colors.transparent,
-                            child: Icon(
-                              Icons.chevron_left_rounded,
-                              color: iconColor,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                  // Right button (Next)
-                  GestureDetector(
-                    onTap: () {
-                      Feedback.forTap(context);
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeInOutCubic,
-                      );
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 48,
-                      color: Colors.transparent,
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        color: iconColor,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildStartQuizButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      height: 48,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B64D8),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1B64D8).withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Start Quiz',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.arrow_forward_rounded,
-            color: Colors.white,
-            size: 18,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmExit(BuildContext context) {
-    final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
-    final dialogBg = _isDarkMode ? const Color(0xFF22201E) : Colors.white;
-    final cancelColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Exit Assessment?',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
-          ),
-          content: Text(
-            'Your current reading progress will be lost. Are you sure you want to exit?',
-            style: GoogleFonts.inter(fontSize: 14, color: descColor),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Close Reader Page
-              },
-              child: Text(
-                'Exit',
-                style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _confirmStartQuiz(BuildContext context) {
-    final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
-    final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
-    final dialogBg = _isDarkMode ? const Color(0xFF22201E) : Colors.white;
-    final cancelColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Start Quiz?',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
-          ),
-          content: Text(
-            'You won\'t be able to read the story again once you start the quiz. Are you ready to begin?',
-            style: GoogleFonts.inter(fontSize: 14, color: descColor),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
-                _finishReading();             // Transition to Quiz Page
-              },
-              child: Text(
-                'Start',
-                style: GoogleFonts.inter(color: const Color(0xFF1B64D8), fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  List<dynamic>? _dynamicQuestions;
-
   void _finishReading() async {
-    final existingDraft = await QuizProgressService.getQuizDraft(_passageId, 'listening');
+    _flutterTts.stop();
+    final existingDraft = await QuizProgressService.getQuizDraft(
+      _passageId,
+      'listening',
+    );
     if (existingDraft == null) {
       await QuizProgressService.saveQuizDraft(
         _passageId,
         assessmentType: 'listening',
         recordedAudioPath: null,
-        readingTimeSeconds: 0,
+        readingTimeSeconds: _listeningSeconds,
         storyTitle: _storyTitle,
-        assessmentLanguage: 'fil',
+        assessmentLanguage: _assessmentLanguage,
         dynamicQuestions: _dynamicQuestions,
       );
     }
     if (!mounted) return;
+
+    // Sync status = 'in_progress' to database for real-time teacher tracking
+    final user = AuthService.currentUser;
+    final studentId = user?.rawUser?['student_id']?.toString() ??
+        user?.rawUser?['studentId']?.toString() ??
+        user?.userId;
+
+    ApiService.post('/api/students/assessment/start-progress', {
+      'studentId': studentId,
+      'passageId': _passageId,
+    });
 
     List<int?>? initialAnswersList;
     if (existingDraft != null && existingDraft['selectedAnswers'] != null) {
@@ -618,10 +1008,12 @@ class _ListeningAssessmentReaderPageState extends State<ListeningAssessmentReade
       context,
       MaterialPageRoute(
         builder: (context) => ListeningAssessmentQuizPage(
-          dynamicQuestions: existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
+          dynamicQuestions:
+              existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
           storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
           passageId: _passageId,
-          currentQuestionIndex: (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
+          currentQuestionIndex:
+              (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
           initialSelectedAnswers: initialAnswersList,
         ),
       ),
