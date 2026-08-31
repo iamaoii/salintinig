@@ -2805,8 +2805,14 @@ async function getStudentAssessmentResults(req, res) {
                 ? calculatedLevel
                 : (row.profileLabel || 'Pending Evaluation'));
 
+          let computedRateWpm = Number(row.readingRateWpm) || 0;
+          if (computedRateWpm <= 0 && Number(row.readingTimeSeconds) > 0) {
+            computedRateWpm = Math.round(((Number(row.wordCount) || 115) / Number(row.readingTimeSeconds)) * 60);
+          }
+
           return {
             ...row,
+            readingRateWpm: computedRateWpm,
             profileLabel: finalProfile,
             completedAt: row.completedAt || row.createdAt,
             assessmentTitle: formattedTitle,

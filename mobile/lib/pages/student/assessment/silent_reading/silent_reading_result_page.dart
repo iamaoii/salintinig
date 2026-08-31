@@ -141,7 +141,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
             if (match['readingRateWpm'] != null && (match['readingRateWpm'] as num) > 0) {
               _wpm = (match['readingRateWpm'] as num).toInt();
             } else if (_readingTimeSeconds > 0) {
-              final passageWords = (match['wordCount'] as num?)?.toInt() ?? 0;
+              final passageWords = (match['wordCount'] as num?)?.toInt() ?? 115;
               if (passageWords > 0) {
                 _wpm = ((passageWords / _readingTimeSeconds) * 60).round().clamp(0, 350);
               }

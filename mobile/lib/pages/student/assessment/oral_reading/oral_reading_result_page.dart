@@ -441,7 +441,7 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                     child: () {
-                                      final String levelName = _level.isNotEmpty && _level != 'Instructional'
+                                      final String levelName = (_level.isNotEmpty && _level != 'Pending Evaluation')
                                           ? _level
                                           : (_totalQuestions > 0
                                               ? () {
