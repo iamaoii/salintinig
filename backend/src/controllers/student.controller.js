@@ -1304,63 +1304,34 @@ async function submitPhilIriAssessment(req, res) {
           newLevel = getPhilIriSilentProfile(computedWpm, compPct, 'Grade 4', passageLang);
         }
 
-        // Upsert into reading_profiles with full multi-type and multi-language metrics
-        const compLevel = compPct >= 80 ? 'Independent' : (compPct >= 59 ? 'Instructional' : 'Frustration');
-        const fluencyLevel = accPct >= 97 ? 'Independent' : (accPct >= 90 ? 'Instructional' : 'Frustration');
-
-        const oralAcc = aType === 'oral' ? accPct : null;
-        const oralComp = aType === 'oral' ? compPct : null;
-        const oralWpm = aType === 'oral' ? (computedWpm || totalWords) : null;
-        const oralProf = aType === 'oral' ? newLevel : null;
-
-        const silentComp = aType === 'silent' ? compPct : null;
-        const silentWpm = aType === 'silent' ? computedWpm : null;
-        const silentProf = aType === 'silent' ? newLevel : null;
-
-        const listComp = aType === 'listening' ? compPct : null;
-        const listProf = aType === 'listening' ? newLevel : null;
-
-        const filProf = passageLang === 'fil' ? newLevel : null;
-        const enProf = passageLang === 'en' ? newLevel : null;
-
-        await db.query(
-          `INSERT INTO reading_profiles (
-             student_id, current_profile_label,
-             oral_accuracy_rate, oral_comprehension_rate, oral_speed_wpm, oral_profile_label,
-             silent_comprehension_rate, silent_speed_wpm, silent_profile_label,
-             listening_comprehension_rate, listening_profile_label,
-             filipino_profile_label, english_profile_label,
-             reading_speed_wpm, comprehension_rate, comprehension_level, fluency_level, updated_at
-           )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
-           ON CONFLICT (student_id) 
-           DO UPDATE SET 
-             current_profile_label = $2,
-             oral_accuracy_rate = COALESCE($3, reading_profiles.oral_accuracy_rate),
-             oral_comprehension_rate = COALESCE($4, reading_profiles.oral_comprehension_rate),
-             oral_speed_wpm = COALESCE(NULLIF($5, 0), reading_profiles.oral_speed_wpm),
-             oral_profile_label = COALESCE($6, reading_profiles.oral_profile_label),
-             silent_comprehension_rate = COALESCE($7, reading_profiles.silent_comprehension_rate),
-             silent_speed_wpm = COALESCE(NULLIF($8, 0), reading_profiles.silent_speed_wpm),
-             silent_profile_label = COALESCE($9, reading_profiles.silent_profile_label),
-             listening_comprehension_rate = COALESCE($10, reading_profiles.listening_comprehension_rate),
-             listening_profile_label = COALESCE($11, reading_profiles.listening_profile_label),
-             filipino_profile_label = COALESCE($12, reading_profiles.filipino_profile_label),
-             english_profile_label = COALESCE($13, reading_profiles.english_profile_label),
-             reading_speed_wpm = COALESCE(NULLIF($14, 0), reading_profiles.reading_speed_wpm),
-             comprehension_rate = COALESCE($15, reading_profiles.comprehension_rate),
-             comprehension_level = $16,
-             fluency_level = $17,
-             updated_at = CURRENT_TIMESTAMP`,
-          [
-            resolvedStudentId, newLevel,
-            oralAcc, oralComp, oralWpm, oralProf,
-            silentComp, silentWpm, silentProf,
-            listComp, listProf,
-            filProf, enProf,
-            wordsRead || 0, compPct, compLevel, fluencyLevel
-          ]
-        );
+        // 1. Normalized table upsert (student_reading_profiles — Single Source of Truth)
+        try {
+          await db.query(
+            `INSERT INTO student_reading_profiles (
+               student_id, language, assessment_type, assessment_period,
+               profile_level, accuracy_rate, comprehension_rate, speed_wpm, updated_at
+             )
+             VALUES ($1, $2, $3, 'pre_test', $4, $5, $6, $7, CURRENT_TIMESTAMP)
+             ON CONFLICT (student_id, language, assessment_type, assessment_period)
+             DO UPDATE SET
+               profile_level = $4,
+               accuracy_rate = COALESCE($5, student_reading_profiles.accuracy_rate),
+               comprehension_rate = COALESCE($6, student_reading_profiles.comprehension_rate),
+               speed_wpm = COALESCE(NULLIF($7, 0), student_reading_profiles.speed_wpm),
+               updated_at = CURRENT_TIMESTAMP`,
+            [
+              resolvedStudentId,
+              passageLang || 'fil',
+              aType,
+              newLevel,
+              aType === 'oral' ? accPct : null,
+              compPct,
+              (computedWpm || wordsRead || 0)
+            ]
+          );
+        } catch (normErr) {
+          console.warn('[submitPhilIriAssessment] student_reading_profiles upsert notice:', normErr.message);
+        }
 
         // Resolve or create assessment record in assessments table
         let assessmentId = null;
@@ -1397,6 +1368,20 @@ async function submitPhilIriAssessment(req, res) {
             `UPDATE assessments SET status = $1, reading_level_result = $2, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $3`,
             [targetStatus, newLevel, assessmentId]
           );
+        }
+
+        // Link last_assessment_id into student_reading_profiles for direct traceability
+        if (assessmentId) {
+          try {
+            await db.query(
+              `UPDATE student_reading_profiles
+               SET last_assessment_id = $1, updated_at = CURRENT_TIMESTAMP
+               WHERE student_id = $2 AND language = $3 AND assessment_type = $4 AND assessment_period = 'pre_test'`,
+              [assessmentId, resolvedStudentId, passageLang || 'fil', aType]
+            );
+          } catch (linkErr) {
+            console.warn('[submitPhilIriAssessment] Link last_assessment_id notice:', linkErr.message);
+          }
         }
 
         // Record attempt in assessment_attempts (saving total_score)
@@ -2055,11 +2040,179 @@ async function getStudentActiveAssignment(req, res) {
       }
     }
 
+    // Step 4: Fetch student's Phil-IRI Reading Profiles (Overall, Filipino, English 3-modality breakdowns)
+    let readingProfiles = {
+      currentProfile: 'Pending Evaluation',
+      oralProfile: 'Pending Evaluation',
+      oralAccuracy: null,
+      oralComprehension: null,
+      oralWpm: null,
+      listeningProfile: 'Pending Evaluation',
+      listeningComprehension: null,
+      silentProfile: 'Pending Evaluation',
+      silentComprehension: null,
+      silentWpm: null,
+      filipinoProfile: null,
+      englishProfile: null,
+
+      // Filipino Modalities
+      filOralProfile: 'Pending Evaluation',
+      filOralAccuracy: null,
+      filOralComprehension: null,
+      filOralWpm: null,
+      filListeningProfile: 'Pending Evaluation',
+      filListeningComprehension: null,
+      filSilentProfile: 'Pending Evaluation',
+      filSilentComprehension: null,
+      filSilentWpm: null,
+
+      // English Modalities
+      engOralProfile: 'Pending Evaluation',
+      engOralAccuracy: null,
+      engOralComprehension: null,
+      engOralWpm: null,
+      engListeningProfile: 'Pending Evaluation',
+      engListeningComprehension: null,
+      engSilentProfile: 'Pending Evaluation',
+      engSilentComprehension: null,
+      engSilentWpm: null,
+    };
+
+    if (targetStudentId && process.env.DATABASE_URL) {
+      try {
+        const rpRes = await db.query(
+          `SELECT 
+             current_profile_label,
+             oral_profile_label,
+             oral_accuracy_rate,
+             oral_comprehension_rate,
+             oral_speed_wpm,
+             listening_profile_label,
+             listening_comprehension_rate,
+             silent_profile_label,
+             silent_comprehension_rate,
+             silent_speed_wpm,
+             filipino_profile_label,
+             english_profile_label,
+             fil_oral_profile_label,
+             fil_oral_accuracy_rate,
+             fil_oral_comprehension_rate,
+             fil_oral_speed_wpm,
+             fil_listening_profile_label,
+             fil_listening_comprehension_rate,
+             fil_silent_profile_label,
+             fil_silent_comprehension_rate,
+             fil_silent_speed_wpm,
+             eng_oral_profile_label,
+             eng_oral_accuracy_rate,
+             eng_oral_comprehension_rate,
+             eng_oral_speed_wpm,
+             eng_listening_profile_label,
+             eng_listening_comprehension_rate,
+             eng_silent_profile_label,
+             eng_silent_comprehension_rate,
+             eng_silent_speed_wpm
+           FROM reading_profiles
+           WHERE student_id = $1 LIMIT 1`,
+          [targetStudentId]
+        );
+        if (rpRes.rows?.[0]) {
+          const row = rpRes.rows[0];
+          readingProfiles = {
+            currentProfile: row.current_profile_label || 'Pending Evaluation',
+            oralProfile: row.oral_profile_label || 'Pending Evaluation',
+            oralAccuracy: row.oral_accuracy_rate,
+            oralComprehension: row.oral_comprehension_rate,
+            oralWpm: row.oral_speed_wpm,
+            listeningProfile: row.listening_profile_label || 'Pending Evaluation',
+            listeningComprehension: row.listening_comprehension_rate,
+            silentProfile: row.silent_profile_label || 'Pending Evaluation',
+            silentComprehension: row.silent_comprehension_rate,
+            silentWpm: row.silent_speed_wpm,
+            filipinoProfile: row.filipino_profile_label,
+            englishProfile: row.english_profile_label,
+
+            // Filipino Modalities
+            filOralProfile: row.fil_oral_profile_label || 'Pending Evaluation',
+            filOralAccuracy: row.fil_oral_accuracy_rate,
+            filOralComprehension: row.fil_oral_comprehension_rate,
+            filOralWpm: row.fil_oral_speed_wpm,
+            filListeningProfile: row.fil_listening_profile_label || 'Pending Evaluation',
+            filListeningComprehension: row.fil_listening_comprehension_rate,
+            filSilentProfile: row.fil_silent_profile_label || 'Pending Evaluation',
+            filSilentComprehension: row.fil_silent_comprehension_rate,
+            filSilentWpm: row.fil_silent_speed_wpm,
+
+            // English Modalities
+            engOralProfile: row.eng_oral_profile_label || 'Pending Evaluation',
+            engOralAccuracy: row.eng_oral_accuracy_rate,
+            engOralComprehension: row.eng_oral_comprehension_rate,
+            engOralWpm: row.eng_oral_speed_wpm,
+            engListeningProfile: row.eng_listening_profile_label || 'Pending Evaluation',
+            engListeningComprehension: row.eng_listening_comprehension_rate,
+            engSilentProfile: row.eng_silent_profile_label || 'Pending Evaluation',
+            engSilentComprehension: row.eng_silent_comprehension_rate,
+            engSilentWpm: row.eng_silent_speed_wpm,
+          };
+        }
+
+        // Fallback or fill from normalized student_reading_profiles table
+        try {
+          const normRes = await db.query(
+            `SELECT language, assessment_type, profile_level, accuracy_rate, comprehension_rate, speed_wpm
+             FROM student_reading_profiles
+             WHERE student_id = $1`,
+            [targetStudentId]
+          );
+          if (normRes.rows && normRes.rows.length > 0) {
+            for (const r of normRes.rows) {
+              const lang = (r.language || 'fil').toLowerCase();
+              const type = (r.assessment_type || 'oral').toLowerCase();
+              if (lang.startsWith('fil')) {
+                if (type === 'oral') {
+                  if (readingProfiles.filOralProfile === 'Pending Evaluation') readingProfiles.filOralProfile = r.profile_level;
+                  if (readingProfiles.filOralAccuracy == null) readingProfiles.filOralAccuracy = r.accuracy_rate;
+                  if (readingProfiles.filOralComprehension == null) readingProfiles.filOralComprehension = r.comprehension_rate;
+                  if (readingProfiles.filOralWpm == null) readingProfiles.filOralWpm = r.speed_wpm;
+                } else if (type === 'listening') {
+                  if (readingProfiles.filListeningProfile === 'Pending Evaluation') readingProfiles.filListeningProfile = r.profile_level;
+                  if (readingProfiles.filListeningComprehension == null) readingProfiles.filListeningComprehension = r.comprehension_rate;
+                } else if (type === 'silent') {
+                  if (readingProfiles.filSilentProfile === 'Pending Evaluation') readingProfiles.filSilentProfile = r.profile_level;
+                  if (readingProfiles.filSilentComprehension == null) readingProfiles.filSilentComprehension = r.comprehension_rate;
+                  if (readingProfiles.filSilentWpm == null) readingProfiles.filSilentWpm = r.speed_wpm;
+                }
+              } else if (lang.startsWith('en')) {
+                if (type === 'oral') {
+                  if (readingProfiles.engOralProfile === 'Pending Evaluation') readingProfiles.engOralProfile = r.profile_level;
+                  if (readingProfiles.engOralAccuracy == null) readingProfiles.engOralAccuracy = r.accuracy_rate;
+                  if (readingProfiles.engOralComprehension == null) readingProfiles.engOralComprehension = r.comprehension_rate;
+                  if (readingProfiles.engOralWpm == null) readingProfiles.engOralWpm = r.speed_wpm;
+                } else if (type === 'listening') {
+                  if (readingProfiles.engListeningProfile === 'Pending Evaluation') readingProfiles.engListeningProfile = r.profile_level;
+                  if (readingProfiles.engListeningComprehension == null) readingProfiles.engListeningComprehension = r.comprehension_rate;
+                } else if (type === 'silent') {
+                  if (readingProfiles.engSilentProfile === 'Pending Evaluation') readingProfiles.engSilentProfile = r.profile_level;
+                  if (readingProfiles.engSilentComprehension == null) readingProfiles.engSilentComprehension = r.comprehension_rate;
+                  if (readingProfiles.engSilentWpm == null) readingProfiles.engSilentWpm = r.speed_wpm;
+                }
+              }
+            }
+          }
+        } catch (normQueryErr) {
+          console.warn('[getStudentActiveAssignment] normalized reading profiles query notice:', normQueryErr.message);
+        }
+      } catch (rpErr) {
+        console.warn('[getStudentActiveAssignment] reading_profiles query notice:', rpErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       hasAssignment: assignedActivities.length > 0,
       assignedActivities,
       attemptsStatus,
+      readingProfiles,
       studentId: targetStudentId,
       lrn: resolvedLrn,
       gradeLevel: targetGrade,
@@ -2482,11 +2635,12 @@ async function getStudentAssessmentResults(req, res) {
            COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds",
            COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
            rp.current_profile_label AS "profileLabel",
-           rp.comprehension_rate    AS "comprehensionRate",
+           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score, rp.oral_comprehension_rate, rp.silent_comprehension_rate, rp.listening_comprehension_rate) AS "comprehensionRate",
            rp.oral_accuracy_rate   AS "oralAccuracyRate",
            rp.silent_profile_label AS "silentProfileLabel",
            rp.listening_profile_label AS "listeningProfileLabel",
            rp.oral_profile_label   AS "oralProfileLabel",
+           a.reading_level_result  AS "readingLevelResult",
            COALESCE(aa.status, a.status, 'open') AS "status",
            orr.verification_status AS "verificationStatus"
          FROM assessments a
@@ -2636,16 +2790,20 @@ async function getStudentAssessmentResults(req, res) {
           const { getPhilIriOralProfile, getPhilIriListeningProfile, getPhilIriSilentProfile } = require('../services/miscueEngine.js');
           const compRate = Number(row.comprehensionScore) || Number(row.comprehensionRate) || (totalQ > 0 ? Math.round((scoreNum / totalQ) * 100) : 0);
           
-          let calculatedLevel = 'Instructional';
+          let calculatedLevel = 'Pending Evaluation';
           if (row.assessmentType === 'oral') {
             calculatedLevel = getPhilIriOralProfile(Number(row.accuracyPercentage) || 0, compRate);
           } else if (row.assessmentType === 'listening') {
             calculatedLevel = getPhilIriListeningProfile(compRate);
           } else if (row.assessmentType === 'silent') {
-            const sWpm = Number(row.readingRateWpm) || (row.readingTimeSeconds > 0 ? Math.round((115 / row.readingTimeSeconds) * 60) : 0);
+            const sWpm = Number(row.readingRateWpm) || (row.readingTimeSeconds > 0 ? Math.round(((Number(row.wordCount) || 115) / row.readingTimeSeconds) * 60) : 0);
             calculatedLevel = getPhilIriSilentProfile(sWpm, compRate, 'Grade 4', row.language || 'fil');
           }
-          const finalProfile = row.profileLabel || calculatedLevel || 'Instructional';
+          const finalProfile = (row.readingLevelResult && row.readingLevelResult !== 'Pending Evaluation')
+            ? row.readingLevelResult
+            : (calculatedLevel !== 'Pending Evaluation'
+                ? calculatedLevel
+                : (row.profileLabel || 'Pending Evaluation'));
 
           return {
             ...row,
@@ -2668,8 +2826,8 @@ async function getStudentAssessmentResults(req, res) {
             if (rpRes.rows?.[0]) {
               const rp = rpRes.rows[0];
               const fallbackList = [];
-              if (rp.oral_profile_label || rp.oral_accuracy_rate !== null || rp.oral_comprehension_rate !== null) {
-                const oComp = Number(rp.oral_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+              if (rp.oral_profile_label && rp.oral_profile_label !== 'Pending Evaluation') {
+                const oComp = Number(rp.oral_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'oral',
                   assessmentTitle: 'Oral Reading Assessment',
@@ -2677,15 +2835,15 @@ async function getStudentAssessmentResults(req, res) {
                   language: 'fil',
                   score: Math.round((oComp / 100) * 5),
                   totalQuestions: 5,
-                  accuracyPercentage: Number(rp.oral_accuracy_rate) || 95,
-                  readingRateWpm: Number(rp.oral_speed_wpm) || Number(rp.reading_speed_wpm) || 115,
-                  profileLabel: rp.oral_profile_label || rp.current_profile_label || 'Instructional',
-                  completedAt: rp.updated_at,
+                  accuracyPercentage: Number(rp.oral_accuracy_rate) || 0,
+                  readingRateWpm: Number(rp.oral_speed_wpm) || 0,
+                  profileLabel: rp.oral_profile_label,
+                  completedAt: new Date().toISOString(),
                   questions: [],
                 });
               }
-              if (rp.listening_profile_label || rp.listening_comprehension_rate !== null) {
-                const lComp = Number(rp.listening_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+              if (rp.listening_profile_label && rp.listening_profile_label !== 'Pending Evaluation') {
+                const lComp = Number(rp.listening_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'listening',
                   assessmentTitle: 'Listening Assessment',
@@ -2693,13 +2851,13 @@ async function getStudentAssessmentResults(req, res) {
                   language: 'fil',
                   score: Math.round((lComp / 100) * 5),
                   totalQuestions: 5,
-                  profileLabel: rp.listening_profile_label || 'Instructional',
-                  completedAt: rp.updated_at,
+                  profileLabel: rp.listening_profile_label,
+                  completedAt: new Date().toISOString(),
                   questions: [],
                 });
               }
-              if (rp.silent_profile_label || rp.silent_comprehension_rate !== null) {
-                const sComp = Number(rp.silent_comprehension_rate) || Number(rp.comprehension_rate) || 80;
+              if (rp.silent_profile_label && rp.silent_profile_label !== 'Pending Evaluation') {
+                const sComp = Number(rp.silent_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'silent',
                   assessmentTitle: 'Silent Reading Assessment',
@@ -2707,10 +2865,10 @@ async function getStudentAssessmentResults(req, res) {
                   language: 'fil',
                   score: Math.round((sComp / 100) * 5),
                   totalQuestions: 5,
-                  readingRateWpm: Number(rp.silent_speed_wpm) || 115,
-                  readingTimeSeconds: 65,
-                  profileLabel: rp.silent_profile_label || 'Instructional',
-                  completedAt: rp.updated_at,
+                  readingRateWpm: Number(rp.silent_speed_wpm) || 0,
+                  readingTimeSeconds: 0,
+                  profileLabel: rp.silent_profile_label,
+                  completedAt: new Date().toISOString(),
                   questions: [],
                 });
               }

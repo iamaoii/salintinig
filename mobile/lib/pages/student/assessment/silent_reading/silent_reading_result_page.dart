@@ -37,7 +37,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
   int _totalQuestions = 0;
   int _wpm = 0;
   int _readingTimeSeconds = 0;
-  String _profileLevel = 'Instructional';
+  String _profileLevel = 'Pending Evaluation';
   String _dateStr = '';
   List<Map<String, dynamic>> _questions = [];
 
@@ -52,7 +52,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
   }
 
   String _calculateProfileLevel(int score, int total) {
-    if (total <= 0) return 'Instructional';
+    if (total <= 0) return 'Pending Evaluation';
     final pct = ((score / total) * 100).round();
     if (pct >= 80) return 'Independent';
     if (pct >= 59) return 'Instructional';
@@ -67,7 +67,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
     _readingTimeSeconds = widget.readingTimeSeconds ?? 0;
     _wpm = widget.wpm ?? 0;
     _questions = widget.questionsList ?? [];
-    if (_score > 0 && _totalQuestions > 0) {
+    if (_totalQuestions > 0) {
       _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
       _isLoading = false;
     }
@@ -133,7 +133,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                   .toList();
             }
             if (_totalQuestions <= 0) {
-              _totalQuestions = _questions.isNotEmpty ? _questions.length : 3;
+              _totalQuestions = _questions.isNotEmpty ? _questions.length : 0;
             }
             if (match['readingTimeSeconds'] != null) {
               _readingTimeSeconds = (match['readingTimeSeconds'] as num).toInt();
@@ -141,14 +141,14 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
             if (match['readingRateWpm'] != null && (match['readingRateWpm'] as num) > 0) {
               _wpm = (match['readingRateWpm'] as num).toInt();
             } else if (_readingTimeSeconds > 0) {
-              final passageWords = (match['wordCount'] as num?)?.toInt() ?? 115;
-              _wpm = ((passageWords / _readingTimeSeconds) * 60).round().clamp(20, 350);
-            } else if (_wpm <= 0) {
-              _wpm = 115;
+              final passageWords = (match['wordCount'] as num?)?.toInt() ?? 0;
+              if (passageWords > 0) {
+                _wpm = ((passageWords / _readingTimeSeconds) * 60).round().clamp(0, 350);
+              }
             }
-            if (match['profileLabel'] != null && match['profileLabel'].toString().isNotEmpty) {
+            if (match['profileLabel'] != null && match['profileLabel'].toString().isNotEmpty && match['profileLabel'].toString() != 'Pending Evaluation') {
               _profileLevel = match['profileLabel'].toString();
-            } else {
+            } else if (_totalQuestions > 0) {
               _profileLevel = _calculateProfileLevel(_score, _totalQuestions);
             }
             if (match['completedAt'] != null) {
@@ -170,9 +170,8 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
       if (mounted) {
         setState(() {
           if (_totalQuestions <= 0) {
-            _totalQuestions = _questions.isNotEmpty ? _questions.length : 3;
+            _totalQuestions = _questions.isNotEmpty ? _questions.length : 0;
           }
-          if (_wpm <= 0) _wpm = 115;
           _isLoading = false;
         });
       }
@@ -423,7 +422,9 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _buildMetricCard(
-                                    valueNumber: _profileLevel,
+                                    valueNumber: (_profileLevel.isNotEmpty && _profileLevel != 'Pending Evaluation')
+                                        ? _profileLevel
+                                        : (_totalQuestions > 0 ? _calculateProfileLevel(_score, _totalQuestions) : 'Pending Evaluation'),
                                     label: 'PHIL-IRI Level',
                                     iconWidget: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF8B5CF6), size: 20),
                                     iconBgColor: const Color(0xFFEDE9FE),
@@ -512,6 +513,7 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
     required Color iconBgColor,
   }) {
     return Container(
+      constraints: const BoxConstraints(minHeight: 104),
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -523,35 +525,42 @@ class _SilentReadingResultPageState extends State<SilentReadingResultPage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF1E293B),
-                ),
-                children: [
-                  TextSpan(
-                    text: valueNumber,
+          SizedBox(
+            height: 34,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: RichText(
+                  text: TextSpan(
                     style: GoogleFonts.inter(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1E293B),
                     ),
-                  ),
-                  if (valueUnit != null) ...[
-                    const TextSpan(text: ' '),
-                    TextSpan(
-                      text: valueUnit,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
+                    children: [
+                      TextSpan(
+                        text: valueNumber,
+                        style: GoogleFonts.inter(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      if (valueUnit != null) ...[
+                        const TextSpan(text: ' '),
+                        TextSpan(
+                          text: valueUnit,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

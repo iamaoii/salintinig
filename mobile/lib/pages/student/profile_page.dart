@@ -5,6 +5,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/edit_profile_page.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
@@ -17,6 +18,29 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   String? _customDisplayName;
+  Map<String, dynamic>? _readingProfiles;
+  String _selectedPhilIriLang = 'fil';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileData();
+  }
+
+  Future<void> _fetchProfileData() async {
+    try {
+      final res = await ApiService.get('/students/assessment/my-assignment');
+      if (res.success && res.data != null && res.data['readingProfiles'] != null) {
+        if (mounted) {
+          setState(() {
+            _readingProfiles = res.data['readingProfiles'] as Map<String, dynamic>?;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[ProfilePage] error fetching reading profiles: $e');
+    }
+  }
 
   String get _fullName {
     final user = AuthService.currentUser;
@@ -502,6 +526,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             const SizedBox(height: 28),
 
+                            // ── Phil-IRI Reading Profiles Section ───────────────────────
+                            _buildSectionHeader('Phil-IRI Reading Profiles', Ph.book_open),
+                            const SizedBox(height: 12),
+                            _buildPhilIriModalityProfilesCard(),
+                            const SizedBox(height: 28),
+
                             // ── Parent Access Section ──────────────────────────────────
                             _buildSectionHeader('Parent Access', Ph.keyhole),
                             const SizedBox(height: 12),
@@ -656,6 +686,278 @@ class _ProfilePageState extends State<ProfilePage> {
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: Colors.black,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Phil-IRI 3-Modality Profile Level Cards with Language Toggle ──
+  Widget _buildPhilIriModalityProfilesCard() {
+    final isFil = _selectedPhilIriLang == 'fil';
+
+    final oralLevel = isFil
+        ? (_readingProfiles?['filOralProfile']?.toString() ?? _readingProfiles?['oralProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engOralProfile']?.toString() ?? _readingProfiles?['oralProfile']?.toString() ?? 'Pending Evaluation');
+
+    final listeningLevel = isFil
+        ? (_readingProfiles?['filListeningProfile']?.toString() ?? _readingProfiles?['listeningProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engListeningProfile']?.toString() ?? _readingProfiles?['listeningProfile']?.toString() ?? 'Pending Evaluation');
+
+    final silentLevel = isFil
+        ? (_readingProfiles?['filSilentProfile']?.toString() ?? _readingProfiles?['silentProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engSilentProfile']?.toString() ?? _readingProfiles?['silentProfile']?.toString() ?? 'Pending Evaluation');
+
+    final oralAcc = isFil
+        ? (_readingProfiles?['filOralAccuracy'] ?? _readingProfiles?['oralAccuracy'])
+        : (_readingProfiles?['engOralAccuracy'] ?? _readingProfiles?['oralAccuracy']);
+
+    final oralComp = isFil
+        ? (_readingProfiles?['filOralComprehension'] ?? _readingProfiles?['oralComprehension'])
+        : (_readingProfiles?['engOralComprehension'] ?? _readingProfiles?['oralComprehension']);
+
+    final listComp = isFil
+        ? (_readingProfiles?['filListeningComprehension'] ?? _readingProfiles?['listeningComprehension'])
+        : (_readingProfiles?['engListeningComprehension'] ?? _readingProfiles?['listeningComprehension']);
+
+    final silentComp = isFil
+        ? (_readingProfiles?['filSilentComprehension'] ?? _readingProfiles?['silentComprehension'])
+        : (_readingProfiles?['engSilentComprehension'] ?? _readingProfiles?['silentComprehension']);
+
+    final silentWpm = isFil
+        ? (_readingProfiles?['filSilentWpm'] ?? _readingProfiles?['silentWpm'])
+        : (_readingProfiles?['engSilentWpm'] ?? _readingProfiles?['silentWpm']);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Language Toggle Switch (Simplified without flags) ──
+          Container(
+            height: 38,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      Feedback.forTap(context);
+                      setState(() => _selectedPhilIriLang = 'fil');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isFil ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: isFil
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Filipino',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: isFil ? FontWeight.w700 : FontWeight.w500,
+                          color: isFil ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      Feedback.forTap(context);
+                      setState(() => _selectedPhilIriLang = 'en');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: !isFil ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: !isFil
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'English',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: !isFil ? FontWeight.w700 : FontWeight.w500,
+                          color: !isFil ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          _buildModalityLevelRow(
+            title: 'Oral Reading',
+            subtitle: oralAcc != null && oralComp != null
+                ? 'Accuracy: $oralAcc%  •  Comprehension: $oralComp%'
+                : 'Word Reading & Comprehension',
+            level: oralLevel,
+            icon: PhIcons.userSoundBold,
+            iconBg: const Color(0xFFD0E1F9),
+            iconCol: const Color(0xFF1B64D8),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.0),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+          ),
+          _buildModalityLevelRow(
+            title: 'Listening Comprehension',
+            subtitle: listComp != null
+                ? 'Comprehension: $listComp%'
+                : 'Listening Comprehension Score',
+            level: listeningLevel,
+            icon: PhIcons.earBold,
+            iconBg: const Color(0xFFFEF3C7),
+            iconCol: const Color(0xFFD97706),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.0),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+          ),
+          _buildModalityLevelRow(
+            title: 'Silent Reading',
+            subtitle: silentComp != null
+                ? 'Comprehension: $silentComp%${silentWpm != null ? '  •  $silentWpm WPM' : ''}'
+                : 'Silent Comprehension & Speed',
+            level: silentLevel,
+            icon: PhIcons.bookOpenBold,
+            iconBg: const Color(0xFFD1FAE5),
+            iconCol: const Color(0xFF10B981),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModalityLevelRow({
+    required String title,
+    required String subtitle,
+    required String level,
+    required String icon,
+    required Color iconBg,
+    required Color iconCol,
+  }) {
+    Color badgeBg;
+    Color badgeBorder;
+    Color badgeTextCol;
+    String displayLevel;
+
+    final lvl = level.toLowerCase().trim();
+    if (lvl.contains('independ')) {
+      badgeBg = const Color(0xFFECFDF5);
+      badgeBorder = const Color(0xFFA7F3D0);
+      badgeTextCol = const Color(0xFF047857);
+      displayLevel = 'Independent';
+    } else if (lvl.contains('instruct')) {
+      badgeBg = const Color(0xFFFFFBEB);
+      badgeBorder = const Color(0xFFFDE68A);
+      badgeTextCol = const Color(0xFFB45309);
+      displayLevel = 'Instructional';
+    } else if (lvl.contains('frustrat')) {
+      badgeBg = const Color(0xFFFEF2F2);
+      badgeBorder = const Color(0xFFFECACA);
+      badgeTextCol = const Color(0xFFB91C1C);
+      displayLevel = 'Frustration';
+    } else {
+      badgeBg = const Color(0xFFF4F4F5);
+      badgeBorder = const Color(0xFFE4E4E7);
+      badgeTextCol = const Color(0xFF71717A);
+      displayLevel = 'Pending';
+    }
+
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: iconBg,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Iconify(
+            icon,
+            color: iconCol,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF71717A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: badgeBg,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: badgeBorder, width: 1),
+          ),
+          child: Text(
+            displayLevel,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: badgeTextCol,
+            ),
           ),
         ),
       ],

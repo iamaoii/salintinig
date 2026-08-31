@@ -25,7 +25,14 @@ const getUserNotifications = async (req, res) => {
       let sSection = null;
       try {
         const sQuery = await db.query(
-          `SELECT grade_level, section_name FROM students WHERE user_id = $1 LIMIT 1`,
+          `SELECT c.grade_level, c.section_name 
+           FROM students s
+           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+           JOIN classes c ON sgh.class_id = c.class_id
+           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+           WHERE s.user_id = $1 
+           ORDER BY sgh.created_at DESC 
+           LIMIT 1`,
           [userId]
         );
         if (sQuery.rows && sQuery.rows.length > 0) {

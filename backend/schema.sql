@@ -366,7 +366,7 @@ CREATE TABLE IF NOT EXISTS activity_answers (
 );
 
 -- -----------------------------------------------------------------------------
--- 8. BADGES, PRACTICE STORY ATTEMPTS & READING PROFILES
+-- 8. BADGES, PRACTICE STORY ATTEMPTS & NORMALIZED READING PROFILES
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS badges (
     badge_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -425,42 +425,75 @@ CREATE TABLE IF NOT EXISTS story_answers (
     answered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS reading_profiles (
+-- ── 8B. NORMALIZED STUDENT READING PROFILES (Single Source of Truth) ──
+CREATE TABLE IF NOT EXISTS student_reading_profiles (
     profile_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID UNIQUE REFERENCES students(student_id) ON DELETE CASCADE,
-    
-    -- Overall Composite Profile
-    current_profile_label VARCHAR(100), -- 'Independent', 'Instructional', 'Frustration'
-    
-    -- Oral Reading Summary
-    oral_accuracy_rate DECIMAL(5,2),
-    oral_comprehension_rate DECIMAL(5,2),
-    oral_speed_wpm INT,
-    oral_profile_label VARCHAR(50),
-    
-    -- Silent Reading Summary
-    silent_comprehension_rate DECIMAL(5,2),
-    silent_speed_wpm INT,
-    silent_profile_label VARCHAR(50),
-    
-    -- Listening Comprehension Summary
-    listening_comprehension_rate DECIMAL(5,2),
-    listening_profile_label VARCHAR(50),
-    
-    -- Language Breakdown Summary
-    filipino_profile_label VARCHAR(50),
-    english_profile_label VARCHAR(50),
-    
-    -- Compatibility & DepEd Diagnostic Levels
-    reading_speed_wpm INT,
+    student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    language VARCHAR(20) NOT NULL DEFAULT 'fil', -- 'fil' or 'en'
+    assessment_type VARCHAR(50) NOT NULL, -- 'oral', 'listening', or 'silent'
+    assessment_period VARCHAR(50) NOT NULL DEFAULT 'pre_test', -- 'pre_test' or 'post_test'
+    profile_level VARCHAR(50) NOT NULL, -- 'Independent', 'Instructional', 'Frustration'
+    accuracy_rate DECIMAL(5,2),
     comprehension_rate DECIMAL(5,2),
-    comprehension_level VARCHAR(50),
-    fluency_level VARCHAR(50),
-    pronunciation_level VARCHAR(50),
-    
-    generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    speed_wpm INT,
+    last_assessment_id UUID REFERENCES assessments(assessment_id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_student_lang_modality_period UNIQUE (student_id, language, assessment_type, assessment_period)
 );
+
+-- ── 8C. DYNAMIC COMPATIBILITY VIEW (Replaces legacy physical table) ──
+CREATE OR REPLACE VIEW reading_profiles AS
+SELECT 
+    s.student_id,
+    COALESCE(
+      (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id ORDER BY srp.updated_at DESC LIMIT 1),
+      'Pending Evaluation'
+    ) AS current_profile_label,
+
+    -- Overall Modality Profiles (Latest across languages)
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_profile_label,
+    (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_accuracy_rate,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_speed_wpm,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS listening_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS listening_comprehension_rate,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_speed_wpm,
+
+    -- Language Composite Profiles
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' ORDER BY srp.updated_at DESC LIMIT 1) AS filipino_profile_label,
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' ORDER BY srp.updated_at DESC LIMIT 1) AS english_profile_label,
+
+    -- Filipino 3-Modality Breakdown
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_profile_label,
+    (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_accuracy_rate,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_speed_wpm,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_listening_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_listening_comprehension_rate,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_speed_wpm,
+
+    -- English 3-Modality Breakdown
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_profile_label,
+    (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_accuracy_rate,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_speed_wpm,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_listening_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_listening_comprehension_rate,
+
+    (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_profile_label,
+    (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_comprehension_rate,
+    (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_speed_wpm
+FROM students s;
 
 -- -----------------------------------------------------------------------------
 -- 9. NOTIFICATIONS & ACCOUNT REQUESTS
@@ -510,7 +543,7 @@ CREATE INDEX IF NOT EXISTS idx_classes_advisor ON classes(advisor_teacher_id);
 CREATE INDEX IF NOT EXISTS idx_classes_grade_section ON classes(grade_level, section_name);
 CREATE INDEX IF NOT EXISTS idx_student_grade_history_class ON student_grade_history(class_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id);
-CREATE INDEX IF NOT EXISTS idx_reading_profiles_student ON reading_profiles(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_reading_profiles_student ON student_reading_profiles(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_student ON story_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(material_id);
 CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id);

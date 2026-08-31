@@ -1174,10 +1174,7 @@ async function verifyOralReadingResult(req, res) {
       // 5. Also update student's overall reading_profiles
       if (resolvedStudentId) {
         try {
-          const compVal = Number(comprehensionScore) || 0;
           const accVal = Number(verifiedAccuracyPct) || 0;
-          const compLevel = compVal >= 80 ? 'Independent' : (compVal >= 59 ? 'Instructional' : 'Frustration');
-          const fluencyLevel = accVal >= 97 ? 'Independent' : (accVal >= 90 ? 'Instructional' : 'Frustration');
 
           // Check passage language
           let isEng = false;
@@ -1194,38 +1191,33 @@ async function verifyOralReadingResult(req, res) {
             }
           }
 
-          const filProf = !isEng ? profileLabel : null;
-          const enProf = isEng ? profileLabel : null;
-
-          await db.query(
-            `INSERT INTO reading_profiles (
-               student_id, current_profile_label,
-               oral_accuracy_rate, oral_comprehension_rate, oral_speed_wpm, oral_profile_label,
-               filipino_profile_label, english_profile_label,
-               reading_speed_wpm, comprehension_rate, comprehension_level, fluency_level, updated_at
-             )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
-             ON CONFLICT (student_id)
-             DO UPDATE SET
-               current_profile_label = $2,
-               oral_accuracy_rate = $3,
-               oral_comprehension_rate = COALESCE($4, reading_profiles.oral_comprehension_rate),
-               oral_speed_wpm = COALESCE(NULLIF($5, 0), reading_profiles.oral_speed_wpm),
-               oral_profile_label = $6,
-               filipino_profile_label = COALESCE($7, reading_profiles.filipino_profile_label),
-               english_profile_label = COALESCE($8, reading_profiles.english_profile_label),
-               reading_speed_wpm = COALESCE(NULLIF($9, 0), reading_profiles.reading_speed_wpm),
-               comprehension_rate = COALESCE($10, reading_profiles.comprehension_rate),
-               comprehension_level = $11,
-               fluency_level = $12,
-               updated_at = CURRENT_TIMESTAMP`,
-            [
-              resolvedStudentId, profileLabel,
-              accVal, comprehensionScore ?? null, verifiedWpm || 0, profileLabel,
-              filProf, enProf,
-              verifiedWpm || 0, comprehensionScore ?? null, compLevel, fluencyLevel
-            ]
-          );
+          // 1. Normalized table upsert (student_reading_profiles — Single Source of Truth)
+          try {
+            await db.query(
+              `INSERT INTO student_reading_profiles (
+                 student_id, language, assessment_type, assessment_period,
+                 profile_level, accuracy_rate, comprehension_rate, speed_wpm, updated_at
+               )
+               VALUES ($1, $2, 'oral', 'pre_test', $3, $4, $5, $6, CURRENT_TIMESTAMP)
+               ON CONFLICT (student_id, language, assessment_type, assessment_period)
+               DO UPDATE SET
+                 profile_level = $3,
+                 accuracy_rate = $4,
+                 comprehension_rate = COALESCE($5, student_reading_profiles.comprehension_rate),
+                 speed_wpm = COALESCE(NULLIF($6, 0), student_reading_profiles.speed_wpm),
+                 updated_at = CURRENT_TIMESTAMP`,
+              [
+                resolvedStudentId,
+                isEng ? 'en' : 'fil',
+                profileLabel,
+                accVal,
+                comprehensionScore ?? null,
+                verifiedWpm || 0
+              ]
+            );
+          } catch (normErr) {
+            console.warn('[verifyOralReadingResult] student_reading_profiles upsert notice:', normErr.message);
+          }
         } catch (rpErr) {
           console.warn('[verifyOralReadingResult] Notice updating reading_profiles:', rpErr.message);
         }
@@ -1468,7 +1460,7 @@ async function getTeacherClassStudents(req, res) {
           COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
           COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
           COALESCE(
-            rp.reading_speed_wpm,
+            rp.oral_speed_wpm,
             CASE 
               WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 110
               WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 85
@@ -1476,19 +1468,25 @@ async function getTeacherClassStudents(req, res) {
               ELSE 0
             END
           ) AS "readingSpeed",
-          CASE 
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
-            ELSE 0
-          END AS accuracy,
-          CASE 
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
-            WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
-            ELSE 0
-          END AS comprehension,
-          COALESCE(rp.updated_at, rp.generated_at) AS "lastUpdated"
+          COALESCE(
+            rp.oral_accuracy_rate,
+            CASE 
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
+              ELSE 0
+            END
+          ) AS accuracy,
+          COALESCE(
+            rp.oral_comprehension_rate,
+            CASE 
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
+              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
+              ELSE 0
+            END
+          ) AS comprehension,
+          CURRENT_TIMESTAMP AS "lastUpdated"
         FROM students s
         JOIN student_grade_history sgh ON sgh.student_id = s.student_id
         JOIN classes c ON sgh.class_id = c.class_id
@@ -1527,7 +1525,7 @@ async function getTeacherClassStudents(req, res) {
             COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
             COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
             COALESCE(
-              rp.reading_speed_wpm,
+              rp.oral_speed_wpm,
               CASE 
                 WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 110
                 WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 85
@@ -1535,19 +1533,25 @@ async function getTeacherClassStudents(req, res) {
                 ELSE 0
               END
             ) AS "readingSpeed",
-            CASE 
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
-              ELSE 0
-            END AS accuracy,
-            CASE 
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
-              ELSE 0
-            END AS comprehension,
-            COALESCE(rp.updated_at, rp.generated_at) AS "lastUpdated"
+            COALESCE(
+              rp.oral_accuracy_rate,
+              CASE 
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
+                ELSE 0
+              END
+            ) AS accuracy,
+            COALESCE(
+              rp.oral_comprehension_rate,
+              CASE 
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
+                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
+                ELSE 0
+              END
+            ) AS comprehension,
+            CURRENT_TIMESTAMP AS "lastUpdated"
           FROM students s
           JOIN student_grade_history sgh ON sgh.student_id = s.student_id
           JOIN classes c ON sgh.class_id = c.class_id

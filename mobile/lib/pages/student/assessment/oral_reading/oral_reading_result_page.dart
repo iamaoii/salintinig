@@ -37,7 +37,7 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
   bool _isLoading = true;
   int _wpm = 0;
   int _accuracyPct = 0;
-  String _level = 'Instructional';
+  String _level = 'Pending Evaluation';
   String _dateStr = '';
   String _title = 'Oral Reading Assessment';
   int _score = 0;
@@ -49,7 +49,7 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
     super.initState();
     _wpm = widget.wpm ?? 0;
     _accuracyPct = widget.accuracyPct ?? 0;
-    _level = widget.level ?? 'Instructional';
+    _level = widget.level ?? 'Pending Evaluation';
     _dateStr = widget.completedAt ?? '';
     _score = widget.score;
     _totalQuestions = widget.totalQuestions;
@@ -440,26 +440,27 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: () {
-                                    final compPct = (_score / (_totalQuestions > 0 ? _totalQuestions : 1) * 100).round();
-                                    final accPct = _accuracyPct;
-                                    final isIndependent = accPct >= 97 && compPct >= 80;
-                                    final isFrustration = accPct <= 89 || compPct <= 59;
-                                    
-                                    final String levelName = _level.isNotEmpty
-                                        ? _level
-                                        : (isIndependent
-                                            ? 'Independent'
-                                            : (isFrustration ? 'Frustration' : 'Instructional'));
+                                    child: () {
+                                      final String levelName = _level.isNotEmpty && _level != 'Instructional'
+                                          ? _level
+                                          : (_totalQuestions > 0
+                                              ? () {
+                                                  final compPct = (_score / _totalQuestions * 100).round();
+                                                  final accPct = _accuracyPct;
+                                                  if (accPct >= 97 && compPct >= 80) return 'Independent';
+                                                  if (accPct <= 89 || compPct <= 58) return 'Frustration';
+                                                  return 'Instructional';
+                                                }()
+                                              : 'Pending Evaluation');
 
-                                    return _buildMetricCard(
-                                      valueNumber: levelName,
-                                      label: 'PHIL-IRI Level',
-                                      iconWidget: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF8B5CF6), size: 20),
-                                      iconBgColor: const Color(0xFFEDE9FE),
-                                    );
-                                  }(),
-                                ),
+                                      return _buildMetricCard(
+                                        valueNumber: levelName,
+                                        label: 'PHIL-IRI Level',
+                                        iconWidget: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF8B5CF6), size: 20),
+                                        iconBgColor: const Color(0xFFEDE9FE),
+                                      );
+                                    }(),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 20),
@@ -578,6 +579,7 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
     required Color iconBgColor,
   }) {
     return Container(
+      constraints: const BoxConstraints(minHeight: 104),
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -589,35 +591,42 @@ class _OralReadingResultPageState extends State<OralReadingResultPage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF1E293B),
-                ),
-                children: [
-                  TextSpan(
-                    text: valueNumber,
+          SizedBox(
+            height: 34,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: RichText(
+                  text: TextSpan(
                     style: GoogleFonts.inter(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1E293B),
                     ),
-                  ),
-                  if (valueUnit != null) ...[
-                    const TextSpan(text: ' '),
-                    TextSpan(
-                      text: valueUnit,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
+                    children: [
+                      TextSpan(
+                        text: valueNumber,
+                        style: GoogleFonts.inter(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      if (valueUnit != null) ...[
+                        const TextSpan(text: ' '),
+                        TextSpan(
+                          text: valueUnit,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

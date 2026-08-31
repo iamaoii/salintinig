@@ -42,6 +42,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   List<Map<String, dynamic>> _assignedList = [];
   Map<dynamic, bool> _activeDrafts = {};
+  Map<String, dynamic>? _readingProfiles;
 
   dynamic _realtimeSubscription;
 
@@ -77,9 +78,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       debugPrint('[OverviewPhilIRI] raw data=${res.data}');
       if (res.success && res.data != null) {
         final activitiesList = res.data['assignedActivities'];
+        final rpData = res.data['readingProfiles'];
         if (mounted) {
           setState(() {
             _isLoadingAssignments = false;
+            if (rpData is Map<String, dynamic>) {
+              _readingProfiles = rpData;
+            }
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
@@ -362,80 +367,87 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                     ),
                                     child: Stack(
                                       children: [
-                                        // Translucent watermark logo background
-                                        Positioned(
-                                          right: 0,
-                                          top: -12,
-                                          bottom: -12,
-                                          width: 200,
-                                          child: Image.asset(
-                                            'assets/student page/logo_bg.webp',
-                                            fit: BoxFit.contain,
-                                            alignment: Alignment.centerRight,
-                                          ),
-                                        ),
+                                         // Translucent watermark logo background
+                                         Positioned(
+                                           right: -6,
+                                           top: -16,
+                                           bottom: -16,
+                                           width: 270,
+                                           child: Image.asset(
+                                             'assets/student page/logo_bg2.webp',
+                                             fit: BoxFit.contain,
+                                             alignment: Alignment.centerRight,
+                                           ),
+                                         ),
                                         // Foreground content
                                         Padding(
                                           padding: const EdgeInsets.all(20.0),
-                                          child: Row(
+                                          child: Column(
                                             children: [
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 26,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: Colors.white,
-                                                        letterSpacing: -0.5,
-                                                      ),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 26,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            color: Colors.white,
+                                                            letterSpacing: -0.5,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        Text(
+                                                          AuthService
+                                                                          .currentUser
+                                                                          ?.sectionName !=
+                                                                      null &&
+                                                                  AuthService
+                                                                      .currentUser!
+                                                                      .sectionName
+                                                                      .isNotEmpty
+                                                              ? 'Grade ${AuthService.currentUser?.gradeLevel ?? ''} - ${AuthService.currentUser?.sectionName}'
+                                                              : (AuthService
+                                                                            .currentUser
+                                                                            ?.gradeLevel !=
+                                                                        null
+                                                                    ? 'Grade ${AuthService.currentUser?.gradeLevel}'
+                                                                    : ''),
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 15,
+                                                            color: Colors.white
+                                                                .withValues(
+                                                                  alpha: 0.8,
+                                                                ),
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      AuthService
-                                                                      .currentUser
-                                                                      ?.sectionName !=
-                                                                  null &&
-                                                              AuthService
-                                                                  .currentUser!
-                                                                  .sectionName
-                                                                  .isNotEmpty
-                                                          ? 'Grade ${AuthService.currentUser?.gradeLevel ?? ''} - ${AuthService.currentUser?.sectionName}'
-                                                          : (AuthService
-                                                                        .currentUser
-                                                                        ?.gradeLevel !=
-                                                                    null
-                                                                ? 'Grade ${AuthService.currentUser?.gradeLevel}'
-                                                                : ''),
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 15,
-                                                        color: Colors.white
-                                                            .withValues(
-                                                              alpha: 0.8,
-                                                            ),
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                  ),
+                                                  UserAvatar(
+                                                    size: 56,
+                                                    onTap: () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) =>
+                                                              const ProfilePage(),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
                                               ),
-                                              UserAvatar(
-                                                size: 56,
-                                                onTap: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          const ProfilePage(),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
+                                              const SizedBox(height: 16),
+                                              // ── Integrated Phil-IRI Levels Inside Header ──
+                                              _buildHeaderIntegratedProfileStrip(),
                                             ],
                                           ),
                                         ),
@@ -1642,6 +1654,126 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 fontSize: 13,
                 color: const Color(0xFF71717A),
                 fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ── Integrated Phil-IRI Reading Profile Strip inside Header ──
+  Widget _buildHeaderIntegratedProfileStrip() {
+    final oralLevel = _readingProfiles?['oralProfile']?.toString() ?? 'Pending';
+    final listeningLevel = _readingProfiles?['listeningProfile']?.toString() ?? 'Pending';
+    final silentLevel = _readingProfiles?['silentProfile']?.toString() ?? 'Pending';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildHeaderModalityItem('Oral', oralLevel, PhIcons.userSoundBold),
+          ),
+          Container(
+            height: 24,
+            width: 1,
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
+          Expanded(
+            child: _buildHeaderModalityItem('Listening', listeningLevel, PhIcons.earBold),
+          ),
+          Container(
+            height: 24,
+            width: 1,
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
+          Expanded(
+            child: _buildHeaderModalityItem('Silent', silentLevel, PhIcons.bookOpenBold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderModalityItem(String type, String level, String iconSvg) {
+    Color dotColor;
+    Color levelTextColor;
+    String displayLevel;
+
+    final lvl = level.toLowerCase().trim();
+    if (lvl.contains('independ')) {
+      dotColor = const Color(0xFF34D399); // Emerald 400
+      levelTextColor = const Color(0xFFA7F3D0); // Emerald 200
+      displayLevel = 'Independent';
+    } else if (lvl.contains('instruct')) {
+      dotColor = const Color(0xFFFBBF24); // Amber 400
+      levelTextColor = const Color(0xFFFDE68A); // Amber 200
+      displayLevel = 'Instructional';
+    } else if (lvl.contains('frustrat')) {
+      dotColor = const Color(0xFFF87171); // Red 400
+      levelTextColor = const Color(0xFFFECACA); // Red 200
+      displayLevel = 'Frustration';
+    } else {
+      dotColor = Colors.white.withValues(alpha: 0.5);
+      levelTextColor = Colors.white.withValues(alpha: 0.85);
+      displayLevel = 'Pending';
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Iconify(
+              iconSvg,
+              size: 12,
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              type,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 5.5,
+              height: 5.5,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                displayLevel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: levelTextColor,
+                ),
               ),
             ),
           ],
