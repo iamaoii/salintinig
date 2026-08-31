@@ -4,6 +4,7 @@ import 'package:salintinig/pages/student/assessment/listening/listening_assessme
 import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class ListeningAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
@@ -12,6 +13,7 @@ class ListeningAssessmentQuizPage extends StatefulWidget {
   final String? assessmentLanguage;
   final int? currentQuestionIndex;
   final List<int?>? initialSelectedAnswers;
+  final int? readingTimeSeconds;
 
   const ListeningAssessmentQuizPage({
     super.key,
@@ -21,6 +23,7 @@ class ListeningAssessmentQuizPage extends StatefulWidget {
     this.assessmentLanguage,
     this.currentQuestionIndex,
     this.initialSelectedAnswers,
+    this.readingTimeSeconds,
   });
 
   @override
@@ -135,12 +138,12 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
     if (_currentQuestionIndex > _maxQuestionIndex) {
       _maxQuestionIndex = _currentQuestionIndex;
     }
-    debugPrint('[ListeningQuiz] _saveCurrentProgress passageId=${widget.passageId} qIndex=$_currentQuestionIndex answers=$_selectedAnswers');
+    debugPrint('[ListeningQuiz] _saveCurrentProgress passageId=${widget.passageId} qIndex=$_currentQuestionIndex answers=$_selectedAnswers readingTime=${widget.readingTimeSeconds}');
     await QuizProgressService.saveQuizDraft(
       widget.passageId,
       assessmentType: 'listening',
       recordedAudioPath: null,
-      readingTimeSeconds: 0,
+      readingTimeSeconds: widget.readingTimeSeconds ?? 0,
       storyTitle: widget.storyTitle,
       assessmentLanguage: _isEnglish ? 'en' : 'fil',
       dynamicQuestions: widget.dynamicQuestions,
@@ -164,18 +167,9 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
   void _goNext() {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      // Show warning if nothing selected
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -203,17 +197,9 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
   void _finishAssessment() async {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -263,6 +249,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
         'lrn': lrn,
         'passageId': widget.passageId,
         'assessmentType': 'listening',
+        'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
         'score': correctCount,
         'maxScore': _questions.length,
         'answers': answersPayload,
@@ -329,7 +316,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                   widget.passageId,
                   assessmentType: 'listening',
                   recordedAudioPath: null,
-                  readingTimeSeconds: 0,
+                  readingTimeSeconds: widget.readingTimeSeconds ?? 0,
                   storyTitle: widget.storyTitle,
                   assessmentLanguage: _isEnglish ? 'en' : 'fil',
                   dynamicQuestions: widget.dynamicQuestions,

@@ -878,6 +878,18 @@ class _ListeningAssessmentReaderPageState
 
   void _finishReading() async {
     _audioPlayer?.stop();
+
+    // Determine accurate audio duration in seconds
+    int accurateDuration = _totalAudioDuration.inSeconds;
+    if (accurateDuration <= 0) {
+      accurateDuration = _listeningSeconds;
+    }
+    if (accurateDuration <= 0) {
+      // Fallback estimate based on word count (~130 words/min) if player duration wasn't captured
+      final words = _fullStoryText.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      accurateDuration = words > 0 ? ((words / 130) * 60).round().clamp(10, 600) : 60;
+    }
+
     final existingDraft = await QuizProgressService.getQuizDraft(
       _passageId,
       'listening',
@@ -887,7 +899,7 @@ class _ListeningAssessmentReaderPageState
         _passageId,
         assessmentType: 'listening',
         recordedAudioPath: null,
-        readingTimeSeconds: _listeningSeconds,
+        readingTimeSeconds: accurateDuration,
         storyTitle: _storyTitle,
         assessmentLanguage: _assessmentLanguage,
         dynamicQuestions: _dynamicQuestions,
@@ -915,6 +927,8 @@ class _ListeningAssessmentReaderPageState
       }
     }
 
+    final finalAudioDuration = (existingDraft?['readingTimeSeconds'] as int?) ?? accurateDuration;
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -924,6 +938,7 @@ class _ListeningAssessmentReaderPageState
           storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
           passageId: _passageId,
           assessmentLanguage: _assessmentLanguage,
+          readingTimeSeconds: finalAudioDuration,
           currentQuestionIndex:
               (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
           initialSelectedAnswers: initialAnswersList,

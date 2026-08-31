@@ -43,6 +43,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isLoading = true;
 
+  // Selected Tab Filter: 'all', 'oral', 'listening', 'silent'
+  String _selectedTab = 'all';
+
   List<Map<String, dynamic>> _assignedList = [];
   Map<dynamic, bool> _activeDrafts = {};
   dynamic _realtimeSubscription;
@@ -109,19 +112,6 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     super.dispose();
   }
 
-  int _getTypePriority(String type) {
-    switch (type.toLowerCase()) {
-      case 'oral':
-        return 1;
-      case 'listening':
-        return 2;
-      case 'silent':
-        return 3;
-      default:
-        return 4;
-    }
-  }
-
   Future<void> _checkLocalDrafts() async {
     final drafts = await QuizProgressService.checkActiveDrafts(_assignedList);
     if (mounted) {
@@ -150,17 +140,22 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
-                final typeA = (a['assessmentType'] ?? 'oral')
-                    .toString()
-                    .toLowerCase();
-                final typeB = (b['assessmentType'] ?? 'oral')
-                    .toString()
-                    .toLowerCase();
-                final priorityA = _getTypePriority(typeA);
-                final priorityB = _getTypePriority(typeB);
-                if (priorityA != priorityB) {
-                  return priorityA.compareTo(priorityB);
+                // Sort by most recent assignment/creation date first (Newest first)
+                final dateA = DateTime.tryParse(
+                      (a['assignedAt'] ?? a['created_at'] ?? a['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateB = DateTime.tryParse(
+                      (b['assignedAt'] ?? b['created_at'] ?? b['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateCompare = dateB.compareTo(dateA); // Descending (most recent first)
+                if (dateCompare != 0) {
+                  return dateCompare;
                 }
+
                 final titleA = (a['title'] ?? '').toString();
                 final titleB = (b['title'] ?? '').toString();
                 return titleA.compareTo(titleB);
@@ -183,10 +178,335 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     }
   }
 
+  void _handleAssessmentClick(Map<String, dynamic> item) {
+    final type = QuizProgressService.normalizeType(
+      item['assessmentType'] ?? item['type'],
+    );
+    final isDone = item['isCompleted'] == true ||
+        (item['status'] != null &&
+            item['status'].toString().toLowerCase() == 'completed');
+    final passageId = QuizProgressService.extractPassageId(item);
+    final hasDraft = _activeDrafts['${type}_$passageId'] == true;
+    final isClosed = !isDone &&
+        !hasDraft &&
+        (item['status'] ?? 'open').toString().toLowerCase() == 'closed';
+    final statusStr = (item['status'] ?? '').toString().toLowerCase();
+    final isPendingReview = type == 'oral' &&
+        (statusStr == 'pending_review' || statusStr == 'submitted');
+
+    if (isClosed) return;
+
+    if (type == 'listening') {
+      if (isDone || isPendingReview) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'AssessmentOverview'),
+            builder: (context) => ListeningResultPage(
+              passageId: passageId,
+              language: item['rawLanguage'] ?? item['language'],
+            ),
+          ),
+        ).then((_) {
+          if (mounted) {
+            _checkLocalDrafts();
+            _fetchTeacherAssignment();
+          }
+        });
+      } else {
+        QuizProgressService.getQuizDraft(passageId, 'listening').then((draft) {
+          if (!mounted) return;
+          if (draft != null) {
+            List<int?>? initialAnswersList;
+            if (draft['selectedAnswers'] != null) {
+              if (draft['selectedAnswers'] is List) {
+                initialAnswersList = (draft['selectedAnswers'] as List)
+                    .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                    .toList();
+              } else if (draft['selectedAnswers'] is Map) {
+                final map = draft['selectedAnswers'] as Map;
+                initialAnswersList = [];
+                for (var entry in map.entries) {
+                  final idx = int.tryParse(entry.key.toString());
+                  final val = entry.value != null
+                      ? int.tryParse(entry.value.toString())
+                      : null;
+                  if (idx != null) {
+                    while (initialAnswersList.length <= idx) {
+                      initialAnswersList.add(null);
+                    }
+                    initialAnswersList[idx] = val;
+                  }
+                }
+              }
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => ListeningAssessmentQuizPage(
+                  dynamicQuestions: draft['dynamicQuestions'] as List?,
+                  storyTitle: draft['storyTitle'] as String?,
+                  passageId: passageId,
+                  assessmentLanguage: draft['assessmentLanguage'] as String? ??
+                      item['language'] as String? ??
+                      item['rawLanguage'] as String?,
+                  readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 0,
+                  currentQuestionIndex:
+                      (draft['currentQuestionIndex'] as int?) ?? 0,
+                  initialSelectedAnswers: initialAnswersList,
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => ListeningAssessmentInstructionsPage(
+                  item: item,
+                  customInstructions: item['instructions'],
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          }
+        });
+      }
+    } else if (type == 'silent') {
+      if (isDone || isPendingReview) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'AssessmentOverview'),
+            builder: (context) => SilentReadingResultPage(
+              passageId: passageId,
+              language: item['rawLanguage'] ?? item['language'],
+            ),
+          ),
+        ).then((_) {
+          if (mounted) {
+            _checkLocalDrafts();
+            _fetchTeacherAssignment();
+          }
+        });
+      } else {
+        QuizProgressService.getQuizDraft(passageId, 'silent').then((draft) {
+          if (!mounted) return;
+          if (draft != null) {
+            List<int?>? initialAnswersList;
+            if (draft['selectedAnswers'] != null) {
+              if (draft['selectedAnswers'] is List) {
+                initialAnswersList = (draft['selectedAnswers'] as List)
+                    .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                    .toList();
+              } else if (draft['selectedAnswers'] is Map) {
+                final map = draft['selectedAnswers'] as Map;
+                initialAnswersList = [];
+                for (var entry in map.entries) {
+                  final idx = int.tryParse(entry.key.toString());
+                  final val = entry.value != null
+                      ? int.tryParse(entry.value.toString())
+                      : null;
+                  if (idx != null) {
+                    while (initialAnswersList.length <= idx) {
+                      initialAnswersList.add(null);
+                    }
+                    initialAnswersList[idx] = val;
+                  }
+                }
+              }
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => SilentReadingAssessmentQuizPage(
+                  dynamicQuestions: draft['dynamicQuestions'] as List?,
+                  storyTitle: draft['storyTitle'] as String?,
+                  passageId: passageId,
+                  currentQuestionIndex:
+                      (draft['currentQuestionIndex'] as int?) ?? 0,
+                  initialSelectedAnswers: initialAnswersList,
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => SilentReadingAssessmentInstructionsPage(
+                  item: item,
+                  customInstructions: item['instructions'],
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          }
+        });
+      }
+    } else {
+      // Oral Reading
+      if (isPendingReview) {
+        AppToast.warning(
+          context,
+          'Your recording is currently being reviewed by your teacher.',
+        );
+        return;
+      }
+      if (isDone) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'AssessmentOverview'),
+            builder: (context) => OralReadingResultPage(
+              passageId: passageId,
+              language: item['rawLanguage'] ?? item['language'],
+            ),
+          ),
+        ).then((_) {
+          if (mounted) {
+            _checkLocalDrafts();
+            _fetchTeacherAssignment();
+          }
+        });
+      } else {
+        QuizProgressService.getQuizDraft(passageId, 'oral').then((draft) {
+          if (!mounted) return;
+          if (draft != null) {
+            List<int?>? initialAnswersList;
+            if (draft['selectedAnswers'] != null) {
+              if (draft['selectedAnswers'] is List) {
+                initialAnswersList = (draft['selectedAnswers'] as List)
+                    .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                    .toList();
+              } else if (draft['selectedAnswers'] is Map) {
+                final map = draft['selectedAnswers'] as Map;
+                initialAnswersList = [];
+                for (var entry in map.entries) {
+                  final idx = int.tryParse(entry.key.toString());
+                  final val = entry.value != null
+                      ? int.tryParse(entry.value.toString())
+                      : null;
+                  if (idx != null) {
+                    while (initialAnswersList.length <= idx) {
+                      initialAnswersList.add(null);
+                    }
+                    initialAnswersList[idx] = val;
+                  }
+                }
+              }
+            }
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => OralReadingAssessmentQuizPage(
+                  dynamicQuestions: draft['dynamicQuestions'] as List?,
+                  recordedAudioPath: draft['recordedAudioPath'] as String?,
+                  readingTimeSeconds:
+                      (draft['readingTimeSeconds'] as int?) ?? 60,
+                  storyTitle: draft['storyTitle'] as String?,
+                  assessmentLanguage: draft['assessmentLanguage'] as String?,
+                  passageId: passageId,
+                  currentQuestionIndex:
+                      (draft['currentQuestionIndex'] as int?) ?? 0,
+                  initialSelectedAnswers: initialAnswersList,
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'AssessmentOverview'),
+                builder: (context) => OralReadingAssessmentInstructionsPage(
+                  item: item,
+                  customInstructions: item['instructions'],
+                ),
+              ),
+            ).then((_) {
+              if (mounted) {
+                _checkLocalDrafts();
+                _fetchTeacherAssignment();
+              }
+            });
+          }
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
+
+    final oralItems = _assignedList
+        .where(
+          (it) =>
+              QuizProgressService.normalizeType(
+                it['assessmentType'] ?? it['type'],
+              ) ==
+              'oral',
+        )
+        .toList();
+
+    final listeningItems = _assignedList
+        .where(
+          (it) =>
+              QuizProgressService.normalizeType(
+                it['assessmentType'] ?? it['type'],
+              ) ==
+              'listening',
+        )
+        .toList();
+
+    final silentItems = _assignedList
+        .where(
+          (it) =>
+              QuizProgressService.normalizeType(
+                it['assessmentType'] ?? it['type'],
+              ) ==
+              'silent',
+        )
+        .toList();
+
+    List<Map<String, dynamic>> displayedList;
+    if (_selectedTab == 'oral') {
+      displayedList = oralItems;
+    } else if (_selectedTab == 'listening') {
+      displayedList = listeningItems;
+    } else if (_selectedTab == 'silent') {
+      displayedList = silentItems;
+    } else {
+      displayedList = _assignedList;
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -283,7 +603,60 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                         ),
                       ),
 
-                      // 2. Scrollable Body
+                      // 2. Clickable Category Filter Buttons Row (Fixed single line, non-scrolling)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 6.0,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildTabPill(
+                                keyId: 'all',
+                                label: 'All',
+                                iconSvg: PhIcons.examBold,
+                                count: _assignedList.length,
+                                activeColor: primaryBlue,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildTabPill(
+                                keyId: 'oral',
+                                label: 'Oral',
+                                iconSvg: PhIcons.userSoundBold,
+                                count: oralItems.length,
+                                activeColor: const Color(0xFF1B64D8),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildTabPill(
+                                keyId: 'listening',
+                                label: 'Listening',
+                                iconSvg: PhIcons.earBold,
+                                count: listeningItems.length,
+                                activeColor: const Color(0xFFD97706),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildTabPill(
+                                keyId: 'silent',
+                                label: 'Silent',
+                                iconSvg: PhIcons.bookOpenBold,
+                                count: silentItems.length,
+                                activeColor: const Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      // 3. Scrollable Body
                       Expanded(
                         child: RefreshIndicator(
                           color: primaryBlue,
@@ -303,13 +676,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const SizedBox(height: 20),
-                                // Section Header
-                                _buildSectionHeader(
-                                  'Phil - IRI Assessments',
-                                  PhIcons.examRegular,
-                                ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
 
                                 if (_isLoading)
                                   Container(
@@ -322,16 +689,21 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       color: primaryBlue,
                                     ),
                                   )
-                                else if (_assignedList.isNotEmpty)
-                                  ..._assignedList.map((item) {
+                                else if (displayedList.isNotEmpty)
+                                  ...displayedList.map((item) {
                                     final title =
                                         item['title'] ?? 'Phil-IRI Assessment';
-                                    final type = QuizProgressService.normalizeType(item['assessmentType'] ?? item['type']);
-                                    final isDone = item['isCompleted'] == true ||
+                                    final type =
+                                        QuizProgressService.normalizeType(
+                                          item['assessmentType'] ??
+                                              item['type'],
+                                        );
+                                    final isDone = item['isCompleted'] ==
+                                            true ||
                                         (item['status'] != null &&
                                             item['status']
-                                                .toString()
-                                                .toLowerCase() ==
+                                                    .toString()
+                                                    .toLowerCase() ==
                                                 'completed');
 
                                     final rawLang =
@@ -344,8 +716,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                     final rawSet =
                                         (item['passageSet'] ?? 'Set A')
                                             .toString();
-                                    final setBadge =
-                                        rawSet.toLowerCase().startsWith('set')
+                                    final setBadge = rawSet
+                                            .toLowerCase()
+                                            .startsWith('set')
                                         ? rawSet
                                         : 'Set $rawSet';
 
@@ -363,60 +736,71 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                       iconBg = const Color(0xFFD1FAE5);
                                     }
 
-                                    final passageId = QuizProgressService.extractPassageId(item);
-                                    final hasDraft = _activeDrafts['${type}_$passageId'] == true;
+                                    final passageId =
+                                        QuizProgressService.extractPassageId(
+                                          item,
+                                        );
+                                    final hasDraft =
+                                        _activeDrafts['${type}_$passageId'] ==
+                                        true;
 
-                                    final isClosed =
-                                        !isDone &&
+                                    final isClosed = !isDone &&
                                         !hasDraft &&
                                         (item['status'] ?? 'open')
                                                 .toString()
                                                 .toLowerCase() ==
                                             'closed';
 
-                                     final statusStr = (item['status'] ?? '').toString().toLowerCase();
-                                     final isPendingReview = type == 'oral' &&
-                                         (statusStr == 'pending_review' || statusStr == 'submitted');
+                                    final statusStr = (item['status'] ?? '')
+                                        .toString()
+                                        .toLowerCase();
+                                    final isPendingReview = type == 'oral' &&
+                                        (statusStr == 'pending_review' ||
+                                            statusStr == 'submitted');
 
-                                     final tagText = isPendingReview
-                                         ? 'In Review'
-                                         : (isDone
-                                             ? 'Done'
-                                             : (hasDraft ? 'In Progress' : 'Required'));
-                                     final tagBg = isPendingReview
-                                         ? const Color(0xFFFEF3C7)
-                                         : (isDone
-                                             ? const Color(0xFFD1FAE5)
-                                             : (hasDraft
-                                                 ? const Color(0xFFFEF3C7)
-                                                 : const Color(0xFFFEE2E2)));
-                                     final tagTextCol = isPendingReview
-                                         ? const Color(0xFFD97706)
-                                         : (isDone
-                                             ? const Color(0xFF059669)
-                                             : (hasDraft
-                                                 ? const Color(0xFFD97706)
-                                                 : const Color(0xFFEF4444)));
+                                    final tagText = isPendingReview
+                                        ? 'In Review'
+                                        : (isDone
+                                            ? 'Done'
+                                            : (hasDraft
+                                                ? 'In Progress'
+                                                : 'Required'));
+                                    final tagBg = isPendingReview
+                                        ? const Color(0xFFFEF3C7)
+                                        : (isDone
+                                            ? const Color(0xFFD1FAE5)
+                                            : (hasDraft
+                                                ? const Color(0xFFFEF3C7)
+                                                : const Color(0xFFFEE2E2)));
+                                    final tagTextCol = isPendingReview
+                                        ? const Color(0xFFD97706)
+                                        : (isDone
+                                            ? const Color(0xFF059669)
+                                            : (hasDraft
+                                                ? const Color(0xFFD97706)
+                                                : const Color(0xFFEF4444)));
 
-                                     final buttonLabel = isPendingReview
-                                         ? 'In Review'
-                                         : (isDone
-                                             ? 'View Result'
-                                             : (hasDraft
-                                                 ? 'Continue'
-                                                 : (isClosed ? 'Closed' : 'Start')));
-                                     final buttonBgColor = isPendingReview
-                                         ? const Color(0xFFFFC000)
-                                         : (isDone
-                                             ? const Color(0xFF00A859)
-                                             : (isClosed
-                                                 ? const Color(0xFFE4E4E7)
-                                                 : primaryBlue));
-                                     final buttonTxtColor = isPendingReview
-                                         ? const Color(0xFF451A03)
-                                         : (isDone || !isClosed
-                                             ? Colors.white
-                                             : const Color(0xFF9CA3AF));
+                                    final buttonLabel = isPendingReview
+                                        ? 'In Review'
+                                        : (isDone
+                                            ? 'View Result'
+                                            : (hasDraft
+                                                ? 'Continue'
+                                                : (isClosed
+                                                    ? 'Closed'
+                                                    : 'Start')));
+                                    final buttonBgColor = isPendingReview
+                                        ? const Color(0xFFFFC000)
+                                        : (isDone
+                                            ? const Color(0xFF00A859)
+                                            : (isClosed
+                                                ? const Color(0xFFE4E4E7)
+                                                : primaryBlue));
+                                    final buttonTxtColor = isPendingReview
+                                        ? const Color(0xFF451A03)
+                                        : (isDone || !isClosed
+                                            ? Colors.white
+                                            : const Color(0xFF9CA3AF));
 
                                     return _buildAssessmentCard(
                                       title: title,
@@ -436,262 +820,8 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               : Colors.white),
                                       languageBadge: langBadge,
                                       passageSetBadge: setBadge,
-                                      onPressed: () {
-                                        if (isClosed) return;
-                                        if (type == 'listening') {
-                                          if (isDone || isPendingReview) {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => ListeningResultPage(
-                                                  passageId: passageId,
-                                                  language: item['rawLanguage'] ?? item['language'],
-                                                ),
-                                              ),
-                                            ).then((_) {
-                                              if (mounted) {
-                                                _checkLocalDrafts();
-                                                _fetchTeacherAssignment();
-                                              }
-                                            });
-                                          } else {
-                                            QuizProgressService.getQuizDraft(passageId, 'listening').then((draft) {
-                                              if (draft != null && context.mounted) {
-                                                List<int?>? initialAnswersList;
-                                                if (draft['selectedAnswers'] != null) {
-                                                  if (draft['selectedAnswers'] is List) {
-                                                    initialAnswersList = (draft['selectedAnswers'] as List)
-                                                        .map((e) => e != null ? int.tryParse(e.toString()) : null)
-                                                        .toList();
-                                                  } else if (draft['selectedAnswers'] is Map) {
-                                                    final map = draft['selectedAnswers'] as Map;
-                                                    initialAnswersList = [];
-                                                    for (var entry in map.entries) {
-                                                      final idx = int.tryParse(entry.key.toString());
-                                                      final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
-                                                      if (idx != null) {
-                                                        while (initialAnswersList.length <= idx) {
-                                                          initialAnswersList.add(null);
-                                                        }
-                                                        initialAnswersList[idx] = val;
-                                                      }
-                                                    }
-                                                  }
-                                                }
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) => ListeningAssessmentQuizPage(
-                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
-                                                      storyTitle: draft['storyTitle'] as String?,
-                                                      passageId: passageId,
-                                                      assessmentLanguage: draft['assessmentLanguage'] as String? ??
-                                                          item['language'] as String? ??
-                                                          item['rawLanguage'] as String?,
-                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
-                                                      initialSelectedAnswers: initialAnswersList,
-                                                    ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              } else if (context.mounted) {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) =>
-                                                        ListeningAssessmentInstructionsPage(
-                                                          item: item,
-                                                          customInstructions:
-                                                              item['instructions'],
-                                                        ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              }
-                                            });
-                                          }
-                                        } else if (type == 'silent') {
-                                          if (isDone || isPendingReview) {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => SilentReadingResultPage(
-                                                  passageId: passageId,
-                                                  language: item['rawLanguage'] ?? item['language'],
-                                                ),
-                                              ),
-                                            ).then((_) {
-                                              if (mounted) {
-                                                _checkLocalDrafts();
-                                                _fetchTeacherAssignment();
-                                              }
-                                            });
-                                          } else {
-                                            QuizProgressService.getQuizDraft(passageId, 'silent').then((draft) {
-                                              if (draft != null && context.mounted) {
-                                                List<int?>? initialAnswersList;
-                                                if (draft['selectedAnswers'] != null) {
-                                                  if (draft['selectedAnswers'] is List) {
-                                                    initialAnswersList = (draft['selectedAnswers'] as List)
-                                                        .map((e) => e != null ? int.tryParse(e.toString()) : null)
-                                                        .toList();
-                                                  } else if (draft['selectedAnswers'] is Map) {
-                                                    final map = draft['selectedAnswers'] as Map;
-                                                    initialAnswersList = [];
-                                                    for (var entry in map.entries) {
-                                                      final idx = int.tryParse(entry.key.toString());
-                                                      final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
-                                                      if (idx != null) {
-                                                        while (initialAnswersList.length <= idx) {
-                                                          initialAnswersList.add(null);
-                                                        }
-                                                        initialAnswersList[idx] = val;
-                                                      }
-                                                    }
-                                                  }
-                                                }
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) => SilentReadingAssessmentQuizPage(
-                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
-                                                      storyTitle: draft['storyTitle'] as String?,
-                                                      passageId: passageId,
-                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
-                                                      initialSelectedAnswers: initialAnswersList,
-                                                    ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              } else if (context.mounted) {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) =>
-                                                        SilentReadingAssessmentInstructionsPage(
-                                                          item: item,
-                                                          customInstructions:
-                                                              item['instructions'],
-                                                        ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              }
-                                            });
-                                          }
-                                        } else if (type == 'oral') {
-                                          if (isPendingReview) {
-                                            AppToast.warning(
-                                              context,
-                                              'Your recording is currently being reviewed by your teacher.',
-                                            );
-                                            return;
-                                          }
-                                          if (isDone) {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                builder: (context) => OralReadingResultPage(
-                                                  passageId: passageId,
-                                                  language: item['rawLanguage'] ?? item['language'],
-                                                ),
-                                              ),
-                                            ).then((_) {
-                                              if (mounted) {
-                                                _checkLocalDrafts();
-                                                _fetchTeacherAssignment();
-                                              }
-                                            });
-                                          } else {
-                                            QuizProgressService.getQuizDraft(passageId, type).then((draft) {
-                                              if (draft != null && context.mounted) {
-                                                List<int?>? initialAnswersList;
-                                                if (draft['selectedAnswers'] != null) {
-                                                  if (draft['selectedAnswers'] is List) {
-                                                    initialAnswersList = (draft['selectedAnswers'] as List)
-                                                        .map((e) => e != null ? int.tryParse(e.toString()) : null)
-                                                        .toList();
-                                                  } else if (draft['selectedAnswers'] is Map) {
-                                                    final map = draft['selectedAnswers'] as Map;
-                                                    initialAnswersList = [];
-                                                    for (var entry in map.entries) {
-                                                      final idx = int.tryParse(entry.key.toString());
-                                                      final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
-                                                      if (idx != null) {
-                                                        while (initialAnswersList.length <= idx) {
-                                                          initialAnswersList.add(null);
-                                                        }
-                                                        initialAnswersList[idx] = val;
-                                                      }
-                                                    }
-                                                  }
-                                                }
-
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) => OralReadingAssessmentQuizPage(
-                                                      dynamicQuestions: draft['dynamicQuestions'] as List?,
-                                                      recordedAudioPath: draft['recordedAudioPath'] as String?,
-                                                      readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 60,
-                                                      storyTitle: draft['storyTitle'] as String?,
-                                                      assessmentLanguage: draft['assessmentLanguage'] as String?,
-                                                      passageId: passageId,
-                                                      currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
-                                                      initialSelectedAnswers: initialAnswersList,
-                                                    ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              } else if (context.mounted) {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    settings: const RouteSettings(name: 'AssessmentOverview'),
-                                                    builder: (context) => OralReadingAssessmentInstructionsPage(
-                                                      item: item,
-                                                      customInstructions: item['instructions'],
-                                                    ),
-                                                  ),
-                                                ).then((_) {
-                                                  if (mounted) {
-                                                    _checkLocalDrafts();
-                                                    _fetchTeacherAssignment();
-                                                  }
-                                                });
-                                              }
-                                            });
-                                          }
-                                        }
-                                      },
+                                      onPressed: () =>
+                                          _handleAssessmentClick(item),
                                     );
                                   })
                                 else
@@ -722,7 +852,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                         ),
                                         const SizedBox(height: 12),
                                         Text(
-                                          'No Active Assessments',
+                                          _selectedTab == 'all'
+                                              ? 'No Active Assessments'
+                                              : 'No ${_getTabTitle(_selectedTab)}',
                                           style: GoogleFonts.inter(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w700,
@@ -731,7 +863,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'Your teacher has not assigned any Phil-IRI assessment yet. Pull down to refresh.',
+                                          'There are no assessments in this category yet. Pull down to refresh.',
                                           textAlign: TextAlign.center,
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
@@ -758,21 +890,111 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String iconSvg) {
-    return Row(
-      children: [
-        Iconify(iconSvg, color: const Color(0xFF1B64D8), size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Colors.black,
-            letterSpacing: -0.5,
+  String _getTabTitle(String tabKey) {
+    switch (tabKey) {
+      case 'oral':
+        return 'Oral Reading Assessments';
+      case 'listening':
+        return 'Listening Assessments';
+      case 'silent':
+        return 'Silent Reading Assessments';
+      default:
+        return 'Active Assessments';
+    }
+  }
+
+  Widget _buildTabPill({
+    required String keyId,
+    required String label,
+    required String iconSvg,
+    required int count,
+    required Color activeColor,
+  }) {
+    final isSelected = _selectedTab == keyId;
+
+    return InkWell(
+      onTap: () {
+        Feedback.forTap(context);
+        setState(() {
+          _selectedTab = keyId;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? activeColor : const Color(0xFFE5E7EB),
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Iconify(
+                  iconSvg,
+                  color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF374151),
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? Colors.white : const Color(0xFF4B5563),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -941,7 +1163,10 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                   foregroundColor: buttonTextColor,
                   disabledBackgroundColor: buttonColor,
                   disabledForegroundColor: buttonTextColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   shape: RoundedRectangleBorder(
@@ -964,4 +1189,3 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     );
   }
 }
-

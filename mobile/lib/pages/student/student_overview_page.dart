@@ -56,19 +56,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     _setupRealtimeSubscription();
   }
 
-  int _getTypePriority(String type) {
-    switch (type.toLowerCase()) {
-      case 'oral':
-        return 1;
-      case 'listening':
-        return 2;
-      case 'silent':
-        return 3;
-      default:
-        return 4;
-    }
-  }
-
   Future<void> _checkLocalDrafts() async {
     final drafts = await QuizProgressService.checkActiveDrafts(_assignedList);
     if (mounted) {
@@ -96,17 +83,35 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
-                final typeA = (a['assessmentType'] ?? 'oral')
-                    .toString()
-                    .toLowerCase();
-                final typeB = (b['assessmentType'] ?? 'oral')
-                    .toString()
-                    .toLowerCase();
-                final priorityA = _getTypePriority(typeA);
-                final priorityB = _getTypePriority(typeB);
-                if (priorityA != priorityB) {
-                  return priorityA.compareTo(priorityB);
+                final isDoneA = a['isCompleted'] == true ||
+                    (a['status'] != null &&
+                        a['status'].toString().toLowerCase() == 'completed');
+                final isDoneB = b['isCompleted'] == true ||
+                    (b['status'] != null &&
+                        b['status'].toString().toLowerCase() == 'completed');
+
+                // 1. Pending / Active / In-progress assessments come before completed ones
+                if (isDoneA != isDoneB) {
+                  return isDoneA ? 1 : -1;
                 }
+
+                // 2. Purely sort by most recent assignment/creation date (Newest first)
+                final dateA = DateTime.tryParse(
+                      (a['assignedAt'] ?? a['created_at'] ?? a['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateB = DateTime.tryParse(
+                      (b['assignedAt'] ?? b['created_at'] ?? b['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateCompare = dateB.compareTo(dateA); // Descending (most recent first)
+                if (dateCompare != 0) {
+                  return dateCompare;
+                }
+
+                // 3. If dates are identical, sort alphabetically by title
                 final titleA = (a['title'] ?? '').toString();
                 final titleB = (b['title'] ?? '').toString();
                 return titleA.compareTo(titleB);
@@ -678,6 +683,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                         assessmentLanguage: draft['assessmentLanguage'] as String? ??
                                                             item['language'] as String? ??
                                                             item['rawLanguage'] as String?,
+                                                        readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 0,
                                                         currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
                                                         initialSelectedAnswers: initialAnswersList,
                                                       ),

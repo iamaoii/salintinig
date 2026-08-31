@@ -4,6 +4,7 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class SilentReadingAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
@@ -159,17 +160,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
   void _goNext() {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }
@@ -197,17 +190,9 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
   void _finishAssessment() async {
     Feedback.forTap(context);
     if (_selectedAnswers[_currentQuestionIndex] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orangeAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 1),
-        ),
+      AppToast.warning(
+        context,
+        _isEnglish ? 'Please select an answer.' : 'Pumili muna ng isang sagot.',
       );
       return;
     }

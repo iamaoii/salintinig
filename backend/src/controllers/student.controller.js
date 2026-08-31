@@ -1474,6 +1474,9 @@ async function submitPhilIriAssessment(req, res) {
               );
             }
           } else if (attemptId && assessmentType === 'listening') {
+            const estimatedAudioSeconds = passageWordCount > 0 ? Math.round((passageWordCount / 130) * 60) : 60;
+            const finalAudioSeconds = Number(readingTimeSeconds) > 0 ? Number(readingTimeSeconds) : estimatedAudioSeconds;
+
             const existingListening = await db.query(
               `SELECT listening_result_id FROM listening_reading_results WHERE assessment_attempt_id = $1 LIMIT 1`,
               [attemptId]
@@ -1481,16 +1484,16 @@ async function submitPhilIriAssessment(req, res) {
             if (existingListening.rows?.[0]?.listening_result_id) {
               await db.query(
                 `UPDATE listening_reading_results SET
-                   audio_duration_seconds = COALESCE(NULLIF($1, 0), audio_duration_seconds, 60),
-                   comprehension_score = $2
-                 WHERE assessment_attempt_id = $3`,
-                [readingTimeSeconds || 60, compPct, attemptId]
+                   audio_duration_seconds = COALESCE(NULLIF($1, 0), audio_duration_seconds, $2),
+                   comprehension_score = $3
+                 WHERE assessment_attempt_id = $4`,
+                [finalAudioSeconds, estimatedAudioSeconds, compPct, attemptId]
               );
             } else {
               await db.query(
                 `INSERT INTO listening_reading_results (assessment_attempt_id, audio_duration_seconds, comprehension_score)
                  VALUES ($1, $2, $3)`,
-                [attemptId, readingTimeSeconds || 60, compPct]
+                [attemptId, finalAudioSeconds, compPct]
               );
             }
           }
@@ -2027,6 +2030,8 @@ async function getStudentActiveAssignment(req, res) {
               languageLabel: langLabel,
               gradeLevel:    row.gradeLevel || targetGrade,
               passageSet:    setLabel,
+              assignedAt:    row.assignedAt,
+              createdAt:     row.assignedAt,
               dueDate:       row.dueDate,
               instructions:  row.instructions || null,
               status:        row.status || 'open',
