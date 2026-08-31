@@ -34,10 +34,47 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
 
   bool get _isEnglish {
     final lang = (widget.assessmentLanguage ?? '').toLowerCase();
+    if (lang.startsWith('en') || lang.contains('english')) return true;
+    if (lang.startsWith('fil') ||
+        lang.startsWith('tl') ||
+        lang.contains('tagalog') ||
+        lang.contains('filipino')) {
+      return false;
+    }
+
     final title = (widget.storyTitle ?? '').toLowerCase();
-    return lang.startsWith('en') ||
-        lang.contains('english') ||
-        title.contains('english');
+    if (title.contains('english')) return true;
+    if (title.contains('filipino') || title.contains('tagalog')) return false;
+
+    // Content-based heuristic fallback from question text
+    if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
+      final firstQ = widget.dynamicQuestions!.first;
+      final qText = (firstQ['questionText'] ?? '').toString().toLowerCase();
+      if (qText.startsWith('ano') ||
+          qText.startsWith('sino') ||
+          qText.startsWith('saan') ||
+          qText.startsWith('kailan') ||
+          qText.startsWith('bakit') ||
+          qText.startsWith('paano') ||
+          qText.contains(' ang ') ||
+          qText.contains(' ng ') ||
+          qText.contains(' mga ')) {
+        return false;
+      }
+      if (qText.startsWith('what') ||
+          qText.startsWith('who') ||
+          qText.startsWith('where') ||
+          qText.startsWith('when') ||
+          qText.startsWith('why') ||
+          qText.startsWith('how') ||
+          qText.startsWith('which') ||
+          qText.contains(' the ') ||
+          qText.contains(' is ') ||
+          qText.contains(' are ')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   final List<Map<String, dynamic>> _defaultQuestions = [

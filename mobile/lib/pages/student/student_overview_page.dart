@@ -675,6 +675,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                         dynamicQuestions: draft['dynamicQuestions'] as List?,
                                                         storyTitle: draft['storyTitle'] as String?,
                                                         passageId: passageId,
+                                                        assessmentLanguage: draft['assessmentLanguage'] as String? ??
+                                                            item['language'] as String? ??
+                                                            item['rawLanguage'] as String?,
                                                         currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
                                                         initialSelectedAnswers: initialAnswersList,
                                                       ),
