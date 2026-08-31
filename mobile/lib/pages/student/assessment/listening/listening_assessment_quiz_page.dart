@@ -9,6 +9,7 @@ class ListeningAssessmentQuizPage extends StatefulWidget {
   final List<dynamic>? dynamicQuestions;
   final String? storyTitle;
   final dynamic passageId;
+  final String? assessmentLanguage;
   final int? currentQuestionIndex;
   final List<int?>? initialSelectedAnswers;
 
@@ -17,6 +18,7 @@ class ListeningAssessmentQuizPage extends StatefulWidget {
     this.dynamicQuestions,
     this.storyTitle,
     this.passageId,
+    this.assessmentLanguage,
     this.currentQuestionIndex,
     this.initialSelectedAnswers,
   });
@@ -29,6 +31,14 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
   int _currentQuestionIndex = 0;
   late List<int?> _selectedAnswers;
   late List<Map<String, dynamic>> _questions;
+
+  bool get _isEnglish {
+    final lang = (widget.assessmentLanguage ?? '').toLowerCase();
+    final title = (widget.storyTitle ?? '').toLowerCase();
+    return lang.startsWith('en') ||
+        lang.contains('english') ||
+        title.contains('english');
+  }
 
   final List<Map<String, dynamic>> _defaultQuestions = [
     {
@@ -95,7 +105,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       recordedAudioPath: null,
       readingTimeSeconds: 0,
       storyTitle: widget.storyTitle,
-      assessmentLanguage: 'fil',
+      assessmentLanguage: _isEnglish ? 'en' : 'fil',
       dynamicQuestions: widget.dynamicQuestions,
       currentQuestionIndex: _currentQuestionIndex,
       selectedAnswers: _selectedAnswers,
@@ -121,7 +131,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pumili muna ng isang sagot.',
+            _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
           backgroundColor: Colors.orangeAccent,
@@ -159,7 +169,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Pumili muna ng isang sagot.',
+            _isEnglish ? 'Please select an answer first.' : 'Pumili muna ng isang sagot.',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
           backgroundColor: Colors.orangeAccent,
@@ -239,6 +249,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
         builder: (context) => ListeningAssessmentCongratulationsPage(
           score: correctCount,
           totalQuestions: _questions.length,
+          assessmentLanguage: widget.assessmentLanguage,
         ),
       ),
     );
@@ -257,18 +268,20 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
           backgroundColor: dialogBg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Exit Quiz?',
+            _isEnglish ? 'Exit Quiz?' : 'Lumabas sa Pagsusulit?',
             style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: titleColor),
           ),
           content: Text(
-            'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
+            _isEnglish
+                ? 'Your progress will be saved so you can continue later. Are you sure you want to exit?'
+                : 'Maitatabi ang iyong progreso para maipagpatuloy mo rin ito. Sigurado ka bang gusto mong lumabas?',
             style: GoogleFonts.inter(fontSize: 14, color: descColor),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Kanselahin',
+                _isEnglish ? 'Cancel' : 'Kanselahin',
                 style: GoogleFonts.inter(color: cancelColor, fontWeight: FontWeight.w600),
               ),
             ),
@@ -281,7 +294,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                   recordedAudioPath: null,
                   readingTimeSeconds: 0,
                   storyTitle: widget.storyTitle,
-                  assessmentLanguage: 'fil',
+                  assessmentLanguage: _isEnglish ? 'en' : 'fil',
                   dynamicQuestions: widget.dynamicQuestions,
                   currentQuestionIndex: _currentQuestionIndex,
                   selectedAnswers: _selectedAnswers,
@@ -291,7 +304,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                 }
               },
               child: Text(
-                'Lumabas',
+                _isEnglish ? 'Exit' : 'Lumabas',
                 style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w700),
               ),
             ),
@@ -373,7 +386,9 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'QUESTION ${_currentQuestionIndex + 1}',
+                            _isEnglish
+                                ? 'QUESTION ${_currentQuestionIndex + 1}'
+                                : 'TANONG ${_currentQuestionIndex + 1}',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -434,7 +449,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'SELECT ONLY ONE',
+                          _isEnglish ? 'SELECT ONLY ONE' : 'PUMILI LAMANG NG ISA',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -524,7 +539,7 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                                     ),
                                   ),
                                   child: Text(
-                                    'Back',
+                                    _isEnglish ? 'Back' : 'Bumalik',
                                     style: GoogleFonts.inter(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,
@@ -554,8 +569,8 @@ class _ListeningAssessmentQuizPageState extends State<ListeningAssessmentQuizPag
                                 ),
                                 child: Text(
                                   _currentQuestionIndex == _questions.length - 1
-                                      ? 'Finish'
-                                      : 'Next',
+                                      ? (_isEnglish ? 'Finish' : 'Tapusin')
+                                      : (_isEnglish ? 'Next' : 'Susunod'),
                                   style: GoogleFonts.inter(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,

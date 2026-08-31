@@ -31,6 +31,14 @@ class ApiConfig {
     }
   }
 
+  static String get rootUrl {
+    final base = baseUrl;
+    if (base.endsWith('/api')) {
+      return base.substring(0, base.length - 4);
+    }
+    return base;
+  }
+
   static String get supabaseUrl =>
       dotenv.env['SUPABASE_URL'] ?? 'https://fgwztaonvetoyzywxggj.supabase.co';
 

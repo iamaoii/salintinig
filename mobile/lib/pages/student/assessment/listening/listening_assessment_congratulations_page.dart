@@ -8,11 +8,13 @@ import 'dart:math' as math;
 class ListeningAssessmentCongratulationsPage extends StatefulWidget {
   final int score;
   final int totalQuestions;
+  final String? assessmentLanguage;
 
   const ListeningAssessmentCongratulationsPage({
     super.key,
     required this.score,
     required this.totalQuestions,
+    this.assessmentLanguage,
   });
 
   @override
@@ -23,6 +25,11 @@ class ListeningAssessmentCongratulationsPage extends StatefulWidget {
 class _ListeningAssessmentCongratulationsPageState
     extends State<ListeningAssessmentCongratulationsPage> {
   late ConfettiController _confettiController;
+
+  bool get _isEnglish {
+    final lang = (widget.assessmentLanguage ?? '').toLowerCase();
+    return lang.startsWith('en') || lang.contains('english');
+  }
 
   @override
   void initState() {
@@ -150,7 +157,9 @@ class _ListeningAssessmentCongratulationsPageState
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Natapos mo ang Listening Assessment.',
+                                  _isEnglish
+                                      ? 'You completed the Listening Assessment.'
+                                      : 'Natapos mo ang Listening Assessment.',
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,

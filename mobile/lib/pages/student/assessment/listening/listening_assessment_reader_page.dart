@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/api_config.dart';
@@ -21,9 +20,8 @@ class ListeningAssessmentReaderPage extends StatefulWidget {
 
 class _ListeningAssessmentReaderPageState
     extends State<ListeningAssessmentReaderPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _isDarkMode = false;
-  late final FlutterTts _flutterTts;
   AudioPlayer? _audioPlayer;
 
   String _fullStoryText = '';
@@ -42,12 +40,8 @@ class _ListeningAssessmentReaderPageState
   Timer? _listeningTimer;
 
   Duration _totalAudioDuration = Duration.zero;
-
-  // Accurate offset and live speech energy tracking
-  int _spokenCharOffset = 0;
-  int _lastChunkEnd = 0;
   double _voiceEnergy = 0.0;
-  Timer? _voiceDecayTimer;
+  List<double> _realWaveformData = [];
 
   late AnimationController _waveformAnimController;
 
@@ -62,20 +56,52 @@ class _ListeningAssessmentReaderPageState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _waveformAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
 
     _initAudioPlayer();
-    _initTts();
     _extractItemData();
     _fetchPassageFromApi();
     _startTimer();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      if (_isPlaying) {
+        _audioPlayer?.pause();
+      }
+    }
+  }
+
   void _initAudioPlayer() {
+    _audioPlayer?.stop();
+    _audioPlayer?.dispose();
     _audioPlayer = AudioPlayer();
+    _audioPlayer!.setReleaseMode(ReleaseMode.stop);
+
+    _audioPlayer!.onPlayerStateChanged.listen((state) {
+      debugPrint('[ListeningReader] AudioPlayer state: $state');
+      if (mounted) {
+        setState(() {
+          _isPlaying = (state == PlayerState.playing);
+          _isPaused = (state == PlayerState.paused);
+        });
+        if (_isPlaying) {
+          _waveformAnimController.repeat();
+        } else {
+          _waveformAnimController.stop();
+          _voiceEnergy = 0.0;
+        }
+      }
+    });
 
     _audioPlayer!.onDurationChanged.listen((d) {
       if (mounted) {
@@ -89,10 +115,21 @@ class _ListeningAssessmentReaderPageState
       if (mounted && _totalAudioDuration.inMilliseconds > 0) {
         final prog =
             (p.inMilliseconds / _totalAudioDuration.inMilliseconds).clamp(0.0, 1.0);
+
+        final ms = p.inMilliseconds;
+        // Real acoustic frame lookup (50ms per frame from PCM audio analysis):
+        final int frameIndex = (ms / 50).floor();
+        double realEnergy = 0.0;
+        if (_realWaveformData.isNotEmpty && frameIndex >= 0) {
+          if (frameIndex < _realWaveformData.length) {
+            realEnergy = _realWaveformData[frameIndex];
+          }
+        }
+
         setState(() {
           _progress = prog;
-          // Generate lively voice waveform energy during playback
-          _voiceEnergy = 0.60 + (0.40 * (sin(p.inMilliseconds * 0.015)).abs());
+          // Exact responsive audio energy directly from actual audio file
+          _voiceEnergy = realEnergy;
         });
       }
     });
@@ -109,107 +146,6 @@ class _ListeningAssessmentReaderPageState
         _waveformAnimController.stop();
       }
     });
-  }
-
-  void _initTts() async {
-    try {
-      _flutterTts = FlutterTts();
-
-      await _flutterTts.setSpeechRate(0.45); // Natural reading pace for learners
-      await _flutterTts.setVolume(1.0);
-      await _flutterTts.setPitch(1.0);
-
-      _flutterTts.setStartHandler(() {
-        if (mounted) {
-          setState(() {
-            _isPlaying = true;
-            _isPaused = false;
-          });
-          _waveformAnimController.repeat();
-        }
-      });
-
-      _flutterTts.setCompletionHandler(() {
-        if (mounted) {
-          setState(() {
-            _isPlaying = false;
-            _isPaused = false;
-            _isFinished = true;
-            _progress = 1.0;
-            _spokenCharOffset = _fullStoryText.length;
-            _voiceEnergy = 0.0;
-          });
-          _voiceDecayTimer?.cancel();
-          _waveformAnimController.stop();
-        }
-      });
-
-      _flutterTts.setPauseHandler(() {
-        if (mounted) {
-          setState(() {
-            _isPlaying = false;
-            _isPaused = true;
-            _voiceEnergy = 0.0;
-          });
-          _voiceDecayTimer?.cancel();
-          _waveformAnimController.stop();
-        }
-      });
-
-      _flutterTts.setContinueHandler(() {
-        if (mounted) {
-          setState(() {
-            _isPlaying = true;
-            _isPaused = false;
-          });
-          _waveformAnimController.repeat();
-        }
-      });
-
-      _flutterTts.setProgressHandler((text, start, end, word) {
-        if (mounted && _fullStoryText.isNotEmpty) {
-          _lastChunkEnd = end;
-          final int absoluteTotalSpoken =
-              (_spokenCharOffset + end).clamp(0, _fullStoryText.length);
-
-          // Calculate speech energy dynamically based on spoken word & syllables
-          final vowels = RegExp(r'[aeiouAEIOU]');
-          final int vowelCount = vowels.allMatches(word).length;
-          final double energy = (0.50 + (vowelCount * 0.12) + (word.length * 0.04))
-              .clamp(0.40, 1.0);
-
-          setState(() {
-            _progress = (absoluteTotalSpoken / _fullStoryText.length).clamp(0.0, 1.0);
-            _voiceEnergy = energy;
-          });
-
-          // Fast decay when speaker pauses between words or sentences
-          _voiceDecayTimer?.cancel();
-          _voiceDecayTimer = Timer(const Duration(milliseconds: 260), () {
-            if (mounted && _isPlaying) {
-              setState(() {
-                _voiceEnergy = 0.10;
-              });
-            }
-          });
-        }
-      });
-
-      _flutterTts.setErrorHandler((msg) {
-        debugPrint('[ListeningReader] TTS Error: $msg');
-        if (mounted) {
-          setState(() {
-            _isPlaying = false;
-            _isPaused = false;
-            _voiceEnergy = 0.0;
-          });
-          _voiceDecayTimer?.cancel();
-          _waveformAnimController.stop();
-        }
-      });
-    } catch (e) {
-      debugPrint('[ListeningReader] TTS Init notice: $e');
-    }
   }
 
   void _startTimer() {
@@ -261,7 +197,7 @@ class _ListeningAssessmentReaderPageState
       if (lang != null && lang.trim().isNotEmpty) {
         _assessmentLanguage = lang.trim();
       }
-      if (audio != null && audio.trim().isNotEmpty) {
+      if (audio != null && audio.trim().isNotEmpty && audio.trim().startsWith('http')) {
         _audioUrl = audio.trim();
       }
       if (questions != null && questions.isNotEmpty) {
@@ -274,7 +210,8 @@ class _ListeningAssessmentReaderPageState
 
   Future<void> _prepareNeuralAudio() async {
     if (_fullStoryText.trim().isEmpty) return;
-    if (_audioUrl != null && _audioUrl!.isNotEmpty) return;
+    if (_isSynthesizingAudio) return;
+    if (_audioUrl != null && _audioUrl!.startsWith('https://res.cloudinary.com')) return;
 
     if (mounted) {
       setState(() {
@@ -283,26 +220,38 @@ class _ListeningAssessmentReaderPageState
     }
 
     try {
-      final res = await ApiService.post('/api/tts/synthesize', {
+      final res = await ApiService.post('/tts/synthesize', {
         'text': _fullStoryText,
         'language': _isEnglish ? 'en' : 'fil',
+        'passageId': _passageId,
       });
 
       if (res.success && res.data != null && res.data['audioUrl'] != null) {
         final rawPath = res.data['audioUrl'].toString();
         final fullUrl = rawPath.startsWith('http')
             ? rawPath
-            : '${ApiConfig.baseUrl}$rawPath';
+            : '${ApiConfig.rootUrl}$rawPath';
+        List<double> peaks = [];
+        if (res.data['waveform'] is List) {
+          peaks = (res.data['waveform'] as List)
+              .map((v) => double.tryParse(v.toString()) ?? 0.0)
+              .toList();
+        }
+        debugPrint('[ListeningReader] Neural TTS ready URL: $fullUrl (RMS frames: ${peaks.length})');
         if (mounted) {
           setState(() {
             _audioUrl = fullUrl;
+            _realWaveformData = peaks;
             _isSynthesizingAudio = false;
           });
         }
         return;
+      } else {
+        debugPrint(
+            '[ListeningReader] TTS Synthesize response notice: ${res.message ?? res.error}');
       }
     } catch (e) {
-      debugPrint('[ListeningReader] Neural audio synthesize notice: $e');
+      debugPrint('[ListeningReader] Neural audio synthesize error: $e');
     }
 
     if (mounted) {
@@ -315,7 +264,6 @@ class _ListeningAssessmentReaderPageState
   void _fetchPassageFromApi() async {
     if (_fullStoryText.trim().isNotEmpty && widget.item != null) {
       _prepareNeuralAudio();
-      _configureTtsLanguage();
       return;
     }
 
@@ -364,7 +312,6 @@ class _ListeningAssessmentReaderPageState
                     QuizProgressService.extractPassageId(listeningActivity);
               });
               _prepareNeuralAudio();
-              _configureTtsLanguage();
             }
             return;
           }
@@ -374,97 +321,44 @@ class _ListeningAssessmentReaderPageState
       debugPrint('[ListeningReader] Passage API fetch notice: $e');
     }
     _prepareNeuralAudio();
-    _configureTtsLanguage();
-  }
-
-  void _configureTtsLanguage() async {
-    try {
-      if (_isEnglish) {
-        await _flutterTts.setLanguage("en-US");
-      } else {
-        final languages = await _flutterTts.getLanguages;
-        if (languages is List && (languages.contains("fil-PH") || languages.contains("fil_PH"))) {
-          await _flutterTts.setLanguage("fil-PH");
-        } else if (languages is List && (languages.contains("tl-PH") || languages.contains("tl_PH"))) {
-          await _flutterTts.setLanguage("tl-PH");
-        } else {
-          await _flutterTts.setLanguage("fil-PH");
-        }
-      }
-      await _flutterTts.setSpeechRate(0.45);
-      await _flutterTts.setVolume(1.0);
-      await _flutterTts.setPitch(1.0);
-      await _flutterTts.awaitSpeakCompletion(true);
-    } catch (e) {
-      debugPrint('[ListeningReader] TTS Language configure error: $e');
-    }
   }
 
   Future<void> _toggleAudioPlay() async {
     Feedback.forTap(context);
-
-    // If story already finished, one-time listening rule prevents replay
+    // Phil-IRI Rule: Passage is listened to strictly once
     if (_isFinished) return;
 
     if (_isPlaying) {
-      if (_audioUrl != null && _audioUrl!.isNotEmpty) {
-        await _audioPlayer?.pause();
-      } else {
-        await _flutterTts.stop();
-        _spokenCharOffset =
-            (_spokenCharOffset + _lastChunkEnd).clamp(0, _fullStoryText.length);
-        _lastChunkEnd = 0;
-      }
-      setState(() {
-        _isPlaying = false;
-        _isPaused = true;
-        _voiceEnergy = 0.0;
-      });
-      _voiceDecayTimer?.cancel();
-      _waveformAnimController.stop();
-    } else {
-      if (_audioUrl != null && _audioUrl!.isNotEmpty) {
-        _audioPlayer ??= AudioPlayer();
-        if (_isPaused) {
-          await _audioPlayer!.resume();
-        } else {
-          await _audioPlayer!.play(UrlSource(_audioUrl!));
-        }
-        setState(() {
-          _isPlaying = true;
-          _isPaused = false;
-        });
-        _waveformAnimController.repeat();
-      } else {
-        if (_fullStoryText.trim().isEmpty) return;
+      await _audioPlayer?.pause();
+      return;
+    }
 
-        _configureTtsLanguage();
-        setState(() {
-          _isPlaying = true;
-          _isPaused = false;
-        });
-        _waveformAnimController.repeat();
+    if (_isPaused) {
+      await _audioPlayer?.resume();
+      return;
+    }
 
-        // Speak remaining text seamlessly from paused position without resetting progress!
-        if (_spokenCharOffset < _fullStoryText.length) {
-          final remaining = _fullStoryText.substring(_spokenCharOffset);
-          await _flutterTts.speak(remaining);
-        } else {
-          setState(() {
-            _isFinished = true;
-            _progress = 1.0;
-          });
-        }
+    if (_audioUrl == null || _audioUrl!.isEmpty) {
+      await _prepareNeuralAudio();
+    }
+
+    if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+      try {
+        debugPrint('[ListeningReader] Playing audio URL: $_audioUrl');
+        await _audioPlayer?.play(UrlSource(_audioUrl!));
+      } catch (e) {
+        debugPrint('[ListeningReader] Audio playback error: $e');
       }
     }
   }
 
   @override
   void dispose() {
-    _flutterTts.stop();
+    WidgetsBinding.instance.removeObserver(this);
+    _audioPlayer?.stop();
+    _audioPlayer?.release();
     _audioPlayer?.dispose();
     _listeningTimer?.cancel();
-    _voiceDecayTimer?.cancel();
     _waveformAnimController.dispose();
     super.dispose();
   }
@@ -624,10 +518,6 @@ class _ListeningAssessmentReaderPageState
                                           ? (_isEnglish
                                               ? 'Audio Paused (Tap to resume)'
                                               : 'Naka-pause (Pindutin upang ituloy)')
-                                          : _isSynthesizingAudio
-                                          ? (_isEnglish
-                                              ? 'Preparing natural audio...'
-                                              : 'Inihahanda ang audio...')
                                           : (_isEnglish
                                               ? 'Tap play to listen to the story'
                                               : 'Pindutin ang play upang makinig'),
@@ -644,72 +534,81 @@ class _ListeningAssessmentReaderPageState
 
                                     const SizedBox(height: 20),
 
-                                    // Main Playback Controls (Single Centered Button)
-                                    if (_isFinished)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 12,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFD1FAE5),
-                                          borderRadius:
-                                              BorderRadius.circular(24),
-                                          border: Border.all(
-                                            color: const Color(0xFFA7F3D0),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.check_circle_rounded,
-                                              color: Color(0xFF059669),
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              _isEnglish
-                                                  ? 'Finished Listening'
-                                                  : 'Tapos nang Pakinggan',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                                color: const Color(0xFF065F46),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      GestureDetector(
-                                        onTap: _toggleAudioPlay,
-                                        child: Container(
-                                          width: 68,
-                                          height: 68,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: primaryBlue,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: primaryBlue
-                                                    .withValues(alpha: 0.35),
-                                                blurRadius: 18,
-                                                offset: const Offset(0, 6),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Center(
-                                            child: Icon(
-                                              _isPlaying
-                                                  ? Icons.pause_rounded
-                                                  : Icons.play_arrow_rounded,
-                                              color: Colors.white,
-                                              size: 38,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                     // Main Playback Controls (Single Centered Button)
+                                     if (_isFinished)
+                                       Container(
+                                         padding: const EdgeInsets.symmetric(
+                                           horizontal: 20,
+                                           vertical: 12,
+                                         ),
+                                         decoration: BoxDecoration(
+                                           color: const Color(0xFFD1FAE5),
+                                           borderRadius:
+                                               BorderRadius.circular(24),
+                                           border: Border.all(
+                                             color: const Color(0xFFA7F3D0),
+                                           ),
+                                         ),
+                                         child: Row(
+                                           mainAxisSize: MainAxisSize.min,
+                                           children: [
+                                             const Icon(
+                                               Icons.check_circle_rounded,
+                                               color: Color(0xFF059669),
+                                               size: 20,
+                                             ),
+                                             const SizedBox(width: 8),
+                                             Text(
+                                               _isEnglish
+                                                   ? 'Finished Listening'
+                                                   : 'Tapos nang Pakinggan',
+                                               style: GoogleFonts.inter(
+                                                 fontSize: 14,
+                                                 fontWeight: FontWeight.w700,
+                                                 color: const Color(0xFF065F46),
+                                               ),
+                                             ),
+                                           ],
+                                         ),
+                                       )
+                                     else
+                                       GestureDetector(
+                                         onTap: _toggleAudioPlay,
+                                         child: Container(
+                                           width: 68,
+                                           height: 68,
+                                           decoration: BoxDecoration(
+                                             shape: BoxShape.circle,
+                                             color: primaryBlue,
+                                             boxShadow: [
+                                               BoxShadow(
+                                                 color: primaryBlue
+                                                     .withValues(alpha: 0.35),
+                                                 blurRadius: 18,
+                                                 offset: const Offset(0, 6),
+                                               ),
+                                             ],
+                                           ),
+                                           child: Center(
+                                             child: _isSynthesizingAudio && _audioUrl == null
+                                                 ? const SizedBox(
+                                                     width: 28,
+                                                     height: 28,
+                                                     child: CircularProgressIndicator(
+                                                       color: Colors.white,
+                                                       strokeWidth: 3,
+                                                     ),
+                                                   )
+                                                 : Icon(
+                                                     _isPlaying
+                                                         ? Icons.pause_rounded
+                                                         : Icons.play_arrow_rounded,
+                                                     color: Colors.white,
+                                                     size: 38,
+                                                   ),
+                                           ),
+                                         ),
+                                       ),
                                   ],
                                 ),
                               ),
@@ -848,7 +747,7 @@ class _ListeningAssessmentReaderPageState
         : const Color(0xFFCBD5E1);
 
     return Container(
-      height: 90,
+      height: 120,
       width: double.infinity,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -862,34 +761,46 @@ class _ListeningAssessmentReaderPageState
               final double base = barRatios[index];
               double height;
 
+              final bool isActivelySpeaking = _isPlaying && _voiceEnergy > 0.03;
+
               if (_isPlaying) {
-                final double waveVal =
-                    (sin((_waveformAnimController.value * 2 * pi) + (index * 0.48)))
-                        .abs();
-                // Dynamically scales with live voice energy from spoken syllables:
-                final double liveSpeechFactor = 0.25 + (0.75 * _voiceEnergy);
-                final double animatedRatio =
-                    0.12 + (0.88 * base * liveSpeechFactor * (0.35 + 0.65 * waveVal));
-                height = animatedRatio * 68.0;
+                if (!isActivelySpeaking) {
+                  // Actual silence in the audio: flat quiet resting bars (6px) with zero movement
+                  height = 6.0;
+                } else {
+                  // Amplified acoustic dynamic range for large, expressive visual movement:
+                  final double amplifiedEnergy = (_voiceEnergy * 1.55).clamp(0.0, 1.0);
+                  final double phase =
+                      (_waveformAnimController.value * 2 * pi) + (index * 0.44);
+                  final double flutter =
+                      (sin(phase) * 0.55 + cos(phase * 1.6 + index * 0.25) * 0.45).abs();
+
+                  // Big dynamic wave heights reaching up to 100px on spoken syllables
+                  final double dynamicHeight =
+                      6.0 + (94.0 * base * amplifiedEnergy * (0.25 + 0.75 * flutter));
+                  height = dynamicHeight;
+                }
               } else if (_isFinished) {
-                height = 10.0;
+                height = 6.0;
               } else {
-                height = base * 48.0;
+                height = (base * 28.0).clamp(6.0, 32.0);
               }
 
               return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 2.8),
-                width: 5.5,
-                height: height.clamp(8.0, 68.0),
+                margin: const EdgeInsets.symmetric(horizontal: 3.0),
+                width: 6.5,
+                height: height.clamp(6.0, 100.0),
                 decoration: BoxDecoration(
-                  color: _isPlaying ? activeColor : inactiveColor,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: _isPlaying
+                  color: isActivelySpeaking ? activeColor : inactiveColor,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: isActivelySpeaking
                       ? [
                           BoxShadow(
-                            color: activeColor.withValues(alpha: 0.25),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                            color: activeColor.withValues(
+                              alpha: (0.45 * _voiceEnergy).clamp(0.0, 0.50),
+                            ),
+                            blurRadius: 12 * _voiceEnergy,
+                            offset: const Offset(0, 3),
                           ),
                         ]
                       : null,
@@ -966,7 +877,7 @@ class _ListeningAssessmentReaderPageState
   }
 
   void _finishReading() async {
-    _flutterTts.stop();
+    _audioPlayer?.stop();
     final existingDraft = await QuizProgressService.getQuizDraft(
       _passageId,
       'listening',
@@ -1012,6 +923,7 @@ class _ListeningAssessmentReaderPageState
               existingDraft?['dynamicQuestions'] as List? ?? _dynamicQuestions,
           storyTitle: existingDraft?['storyTitle'] as String? ?? _storyTitle,
           passageId: _passageId,
+          assessmentLanguage: _assessmentLanguage,
           currentQuestionIndex:
               (existingDraft?['currentQuestionIndex'] as int?) ?? 0,
           initialSelectedAnswers: initialAnswersList,

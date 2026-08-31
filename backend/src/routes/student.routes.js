@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const os = require('os');
 const { verifyToken } = require('../middleware/auth.middleware.js');
 
 const upload = multer({
-  dest: path.join(__dirname, '../../uploads/temp/'),
+  dest: path.join(os.tmpdir(), 'salintinig_uploads'),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max
 });
 

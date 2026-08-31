@@ -9,6 +9,7 @@ async function synthesize(req, res) {
     const text = req.query.text || (req.body && req.body.text);
     const language = req.query.language || (req.body && req.body.language) || 'fil';
     const rate = req.query.rate || (req.body && req.body.rate) || '-6%';
+    const passageId = req.query.passageId || (req.body && req.body.passageId) || null;
     const stream = req.query.stream === 'true' || (req.body && req.body.stream === true);
 
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -18,20 +19,21 @@ async function synthesize(req, res) {
       });
     }
 
-    const result = await synthesizeTextToAudio(text, language, rate);
+    const result = await synthesizeTextToAudio(text, language, rate, passageId);
 
     if (stream) {
-      if (fs.existsSync(result.filePath)) {
+      if (result.filePath && fs.existsSync(result.filePath)) {
         res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         return fs.createReadStream(result.filePath).pipe(res);
       }
     }
 
-    // Return the audio URL path
+    // Return the audio URL and real RMS acoustic waveform data
     return res.json({
       success: true,
-      audioUrl: result.urlPath,
+      audioUrl: result.audioUrl,
+      waveform: result.waveform || [],
       cached: result.cached,
     });
   } catch (error) {
