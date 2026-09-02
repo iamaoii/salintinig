@@ -478,19 +478,19 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _buildSideQuestsList() {
     final quests = [
       {
-        'title': 'Ganda at Talino Badge',
-        'subtitle': 'Read 3 books written by Female authors in 2 Days',
-        'badge': 'assets/badges/ganda_talino_badge.webp',
+        'title': 'First step',
+        'subtitle': 'Complete your very first practice activity',
+        'badge': 'assets/badges/first_step_badge.webp',
       },
       {
-        'title': 'Early Badge',
-        'subtitle': 'Read 3 books written by Young authors in 2 Days',
-        'badge': 'assets/badges/early_bird_badge.webp',
+        'title': 'I\'m a star!',
+        'subtitle': 'Get a perfect score on a vocabulary matching activity',
+        'badge': 'assets/badges/im_a_star_badge.webp',
       },
       {
-        'title': '10x day Streak',
-        'subtitle': 'Read 3 books written by Female authors in 2 Days',
-        'badge': 'assets/badges/10_day_streak_badge.webp',
+        'title': 'Sounds right!',
+        'subtitle': 'Get 3 out of 3 correct on a pronunciation challenge',
+        'badge': 'assets/badges/sounds_right_badge.webp',
       },
     ];
 

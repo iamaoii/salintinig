@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/models/quest_item.dart';
 
 class SideQuestsPage extends StatefulWidget {
   const SideQuestsPage({super.key});
@@ -11,28 +10,22 @@ class SideQuestsPage extends StatefulWidget {
 }
 
 class _SideQuestsPageState extends State<SideQuestsPage> {
-  final List<Map<String, String>> _quests = [
-    {
-      'title': 'Ganda at Talino Badge',
-      'desc': 'Read 3 books written by Female authors in 2 Days',
-      'badge': 'assets/badges/ganda_talino_badge.webp',
-    },
-    {
-      'title': 'Early Badge',
-      'desc': 'Read 3 books written by Young authors in 2 Days',
-      'badge': 'assets/badges/early_bird_badge.webp',
-    },
-    {
-      'title': '10x day Streak',
-      'desc': 'Read 3 books written by Female authors in 2 Days',
-      'badge': 'assets/badges/10_day_streak_badge.webp',
-    },
-  ];
+  int _selectedFilter = 0; // 0 = All, 1 = In Progress, 2 = Completed
 
   @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
     const primaryBlue = Color(0xFF1B64D8);
+
+    final allQuests = BadgesData.allQuests;
+    final int unlockedCount = allQuests.where((q) => q.isUnlocked).length;
+    final int totalCount = allQuests.length;
+
+    final filteredQuests = allQuests.where((q) {
+      if (_selectedFilter == 1) return !q.isUnlocked;
+      if (_selectedFilter == 2) return q.isUnlocked;
+      return true;
+    }).toList();
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -44,17 +37,16 @@ class _SideQuestsPageState extends State<SideQuestsPage> {
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: isTablet ? 520 : double.infinity,
+                  maxWidth: isTablet ? 540 : double.infinity,
                 ),
                 child: Column(
                   children: [
-                    // 1. Navigation Row (App Bar)
+                    // ── App Bar Row ──
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Left Back Caret Icon
                           IconButton(
                             onPressed: () {
                               Feedback.forTap(context);
@@ -63,73 +55,100 @@ class _SideQuestsPageState extends State<SideQuestsPage> {
                             icon: const Icon(
                               Icons.arrow_back_ios_new_rounded,
                               size: 22,
-                              color: Colors.black,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
-                          // Center Title
                           Text(
-                            'Side Quests',
+                            'Side Quests & Badges',
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black,
-                              letterSpacing: -0.5,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.4,
                             ),
                           ),
-                          // Right Three Dots Options
-                          IconButton(
-                            onPressed: () {
-                              Feedback.forTap(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Options menu tapped'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                            icon: const Icon(
-                              Icons.more_horiz_rounded,
-                              size: 26,
-                              color: Colors.black,
-                            ),
-                          ),
+                          const SizedBox(width: 44), // Balanced placeholder for spacing
                         ],
                       ),
                     ),
 
-                    // 2. Main Content
+                    // ── Main Content ──
                     Expanded(
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: 8),
-                            // Section Title with Mountains Icon
+                            // Summary Hero Card
+                            Container(
+                              padding: const EdgeInsets.all(18.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Overall Progress',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      Text(
+                                        '$unlockedCount of $totalCount Unlocked',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: primaryBlue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(100),
+                                    child: LinearProgressIndicator(
+                                      value: unlockedCount / totalCount,
+                                      minHeight: 8,
+                                      backgroundColor: const Color(0xFFF1F5F9),
+                                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Filter Tabs
                             Row(
                               children: [
-                                const Iconify(
-                                  PhIcons.mountainsRegular,
-                                  color: primaryBlue,
-                                  size: 24,
-                                ),
+                                _buildFilterChip('All ($totalCount)', 0),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Side quests',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
+                                _buildFilterChip('In Progress (${totalCount - unlockedCount})', 1),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('Unlocked ($unlockedCount)', 2),
                               ],
                             ),
                             const SizedBox(height: 16),
 
-                            // List of Side Quests
-                            ..._quests.map((quest) => _buildQuestCard(quest)),
+                            // Quests List
+                            ...filteredQuests.map((quest) => _buildQuestTile(quest)),
+                            const SizedBox(height: 24),
                           ],
                         ),
                       ),
@@ -144,89 +163,155 @@ class _SideQuestsPageState extends State<SideQuestsPage> {
     );
   }
 
-  Widget _buildQuestCard(Map<String, String> quest) {
-    const cardColor = Color(0xFFFFD13E); // Standardized yellow hex
+  Widget _buildFilterChip(String label, int index) {
+    final bool isSelected = _selectedFilter == index;
+
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        setState(() => _selectedFilter = index);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1B64D8) : Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF1B64D8) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestTile(QuestItem quest) {
+    final bool isUnlocked = quest.isUnlocked;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isUnlocked ? const Color(0xFFBAE6FD) : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Badge Image
+          // Standalone Large Badge Graphic
           SizedBox(
-            width: 64,
-            height: 64,
-            child: Image.asset(
-              quest['badge']!,
-              fit: BoxFit.contain,
+            width: 76,
+            height: 76,
+            child: ColorFiltered(
+              colorFilter: isUnlocked
+                  ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
+                  : const ColorFilter.matrix([
+                      0.2126, 0.7152, 0.0722, 0, 0,
+                      0.2126, 0.7152, 0.0722, 0, 0,
+                      0.2126, 0.7152, 0.0722, 0, 0,
+                      0,      0,      0,      0.4, 0,
+                    ]),
+              child: Image.asset(
+                quest.badgeAsset,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Details (Title & Desc)
+          const SizedBox(width: 14),
+
+          // Quest Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        quest.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isUnlocked ? const Color(0xFFD1FAE5) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isUnlocked ? 'Unlocked' : quest.rewardPoints,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: isUnlocked ? const Color(0xFF059669) : const Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
                 Text(
-                  quest['title']!,
+                  quest.description,
                   style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                    height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  quest['desc']!,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF856404), // Readable golden-brown subtitle color
-                    height: 1.25,
-                  ),
+                const SizedBox(height: 10),
+
+                // Linear Progress Indicator
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(100),
+                        child: LinearProgressIndicator(
+                          value: quest.progressRatio,
+                          minHeight: 6,
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isUnlocked ? const Color(0xFF10B981) : const Color(0xFF1B64D8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${quest.currentProgress} / ${quest.maxProgress}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isUnlocked ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Finish Button
-          ElevatedButton(
-            onPressed: () {
-              Feedback.forTap(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Quest "${quest['title']}" finished!'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B64D8),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: const Size(64, 34),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(100),
-              ),
-            ),
-            child: Text(
-              'Finish',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
             ),
           ),
         ],

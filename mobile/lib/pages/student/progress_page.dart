@@ -403,13 +403,13 @@ class _ProgressPageState extends State<ProgressPage> {
       padding: const EdgeInsets.all(20.0),
       child: Row(
         children: [
-          Expanded(child: _buildBadgeCard('Sipag at Talino', 'assets/badges/sipag_talino_badge.webp')),
+          Expanded(child: _buildBadgeCard('First step', 'assets/badges/first_step_badge.webp')),
           const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('Early Badge', 'assets/badges/early_bird_badge.webp')),
+          Expanded(child: _buildBadgeCard('I\'m a star!', 'assets/badges/im_a_star_badge.webp')),
           const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('10th Day Streak', 'assets/badges/10_day_streak_badge.webp')),
+          Expanded(child: _buildBadgeCard('Sounds right!', 'assets/badges/sounds_right_badge.webp')),
           const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('Ganda at Talino', 'assets/badges/ganda_talino_badge.webp')),
+          Expanded(child: _buildBadgeCard('Sentence builder', 'assets/badges/sentence_builder_badge.webp')),
         ],
       ),
     );
