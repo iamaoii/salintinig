@@ -323,7 +323,7 @@ async function getStudents(req, res) {
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(c.grade_level, 'Grade 4') AS grade,
             COALESCE(c.section_name, 'Unassigned') AS section,
-            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
             COALESCE(u.email, '') AS "personalEmail",
             CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Account Created' END AS status,
             COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode"
@@ -332,6 +332,11 @@ async function getStudents(req, res) {
           LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = s.student_id
           LEFT JOIN student_parents sp ON sp.student_id = s.student_id
           WHERE u.school_id = $1
           ORDER BY s.student_id, s.created_at DESC
@@ -1270,9 +1275,9 @@ async function getSections(req, res) {
             c.advisor_teacher_id AS "adviserId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS adviser,
             COUNT(DISTINCT sgh.student_id)::int AS "studentsCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
+            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
+            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
+            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
           FROM classes c
           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
           LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
@@ -2097,15 +2102,20 @@ async function getPhilIriAnalytics(req, res) {
         const { rows } = await db.query(`
           SELECT 
             COALESCE(c.grade_level, 'Grade 4') AS grade,
-            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
             COUNT(s.student_id)::int AS count
           FROM students s
           JOIN users u ON s.user_id = u.user_id
           LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
           LEFT JOIN classes c ON sgh.class_id = c.class_id
           LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = s.student_id
           WHERE u.school_id = $1
-          GROUP BY COALESCE(c.grade_level, 'Grade 4'), COALESCE(rp.current_profile_label, 'Pending Evaluation')
+          GROUP BY COALESCE(c.grade_level, 'Grade 4'), COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation')
         `, [schoolId]);
 
         rows.forEach((r) => {
@@ -2376,7 +2386,7 @@ async function getPhilIriAssessments(req, res) {
         COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
         COALESCE(c.grade_level, 'Grade 4') AS grade,
         COALESCE(c.section_name, 'Unassigned') AS section,
-        COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+        COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
         COALESCE(a.assessment_type, 'Oral Reading') AS type,
         COALESCE(a.assessment_period, 'Pre-Test') AS period,
         COALESCE(a.status, 'assigned') AS status,
@@ -2387,7 +2397,7 @@ async function getPhilIriAssessments(req, res) {
       LEFT JOIN classes c ON sgh.class_id = c.class_id
       LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
       LEFT JOIN (
-        SELECT DISTINCT ON (student_id) student_id, assessment_type, assessment_period, status, date_assigned
+        SELECT DISTINCT ON (student_id) student_id, assessment_type, assessment_period, status, date_assigned, reading_level_result
         FROM assessments
         ORDER BY student_id, created_at DESC
       ) a ON a.student_id = s.student_id

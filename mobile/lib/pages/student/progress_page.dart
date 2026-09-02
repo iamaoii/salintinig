@@ -1159,36 +1159,36 @@ class _ProgressPageState extends State<ProgressPage> {
     final isFil = _selectedPhilIriLang == 'fil';
 
     final oralLevel = isFil
-        ? (_readingProfiles?['filOralProfile']?.toString() ?? _readingProfiles?['oralProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engOralProfile']?.toString() ?? _readingProfiles?['oralProfile']?.toString() ?? 'Pending Evaluation');
+        ? (_readingProfiles?['filOralProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engOralProfile']?.toString() ?? 'Pending Evaluation');
 
     final listeningLevel = isFil
-        ? (_readingProfiles?['filListeningProfile']?.toString() ?? _readingProfiles?['listeningProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engListeningProfile']?.toString() ?? _readingProfiles?['listeningProfile']?.toString() ?? 'Pending Evaluation');
+        ? (_readingProfiles?['filListeningProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engListeningProfile']?.toString() ?? 'Pending Evaluation');
 
     final silentLevel = isFil
-        ? (_readingProfiles?['filSilentProfile']?.toString() ?? _readingProfiles?['silentProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engSilentProfile']?.toString() ?? _readingProfiles?['silentProfile']?.toString() ?? 'Pending Evaluation');
+        ? (_readingProfiles?['filSilentProfile']?.toString() ?? 'Pending Evaluation')
+        : (_readingProfiles?['engSilentProfile']?.toString() ?? 'Pending Evaluation');
 
     final oralAcc = isFil
-        ? (_readingProfiles?['filOralAccuracy'] ?? _readingProfiles?['oralAccuracy'])
-        : (_readingProfiles?['engOralAccuracy'] ?? _readingProfiles?['oralAccuracy']);
+        ? (_readingProfiles?['filOralAccuracy'])
+        : (_readingProfiles?['engOralAccuracy']);
 
     final oralComp = isFil
-        ? (_readingProfiles?['filOralComprehension'] ?? _readingProfiles?['oralComprehension'])
-        : (_readingProfiles?['engOralComprehension'] ?? _readingProfiles?['oralComprehension']);
+        ? (_readingProfiles?['filOralComprehension'])
+        : (_readingProfiles?['engOralComprehension']);
 
     final listComp = isFil
-        ? (_readingProfiles?['filListeningComprehension'] ?? _readingProfiles?['listeningComprehension'])
-        : (_readingProfiles?['engListeningComprehension'] ?? _readingProfiles?['listeningComprehension']);
+        ? (_readingProfiles?['filListeningComprehension'])
+        : (_readingProfiles?['engListeningComprehension']);
 
     final silentComp = isFil
-        ? (_readingProfiles?['filSilentComprehension'] ?? _readingProfiles?['silentComprehension'])
-        : (_readingProfiles?['engSilentComprehension'] ?? _readingProfiles?['silentComprehension']);
+        ? (_readingProfiles?['filSilentComprehension'])
+        : (_readingProfiles?['engSilentComprehension']);
 
     final silentWpm = isFil
-        ? (_readingProfiles?['filSilentWpm'] ?? _readingProfiles?['silentWpm'])
-        : (_readingProfiles?['engSilentWpm'] ?? _readingProfiles?['silentWpm']);
+        ? (_readingProfiles?['filSilentWpm'])
+        : (_readingProfiles?['engSilentWpm']);
 
     return Container(
       decoration: BoxDecoration(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,6 +44,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   List<Map<String, dynamic>> _assignedList = [];
   Map<dynamic, bool> _activeDrafts = {};
   Map<String, dynamic>? _readingProfiles;
+  String _selectedHeaderLang = 'fil'; // 'fil' or 'en'
+  Timer? _carouselTimer;
 
   dynamic _realtimeSubscription;
 
@@ -55,6 +58,18 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     _refreshUserProfile();
     _fetchTeacherAssignment();
     _setupRealtimeSubscription();
+    _startCarouselTimer();
+  }
+
+  void _startCarouselTimer() {
+    _carouselTimer?.cancel();
+    _carouselTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+      if (mounted) {
+        setState(() {
+          _selectedHeaderLang = _selectedHeaderLang == 'fil' ? 'en' : 'fil';
+        });
+      }
+    });
   }
 
   Future<void> _checkLocalDrafts() async {
@@ -184,6 +199,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   @override
   void dispose() {
+    _carouselTimer?.cancel();
     QuizProgressService.draftChangeNotifier.removeListener(_checkLocalDrafts);
     if (_realtimeSubscription != null) {
       try {
@@ -381,7 +397,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                          ),
                                         // Foreground content
                                         Padding(
-                                          padding: const EdgeInsets.all(20.0),
+                                          padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 14.0),
                                           child: Column(
                                             children: [
                                               Row(
@@ -394,14 +410,15 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                         Text(
                                                           'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
                                                           style: GoogleFonts.inter(
-                                                            fontSize: 26,
+                                                            fontSize: 24.5,
                                                             fontWeight:
                                                                 FontWeight.w800,
                                                             color: Colors.white,
                                                             letterSpacing: -0.5,
+                                                            height: 1.15,
                                                           ),
                                                         ),
-                                                        const SizedBox(height: 4),
+                                                        const SizedBox(height: 2),
                                                         Text(
                                                           AuthService
                                                                           .currentUser
@@ -419,20 +436,21 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                                     ? 'Grade ${AuthService.currentUser?.gradeLevel}'
                                                                     : ''),
                                                           style: GoogleFonts.inter(
-                                                            fontSize: 15,
+                                                            fontSize: 14,
                                                             color: Colors.white
                                                                 .withValues(
                                                                   alpha: 0.8,
                                                                 ),
                                                             fontWeight:
                                                                 FontWeight.w500,
+                                                            height: 1.15,
                                                           ),
                                                         ),
                                                       ],
                                                     ),
                                                   ),
                                                   UserAvatar(
-                                                    size: 56,
+                                                    size: 52,
                                                     onTap: () {
                                                       Navigator.push(
                                                         context,
@@ -445,7 +463,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 16),
+                                              const SizedBox(height: 10),
                                               // ── Integrated Phil-IRI Levels Inside Header ──
                                               _buildHeaderIntegratedProfileStrip(),
                                             ],
@@ -1662,44 +1680,150 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     );
   }
 
-  // ── Integrated Phil-IRI Reading Profile Strip inside Header ──
+  // ── Integrated Phil-IRI Reading Profile Strip inside Header (Option 2 - Exact Original Size) ──
   Widget _buildHeaderIntegratedProfileStrip() {
-    final oralLevel = _readingProfiles?['oralProfile']?.toString() ?? 'Pending';
-    final listeningLevel = _readingProfiles?['listeningProfile']?.toString() ?? 'Pending';
-    final silentLevel = _readingProfiles?['silentProfile']?.toString() ?? 'Pending';
+    final isFil = _selectedHeaderLang == 'fil';
+    final oralLevel = isFil
+        ? (_readingProfiles?['filOralProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engOralProfile']?.toString() ?? 'Pending');
+    final listeningLevel = isFil
+        ? (_readingProfiles?['filListeningProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engListeningProfile']?.toString() ?? 'Pending');
+    final silentLevel = isFil
+        ? (_readingProfiles?['filSilentProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engSilentProfile']?.toString() ?? 'Pending');
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.15),
-          width: 1.0,
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedHeaderLang = isFil ? 'en' : 'fil';
+        });
+        _startCarouselTimer();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 7.0),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1.0,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildHeaderModalityItem('Oral', oralLevel, PhIcons.userSoundBold),
-          ),
-          Container(
-            height: 24,
-            width: 1,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
-          Expanded(
-            child: _buildHeaderModalityItem('Listening', listeningLevel, PhIcons.earBold),
-          ),
-          Container(
-            height: 24,
-            width: 1,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
-          Expanded(
-            child: _buildHeaderModalityItem('Silent', silentLevel, PhIcons.bookOpenBold),
-          ),
-        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Top Micro-Header: Label + Tag + Carousel Dots ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Phil-IRI',
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Container(
+                        key: ValueKey<String>(_selectedHeaderLang),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          isFil ? 'Filipino' : 'English',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // ── Carousel Indicator Dots ──
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: isFil ? 10 : 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: !isFil ? 10 : 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: !isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+
+            // ── Modalities Row with Slide + Fade Transition ──
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.0, 0.15),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    )),
+                    child: child,
+                  ),
+                );
+              },
+              child: Row(
+                key: ValueKey<String>(_selectedHeaderLang),
+                children: [
+                  Expanded(
+                    child: _buildHeaderModalityItem('Oral', oralLevel, PhIcons.userSoundBold),
+                  ),
+                  Container(
+                    height: 22,
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  Expanded(
+                    child: _buildHeaderModalityItem('Listening', listeningLevel, PhIcons.earBold),
+                  ),
+                  Container(
+                    height: 22,
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  Expanded(
+                    child: _buildHeaderModalityItem('Silent', silentLevel, PhIcons.bookOpenBold),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

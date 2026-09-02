@@ -88,30 +88,12 @@ async function initDatabase() {
             CONSTRAINT uq_student_lang_modality_period UNIQUE (student_id, language, assessment_type, assessment_period)
           );
 
-          -- Create or update the dynamic VIEW (reads directly from normalized student_reading_profiles)
+          -- Create or update the dynamic VIEW (reads directly from normalized student_reading_profiles - 6 Modalities)
           CREATE OR REPLACE VIEW reading_profiles AS
           SELECT 
               s.student_id,
-              COALESCE(
-                (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id ORDER BY srp.updated_at DESC LIMIT 1),
-                'Pending Evaluation'
-              ) AS current_profile_label,
 
-              (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_profile_label,
-              (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_accuracy_rate,
-              (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_comprehension_rate,
-              (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS oral_speed_wpm,
-
-              (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS listening_profile_label,
-              (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS listening_comprehension_rate,
-
-              (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_profile_label,
-              (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_comprehension_rate,
-              (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS silent_speed_wpm,
-
-              (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' ORDER BY srp.updated_at DESC LIMIT 1) AS filipino_profile_label,
-              (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' ORDER BY srp.updated_at DESC LIMIT 1) AS english_profile_label,
-
+              -- Filipino 3-Modality Breakdown
               (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_profile_label,
               (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_accuracy_rate,
               (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_comprehension_rate,
@@ -124,6 +106,7 @@ async function initDatabase() {
               (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_comprehension_rate,
               (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_speed_wpm,
 
+              -- English 3-Modality Breakdown
               (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_profile_label,
               (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_accuracy_rate,
               (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_comprehension_rate,

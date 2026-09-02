@@ -183,10 +183,15 @@ async function getTeacherById(req, res) {
                  s.lrn,
                  CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
                  COALESCE(s.sex, 'Male') AS gender,
-                 COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level
+                 COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level
                FROM student_grade_history sgh
                JOIN students s ON sgh.student_id = s.student_id
                LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
+               LEFT JOIN (
+                 SELECT DISTINCT ON (student_id) student_id, reading_level_result
+                 FROM assessments
+                 ORDER BY student_id, created_at DESC
+               ) a ON a.student_id = s.student_id
                WHERE sgh.class_id = $1 AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
                ORDER BY s.last_name ASC`,
               [classId]
@@ -1456,36 +1461,18 @@ async function getTeacherClassStudents(req, res) {
           c.grade_level AS "gradeLevel",
           c.class_id AS "classId",
           COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
-          COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
-          COALESCE(
-            rp.oral_speed_wpm,
-            CASE 
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 110
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 85
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 42
-              ELSE 0
-            END
-          ) AS "readingSpeed",
-          COALESCE(
-            rp.oral_accuracy_rate,
-            CASE 
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
-              ELSE 0
-            END
-          ) AS accuracy,
-          COALESCE(
-            rp.oral_comprehension_rate,
-            CASE 
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
-              WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
-              ELSE 0
-            END
-          ) AS comprehension,
+          COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS "readingLevel",
+          COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
+          COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS reading_level,
+          rp.fil_oral_profile_label AS "filOralProfile",
+          rp.fil_listening_profile_label AS "filListeningProfile",
+          rp.fil_silent_profile_label AS "filSilentProfile",
+          rp.eng_oral_profile_label AS "engOralProfile",
+          rp.eng_listening_profile_label AS "engListeningProfile",
+          rp.eng_silent_profile_label AS "engSilentProfile",
+          COALESCE(rp.fil_oral_speed_wpm, 0) AS "readingSpeed",
+          COALESCE(rp.fil_oral_accuracy_rate, 0) AS accuracy,
+          COALESCE(rp.fil_oral_comprehension_rate, 0) AS comprehension,
           CURRENT_TIMESTAMP AS "lastUpdated"
         FROM students s
         JOIN student_grade_history sgh ON sgh.student_id = s.student_id
@@ -1521,36 +1508,18 @@ async function getTeacherClassStudents(req, res) {
             c.grade_level AS "gradeLevel",
             c.class_id AS "classId",
             COALESCE(sgh.promotion_status, 'pending') AS "promotionStatus",
-            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS "readingLevel",
-            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS level,
-            COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending Evaluation') AS reading_level,
-            COALESCE(
-              rp.oral_speed_wpm,
-              CASE 
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 110
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 85
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 42
-                ELSE 0
-              END
-            ) AS "readingSpeed",
-            COALESCE(
-              rp.oral_accuracy_rate,
-              CASE 
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 97
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 92
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 80
-                ELSE 0
-              END
-            ) AS accuracy,
-            COALESCE(
-              rp.oral_comprehension_rate,
-              CASE 
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%independ%' THEN 90
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%instruct%' THEN 75
-                WHEN LOWER(COALESCE(rp.current_profile_label, a.reading_level_result)) LIKE '%frustrat%' THEN 50
-                ELSE 0
-              END
-            ) AS comprehension,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS "readingLevel",
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS reading_level,
+            rp.fil_oral_profile_label AS "filOralProfile",
+            rp.fil_listening_profile_label AS "filListeningProfile",
+            rp.fil_silent_profile_label AS "filSilentProfile",
+            rp.eng_oral_profile_label AS "engOralProfile",
+            rp.eng_listening_profile_label AS "engListeningProfile",
+            rp.eng_silent_profile_label AS "engSilentProfile",
+            COALESCE(rp.fil_oral_speed_wpm, 0) AS "readingSpeed",
+            COALESCE(rp.fil_oral_accuracy_rate, 0) AS accuracy,
+            COALESCE(rp.fil_oral_comprehension_rate, 0) AS comprehension,
             CURRENT_TIMESTAMP AS "lastUpdated"
           FROM students s
           JOIN student_grade_history sgh ON sgh.student_id = s.student_id

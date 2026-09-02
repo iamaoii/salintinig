@@ -88,7 +88,7 @@ async function getStudents(req, res) {
               WHEN u.status = 'disabled' THEN 'Disabled'
               ELSE 'Active'
             END AS status,
-            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
@@ -117,6 +117,11 @@ async function getStudents(req, res) {
           ) sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = s.student_id
         `;
         const params = [];
 
@@ -175,7 +180,7 @@ async function getStudentByLrn(req, res) {
               WHEN u.status = 'disabled' THEN 'Disabled'
               ELSE 'Active'
             END AS status,
-            COALESCE(rp.current_profile_label, 'Pending Evaluation') AS level,
+            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
             TO_CHAR(s.created_at, 'YYYY-MM-DD') AS "dateAdded"
           FROM students s
           LEFT JOIN users u ON s.user_id = u.user_id
@@ -196,6 +201,11 @@ async function getStudentByLrn(req, res) {
           LEFT JOIN student_parents sp ON s.student_id = sp.student_id
           LEFT JOIN parents p ON sp.parent_id = p.parent_id
           LEFT JOIN reading_profiles rp ON s.student_id = rp.student_id
+          LEFT JOIN (
+            SELECT DISTINCT ON (student_id) student_id, reading_level_result
+            FROM assessments
+            ORDER BY student_id, created_at DESC
+          ) a ON a.student_id = s.student_id
           WHERE TRIM(s.lrn) = $1 OR s.student_id::text = $1 OR TRIM(s.lrn) = $2 OR s.student_id::text = $2
           LIMIT 1
         `, [cleanLrn, lrn]);
@@ -2082,18 +2092,6 @@ async function getStudentActiveAssignment(req, res) {
       try {
         const rpRes = await db.query(
           `SELECT 
-             current_profile_label,
-             oral_profile_label,
-             oral_accuracy_rate,
-             oral_comprehension_rate,
-             oral_speed_wpm,
-             listening_profile_label,
-             listening_comprehension_rate,
-             silent_profile_label,
-             silent_comprehension_rate,
-             silent_speed_wpm,
-             filipino_profile_label,
-             english_profile_label,
              fil_oral_profile_label,
              fil_oral_accuracy_rate,
              fil_oral_comprehension_rate,
@@ -2119,19 +2117,6 @@ async function getStudentActiveAssignment(req, res) {
         if (rpRes.rows?.[0]) {
           const row = rpRes.rows[0];
           readingProfiles = {
-            currentProfile: row.current_profile_label || 'Pending Evaluation',
-            oralProfile: row.oral_profile_label || 'Pending Evaluation',
-            oralAccuracy: row.oral_accuracy_rate,
-            oralComprehension: row.oral_comprehension_rate,
-            oralWpm: row.oral_speed_wpm,
-            listeningProfile: row.listening_profile_label || 'Pending Evaluation',
-            listeningComprehension: row.listening_comprehension_rate,
-            silentProfile: row.silent_profile_label || 'Pending Evaluation',
-            silentComprehension: row.silent_comprehension_rate,
-            silentWpm: row.silent_speed_wpm,
-            filipinoProfile: row.filipino_profile_label,
-            englishProfile: row.english_profile_label,
-
             // Filipino Modalities
             filOralProfile: row.fil_oral_profile_label || 'Pending Evaluation',
             filOralAccuracy: row.fil_oral_accuracy_rate,
@@ -2628,18 +2613,18 @@ async function getStudentAssessmentResults(req, res) {
            aa.created_at          AS "createdAt",
            aa.total_score         AS "totalScore",
            p.word_count           AS "wordCount",
-           COALESCE(orr.reading_rate_wpm, rp.silent_speed_wpm) AS "readingRateWpm",
+           COALESCE(orr.reading_rate_wpm, CASE WHEN (p.language || 'fil') LIKE 'en%' THEN rp.eng_silent_speed_wpm ELSE rp.fil_silent_speed_wpm END) AS "readingRateWpm",
            orr.accuracy_percentage AS "accuracyPercentage",
            orr.words_read          AS "wordsRead",
            orr.correct_words      AS "correctWords",
            COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds",
            COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
-           rp.current_profile_label AS "profileLabel",
-           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score, rp.oral_comprehension_rate, rp.silent_comprehension_rate, rp.listening_comprehension_rate) AS "comprehensionRate",
-           rp.oral_accuracy_rate   AS "oralAccuracyRate",
-           rp.silent_profile_label AS "silentProfileLabel",
-           rp.listening_profile_label AS "listeningProfileLabel",
-           rp.oral_profile_label   AS "oralProfileLabel",
+           rp.fil_oral_profile_label AS "filOralProfileLabel",
+           rp.fil_listening_profile_label AS "filListeningProfileLabel",
+           rp.fil_silent_profile_label AS "filSilentProfileLabel",
+           rp.eng_oral_profile_label AS "engOralProfileLabel",
+           rp.eng_listening_profile_label AS "engListeningProfileLabel",
+           rp.eng_silent_profile_label AS "engSilentProfileLabel",
            a.reading_level_result  AS "readingLevelResult",
            COALESCE(aa.status, a.status, 'open') AS "status",
            orr.verification_status AS "verificationStatus"
@@ -2799,11 +2784,21 @@ async function getStudentAssessmentResults(req, res) {
             const sWpm = Number(row.readingRateWpm) || (row.readingTimeSeconds > 0 ? Math.round(((Number(row.wordCount) || 115) / row.readingTimeSeconds) * 60) : 0);
             calculatedLevel = getPhilIriSilentProfile(sWpm, compRate, 'Grade 4', row.language || 'fil');
           }
+
+          const isEng = (row.language || 'fil').toLowerCase().startsWith('en');
+          const specificModalityProfile = row.assessmentType === 'oral'
+            ? (isEng ? row.engOralProfileLabel : row.filOralProfileLabel) || row.oralProfileLabel
+            : row.assessmentType === 'listening'
+              ? (isEng ? row.engListeningProfileLabel : row.filListeningProfileLabel) || row.listeningProfileLabel
+              : (isEng ? row.engSilentProfileLabel : row.filSilentProfileLabel) || row.silentProfileLabel;
+
           const finalProfile = (row.readingLevelResult && row.readingLevelResult !== 'Pending Evaluation')
             ? row.readingLevelResult
-            : (calculatedLevel !== 'Pending Evaluation'
-                ? calculatedLevel
-                : (row.profileLabel || 'Pending Evaluation'));
+            : (specificModalityProfile && specificModalityProfile !== 'Pending Evaluation'
+                ? specificModalityProfile
+                : (calculatedLevel !== 'Pending Evaluation'
+                    ? calculatedLevel
+                    : (row.profileLabel || 'Pending Evaluation')));
 
           let computedRateWpm = Number(row.readingRateWpm) || 0;
           if (computedRateWpm <= 0 && Number(row.readingTimeSeconds) > 0) {
@@ -2832,48 +2827,48 @@ async function getStudentAssessmentResults(req, res) {
             if (rpRes.rows?.[0]) {
               const rp = rpRes.rows[0];
               const fallbackList = [];
-              if (rp.oral_profile_label && rp.oral_profile_label !== 'Pending Evaluation') {
-                const oComp = Number(rp.oral_comprehension_rate) || 0;
+              if (rp.fil_oral_profile_label && rp.fil_oral_profile_label !== 'Pending Evaluation') {
+                const oComp = Number(rp.fil_oral_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'oral',
-                  assessmentTitle: 'Oral Reading Assessment',
+                  assessmentTitle: 'Oral Reading Assessment (Pre-Test - Filipino)',
                   passageTitle: 'Oral Reading Passage',
                   language: 'fil',
                   score: Math.round((oComp / 100) * 5),
                   totalQuestions: 5,
-                  accuracyPercentage: Number(rp.oral_accuracy_rate) || 0,
-                  readingRateWpm: Number(rp.oral_speed_wpm) || 0,
-                  profileLabel: rp.oral_profile_label,
+                  accuracyPercentage: Number(rp.fil_oral_accuracy_rate) || 0,
+                  readingRateWpm: Number(rp.fil_oral_speed_wpm) || 0,
+                  profileLabel: rp.fil_oral_profile_label,
                   completedAt: new Date().toISOString(),
                   questions: [],
                 });
               }
-              if (rp.listening_profile_label && rp.listening_profile_label !== 'Pending Evaluation') {
-                const lComp = Number(rp.listening_comprehension_rate) || 0;
+              if (rp.fil_listening_profile_label && rp.fil_listening_profile_label !== 'Pending Evaluation') {
+                const lComp = Number(rp.fil_listening_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'listening',
-                  assessmentTitle: 'Listening Assessment',
+                  assessmentTitle: 'Listening Assessment (Pre-Test - Filipino)',
                   passageTitle: 'Listening Passage',
                   language: 'fil',
                   score: Math.round((lComp / 100) * 5),
                   totalQuestions: 5,
-                  profileLabel: rp.listening_profile_label,
+                  profileLabel: rp.fil_listening_profile_label,
                   completedAt: new Date().toISOString(),
                   questions: [],
                 });
               }
-              if (rp.silent_profile_label && rp.silent_profile_label !== 'Pending Evaluation') {
-                const sComp = Number(rp.silent_comprehension_rate) || 0;
+              if (rp.fil_silent_profile_label && rp.fil_silent_profile_label !== 'Pending Evaluation') {
+                const sComp = Number(rp.fil_silent_comprehension_rate) || 0;
                 fallbackList.push({
                   assessmentType: 'silent',
-                  assessmentTitle: 'Silent Reading Assessment',
+                  assessmentTitle: 'Silent Reading Assessment (Pre-Test - Filipino)',
                   passageTitle: 'Silent Reading Passage',
                   language: 'fil',
                   score: Math.round((sComp / 100) * 5),
                   totalQuestions: 5,
-                  readingRateWpm: Number(rp.silent_speed_wpm) || 0,
+                  readingRateWpm: Number(rp.fil_silent_speed_wpm) || 0,
                   readingTimeSeconds: 0,
-                  profileLabel: rp.silent_profile_label,
+                  profileLabel: rp.fil_silent_profile_label,
                   completedAt: new Date().toISOString(),
                   questions: [],
                 });

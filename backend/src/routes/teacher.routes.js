@@ -61,9 +61,9 @@ router.get('/grade-level', async (req, res) => {
          c.advisor_teacher_id AS "advisorId",
          CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS adviser,
          COUNT(DISTINCT sgh.student_id)::int AS "studentsCount",
-         COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
-         COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
-         COUNT(DISTINCT CASE WHEN COALESCE(rp.current_profile_label, a.reading_level_result) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
+         COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
+         COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
+         COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
        FROM classes c
        JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
        LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
@@ -129,7 +129,7 @@ router.get('/grade-level', async (req, res) => {
          s.profile_image AS "profileImage",
          c.section_name AS "sectionName",
          c.class_id AS "classId",
-         COALESCE(rp.current_profile_label, a.reading_level_result, 'Pending') AS "readingLevel"
+         COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending') AS "readingLevel"
        FROM students s
        JOIN student_grade_history sgh ON sgh.student_id = s.student_id
        JOIN classes c ON sgh.class_id = c.class_id
