@@ -10,6 +10,7 @@ async function synthesize(req, res) {
     const language = req.query.language || (req.body && req.body.language) || 'fil';
     const rate = req.query.rate || (req.body && req.body.rate) || '-6%';
     const passageId = req.query.passageId || (req.body && req.body.passageId) || null;
+    const folder = req.query.folder || (req.body && req.body.folder) || 'salintinig/tts';
     const stream = req.query.stream === 'true' || (req.body && req.body.stream === true);
 
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -19,7 +20,15 @@ async function synthesize(req, res) {
       });
     }
 
-    const result = await synthesizeTextToAudio(text, language, rate, passageId);
+    let targetFolder = folder;
+    if (folder.startsWith('salintinig/pronunciation/syllables') && !folder.endsWith('/eng') && !folder.endsWith('/fil')) {
+      targetFolder = language.toLowerCase().startsWith('en') ? 'salintinig/pronunciation/syllables/eng' : 'salintinig/pronunciation/syllables/fil';
+    } else if (folder.startsWith('salintinig/pronunciation/words') && !folder.endsWith('/eng') && !folder.endsWith('/fil')) {
+      targetFolder = language.toLowerCase().startsWith('en') ? 'salintinig/pronunciation/words/eng' : 'salintinig/pronunciation/words/fil';
+    }
+
+    const result = await synthesizeTextToAudio(text, language, rate, passageId, targetFolder);
+
 
     if (stream) {
       if (result.filePath && fs.existsSync(result.filePath)) {

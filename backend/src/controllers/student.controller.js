@@ -2893,6 +2893,305 @@ async function getStudentAssessmentResults(req, res) {
   }
 }
 
+// =============================================================================
+// PRONUNCIATION CHALLENGE
+// =============================================================================
+
+const pronunciationService = require('../services/pronunciationService.js');
+
+/**
+ * GET /api/student/pronunciation/items?language=tl&limit=5
+ *
+ * Returns validated pronunciation items for a student's practice session.
+ * Automatically deprioritizes recently attempted words for variety.
+ * The activity is source-agnostic — it only receives validated content
+ * regardless of where each word originally came from.
+ */
+async function getPronunciationItems(req, res) {
+  try {
+    const language = (req.query.language || 'tl').toLowerCase();
+    const limit = parseInt(req.query.limit) || 5;
+    const difficulty = req.query.difficulty ? String(req.query.difficulty).toLowerCase() : null;
+    const studentId = req.user?.studentId || req.user?.student_id || null;
+
+    const items = await pronunciationService.getSessionItems(language, limit, studentId, difficulty);
+
+    if (!items || items.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No pronunciation items available for the selected language.',
+      });
+    }
+
+    return res.json({ success: true, items });
+  } catch (err) {
+    console.error('[getPronunciationItems]', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch pronunciation items.' });
+  }
+}
+
+/**
+ * GET /api/student/pronunciation/audio/:itemId
+ *
+ * Cache-first reference audio endpoint.
+ * Returns existing Cloudinary URL if cached, otherwise generates via Edge-TTS,
+ * saves the URL to the DB, and returns it. Never calls TTS twice for the same word.
+ */
+async function getPronunciationAudio(req, res) {
+  try {
+    const { itemId } = req.params;
+    if (!itemId) return res.status(400).json({ success: false, error: 'itemId is required.' });
+
+    const item = await pronunciationService.getItemById(itemId);
+    if (!item) return res.status(404).json({ success: false, error: 'Pronunciation item not found.' });
+
+    const audioUrl = await pronunciationService.getOrGenerateAudio(itemId, item.word, item.language);
+
+    if (!audioUrl) {
+      return res.status(503).json({
+        success: false,
+        error: 'Reference audio is currently unavailable. Please try again.',
+      });
+    }
+
+    return res.json({ success: true, audioUrl });
+  } catch (err) {
+    console.error('[getPronunciationAudio]', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve reference audio.' });
+  }
+}
+
+/**
+ * GET /api/students/pronunciation/syllables-audio/:itemId
+ *
+ * Cache-first syllable reference audio endpoint.
+ * Returns array of { syllable, audioUrl } objects from DB if cached,
+ * otherwise synthesizes to salintinig/pronunciation/syllables, saves array in DB, and returns it.
+ */
+async function getPronunciationSyllableAudios(req, res) {
+  try {
+    const { itemId } = req.params;
+    if (!itemId) return res.status(400).json({ success: false, error: 'itemId is required.' });
+
+    const item = await pronunciationService.getItemById(itemId);
+    if (!item) return res.status(404).json({ success: false, error: 'Pronunciation item not found.' });
+
+    const syllables = item.syllables || [];
+    const syllableAudios = await pronunciationService.getOrGenerateSyllableAudios(itemId, syllables, item.language);
+
+    return res.json({ success: true, syllableAudios });
+  } catch (err) {
+    console.error('[getPronunciationSyllableAudios]', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve syllable audio.' });
+  }
+}
+
+
+/**
+ * POST /api/student/pronunciation/attempt
+ * Body: { itemId, score, xpEarned, transcript? }
+ *
+ * Records the student's pronunciation attempt and awards XP.
+ * Score is 0–100 (calculated by the mobile client via Whisper comparison).
+ * Does NOT affect Phil-IRI results — this is a separate practice activity.
+ */
+async function submitPronunciationAttempt(req, res) {
+  try {
+    const { itemId, score, xpEarned = 0, transcript = null } = req.body;
+    const studentId = req.user?.studentId || req.user?.student_id || null;
+
+    if (!studentId) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+    if (!itemId || score === undefined || score === null) {
+      return res.status(400).json({ success: false, error: 'itemId and score are required.' });
+    }
+    if (score < 0 || score > 100) {
+      return res.status(400).json({ success: false, error: 'score must be between 0 and 100.' });
+    }
+
+    const attempt = await pronunciationService.logAttempt(studentId, itemId, score, xpEarned);
+
+    return res.json({
+      success: true,
+      attemptId: attempt.attemptId,
+      xpEarned: attempt.xpEarned,
+    });
+  } catch (err) {
+    console.error('[submitPronunciationAttempt]', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Could not save your pronunciation attempt. Please try again.',
+    });
+  }
+}
+
+/**
+ * POST /api/students/pronunciation/verify-audio
+ * Accepts multipart/form-data with 'audio' file and body fields: { itemId }
+ * 
+ * Transcribes student recording using Groq Whisper Large v3,
+ * evaluates pronunciation against the target word and syllables,
+ * logs the attempt with XP, and returns real accuracy score + feedback.
+ */
+async function verifyPronunciationAudio(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id || null;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        if (studentId) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+            [String(studentId).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        } else if (req.user?.lrn) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [String(req.user.lrn).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        }
+
+        if (!studentId) {
+          const fallbackStd = await db.query(`SELECT student_id FROM students LIMIT 1`);
+          if (fallbackStd.rows?.[0]) studentId = fallbackStd.rows[0].student_id;
+        }
+      } catch (dbErr) {
+        console.warn('[verifyPronunciationAudio] Student ID resolution notice:', dbErr.message);
+      }
+    }
+
+    if (!studentId) {
+      studentId = '00000000-0000-0000-0000-000000000000';
+    }
+
+    const { itemId, sessionId } = req.body;
+    if (!itemId) {
+      return res.status(400).json({ success: false, error: 'itemId is required.' });
+    }
+
+    if (!req.file || !req.file.path) {
+      return res.status(400).json({ success: false, error: 'Audio file is required.' });
+    }
+
+    const item = await pronunciationService.getItemById(itemId);
+    if (!item) {
+      return res.status(404).json({ success: false, error: 'Pronunciation word not found.' });
+    }
+
+
+    const { transcribeAudio } = require('../services/sttService.js');
+    const { evaluatePronunciation } = require('../utils/pronunciationEvaluator.js');
+
+    // Transcribe student audio via Groq Whisper Large-v3 in dedicated pronunciation mode
+    const sttResult = await transcribeAudio(
+      req.file.path,
+      item.language,
+      req.file.originalname,
+      item.word,
+      true // isPronunciation
+    );
+
+    const transcript = (sttResult && sttResult.text) ? sttResult.text.trim() : '';
+
+    // Evaluate pronunciation accuracy and syllable precision
+    const evalResult = evaluatePronunciation(item.word, transcript, item.syllables || [], item.language);
+
+    // Dynamic scaled XP based on word difficulty:
+    // easy: 10 XP, medium: 15 XP, hard: 25 XP
+    const difficultyXpMap = {
+      easy: 10,
+      medium: 15,
+      hard: 25,
+    };
+    const baseWordXp = difficultyXpMap[item.difficulty?.toLowerCase()] || 15;
+    const xpEarned = evalResult.isPassed ? baseWordXp : 0;
+
+    // Log or update the attempt in the current session (override pattern)
+    const attempt = await pronunciationService.logAttempt(
+      studentId,
+      itemId,
+      evalResult.accuracyScore,
+      xpEarned,
+      sessionId || null,
+      evalResult.isPassed
+    );
+
+    // Clean up temporary uploaded file
+    try {
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      accuracyScore: evalResult.accuracyScore,
+      isPassed: evalResult.isPassed,
+      transcript: evalResult.transcript,
+      feedback: evalResult.feedback,
+      xpEarned,
+      attemptId: attempt?.attemptId,
+      attemptsCount: attempt?.attemptsCount || 1,
+    });
+  } catch (err) {
+    console.error('[verifyPronunciationAudio]', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to analyze pronunciation audio. Please try again.',
+    });
+  }
+}
+
+/**
+ * POST /api/students/pronunciation/ingest
+ * Ingests a new vocabulary candidate word from external dictionary API or input,
+ * validates it against Grade 4–6 criteria, and saves to database.
+ */
+async function ingestPronunciationWord(req, res) {
+  try {
+    const { word, language = 'en', customDefinition, customTranslation } = req.body;
+    if (!word) {
+      return res.status(400).json({ success: false, error: 'Word is required for ingestion.' });
+    }
+
+    const { lookupWordMetadata } = require('../services/dictionaryService.js');
+    const { validateWordCandidate } = require('../services/contentValidator.js');
+
+    // 1. Fetch metadata from dictionary service
+    let metadata = await lookupWordMetadata(word, language);
+    if (!metadata) {
+      metadata = { word, language };
+    }
+
+    if (customDefinition) metadata.definition = customDefinition;
+    if (customTranslation) metadata.translation = customTranslation;
+
+    // 2. Validate against Grade 4–6 content criteria
+    const validation = validateWordCandidate(metadata);
+    if (!validation.isValid) {
+      return res.status(422).json({
+        success: false,
+        error: `Word rejected by content validator: ${validation.reason}`,
+      });
+    }
+
+    // 3. Insert into database
+    const saved = await pronunciationService.insertItem(validation.validatedItem);
+
+    return res.json({
+      success: true,
+      item: saved,
+      message: 'Word successfully validated and added to the pronunciation content pool.',
+    });
+  } catch (err) {
+    console.error('[ingestPronunciationWord]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -2913,4 +3212,13 @@ module.exports = {
   denoiseTestAudio,
   updateAssessmentStartProgress,
   getStudentAssessmentResults,
+  getPronunciationItems,
+  getPronunciationAudio,
+  getPronunciationSyllableAudios,
+  submitPronunciationAttempt,
+  verifyPronunciationAudio,
+  ingestPronunciationWord,
 };
+
+
+

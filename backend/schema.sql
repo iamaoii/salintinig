@@ -513,6 +513,48 @@ CREATE TABLE IF NOT EXISTS account_requests (
 );
 
 -- -----------------------------------------------------------------------------
+-- 10. PRONUNCIATION CHALLENGE (Duolingo-style Practice Activity)
+-- -----------------------------------------------------------------------------
+
+-- Vocabulary Bank
+CREATE TABLE IF NOT EXISTS pronunciation_items (
+    item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    language VARCHAR(10) NOT NULL DEFAULT 'fil',  -- 'fil' (Filipino) or 'en' (English)
+
+    word VARCHAR(100) NOT NULL,                  -- e.g. "Bahaghari"
+    translation VARCHAR(150) NOT NULL,           -- e.g. "Rainbow"
+    definition TEXT NOT NULL,                    -- e.g. "Makulay na guhit sa langit pagkatapos ng ulan."
+    example_sentence TEXT,                       -- e.g. "May magandang bahaghari pagkatapos ng ulan."
+
+    syllables JSONB NOT NULL,                    -- e.g. ["Ba", "hag", "ha", "ri"]
+    audio_url TEXT,                              -- Edge-TTS cached reference audio (Cloudinary)
+    syllable_audio_urls JSONB DEFAULT '[]'::jsonb, -- Array of objects: [{"syllable": "Ba", "audio_url": "https://..."}]
+    difficulty VARCHAR(20) DEFAULT 'medium',     -- 'easy' | 'medium' | 'hard'
+
+    -- Content Pool Validation
+    content_status VARCHAR(20) NOT NULL DEFAULT 'validated', -- 'pending' | 'validated' | 'inactive'
+    source VARCHAR(50) NOT NULL DEFAULT 'system',            -- 'system' | 'admin' | 'dictionary_api' | 'educational_material' | 'imported_dataset'
+
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- Student Practice Attempts & XP
+CREATE TABLE IF NOT EXISTS pronunciation_attempts (
+    attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    item_id UUID REFERENCES pronunciation_items(item_id) ON DELETE CASCADE,
+    session_id VARCHAR(100),
+    attempts_count INT DEFAULT 1,
+    is_passed BOOLEAN DEFAULT false,
+    score INT NOT NULL,                          -- Accuracy 0 to 100
+    xp_earned INT DEFAULT 0,                     -- e.g. 10 XP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- -----------------------------------------------------------------------------
 -- 10. INDEXES FOR HIGH-PERFORMANCE LOOKUPS
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -528,3 +570,5 @@ CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(materia
 CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_assessment_answers_attempt ON assessment_answers(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_oral_results_attempt ON oral_reading_results(assessment_attempt_id);
+CREATE INDEX IF NOT EXISTS idx_pronunciation_items_language ON pronunciation_items(language, is_active);
+CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_student ON pronunciation_attempts(student_id);

@@ -20,7 +20,9 @@ app.use('/assets', express.static(path.join(__dirname, '../../frontend/src/asset
 // Routes
 app.use('/api/auth', require('./routes/auth.routes.js'))
 app.use('/api/students', require('./routes/student.routes.js'))
+app.use('/api/student', require('./routes/student.routes.js'))
 app.use('/api/admin', require('./routes/admin.routes.js'))
+
 app.use('/api/teacher', require('./routes/teacher.routes.js'))
 app.use('/api/notifications', require('./routes/notification.routes.js'))
 app.use('/api/tts', require('./routes/tts.routes.js'))
@@ -122,6 +124,30 @@ async function initDatabase() {
         `);
       } catch (colErr) {
         console.warn('reading_profiles migration notice:', colErr.message);
+      }
+
+      // Auto-migrate pronunciation_attempts columns for session attempt overriding
+      try {
+        await db.query(`
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS attempts_count INT DEFAULT 1;
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS session_id VARCHAR(100);
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS is_passed BOOLEAN DEFAULT false;
+          CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_session ON pronunciation_attempts(student_id, session_id);
+        `);
+      } catch (paErr) {
+        console.warn('pronunciation_attempts migration notice:', paErr.message);
+      }
+
+      // Auto-migrate pronunciation_items.difficulty column and auto-classify
+      try {
+        await db.query(`
+          ALTER TABLE pronunciation_items ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium';
+          CREATE INDEX IF NOT EXISTS idx_pronunciation_items_lang_diff ON pronunciation_items(language, difficulty, is_active);
+          UPDATE pronunciation_items SET difficulty = 'easy' WHERE jsonb_array_length(syllables) <= 3 AND (difficulty IS NULL OR difficulty = 'medium');
+          UPDATE pronunciation_items SET difficulty = 'hard' WHERE jsonb_array_length(syllables) >= 5;
+        `);
+      } catch (diffErr) {
+        console.warn('pronunciation_items difficulty migration notice:', diffErr.message);
       }
 
       console.log('✅ Database schema verified & ready.');
