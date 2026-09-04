@@ -194,7 +194,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 isInProgress: _pronunciationInProgress,
                                 currentIndex: _pronunciationCurrentIndex,
                                 totalItems: _pronunciationTotalItems,
-                                onPlayTap: () => _handlePronunciationTap(context),
+                                onPlayTap: () => _showPronunciationMissionSetup(context),
                               ),
                               const SizedBox(height: 14),
 
@@ -586,8 +586,15 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
   // ── Pronunciation Challenge Setup & Resume ─────────────────────────────────
 
-  void _handlePronunciationTap(BuildContext context) {
-    _showPronunciationMissionSetup(context);
+  /// Returns the XP awarded per word for a given difficulty tier.
+  /// Kept in sync with `_baseXpPerWord` in [PronunciationChallengePage].
+  static int _xpPerWord(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy': return 10;
+      case 'hard': return 25;
+      case 'medium':
+      default:     return 15;
+    }
   }
 
   void _showPronunciationMissionSetup(BuildContext context) async {
@@ -622,20 +629,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 ? ((activeProgress['difficulty'] as String?) ?? selectedDifficulty)
                 : selectedDifficulty;
 
-            int xpPerWord;
-            switch (effectiveDifficulty) {
-              case 'easy':
-                xpPerWord = 10;
-                break;
-              case 'hard':
-                xpPerWord = 25;
-                break;
-              case 'medium':
-              default:
-                xpPerWord = 15;
-                break;
-            }
-            final int maxTotalXp = xpPerWord * 5;
+            final int maxTotalXp = _xpPerWord(effectiveDifficulty) * 5;
 
             return SafeArea(
               child: Padding(

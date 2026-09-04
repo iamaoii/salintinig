@@ -83,22 +83,12 @@ class _PronunciationChallengePageState
   String? _recordingPath;
   String _feedbackText = '';
 
-
-
-
-
-
-
-
-
   Timer? _waveformTimer;
   Timer? _systemAudioTimer;
-
 
   // ── Session Constants ─────────────────────────────────────────────────────
 
   static const int _sessionSize = 5;
-
 
   // ─────────────────────────────────────────────────────────────────────────
   // LIFECYCLE
@@ -201,10 +191,6 @@ class _PronunciationChallengePageState
     _audioRecorder.dispose();
     super.dispose();
   }
-
-
-
-
 
   // ─────────────────────────────────────────────────────────────────────────
   // API: FETCH SESSION WORDS FROM VALIDATED CONTENT POOL
@@ -313,13 +299,9 @@ class _PronunciationChallengePageState
   // ─────────────────────────────────────────────────────────────────────────
 
   String _getMascotAsset() {
-    if (_isPlayingReferenceAudio) {
-      return 'assets/mascot/sally_speaking.webp';
-    }
-    if (_state == PracticeState.success) {
-      return 'assets/mascot/sally_happy.webp';
-    }
-    return 'assets/mascot/sally_speaking.webp';
+    return (_state == PracticeState.success && !_isPlayingReferenceAudio)
+        ? 'assets/mascot/sally_happy.webp'
+        : 'assets/mascot/sally_speaking.webp';
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -612,32 +594,34 @@ class _PronunciationChallengePageState
     _isAnalyzingAudio = false;
   }
 
+  /// Removes a syllable index from the active highlight set and updates the
+  /// guided syllable pointer. Safe to call from any async context.
+  void _clearSyllableHighlight(int index) {
+    if (!mounted) return;
+    setState(() {
+      _activeSyllableIndices.remove(index);
+      if (_activeGuidedSyllableIndex == index) {
+        _activeGuidedSyllableIndex =
+            _activeSyllableIndices.isNotEmpty ? _activeSyllableIndices.last : -1;
+        _selectedSyllable = _activeGuidedSyllableIndex >= 0
+            ? _words[_currentWordIndex]['syllables'][_activeGuidedSyllableIndex]
+            : null;
+      }
+    });
+  }
+
   void _playSyllableAudio(int index, String syllable) async {
-    // Anti-spam: Only block if THIS EXACT syllable index is already currently playing, or Sally is reading the full word
-    if (_activeSyllableIndices.contains(index) || _state == PracticeState.listening) {
-      return;
-    }
+    // Anti-spam: Only block if THIS EXACT syllable index is already playing, or Sally is reading the full word
+    if (_activeSyllableIndices.contains(index) || _state == PracticeState.listening) return;
 
     Feedback.forTap(context);
-
     if (!mounted) return;
+
     setState(() {
       _activeSyllableIndices.add(index);
       _selectedSyllable = syllable;
       _activeGuidedSyllableIndex = index;
     });
-
-    void clearHighlight(int finishedIdx) {
-      if (mounted) {
-        setState(() {
-          _activeSyllableIndices.remove(finishedIdx);
-          if (_activeGuidedSyllableIndex == finishedIdx) {
-            _activeGuidedSyllableIndex = _activeSyllableIndices.isNotEmpty ? _activeSyllableIndices.last : -1;
-            _selectedSyllable = _activeGuidedSyllableIndex >= 0 ? _words[_currentWordIndex]['syllables'][_activeGuidedSyllableIndex] : null;
-          }
-        });
-      }
-    }
 
     try {
       final currentItem = _words[_currentWordIndex];
@@ -645,74 +629,47 @@ class _PronunciationChallengePageState
       final cachedUrl = syllableMap?[syllable];
       final itemId = currentItem['itemId'] as String? ?? '';
 
-      // Get or create dedicated player for this syllable INDEX so duplicate syllables ("ma", "ma") have separate audio players
+      // Get or create a dedicated player per syllable INDEX so duplicate syllables
+      // (e.g. "ma", "ma") each have their own audio stream.
       final player = _syllablePlayers.putIfAbsent(index, () => AudioPlayer());
 
-      // Helper to play without interrupting other syllables and unhighlight when this syllable finishes
+      // Plays a URL and unhighlights the chip when done or after a safety timeout.
       Future<void> playAudioUrl(String url, int idx) async {
         if (!mounted) return;
         await player.stop();
         if (!mounted) return;
         await player.play(UrlSource(url));
 
-        // Safety fallback timer in case audio stream is interrupted
         Timer? safetyTimer;
         safetyTimer = Timer(const Duration(milliseconds: 1600), () {
-          clearHighlight(idx);
+          _clearSyllableHighlight(idx);
         });
-
         player.onPlayerComplete.first.then((_) {
           safetyTimer?.cancel();
-          clearHighlight(idx);
+          _clearSyllableHighlight(idx);
         }).catchError((_) {
           safetyTimer?.cancel();
-          clearHighlight(idx);
+          _clearSyllableHighlight(idx);
         });
       }
 
+      // Fast path: URL already cached in the session word map.
       if (cachedUrl != null && cachedUrl.isNotEmpty) {
-        // Attempt instant Zero-Latency Playback from preloaded DB column
         try {
-          if (!mounted) return;
-          await player.stop();
-          if (!mounted) return;
-          await player.play(UrlSource(cachedUrl));
-
-          Timer? safetyTimer;
-          safetyTimer = Timer(const Duration(milliseconds: 1600), () {
-            clearHighlight(index);
-          });
-
-          player.onPlayerComplete.first.then((_) {
-            safetyTimer?.cancel();
-            clearHighlight(index);
-          }).catchError((_) async {
-            safetyTimer?.cancel();
-            // Stale or deleted Cloudinary file: invalidate cache and synthesize fresh
-            syllableMap?.remove(syllable);
-            if (mounted) {
-              _regenerateAndPlaySyllable(index, syllable, itemId, syllableMap);
-            }
-          });
+          await playAudioUrl(cachedUrl, index);
           return;
-
         } catch (_) {
+          // Stale/deleted Cloudinary file — invalidate and fall through to regenerate.
           syllableMap?.remove(syllable);
-          if (mounted) {
-            _regenerateAndPlaySyllable(index, syllable, itemId, syllableMap);
-          }
-          return;
         }
       }
 
-
-      // If not yet in DB cache, request via backend endpoint and play
+      // Slow path: fetch all syllable URLs for this item from the backend and cache them.
       if (itemId.isNotEmpty) {
         try {
           final res = await ApiService.get('/students/pronunciation/syllables-audio/$itemId');
           if (res.success && res.data?['syllableAudios'] is List) {
-            final list = res.data['syllableAudios'] as List;
-            for (final entry in list) {
+            for (final entry in res.data['syllableAudios'] as List) {
               if (entry is Map && entry['syllable'] != null && entry['audioUrl'] != null) {
                 syllableMap?[entry['syllable'].toString()] = entry['audioUrl'].toString();
               }
@@ -726,31 +683,19 @@ class _PronunciationChallengePageState
         } catch (_) {}
       }
 
-      // Direct fallback synthesis if needed
-      final lang = currentItem['language'] as String? ?? widget.language;
-      final langFolder = lang.toLowerCase().startsWith('en')
-          ? 'salintinig/pronunciation/syllables/eng'
-          : 'salintinig/pronunciation/syllables/fil';
-      final res = await ApiService.get(
-        '/tts/synthesize?text=${Uri.encodeComponent(syllable)}&language=$lang&rate=-12%&folder=$langFolder',
-      );
-      if (res.success && res.data?['audioUrl'] != null) {
-        final url = res.data['audioUrl'].toString();
-        syllableMap?[syllable] = url;
-        await playAudioUrl(url, index);
-      } else {
-        clearHighlight(index);
-      }
+      // Final fallback: synthesize directly via TTS endpoint.
+      await _regenerateAndPlaySyllable(index, syllable, itemId, syllableMap, playAudioUrl);
     } catch (_) {
-      clearHighlight(index);
+      _clearSyllableHighlight(index);
     }
   }
 
-  void _regenerateAndPlaySyllable(
+  Future<void> _regenerateAndPlaySyllable(
     int index,
     String syllable,
     String itemId,
     Map<String, String>? syllableMap,
+    Future<void> Function(String url, int idx) playAudioUrl,
   ) async {
     try {
       final currentItem = _words[_currentWordIndex];
@@ -758,7 +703,6 @@ class _PronunciationChallengePageState
       final langFolder = lang.toLowerCase().startsWith('en')
           ? 'salintinig/pronunciation/syllables/eng'
           : 'salintinig/pronunciation/syllables/fil';
-      final player = _syllablePlayers.putIfAbsent(index, () => AudioPlayer());
 
       final res = await ApiService.get(
         '/tts/synthesize?text=${Uri.encodeComponent(syllable)}&language=$lang&rate=-12%&folder=$langFolder',
@@ -767,36 +711,12 @@ class _PronunciationChallengePageState
       if (res.success && res.data?['audioUrl'] != null) {
         final freshUrl = res.data['audioUrl'].toString();
         syllableMap?[syllable] = freshUrl;
-        if (!mounted) return;
-        await player.stop();
-        if (!mounted) return;
-        await player.play(UrlSource(freshUrl));
-        player.onPlayerComplete.first.then((_) {
-          if (mounted) {
-            setState(() {
-              _activeSyllableIndices.remove(index);
-            });
-          }
-        }).catchError((_) {
-          if (mounted) {
-            setState(() {
-              _activeSyllableIndices.remove(index);
-            });
-          }
-        });
+        await playAudioUrl(freshUrl, index);
       } else {
-        if (mounted) {
-          setState(() {
-            _activeSyllableIndices.remove(index);
-          });
-        }
+        _clearSyllableHighlight(index);
       }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _activeSyllableIndices.remove(index);
-        });
-      }
+      _clearSyllableHighlight(index);
     }
   }
 
@@ -847,8 +767,8 @@ class _PronunciationChallengePageState
       // Preload next word's syllable audio immediately
       _preloadSyllablesForWord(_currentWordIndex);
     } else {
-      // Session fully completed — clear saved progress
-      ActivityProgressService.clearProgress('pronunciation');
+      // Session fully completed — clear both generic and language-scoped saved progress
+      ActivityProgressService.clearProgress('pronunciation', _sessionLanguage);
       _showCompletionDialog();
     }
   }
