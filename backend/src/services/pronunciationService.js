@@ -62,7 +62,7 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.language,
          pi.difficulty,
          pi.source
-       FROM pronunciation_items pi
+       FROM vocabulary_bank pi
        WHERE pi.language = $1
          AND pi.is_active = true
          AND pi.content_status = 'validated'
@@ -99,7 +99,7 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.language,
          pi.difficulty,
          pi.source
-       FROM pronunciation_items pi
+       FROM vocabulary_bank pi
        WHERE pi.language = $1
          AND pi.is_active = true
          AND pi.content_status = 'validated'
@@ -126,7 +126,7 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.language,
          pi.difficulty,
          pi.source
-       FROM pronunciation_items pi
+       FROM vocabulary_bank pi
        WHERE pi.language = $1
          AND pi.is_active = true
          AND pi.content_status = 'validated'
@@ -166,7 +166,7 @@ async function getItemById(itemId) {
        example_sentence AS "exampleSentence",
        syllables, audio_url AS "audioUrl",
        language, difficulty, content_status AS "contentStatus", source
-     FROM pronunciation_items
+     FROM vocabulary_bank
      WHERE item_id = $1
      LIMIT 1`,
     [itemId]
@@ -191,7 +191,7 @@ async function getItemById(itemId) {
 async function getOrGenerateAudio(itemId, word, language) {
   // 1. Return cached URL if it already exists
   const { rows: existing } = await db.query(
-    `SELECT audio_url FROM pronunciation_items WHERE item_id = $1 LIMIT 1`,
+    `SELECT audio_url FROM vocabulary_bank WHERE item_id = $1 LIMIT 1`,
     [itemId]
   );
   if (existing[0]?.audio_url) return existing[0].audio_url;
@@ -208,7 +208,7 @@ async function getOrGenerateAudio(itemId, word, language) {
     if (audioUrl) {
       // 3. Persist to DB so future requests use the cache
       await db.query(
-        `UPDATE pronunciation_items SET audio_url = $1, updated_at = NOW() WHERE item_id = $2`,
+        `UPDATE vocabulary_bank SET audio_url = $1, updated_at = NOW() WHERE item_id = $2`,
         [audioUrl, itemId]
       );
     }
@@ -231,7 +231,7 @@ async function getOrGenerateSyllableAudios(itemId, syllables, language) {
 
   // 1. Check DB cache
   const { rows } = await db.query(
-    `SELECT syllable_audio_urls FROM pronunciation_items WHERE item_id = $1 LIMIT 1`,
+    `SELECT syllable_audio_urls FROM vocabulary_bank WHERE item_id = $1 LIMIT 1`,
     [itemId]
   );
   const cached = rows[0]?.syllable_audio_urls;
@@ -249,7 +249,7 @@ async function getOrGenerateSyllableAudios(itemId, syllables, language) {
       // Check if this exact syllable (for the SAME language group) already exists in another item's syllable_audio_urls
       const existingSylRes = await db.query(
         `SELECT elem->>'audioUrl' as audio_url
-         FROM pronunciation_items,
+         FROM vocabulary_bank,
               jsonb_array_elements(syllable_audio_urls) as elem
          WHERE (
            CASE 
@@ -286,7 +286,7 @@ async function getOrGenerateSyllableAudios(itemId, syllables, language) {
   // 3. Persist to DB
   try {
     await db.query(
-      `UPDATE pronunciation_items SET syllable_audio_urls = $1, updated_at = NOW() WHERE item_id = $2`,
+      `UPDATE vocabulary_bank SET syllable_audio_urls = $1, updated_at = NOW() WHERE item_id = $2`,
       [JSON.stringify(resultList), itemId]
     );
   } catch (dbErr) {
@@ -441,7 +441,7 @@ async function insertItem(item) {
   // Duplicate prevention
 
   const existing = await db.query(
-    `SELECT item_id FROM pronunciation_items WHERE LOWER(word) = LOWER($1) AND language = $2 LIMIT 1`,
+    `SELECT item_id FROM vocabulary_bank WHERE LOWER(word) = LOWER($1) AND language = $2 LIMIT 1`,
     [word, lang]
   );
   if (existing.rows.length > 0) {
@@ -449,7 +449,7 @@ async function insertItem(item) {
   }
 
   const { rows } = await db.query(
-    `INSERT INTO pronunciation_items
+    `INSERT INTO vocabulary_bank
        (word, translation, definition, example_sentence, syllables, language, source, content_status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING item_id AS "itemId", word, language, content_status AS "contentStatus"`,
@@ -470,7 +470,7 @@ async function setContentStatus(itemId, status) {
   if (!allowed.includes(status)) throw new Error(`Invalid content_status: "${status}". Must be one of: ${allowed.join(', ')}`);
 
   const { rows } = await db.query(
-    `UPDATE pronunciation_items
+    `UPDATE vocabulary_bank
      SET content_status = $1, updated_at = NOW()
      WHERE item_id = $2
      RETURNING item_id AS "itemId", word, content_status AS "contentStatus"`,

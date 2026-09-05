@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:record/record.dart';
+import 'package:confetti/confetti.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
@@ -56,6 +58,15 @@ class _PronunciationChallengePageState
   late String _sessionDifficulty;
   bool _isPlayingReferenceAudio = false;
 
+  // ── Celebration / Completion State ─────────────────────────────────────────
+  bool _isFinished = false;
+  final List<int> _wordAccuracies = [];
+  int _mistakesCount = 0;
+  int _finalAccuracy = 100;
+  String _celebrationMessage = 'Awesome job!';
+  String _celebrationSubtitle = 'Great pronunciation practice!';
+  late ConfettiController _confettiController;
+
   int get _baseXpPerWord {
     switch (_sessionDifficulty.toLowerCase()) {
       case 'easy':
@@ -97,6 +108,7 @@ class _PronunciationChallengePageState
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     _sessionLanguage = widget.language;
     _sessionDifficulty = widget.difficulty;
     _loadSessionOrResume();
@@ -174,6 +186,7 @@ class _PronunciationChallengePageState
   void dispose() {
     _waveformTimer?.cancel();
     _systemAudioTimer?.cancel();
+    _confettiController.dispose();
     try {
       _audioPlayer.stop();
     } catch (_) {}
@@ -743,6 +756,13 @@ class _PronunciationChallengePageState
 
   void _nextWord() {
     Feedback.forTap(context);
+
+    // Save the accuracy score and attempts for the completed word
+    _wordAccuracies.add(_accuracyScore);
+    if (_attemptsCount > 1) {
+      _mistakesCount += (_attemptsCount - 1);
+    }
+
     if (_currentWordIndex + 1 < _words.length) {
       setState(() {
         _currentWordIndex++;
@@ -767,127 +787,38 @@ class _PronunciationChallengePageState
       // Preload next word's syllable audio immediately
       _preloadSyllablesForWord(_currentWordIndex);
     } else {
-      // Session fully completed — clear both generic and language-scoped saved progress
+      // Session fully completed — calculate overall metrics and display celebration screen
       ActivityProgressService.clearProgress('pronunciation', _sessionLanguage);
-      _showCompletionDialog();
+      final avgAccuracy = _wordAccuracies.isNotEmpty
+          ? (_wordAccuracies.reduce((a, b) => a + b) / _wordAccuracies.length).round().clamp(0, 100)
+          : 100;
+      final feedback = _getCelebrationFeedback(avgAccuracy);
+
+      setState(() {
+        _finalAccuracy = avgAccuracy;
+        _celebrationMessage = feedback['compliment']!;
+        _celebrationSubtitle = feedback['subtitle']!;
+        _isFinished = true;
+      });
+      _confettiController.play();
     }
+  }
+
+  void _setupFreshSession() {
+    setState(() {
+      _isFinished = false;
+      _wordAccuracies.clear();
+      _mistakesCount = 0;
+      _finalAccuracy = 100;
+    });
+    _confettiController.stop();
+    _loadSessionWords();
   }
 
 
   // ─────────────────────────────────────────────────────────────────────────
   // DIALOGS / MODALS
   // ─────────────────────────────────────────────────────────────────────────
-
-  void _showCompletionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 68,
-                height: 68,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFD1FAE5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF10B981),
-                    size: 40,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Challenge Complete!',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Awesome job on your pronunciation practice!',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.stars_rounded,
-                      color: Color(0xFF1B64D8),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '+$_earnedXp XP Earned',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1B64D8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B64D8),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'Finish Activity',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   void _showHelpModal() {
     showModalBottomSheet(
@@ -1068,6 +999,14 @@ class _PronunciationChallengePageState
     const primaryBlue = Color(0xFF1B64D8);
     const primaryGreen = Color(0xFF10B981);
     const softCanvasBg = Color(0xFFFCFAF7);
+
+    // ── Celebration state ──────────────────────────────────────────────────
+    if (_isFinished) {
+      return Scaffold(
+        backgroundColor: softCanvasBg,
+        body: _buildCelebrationWidget(primaryBlue),
+      );
+    }
 
     // ── Loading state ──────────────────────────────────────────────────────
     if (_state == PracticeState.loading) {
@@ -1798,5 +1737,577 @@ class _PronunciationChallengePageState
         ),
       ),
     );
+  }
+
+  Map<String, String> _getCelebrationFeedback(int accuracy) {
+    final rand = Random();
+
+    if (accuracy >= 90) {
+      const compliments = [
+        'Awesome job!',
+        'Perfect voice!',
+        'Outstanding!',
+        'You nailed it!',
+        'Super star!',
+        'Brilliant work!',
+        'Incredible!',
+      ];
+      const subtitles = [
+        'Crystal-clear pronunciation! Your speech skills are outstanding!',
+        'A wonderful session! You spoke each word with great confidence!',
+        'Amazing accuracy! Keep speaking out loud with Sally!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else if (accuracy >= 80) {
+      const compliments = [
+        'Great effort!',
+        'Well done!',
+        'Way to go!',
+        'Fantastic work!',
+        'You did it!',
+        'Keep shining!',
+        'Almost perfect!',
+      ];
+      const subtitles = [
+        'You pronounced almost every word clearly! Keep it up!',
+        'Great pronunciation! Your tone and clarity are improving fast!',
+        'Solid performance! You are speaking more naturally every day!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else if (accuracy >= 65) {
+      const compliments = [
+        'Good progress!',
+        'Nice perseverance!',
+        'Keep it up!',
+        'Getting stronger!',
+        'Step by step!',
+        'Proud of your effort!',
+      ];
+      const subtitles = [
+        'Great practice! Breaking words down by syllables makes you stronger!',
+        'You pushed through and finished all the words! Well done!',
+        'Steady progress! Keep listening to Sally and practice again!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else {
+      const compliments = [
+        'Keep practicing!',
+        'Never give up!',
+        'Practice pays off!',
+        'You can do this!',
+        'Keep learning!',
+      ];
+      const subtitles = [
+        'Every practice round helps your pronunciation grow! Try once more!',
+        'Great dedication! Tap each syllable to listen, then try again!',
+        'You finished the activity! Try again to achieve an even higher score!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    }
+  }
+
+  Widget _buildCelebrationWidget(Color primaryBlue) {
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        ConfettiWidget(
+          confettiController: _confettiController,
+          blastDirectionality: BlastDirectionality.explosive,
+          shouldLoop: false,
+          colors: const [
+            Color(0xFF1B64D8),
+            Color(0xFFF59E0B),
+            Color(0xFF10B981),
+            Color(0xFFEC4899),
+            Color(0xFF8B5CF6),
+          ],
+          numberOfParticles: 35,
+          gravity: 0.25,
+        ),
+        SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 8),
+
+                // 1. Top Centered Speech Bubble above Sally
+                Center(
+                  child: CustomPaint(
+                    painter: _CelebrationSpeechBubblePainter(
+                      color: Colors.white,
+                      borderColor: const Color(0xFF0F172A),
+                      borderWidth: 2.2,
+                      radius: 24.0,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 10.0,
+                      ),
+                      child: Text(
+                        _celebrationMessage,
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // 2. Sally Mascot Illustration (Celebration)
+                Image.asset(
+                  'assets/mascot/sally_celebration.webp',
+                  height: 165,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Image.asset(
+                    'assets/mascot/sally_sitting.webp',
+                    height: 165,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 3. Title and Subtitle
+                Text(
+                  'Activity Completed!',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _celebrationSubtitle,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 4. Tri-Stat Metric Box (XP, Accuracy, Mistakes)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF0F172A),
+                      width: 2.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Stat 1: XP
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.bolt_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 26,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'XP',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '+$_earnedXp',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Divider 1
+                      Container(
+                        width: 1,
+                        height: 46,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+
+                      // Stat 2: Accuracy
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF10B981),
+                              size: 24,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'ACCURACY',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_finalAccuracy%',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Divider 2
+                      Container(
+                        width: 1,
+                        height: 46,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+
+                      // Stat 3: Mistakes
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cancel_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 24,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'MISTAKES',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_mistakesCount',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 5. Streak Banner Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Flame Icon Container
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFEDD5),
+                            width: 1,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Iconify(
+                          PhIcons.fireBold,
+                          color: Color(0xFFEA580C),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Streak Titles
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Practice Streak Active!',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Continue tomorrow for your badge',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // +1 Day pill badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFFED7AA),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Text(
+                          '+1 Day',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFEA580C),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 6. Action Buttons: Stacked Full-Width
+                // Primary Continue Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Continue',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Secondary Repeat Practice Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _setupFreshSession,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF334155),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Practice Again',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF334155),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Custom painter for the centered speech bubble above Sally during celebration
+class _CelebrationSpeechBubblePainter extends CustomPainter {
+  final Color color;
+  final Color borderColor;
+  final double borderWidth;
+  final double radius;
+
+  _CelebrationSpeechBubblePainter({
+    this.color = Colors.white,
+    this.borderColor = const Color(0xFF0F172A),
+    this.borderWidth = 2.2,
+    this.radius = 24.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = radius;
+    final w = size.width;
+    final h = size.height;
+
+    // Tail on bottom center pointing straight down towards Sally's head
+    final centerX = w / 2;
+    const tailHalfWidth = 7.0;
+    const tailHeight = 8.0;
+
+    final path = Path();
+    path.moveTo(r, 0);
+    path.lineTo(w - r, 0);
+    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
+    path.lineTo(w, h - r);
+    path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
+
+    // Bottom edge with center-pointing tail
+    path.lineTo(centerX + tailHalfWidth, h);
+    path.lineTo(centerX, h + tailHeight);
+    path.lineTo(centerX - tailHalfWidth, h);
+
+    path.lineTo(r, h);
+    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
+    path.lineTo(0, r);
+    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
+    path.close();
+
+    // Subtle drop shadow
+    canvas.drawPath(
+      path.shift(const Offset(0, 2)),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.04)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // White fill
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+
+    // Border stroke
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CelebrationSpeechBubblePainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.borderWidth != borderWidth ||
+        oldDelegate.radius != radius;
   }
 }

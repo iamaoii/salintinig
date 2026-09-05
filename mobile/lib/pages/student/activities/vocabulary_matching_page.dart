@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -24,9 +25,15 @@ class VocabularyMatchingPage extends StatefulWidget {
 class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   // ── Session State ──────────────────────────────────────────────────────────
   late String _sessionDifficulty;
+  late ConfettiController _confettiController;
   String _sessionId = '';
   int _earnedXp = 0;
   bool _isFinished = false;
+  bool _isLoading = false;
+  int _mistakesCount = 0;
+  int _finalAccuracy = 100;
+  String _celebrationMessage = 'Awesome job!';
+  String _celebrationSubtitle = 'You completed the vocabulary matching practice.';
 
   // Words & Pairings (Left: English, Right: Filipino)
   List<String> _leftWords = [];
@@ -112,6 +119,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   @override
   void initState() {
     super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     _sessionDifficulty = widget.difficulty;
     _initOrResumeSession();
   }
@@ -119,6 +127,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   @override
   void dispose() {
     _sallyResetTimer?.cancel();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -152,6 +161,90 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         setState(() => _isMascotPulsing = false);
       }
     });
+  }
+
+  /// Returns an encouraging, motivating compliment and subtitle tailored to how well the student performed
+  Map<String, String> _getCelebrationFeedback(int accuracy) {
+    final rand = Random();
+
+    if (accuracy == 100) {
+      // Flawless performance: Top-tier mastery & praise
+      const compliments = [
+        'Awesome job!',
+        'Perfect match!',
+        'Outstanding!',
+        'You nailed it!',
+        'Super star!',
+        'Brilliant work!',
+        'Incredible!',
+      ];
+      const subtitles = [
+        'You made zero mistakes! Incredible vocabulary mastery!',
+        'A flawless run! You matched all words perfectly!',
+        '100% accuracy! Your vocabulary skills are top-notch!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else if (accuracy >= 80) {
+      // Great performance (1-2 minor slips): Enthusiastic & encouraging
+      const compliments = [
+        'Great effort!',
+        'Well done!',
+        'Way to go!',
+        'Fantastic work!',
+        'You did it!',
+        'Keep shining!',
+        'Almost perfect!',
+      ];
+      const subtitles = [
+        'You mastered almost every pair! Keep up the great work!',
+        'Great accuracy! You are building an impressive vocabulary!',
+        'Solid performance! You are learning and improving fast!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else if (accuracy >= 60) {
+      // Good progress (some mistakes): Uplifting progress & learning praise
+      const compliments = [
+        'Good progress!',
+        'Nice perseverance!',
+        'Keep it up!',
+        'Getting stronger!',
+        'Step by step!',
+        'Proud of your effort!',
+      ];
+      const subtitles = [
+        'Every mistake is a lesson learned. You are getting better!',
+        'You pushed through and finished all the matches! Good job!',
+        'Steady progress! Keep practicing to boost your accuracy!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    } else {
+      // Struggled / needs practice: High empathy, growth-mindset, motivating
+      const compliments = [
+        'Keep practicing!',
+        'Never give up!',
+        'Practice pays off!',
+        'You can do this!',
+        'Keep learning!',
+      ];
+      const subtitles = [
+        'Mistakes help us grow! Try once more to master these words!',
+        'Great perseverance! Practice again and watch your score soar!',
+        'You finished the activity! Try again to get an even higher score!',
+      ];
+      return {
+        'compliment': compliments[rand.nextInt(compliments.length)],
+        'subtitle': subtitles[rand.nextInt(subtitles.length)],
+      };
+    }
   }
 
   /// Initialize session from saved progress or create a fresh randomized set.
@@ -204,6 +297,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                 'vocab_${DateTime.now().millisecondsSinceEpoch}';
             _sessionDifficulty =
                 saved['difficulty']?.toString() ?? _sessionDifficulty;
+            _mistakesCount = (saved['mistakesCount'] as int?) ?? 0;
             _pairings = restoredPairings;
             _leftWords = leftList;
             _rightWords =
@@ -230,27 +324,56 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
     _setupFreshSession();
   }
 
-  void _setupFreshSession() {
+  Future<void> _setupFreshSession() async {
     _sessionId = 'vocab_${DateTime.now().millisecondsSinceEpoch}';
+    _mistakesCount = 0;
 
-    List<Map<String, String>> pool;
-    if (_sessionDifficulty == 'easy') {
-      pool = List.from(_easyPool);
-    } else if (_sessionDifficulty == 'hard') {
-      pool = List.from(_hardPool);
-    } else {
-      pool = List.from(_mediumPool);
+    setState(() => _isLoading = true);
+
+    List<Map<String, String>> pairs = [];
+
+    // 1. Fetch live curated pairs from the unified vocabulary_bank backend
+    try {
+      final res = await ApiService.get(
+        '/students/vocabulary/items?difficulty=$_sessionDifficulty&limit=$_targetPairCount',
+      );
+
+      if (res.success && res.data != null && res.data['pairs'] is List) {
+        final list = res.data['pairs'] as List;
+        if (list.isNotEmpty) {
+          pairs = list
+              .map<Map<String, String>>((item) {
+                final left = item['englishWord']?.toString().trim() ?? '';
+                final right = item['filipinoWord']?.toString().trim() ?? '';
+                return {'left': left, 'right': right};
+              })
+              .where((p) => p['left']!.isNotEmpty && p['right']!.isNotEmpty)
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[VocabularyMatchingPage] Backend fetch notice: $e');
     }
 
-    // Shuffle and pick exact pair count
-    pool.shuffle(Random());
-    final selectedPairs = pool.take(_targetPairCount).toList();
+    // 2. Offline fallback to local curated word pool if API failed or returned insufficient pairs
+    if (pairs.length < _targetPairCount) {
+      List<Map<String, String>> pool;
+      if (_sessionDifficulty == 'easy') {
+        pool = List.from(_easyPool);
+      } else if (_sessionDifficulty == 'hard') {
+        pool = List.from(_hardPool);
+      } else {
+        pool = List.from(_mediumPool);
+      }
+      pool.shuffle(Random());
+      pairs = pool.take(_targetPairCount).toList();
+    }
 
     final leftList = <String>[];
     final rightList = <String>[];
     final newPairings = <String, String>{};
 
-    for (final pair in selectedPairs) {
+    for (final pair in pairs) {
       final l = pair['left']!;
       final r = pair['right']!;
       leftList.add(l);
@@ -262,6 +385,21 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
     leftList.shuffle(Random());
     rightList.shuffle(Random());
 
+    // Anti-alignment check: ensure rightList[i] != newPairings[leftList[i]]
+    if (leftList.length > 1) {
+      for (int i = 0; i < leftList.length; i++) {
+        if (rightList[i] == newPairings[leftList[i]]) {
+          final swapIdx = (i + 1) % leftList.length;
+          final temp = rightList[i];
+          rightList[i] = rightList[swapIdx];
+          rightList[swapIdx] = temp;
+        }
+      }
+    }
+
+    _confettiController.stop();
+
+    if (!mounted) return;
     setState(() {
       _pairings = newPairings;
       _leftWords = leftList;
@@ -274,7 +412,11 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
       _errorRight = null;
       _earnedXp = 0;
       _isFinished = false;
+      _isLoading = false;
       _sallyMessage = 'Match the words!';
+      _finalAccuracy = 100;
+      _celebrationMessage = 'Awesome job!';
+      _celebrationSubtitle = 'You completed the vocabulary matching practice.';
     });
 
     _sallyResetTimer?.cancel();
@@ -298,20 +440,58 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         'matchedLeft': _matchedLeft.toList(),
         'matchedRight': _matchedRight.toList(),
         'rightOrder': _rightWords,
+        'mistakesCount': _mistakesCount,
       },
     );
   }
 
   Future<void> _syncActivityCompletion() async {
+    final totalPairs = _leftWords.length;
+    final int score = _mistakesCount == 0
+        ? 100
+        : ((totalPairs / (totalPairs + _mistakesCount)) * 100).round().clamp(50, 99);
+
     try {
-      await ApiService.post('/students/activity/complete', {
-        'activityTitle': 'Vocabulary Matching Challenge',
-        'activityType': 'Vocabulary',
-        'score': 100,
+      debugPrint('[VocabularyMatching] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, pairs=$totalPairs, score=$score, xp=$_earnedXp');
+      final res = await ApiService.post('/students/vocabulary/attempt', {
+        'sessionId': _sessionId,
+        'difficulty': _sessionDifficulty,
+        'totalPairs': totalPairs,
+        'mistakesCount': _mistakesCount,
+        'score': score,
+        'xpEarned': _earnedXp,
       });
+
+      debugPrint('[VocabularyMatching] Attempt response: success=${res.success}, statusCode=${res.statusCode}, error=${res.error}, data=${res.data}');
+
+      if (res.success && res.data != null && res.data['newBadgeUnlocked'] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.stars_rounded, color: Color(0xFFFBBF24)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Badge Unlocked: I\'m a star! ⭐',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF0F172A),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint('Activity completion sync notice: $e');
+      debugPrint('[VocabularyMatching] Attempt submission error: $e');
     }
+
+
   }
 
   // ── Matching Logic ─────────────────────────────────────────────────────────
@@ -366,10 +546,20 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         _triggerMascotPulse();
 
         if (_matchedLeft.length == _leftWords.length) {
+          final totalPairs = _leftWords.length;
+          final int score = _mistakesCount == 0
+              ? 100
+              : ((totalPairs / (totalPairs + _mistakesCount)) * 100).round().clamp(50, 99);
+          final feedback = _getCelebrationFeedback(score);
+
           _setSallyMessage('Great Job!');
           setState(() {
+            _finalAccuracy = score;
+            _celebrationMessage = feedback['compliment'] ?? 'Awesome job!';
+            _celebrationSubtitle = feedback['subtitle'] ?? 'You completed the vocabulary matching practice.';
             _isFinished = true;
           });
+          _confettiController.play();
           // Clear active session upon full completion
           ActivityProgressService.clearProgress('vocabulary');
           _syncActivityCompletion();
@@ -387,6 +577,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         }
       } else {
         // Mismatch - trigger error feedback
+        _mistakesCount++;
         final errL = _selectedLeft;
         final errR = _selectedRight;
         setState(() {
@@ -579,6 +770,8 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
             final double screenHeight = constraints.maxHeight;
             final double screenWidth = constraints.maxWidth;
             final bool isTablet = screenWidth > 600;
+            final int pairCount = _leftWords.length;
+            final bool isSixPairs = pairCount >= 6;
 
             // Responsiveness factor:
             // Exactly 1.0 on standard phones (screenHeight >= 780, e.g. Galaxy S21 Ultra, iPhones).
@@ -586,103 +779,114 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
             final double scale = (screenHeight / 780.0).clamp(0.72, 1.0);
             final bool isCompact = screenHeight < 680;
 
+            // Mascot & speech bubble remain in their exact desired original scale and position
             final double sectionHeight = 240.0 * scale;
             final double mascotHeight = 210.0 * scale;
             final double bottomPad = 50.0 * scale;
-            final double cardHeight = isCompact ? 50.0 : 58.0;
-            final double cardMargin = isCompact ? 8.0 : 12.0;
+
+            // Adjusted to ~0.5 size smaller (52px vs 58px) with 9px margin
+            final double targetCardMargin = isSixPairs ? 9.0 : (isCompact ? 8.0 : 12.0);
+            final double cardHeight = isSixPairs ? 52.0 : (isCompact ? 50.0 : 58.0);
+            final double cardMargin = targetCardMargin;
+            final double cardFontSize = isSixPairs ? 15.0 : 16.0;
 
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: isTablet ? 540.0 : double.infinity,
                 ),
-                child: Column(
-                  children: [
-                    // ── Top Header Navigation Bar (Mirrored from Pronunciation) ────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 0.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                child: _isFinished
+                    ? _buildCelebrationWidget(primaryBlue)
+                    : Column(
                         children: [
-                          // Row 1: Activity Title + Actions (Help, Close)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'VOCABULARY MATCHING',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    color: const Color(0xFF64748B),
-                                    letterSpacing: 0.8,
+                          // ── Top Header Navigation Bar (Mirrored from Pronunciation) ────────
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 0.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Row 1: Activity Title + Actions (Help, Close)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'VOCABULARY MATCHING',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF64748B),
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: _showHelpModal,
+                                      icon: const Icon(
+                                        Icons.help_outline_rounded,
+                                        size: 22,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => Navigator.pop(context),
+                                      icon: const Iconify(
+                                        Ph.x,
+                                        size: 22,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+
+                                // Row 2: Progress Indicator across the full width
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    minHeight: 6,
+                                    backgroundColor: const Color(0xFFE2E8F0),
+                                    valueColor: const AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF1B64D8),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                onPressed: _showHelpModal,
-                                icon: const Icon(
-                                  Icons.help_outline_rounded,
-                                  size: 22,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                onPressed: () => Navigator.pop(context),
-                                icon: const Iconify(
-                                  Ph.x,
-                                  size: 22,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
 
-                          // Row 2: Progress Indicator across the full width
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(100),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 6,
-                              backgroundColor: const Color(0xFFE2E8F0),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFF1B64D8),
+                          // ── Game Instructions ────────────────────────────────────────────
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24.0, 14.0, 24.0, 4.0),
+                            child: Text(
+                              'Tap an English word on the left and match it with its Filipino translation',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF64748B),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                          const SizedBox(height: 8),
 
-                    // ── Game Instructions ────────────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24.0, 14.0, 24.0, 4.0),
-                      child: Text(
-                        'Tap an English word on the left and match it with its Filipino translation',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // ── Columns Content ──────────────────────────────────────────────
-                    Expanded(
-                      child: _isFinished
-                          ? _buildCelebrationWidget(primaryBlue)
-                          : Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                              child: Column(
-                                children: [
+                          // ── Columns Content ──────────────────────────────────────────────
+                          Expanded(
+                            child: _isLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: primaryBlue,
+                                    ),
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                                    child: Column(
+                                      children: [
                                   // Column Sub-headers
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -721,14 +925,17 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                                   ),
                                   const SizedBox(height: 8),
 
-                                  // Cards Grid / Columns (Original ListView.builder)
+                                  // Cards Grid / Columns (Non-scrollable when fitting)
                                   Expanded(
                                     child: Row(
                                       children: [
                                         // Left Column
                                         Expanded(
                                           child: ListView.builder(
-                                            physics: const BouncingScrollPhysics(),
+                                            padding: EdgeInsets.zero,
+                                            physics: isSixPairs
+                                                ? const NeverScrollableScrollPhysics()
+                                                : const BouncingScrollPhysics(),
                                             itemCount: _leftWords.length,
                                             itemBuilder: (context, index) {
                                               final word = _leftWords[index];
@@ -747,6 +954,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                                                 sideColor: const Color(0xFF3B82F6),
                                                 height: cardHeight,
                                                 marginBottom: cardMargin,
+                                                fontSize: cardFontSize,
                                               );
                                             },
                                           ),
@@ -755,7 +963,10 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                                         // Right Column
                                         Expanded(
                                           child: ListView.builder(
-                                            physics: const BouncingScrollPhysics(),
+                                            padding: EdgeInsets.zero,
+                                            physics: isSixPairs
+                                                ? const NeverScrollableScrollPhysics()
+                                                : const BouncingScrollPhysics(),
                                             itemCount: _rightWords.length,
                                             itemBuilder: (context, index) {
                                               final word = _rightWords[index];
@@ -774,6 +985,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                                                 sideColor: const Color(0xFFF59E0B),
                                                 height: cardHeight,
                                                 marginBottom: cardMargin,
+                                                fontSize: cardFontSize,
                                               );
                                             },
                                           ),
@@ -904,6 +1116,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
     required Color sideColor,
     double height = 58.0,
     double marginBottom = 12.0,
+    double fontSize = 16.0,
   }) {
     Color cardBg = Colors.white;
     Color borderColor = const Color(0xFFE2E8F0);
@@ -970,11 +1183,14 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                       child: Text(
                         word,
                         textAlign: TextAlign.center,
+                        maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
-                          fontSize: 16,
+                          fontSize: word.length > 13 ? (fontSize - 2.0).clamp(11.0, 16.0) : fontSize,
                           fontWeight: FontWeight.w800,
                           color: textColor,
+                          height: 1.15,
                         ),
                       ),
                     ),
@@ -997,138 +1213,496 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   }
 
   Widget _buildCelebrationWidget(Color primaryBlue) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Sally Mascot Celebration
-              Image.asset(
-                'assets/mascot/sally_celebration.webp',
-                height: 170,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.workspace_premium_rounded,
-                  size: 90,
-                  color: Color(0xFFF59E0B),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Amazing Matcher! 🏆',
-                style: GoogleFonts.inter(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You perfectly matched all the vocabulary pairs!',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 16),
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        ConfettiWidget(
+          confettiController: _confettiController,
+          blastDirectionality: BlastDirectionality.explosive,
+          shouldLoop: false,
+          colors: const [
+            Color(0xFF1B64D8),
+            Color(0xFFF59E0B),
+            Color(0xFF10B981),
+            Color(0xFFEC4899),
+            Color(0xFF8B5CF6),
+          ],
+          numberOfParticles: 35,
+          gravity: 0.25,
+        ),
+        SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 8),
 
-              // XP Reward Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.stars_rounded,
-                      color: Color(0xFF1B64D8),
-                      size: 24,
+                // 1. Top Centered Speech Bubble above Sally
+                Center(
+                  child: CustomPaint(
+                    painter: _CelebrationSpeechBubblePainter(
+                      color: Colors.white,
+                      borderColor: const Color(0xFF0F172A),
+                      borderWidth: 2.2,
+                      radius: 24.0,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '+$_earnedXp XP Earned',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1B64D8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Finish Button
-                  SizedBox(
-                    height: 50,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B),
-                        side: const BorderSide(
-                          color: Color(0xFFCBD5E1),
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 10.0,
                       ),
                       child: Text(
-                        'Finish',
+                        _celebrationMessage,
                         style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Practice Again Button
-                  SizedBox(
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _setupFreshSession,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryBlue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                      ),
-                      child: Text(
-                        'Play Again',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 12),
+
+                // 2. Sally Mascot Illustration (Celebration)
+                Image.asset(
+                  'assets/mascot/sally_celebration.webp',
+                  height: 165,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Image.asset(
+                    'assets/mascot/sally_sitting.webp',
+                    height: 165,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 3. Title and Subtitle
+                Text(
+                  'Activity Completed!',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _celebrationSubtitle,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 4. Tri-Stat Metric Box (XP, Accuracy, Mistakes)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 12.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF0F172A),
+                      width: 2.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Stat 1: XP
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.bolt_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 26,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'XP',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '+$_earnedXp',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Divider 1
+                      Container(
+                        width: 1,
+                        height: 46,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+
+                      // Stat 2: Accuracy
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF10B981),
+                              size: 24,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'ACCURACY',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_finalAccuracy%',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Divider 2
+                      Container(
+                        width: 1,
+                        height: 46,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+
+                      // Stat 3: Mistakes
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cancel_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 24,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'MISTAKES',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_mistakesCount',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 5. Streak Banner Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Flame Icon Container
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFEDD5),
+                            width: 1,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Iconify(
+                          PhIcons.fireBold,
+                          color: Color(0xFFEA580C),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Streak Titles
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Practice Streak Active!',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Continue tomorrow for your badge',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // +1 Day pill badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFFED7AA),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Text(
+                          '+1 Day',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFEA580C),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 6. Action Buttons: Stacked Full-Width
+                // Primary Continue Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Continue',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Secondary Repeat Practice Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _setupFreshSession,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF334155),
+                      side: const BorderSide(
+                        color: Color(0xFFE2E8F0),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Practice Again',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF334155),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
+  }
+}
+
+/// Custom painter for the centered speech bubble above Sally during celebration
+class _CelebrationSpeechBubblePainter extends CustomPainter {
+  final Color color;
+  final Color borderColor;
+  final double borderWidth;
+  final double radius;
+
+  _CelebrationSpeechBubblePainter({
+    this.color = Colors.white,
+    this.borderColor = const Color(0xFF0F172A),
+    this.borderWidth = 2.2,
+    this.radius = 24.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = radius;
+    final w = size.width;
+    final h = size.height;
+
+    // Tail on bottom center pointing straight down towards Sally's head
+    final centerX = w / 2;
+    const tailHalfWidth = 7.0;
+    const tailHeight = 8.0;
+
+    final path = Path();
+    path.moveTo(r, 0);
+    path.lineTo(w - r, 0);
+    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
+    path.lineTo(w, h - r);
+    path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
+
+    // Bottom edge with center-pointing tail
+    path.lineTo(centerX + tailHalfWidth, h);
+    path.lineTo(centerX, h + tailHeight);
+    path.lineTo(centerX - tailHalfWidth, h);
+
+    path.lineTo(r, h);
+    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
+    path.lineTo(0, r);
+    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
+    path.close();
+
+    // Subtle drop shadow
+    canvas.drawPath(
+      path.shift(const Offset(0, 2)),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.04)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // White fill
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+
+    // Border stroke
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CelebrationSpeechBubblePainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.borderWidth != borderWidth ||
+        oldDelegate.radius != radius;
   }
 }
 

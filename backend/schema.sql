@@ -299,71 +299,7 @@ CREATE TABLE IF NOT EXISTS teacher_feedback (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------------------------------
--- 7. CLASS ACTIVITIES & GAMIFICATION
--- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS activities (
-    activity_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
-    created_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    activity_type VARCHAR(50) NOT NULL,
-    difficulty_level VARCHAR(50),
-    grade_level_target VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE IF NOT EXISTS activity_attempts (
-    activity_attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    activity_id UUID REFERENCES activities(activity_id) ON DELETE CASCADE,
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    total_points INT DEFAULT 0,
-    status VARCHAR(50) DEFAULT 'completed',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS vocabulary_items (
-    item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    activity_id UUID REFERENCES activities(activity_id) ON DELETE CASCADE,
-    english_word VARCHAR(100),
-    filipino_word VARCHAR(100),
-    distractor_1 VARCHAR(100),
-    distractor_2 VARCHAR(100),
-    distractor_3 VARCHAR(100),
-    points INT DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS pronunciation_items (
-    item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    activity_id UUID REFERENCES activities(activity_id) ON DELETE CASCADE,
-    reference_text TEXT NOT NULL,
-    audio_path TEXT,
-    points INT DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS sentence_builder_items (
-    item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    activity_id UUID REFERENCES activities(activity_id) ON DELETE CASCADE,
-    correct_sentence TEXT NOT NULL,
-    scrambled_words TEXT NOT NULL,
-    points INT DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS activity_answers (
-    activity_answer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    activity_attempt_id UUID REFERENCES activity_attempts(activity_attempt_id) ON DELETE CASCADE,
-    item_type VARCHAR(50),
-    item_id UUID,
-    response_text TEXT,
-    is_correct BOOLEAN DEFAULT FALSE,
-    points_earned INT DEFAULT 0,
-    answered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 -- -----------------------------------------------------------------------------
 -- 8. BADGES, PRACTICE STORY ATTEMPTS & NORMALIZED READING PROFILES
@@ -513,11 +449,11 @@ CREATE TABLE IF NOT EXISTS account_requests (
 );
 
 -- -----------------------------------------------------------------------------
--- 10. PRONUNCIATION CHALLENGE (Duolingo-style Practice Activity)
+-- 10. UNIFIED VOCABULARY BANK (Pronunciation Challenge & Vocabulary Matching)
 -- -----------------------------------------------------------------------------
 
--- Vocabulary Bank
-CREATE TABLE IF NOT EXISTS pronunciation_items (
+-- Unified Word & Vocabulary Repository
+CREATE TABLE IF NOT EXISTS vocabulary_bank (
     item_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     language VARCHAR(10) NOT NULL DEFAULT 'fil',  -- 'fil' (Filipino) or 'en' (English)
 
@@ -540,12 +476,11 @@ CREATE TABLE IF NOT EXISTS pronunciation_items (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-
--- Student Practice Attempts & XP
+-- Pronunciation Practice Attempts & XP
 CREATE TABLE IF NOT EXISTS pronunciation_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    item_id UUID REFERENCES pronunciation_items(item_id) ON DELETE CASCADE,
+    item_id UUID REFERENCES vocabulary_bank(item_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
     attempts_count INT DEFAULT 1,
     is_passed BOOLEAN DEFAULT false,
@@ -554,8 +489,20 @@ CREATE TABLE IF NOT EXISTS pronunciation_attempts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Vocabulary Matching Practice Attempts & XP
+CREATE TABLE IF NOT EXISTS vocabulary_attempts (
+    attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    session_id VARCHAR(100),
+    difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+    mistakes_count INT DEFAULT 0,
+    score INT NOT NULL DEFAULT 100,
+    xp_earned INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- -----------------------------------------------------------------------------
--- 10. INDEXES FOR HIGH-PERFORMANCE LOOKUPS
+-- 11. INDEXES FOR HIGH-PERFORMANCE LOOKUPS
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_teachers_no ON teachers(teacher_no);
@@ -570,5 +517,7 @@ CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(materia
 CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_assessment_answers_attempt ON assessment_answers(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_oral_results_attempt ON oral_reading_results(assessment_attempt_id);
-CREATE INDEX IF NOT EXISTS idx_pronunciation_items_language ON pronunciation_items(language, is_active);
+CREATE INDEX IF NOT EXISTS idx_vocabulary_bank_language ON vocabulary_bank(language, difficulty, is_active);
 CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_student ON pronunciation_attempts(student_id);
+CREATE INDEX IF NOT EXISTS idx_vocabulary_attempts_student ON vocabulary_attempts(student_id);
+

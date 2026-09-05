@@ -34,6 +34,8 @@ const {
   submitPronunciationAttempt,
   verifyPronunciationAudio,
   ingestPronunciationWord,
+  getVocabularyItems,
+  submitVocabularyAttempt,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
@@ -61,9 +63,14 @@ router.post('/pronunciation/attempt', verifyToken, submitPronunciationAttempt);
 // POST /api/student/pronunciation/verify-audio (Groq Whisper Large-v3 STT verification)
 router.post('/pronunciation/verify-audio', upload.single('audio'), verifyPronunciationAudio);
 
-
 // POST /api/student/pronunciation/ingest-word (Dictionary API & Content Validator pipeline)
 router.post('/pronunciation/ingest-word', verifyToken, ingestPronunciationWord);
+
+// ── Vocabulary Matching Challenge ───────────────────────────────────────────
+// GET  /api/student/vocabulary/items?difficulty=medium&limit=5
+router.get('/vocabulary/items', verifyToken, getVocabularyItems);
+// POST /api/student/vocabulary/attempt
+router.post('/vocabulary/attempt', verifyToken, submitVocabularyAttempt);
 
 
 

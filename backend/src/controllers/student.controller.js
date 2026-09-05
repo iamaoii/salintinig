@@ -267,21 +267,7 @@ async function getStudentByLrn(req, res) {
             studentObj.avgWps = 0;
           }
 
-          // Fetch activities assigned to student's class
-          const { rows: actRows } = await db.query(
-            `SELECT 
-               act.activity_id AS id,
-               act.title,
-               COALESCE(act.activity_type, 'Practice') AS type,
-               CASE WHEN aa.activity_attempt_id IS NOT NULL THEN 'done' ELSE 'not-done' END AS status
-             FROM activities act
-             JOIN student_grade_history sgh ON sgh.class_id = act.class_id
-             LEFT JOIN activity_attempts aa ON aa.activity_id = act.activity_id AND aa.student_id = sgh.student_id
-             WHERE sgh.student_id = $1
-             ORDER BY act.created_at DESC`,
-            [studentId]
-          );
-          studentObj.activities = actRows || [];
+          studentObj.activities = [];
 
           // Fetch earned badges from DB
           try {
@@ -1670,51 +1656,10 @@ async function completeStoryProgress(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/activity/complete â€” Record completed activity attempt
+// POST /api/students/activity/complete — Record completed activity attempt (legacy no-op)
 // ---------------------------------------------------------------------------
 async function completeActivityProgress(req, res) {
   try {
-    const { studentId, lrn, activityTitle, activityType, score } = req.body;
-
-    if (process.env.DATABASE_URL) {
-      try {
-        let resolvedStudentId = studentId;
-        if (!resolvedStudentId && lrn) {
-          const sRes = await db.query(`SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`, [String(lrn).trim()]);
-          if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
-        }
-
-        if (!resolvedStudentId) {
-          const firstStd = await db.query(`SELECT student_id FROM students LIMIT 1`);
-          if (firstStd.rows?.[0]) resolvedStudentId = firstStd.rows[0].student_id;
-        }
-
-        if (resolvedStudentId) {
-          let activityId;
-          if (activityTitle) {
-            const actRes = await db.query(`SELECT activity_id FROM activities WHERE LOWER(title) LIKE LOWER($1) LIMIT 1`, [`%${activityTitle}%`]);
-            if (actRes.rows?.[0]) activityId = actRes.rows[0].activity_id;
-          }
-
-          if (!activityId) {
-            const factRes = await db.query(`SELECT activity_id FROM activities LIMIT 1`);
-            if (factRes.rows?.[0]) activityId = factRes.rows[0].activity_id;
-          }
-
-          if (activityId) {
-            await db.query(
-              `INSERT INTO activity_attempts (activity_id, student_id, score, status, completed_at)
-               VALUES ($1, $2, $3, 'completed', CURRENT_TIMESTAMP)
-               ON CONFLICT DO NOTHING`,
-              [activityId, resolvedStudentId, Number(score || 100)]
-            );
-          }
-        }
-      } catch (dbErr) {
-        console.warn('Notice saving activity attempt:', dbErr.message);
-      }
-    }
-
     return res.json({ success: true, message: 'Activity attempt completed & recorded.' });
   } catch (error) {
     console.error('Error recording activity attempt:', error);
@@ -2898,6 +2843,7 @@ async function getStudentAssessmentResults(req, res) {
 // =============================================================================
 
 const pronunciationService = require('../services/pronunciationService.js');
+const vocabularyService = require('../services/vocabularyService.js');
 
 /**
  * GET /api/student/pronunciation/items?language=tl&limit=5
@@ -2998,7 +2944,25 @@ async function getPronunciationSyllableAudios(req, res) {
 async function submitPronunciationAttempt(req, res) {
   try {
     const { itemId, score, xpEarned = 0, transcript = null } = req.body;
-    const studentId = req.user?.studentId || req.user?.student_id || null;
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id || null;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        if (studentId) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+            [String(studentId).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        } else if (req.user?.lrn) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [String(req.user.lrn).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        }
+      } catch (_) {}
+    }
 
     if (!studentId) {
       return res.status(401).json({ success: false, error: 'Authentication required.' });
@@ -3192,6 +3156,107 @@ async function ingestPronunciationWord(req, res) {
   }
 }
 
+/**
+ * GET /api/student/vocabulary/items?difficulty=medium&limit=5
+ *
+ * Returns normalized vocabulary pairs from the unified vocabulary_bank.
+ * Query params: difficulty ('easy'|'medium'|'hard'), limit (default 5).
+ */
+async function getVocabularyItems(req, res) {
+  try {
+    const difficulty = (req.query.difficulty || 'medium').toLowerCase();
+    const limit = parseInt(req.query.limit) || 5;
+    const studentId = req.user?.studentId || req.user?.student_id || null;
+
+    const pairs = await vocabularyService.getSessionPairs(difficulty, limit, studentId);
+
+    if (!pairs || pairs.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No vocabulary pairs found for the specified criteria.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      pairs,
+    });
+  } catch (err) {
+    console.error('[getVocabularyItems] Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch vocabulary pairs.',
+    });
+  }
+}
+
+/**
+ * POST /api/student/vocabulary/attempt
+ * Body: { sessionId, difficulty, totalPairs, mistakesCount, score, xpEarned }
+ *
+ * Records the student's vocabulary matching attempt, awards XP,
+ * and automatically unlocks the "I'm a star!" badge if score is 100%.
+ */
+async function submitVocabularyAttempt(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id || null;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        if (studentId) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+            [String(studentId).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        } else if (req.user?.lrn) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [String(req.user.lrn).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        }
+      } catch (_) {}
+    }
+
+    if (!studentId) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    const {
+      sessionId = null,
+      difficulty = 'medium',
+      totalPairs = 5,
+      mistakesCount = 0,
+      score = 100,
+      xpEarned = 0,
+    } = req.body;
+
+    const result = await vocabularyService.logAttempt({
+      studentId,
+      sessionId,
+      difficulty,
+      totalPairs: Number(totalPairs) || 5,
+      mistakesCount: Number(mistakesCount) || 0,
+      score: Number(score) || 100,
+      xpEarned: Number(xpEarned) || 0,
+    });
+
+    return res.json({
+      success: true,
+      attemptId: result.attemptId,
+      xpEarned: result.xpEarned,
+      newBadgeUnlocked: result.newBadgeUnlocked,
+    });
+  } catch (err) {
+    console.error('[submitVocabularyAttempt] Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to record vocabulary attempt.',
+    });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3218,6 +3283,8 @@ module.exports = {
   submitPronunciationAttempt,
   verifyPronunciationAudio,
   ingestPronunciationWord,
+  getVocabularyItems,
+  submitVocabularyAttempt,
 };
 
 
