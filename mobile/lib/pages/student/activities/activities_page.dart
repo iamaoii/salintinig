@@ -29,6 +29,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   int _pronunciationCurrentIndex = 0;
   int _pronunciationTotalItems = 5;
 
+  bool _vocabularyInProgress = false;
+  int _vocabularyCurrentIndex = 0;
+  int _vocabularyTotalItems = 5;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +60,24 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             _pronunciationInProgress = has;
             _pronunciationCurrentIndex = currentIdx;
             _pronunciationTotalItems = total > 0 ? total : 5;
+          });
+        }
+      }
+    });
+
+    ActivityProgressService.getProgress('vocabulary').then((data) {
+      if (mounted) {
+        final bool has = data != null;
+        final int currentIdx = (data?['currentIndex'] as int?) ?? 0;
+        final int total = (data?['totalItems'] as int?) ?? 5;
+
+        if (has != _vocabularyInProgress ||
+            currentIdx != _vocabularyCurrentIndex ||
+            total != _vocabularyTotalItems) {
+          setState(() {
+            _vocabularyInProgress = has;
+            _vocabularyCurrentIndex = currentIdx;
+            _vocabularyTotalItems = total > 0 ? total : 5;
           });
         }
       }
@@ -188,7 +210,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                               _buildPracticeCard(
                                 title: 'Pronunciation\nChallenge',
                                 description: 'Speak words out\nloud with Sally!',
-                                iconSvg: PhIcons.userSoundRegular,
+                                iconSvg: PhIcons.userSoundBold,
                                 iconColor: const Color(0xFF1B64D8),
                                 iconBgColor: const Color(0xFFDBEAFE),
                                 isInProgress: _pronunciationInProgress,
@@ -204,13 +226,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 description: 'Match words and\nlearn translations!',
                                 iconSvg: PhIcons.equalsBold,
                                 iconColor: const Color(0xFFD97706),
-                                iconBgColor: const Color(0xFFFFEDD5),
-                                onPlayTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const VocabularyMatchingPage()),
-                                  );
-                                },
+                                iconBgColor: const Color(0xFFFEF3C7),
+                                isInProgress: _vocabularyInProgress,
+                                currentIndex: _vocabularyCurrentIndex,
+                                totalItems: _vocabularyTotalItems,
+                                onPlayTap: () => _showVocabularyMissionSetup(context),
                               ),
                               const SizedBox(height: 14),
 
@@ -289,21 +309,18 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                               ),
                               const SizedBox(height: 14),
 
-                              // Horizontal Quest Carousel (Top 3 active)
-                              SizedBox(
-                                height: 136,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: topPreviewQuests.length,
-                                  separatorBuilder: (context, index) => const SizedBox(width: 12),
-                                  itemBuilder: (context, index) {
-                                    final quest = topPreviewQuests[index];
-                                    return _buildModernQuestCard(quest);
-                                  },
-                                ),
+                              // Vertical Stacked Quests (Top 3 active)
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: topPreviewQuests.length,
+                                separatorBuilder: (context, index) => const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final quest = topPreviewQuests[index];
+                                  return _buildModernQuestCard(quest);
+                                },
                               ),
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 28),
                             ],
                           ),
                         ),
@@ -466,7 +483,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     final bool isUnlocked = quest.isUnlocked;
 
     return Container(
-      width: 270,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -482,13 +499,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
           // Standalone Large Badge Graphic with Unlocked/Locked State
           SizedBox(
-            width: 72,
-            height: 72,
+            width: 64,
+            height: 64,
             child: ColorFiltered(
               colorFilter: isUnlocked
                   ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
@@ -504,7 +521,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
 
           // Details + Linear Progress
           Expanded(
@@ -521,17 +538,39 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: FontWeight.w800,
                           color: const Color(0xFF0F172A),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     if (isUnlocked)
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 16,
-                        color: Color(0xFF10B981),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD1FAE5),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              size: 13,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Complete',
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                   ],
                 ),
@@ -541,10 +580,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: const Color(0xFF64748B),
-                    height: 1.25,
+                    height: 1.3,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -565,11 +604,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Text(
                       '${quest.currentProgress}/${quest.maxProgress}',
                       style: GoogleFonts.inter(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: isUnlocked ? const Color(0xFF10B981) : const Color(0xFF64748B),
                       ),
@@ -670,8 +709,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                               shape: BoxShape.circle,
                             ),
                             child: const Center(
-                              child: Icon(
-                                Icons.record_voice_over_outlined,
+                              child: Iconify(
+                                PhIcons.userSoundBold,
                                 color: Color(0xFF1B64D8),
                                 size: 24,
                               ),
@@ -919,6 +958,316 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       },
     );
   }
+
+  // ── Vocabulary Matching Setup & Resume ──────────────────────────────────
+
+  static int _vocabPairsCount(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 4;
+      case 'hard':
+        return 6;
+      case 'medium':
+      default:
+        return 5;
+    }
+  }
+
+  static int _vocabXpPerPair(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 10;
+      case 'hard':
+        return 25;
+      case 'medium':
+      default:
+        return 15;
+    }
+  }
+
+  void _showVocabularyMissionSetup(BuildContext context) async {
+    final vocabProgress = await ActivityProgressService.getProgress('vocabulary');
+    String selectedDifficulty = 'medium';
+
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            final bool hasOngoing = vocabProgress != null &&
+                (vocabProgress['currentIndex'] as int? ?? 0) <
+                    (vocabProgress['totalItems'] as int? ?? 5);
+            final int activePairIdx =
+                (vocabProgress?['currentIndex'] as int? ?? 0) + 1;
+            final int activeTotal =
+                (vocabProgress?['totalItems'] as int? ?? 5);
+            final effectiveDifficulty = hasOngoing
+                ? ((vocabProgress['difficulty'] as String?) ?? selectedDifficulty)
+                : selectedDifficulty;
+
+            final int maxTotalXp =
+                _vocabXpPerPair(effectiveDifficulty) *
+                _vocabPairsCount(effectiveDifficulty);
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 22,
+                  right: 22,
+                  top: 14,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Drag handle
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Header
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFEF3C7),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Iconify(
+                                PhIcons.equalsBold,
+                                color: Color(0xFFD97706),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Vocabulary Matching',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Match words and learn translations!',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Dynamic Content: Ongoing Session Card VS Difficulty Selection
+                      if (hasOngoing) ...[
+                        Text(
+                          'ONGOING SESSION',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildOngoingVocabSessionCard(
+                          difficulty:
+                              (vocabProgress['difficulty'] as String?) ??
+                              selectedDifficulty,
+                          currentPairIndex: activePairIdx,
+                          totalPairs: activeTotal,
+                        ),
+                        const SizedBox(height: 14),
+                      ] else ...[
+                        Text(
+                          'DIFFICULTY LEVEL',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'easy',
+                          title: 'Easy',
+                          subtitle: '4 pairs • Great for beginners',
+                          xpBadge: '+10 XP per pair',
+                          accentColor: const Color(0xFF10B981),
+                          isSelected: selectedDifficulty == 'easy',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'easy'),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'medium',
+                          title: 'Medium',
+                          subtitle: '5 pairs • Standard vocabulary',
+                          xpBadge: '+15 XP per pair',
+                          accentColor: const Color(0xFFD97706),
+                          isSelected: selectedDifficulty == 'medium',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'medium'),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'hard',
+                          title: 'Hard',
+                          subtitle: '6 pairs • Advanced vocabulary',
+                          xpBadge: '+25 XP per pair',
+                          accentColor: const Color(0xFFDC2626),
+                          isSelected: selectedDifficulty == 'hard',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'hard'),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Potential Reward Callout
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.stars_rounded,
+                                color: Color(0xFFD97706),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: RichText(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  text: TextSpan(
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF334155),
+                                    ),
+                                    children: [
+                                      const TextSpan(
+                                        text: 'Earn up to ',
+                                      ),
+                                      TextSpan(
+                                        text: '+$maxTotalXp XP',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFFD97706),
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text:
+                                            ' for ${_vocabPairsCount(effectiveDifficulty)} pairs!',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Start Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => VocabularyMatchingPage(
+                                  difficulty: effectiveDifficulty,
+                                ),
+                              ),
+                            ).then((_) => _checkActiveSessionsQuiet());
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1B64D8),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              hasOngoing
+                                  ? 'Continue Practice'
+                                  : 'Start Practice',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+
 
   Widget _buildLanguageOptionCard({
     required String label,
@@ -1195,6 +1544,153 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             language == 'fil'
                 ? 'Tapusin muna ang natitirang mga salita upang maitala ang iyong XP at puntos!'
                 : 'Finish the remaining words to record your XP and points!',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF64748B),
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOngoingVocabSessionCard({
+    required String difficulty,
+    required int currentPairIndex,
+    required int totalPairs,
+  }) {
+    String diffTitle;
+    Color diffColor;
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        diffTitle = 'Easy';
+        diffColor = const Color(0xFF10B981);
+        break;
+      case 'hard':
+        diffTitle = 'Hard';
+        diffColor = const Color(0xFFDC2626);
+        break;
+      case 'medium':
+      default:
+        diffTitle = 'Medium';
+        diffColor = const Color(0xFFD97706);
+        break;
+    }
+
+    final double progressRatio =
+        totalPairs > 0
+            ? (currentPairIndex - 1).clamp(0, totalPairs) / totalPairs
+            : 0.0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_circle_fill_rounded,
+                      color: Color(0xFFD97706),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'In-Progress Activity',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: diffColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: diffColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: diffColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      diffTitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: diffColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Matching Progress',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF475569),
+                ),
+              ),
+              Text(
+                'Pair $currentPairIndex of $totalPairs',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFD97706),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: progressRatio,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFFEF3C7),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD97706)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Finish the remaining pairs of words to record your XP and points!',
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w500,

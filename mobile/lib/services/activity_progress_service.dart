@@ -41,6 +41,7 @@ class ActivityProgressService {
     String? sessionId,
     String? language,
     String? difficulty,
+    Map<String, dynamic>? extraMetadata,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -55,6 +56,7 @@ class ActivityProgressService {
       if (sessionId != null) data['sessionId'] = sessionId;
       if (language != null) data['language'] = language;
       if (difficulty != null) data['difficulty'] = difficulty;
+      if (extraMetadata != null) data.addAll(extraMetadata);
 
       // Save both to language-specific key and generic key
       if (language != null) {
