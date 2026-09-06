@@ -53,7 +53,6 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   // Mascot & Speech Bubble State
   String _sallyMessage = 'Match the words!';
   Timer? _sallyResetTimer;
-  bool _isMascotPulsing = false;
 
   // ── Curated Word Banks (Left: English, Right: Filipino) ───────────────────
 
@@ -153,15 +152,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
     }
   }
 
-  void _triggerMascotPulse() {
-    if (!mounted) return;
-    setState(() => _isMascotPulsing = true);
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() => _isMascotPulsing = false);
-      }
-    });
-  }
+
 
   /// Returns an encouraging, motivating compliment and subtitle tailored to how well the student performed
   Map<String, String> _getCelebrationFeedback(int accuracy) {
@@ -542,8 +533,6 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
           _selectedRight = null;
           _earnedXp += _xpPerPair;
         });
-
-        _triggerMascotPulse();
 
         if (_matchedLeft.length == _leftWords.length) {
           final totalPairs = _leftWords.length;
@@ -1040,18 +1029,13 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
             Positioned(
               right: mascotRight,
               bottom: 0,
-              child: AnimatedScale(
-                scale: _isMascotPulsing ? 1.06 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutBack,
-                child: Image.asset(
-                  'assets/mascot/sally_sitting.webp',
+              child: Image.asset(
+                'assets/mascot/sally_sitting.webp',
+                height: mascotHeight,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => SizedBox(
                   height: mascotHeight,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => SizedBox(
-                    height: mascotHeight,
-                    width: mascotHeight * 1.05,
-                  ),
+                  width: mascotHeight * 1.05,
                 ),
               ),
             ),
