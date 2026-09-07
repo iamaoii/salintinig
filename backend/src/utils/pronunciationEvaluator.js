@@ -106,7 +106,14 @@ function evaluatePronunciation(targetWord, transcript, syllables = [], language 
   const charSim = Math.max(0, 1 - bestDist / maxLen);
 
   // 3. Syllable-level validation
-  const cleanSyllables = (syllables || []).map(s => cleanText(s)).filter(Boolean);
+  const cleanSyllables = (syllables || [])
+    .map(s => {
+      if (typeof s === 'object' && s !== null) {
+        return cleanText(s.text || s.syllable || '');
+      }
+      return cleanText(s);
+    })
+    .filter(Boolean);
   let matchedCount = 0;
   const missingSyllables = [];
 

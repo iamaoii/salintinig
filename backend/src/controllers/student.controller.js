@@ -2878,62 +2878,6 @@ async function getPronunciationItems(req, res) {
   }
 }
 
-/**
- * GET /api/student/pronunciation/audio/:itemId
- *
- * Cache-first reference audio endpoint.
- * Returns existing Cloudinary URL if cached, otherwise generates via Edge-TTS,
- * saves the URL to the DB, and returns it. Never calls TTS twice for the same word.
- */
-async function getPronunciationAudio(req, res) {
-  try {
-    const { itemId } = req.params;
-    if (!itemId) return res.status(400).json({ success: false, error: 'itemId is required.' });
-
-    const item = await pronunciationService.getItemById(itemId);
-    if (!item) return res.status(404).json({ success: false, error: 'Pronunciation item not found.' });
-
-    const audioUrl = await pronunciationService.getOrGenerateAudio(itemId, item.word, item.language);
-
-    if (!audioUrl) {
-      return res.status(503).json({
-        success: false,
-        error: 'Reference audio is currently unavailable. Please try again.',
-      });
-    }
-
-    return res.json({ success: true, audioUrl });
-  } catch (err) {
-    console.error('[getPronunciationAudio]', err.message);
-    return res.status(500).json({ success: false, error: 'Failed to retrieve reference audio.' });
-  }
-}
-
-/**
- * GET /api/students/pronunciation/syllables-audio/:itemId
- *
- * Cache-first syllable reference audio endpoint.
- * Returns array of { syllable, audioUrl } objects from DB if cached,
- * otherwise synthesizes to salintinig/pronunciation/syllables, saves array in DB, and returns it.
- */
-async function getPronunciationSyllableAudios(req, res) {
-  try {
-    const { itemId } = req.params;
-    if (!itemId) return res.status(400).json({ success: false, error: 'itemId is required.' });
-
-    const item = await pronunciationService.getItemById(itemId);
-    if (!item) return res.status(404).json({ success: false, error: 'Pronunciation item not found.' });
-
-    const syllables = item.syllables || [];
-    const syllableAudios = await pronunciationService.getOrGenerateSyllableAudios(itemId, syllables, item.language);
-
-    return res.json({ success: true, syllableAudios });
-  } catch (err) {
-    console.error('[getPronunciationSyllableAudios]', err.message);
-    return res.status(500).json({ success: false, error: 'Failed to retrieve syllable audio.' });
-  }
-}
-
 
 /**
  * POST /api/student/pronunciation/attempt
@@ -3385,12 +3329,13 @@ async function streamSentenceTts(req, res) {
   try {
     const text = req.query.text || '';
     const language = (req.query.language || 'fil').toLowerCase();
+    const rate = req.query.rate || '-4%';
 
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, error: 'Text query parameter is required.' });
     }
 
-    const audioStream = await ttsService.streamSpeechDirect(text.trim(), language, '-4%');
+    const audioStream = await ttsService.streamSpeechDirect(text.trim(), language, rate);
 
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Allow client to cache transiently in memory/HTTP
@@ -3435,8 +3380,6 @@ module.exports = {
   updateAssessmentStartProgress,
   getStudentAssessmentResults,
   getPronunciationItems,
-  getPronunciationAudio,
-  getPronunciationSyllableAudios,
   submitPronunciationAttempt,
   verifyPronunciationAudio,
   ingestPronunciationWord,

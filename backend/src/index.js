@@ -144,10 +144,12 @@ async function initDatabase() {
         console.warn('pronunciation_attempts migration notice:', paErr.message);
       }
 
-      // Auto-migrate vocabulary_bank.difficulty column and auto-classify
+      // Auto-migrate vocabulary_bank.difficulty column and clean up legacy Cloudinary audio columns
       try {
         await db.query(`
           ALTER TABLE vocabulary_bank ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium';
+          ALTER TABLE vocabulary_bank DROP COLUMN IF EXISTS audio_url;
+          ALTER TABLE vocabulary_bank DROP COLUMN IF EXISTS syllable_audio_urls;
           CREATE INDEX IF NOT EXISTS idx_vocabulary_bank_lang_diff ON vocabulary_bank(language, difficulty, is_active);
           UPDATE vocabulary_bank SET difficulty = 'easy' WHERE jsonb_array_length(syllables) <= 3 AND (difficulty IS NULL OR difficulty = 'medium');
           UPDATE vocabulary_bank SET difficulty = 'hard' WHERE jsonb_array_length(syllables) >= 5;

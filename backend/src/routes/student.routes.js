@@ -29,8 +29,6 @@ const {
   updateAssessmentStartProgress,
   getStudentAssessmentResults,
   getPronunciationItems,
-  getPronunciationAudio,
-  getPronunciationSyllableAudios,
   submitPronunciationAttempt,
   verifyPronunciationAudio,
   ingestPronunciationWord,
@@ -57,10 +55,6 @@ router.post('/activity/complete', completeActivityProgress);
 // ── Pronunciation Challenge ──────────────────────────────────────────────────
 // GET  /api/student/pronunciation/items?language=fil&limit=10
 router.get('/pronunciation/items', verifyToken, getPronunciationItems);
-// GET  /api/student/pronunciation/audio/:itemId  (cache-first Edge-TTS)
-router.get('/pronunciation/audio/:itemId', verifyToken, getPronunciationAudio);
-// GET  /api/student/pronunciation/syllables-audio/:itemId  (cache-first syllable audios)
-router.get('/pronunciation/syllables-audio/:itemId', verifyToken, getPronunciationSyllableAudios);
 // POST /api/student/pronunciation/attempt
 router.post('/pronunciation/attempt', verifyToken, submitPronunciationAttempt);
 // POST /api/student/pronunciation/verify-audio (Groq Whisper Large-v3 STT verification)

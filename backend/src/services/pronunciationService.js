@@ -19,7 +19,6 @@
  */
 
 const db = require('../config/db.js');
-const { synthesizeTextToAudio } = require('./ttsService.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTENT POOL — ITEM RETRIEVAL
@@ -57,8 +56,6 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.definition,
          pi.example_sentence AS "exampleSentence",
          pi.syllables,
-         pi.audio_url AS "audioUrl",
-         pi.syllable_audio_urls AS "syllableAudioUrls",
          pi.language,
          pi.difficulty,
          pi.source
@@ -96,8 +93,6 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.definition,
          pi.example_sentence AS "exampleSentence",
          pi.syllables,
-         pi.audio_url AS "audioUrl",
-         pi.syllable_audio_urls AS "syllableAudioUrls",
          pi.language,
          pi.difficulty,
          pi.source
@@ -123,8 +118,6 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          pi.definition,
          pi.example_sentence AS "exampleSentence",
          pi.syllables,
-         pi.audio_url AS "audioUrl",
-         pi.syllable_audio_urls AS "syllableAudioUrls",
          pi.language,
          pi.difficulty,
          pi.source
@@ -138,18 +131,6 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
     );
     itemsList = rows;
   }
-
-  // Background proactive pre-warm: ensure syllable audios exist in DB so mobile gets zero-delay playback
-  Promise.all(
-    itemsList.map(async (item) => {
-      if (!item.syllableAudioUrls || !Array.isArray(item.syllableAudioUrls) || item.syllableAudioUrls.length === 0) {
-        try {
-          const generated = await getOrGenerateSyllableAudios(item.itemId, item.syllables, item.language);
-          item.syllableAudioUrls = generated;
-        } catch (_) {}
-      }
-    })
-  ).catch(() => {});
 
   return itemsList;
 }
@@ -166,7 +147,7 @@ async function getItemById(itemId) {
        item_id AS "itemId",
        word, translation, definition,
        example_sentence AS "exampleSentence",
-       syllables, audio_url AS "audioUrl",
+       syllables,
        language, difficulty, content_status AS "contentStatus", source
      FROM vocabulary_bank
      WHERE item_id = $1
@@ -175,129 +156,6 @@ async function getItemById(itemId) {
   );
   return rows[0] || null;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// REFERENCE AUDIO (Cache-first TTS)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns the reference audio URL for a pronunciation item.
- * Cache-first: if audio_url is already stored, returns it immediately.
- * Otherwise generates via Edge-TTS, saves the URL to the DB, then returns it.
- *
- * @param {string} itemId    UUID of the pronunciation item
- * @param {string} word      Target word text
- * @param {string} language  'fil' or 'en'
- * @returns {Promise<string|null>}  Cloudinary audio URL or null on failure
- */
-async function getOrGenerateAudio(itemId, word, language) {
-  // 1. Return cached URL if it already exists
-  const { rows: existing } = await db.query(
-    `SELECT audio_url FROM vocabulary_bank WHERE item_id = $1 LIMIT 1`,
-    [itemId]
-  );
-  if (existing[0]?.audio_url) return existing[0].audio_url;
-
-  // 2. Generate via Edge-TTS into language-specific Cloudinary words folder
-  try {
-    const langKey = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
-    const wordFolder = langKey === 'en' ? 'salintinig/pronunciation/words/eng' : 'salintinig/pronunciation/words/fil';
-    const result = await synthesizeTextToAudio(word, langKey, '0%', null, wordFolder);
-    const audioUrl = result?.audioUrl || null;
-
-
-
-    if (audioUrl) {
-      // 3. Persist to DB so future requests use the cache
-      await db.query(
-        `UPDATE vocabulary_bank SET audio_url = $1, updated_at = NOW() WHERE item_id = $2`,
-        [audioUrl, itemId]
-      );
-    }
-
-    return audioUrl;
-  } catch (err) {
-    console.error(`[pronunciationService] TTS failed for "${word}":`, err.message);
-    return null;
-  }
-}
-
-/**
- * Returns an array of syllable audio objects: [{ syllable: "Ba", audioUrl: "https://..." }]
- * Cache-first: if syllable_audio_urls is populated in DB, returns it.
- * Otherwise synthesizes each syllable into salintinig/pronunciation/syllables,
- * persists the array to the DB, and returns it.
- */
-async function getOrGenerateSyllableAudios(itemId, syllables, language) {
-  if (!syllables || !Array.isArray(syllables) || syllables.length === 0) return [];
-
-  // 1. Check DB cache
-  const { rows } = await db.query(
-    `SELECT syllable_audio_urls FROM vocabulary_bank WHERE item_id = $1 LIMIT 1`,
-    [itemId]
-  );
-  const cached = rows[0]?.syllable_audio_urls;
-  if (Array.isArray(cached) && cached.length === syllables.length && cached.every(s => s && s.audioUrl)) {
-    return cached;
-  }
-
-  // 2. Generate missing syllable audio via Edge-TTS (or reuse existing syllable audio across items for the SAME language)
-  const langKey = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
-  const langFolder = langKey === 'en' ? 'salintinig/pronunciation/syllables/eng' : 'salintinig/pronunciation/syllables/fil';
-  const resultList = [];
-
-  for (const syl of syllables) {
-    try {
-      // Check if this exact syllable (for the SAME language group) already exists in another item's syllable_audio_urls
-      const existingSylRes = await db.query(
-        `SELECT elem->>'audioUrl' as audio_url
-         FROM vocabulary_bank,
-              jsonb_array_elements(syllable_audio_urls) as elem
-         WHERE (
-           CASE 
-             WHEN LOWER(language) IN ('en', 'eng') THEN 'en' 
-             ELSE 'fil' 
-           END
-         ) = $1
-           AND LOWER(elem->>'syllable') = LOWER($2)
-           AND elem->>'audioUrl' IS NOT NULL
-         LIMIT 1`,
-        [langKey, syl]
-      );
-
-      let audioUrl = existingSylRes.rows[0]?.audio_url;
-
-      if (!audioUrl) {
-        // Synthesize new audio if not found into language-specific Cloudinary folder
-        const res = await synthesizeTextToAudio(syl, langKey, '-12%', null, langFolder);
-        audioUrl = res?.audioUrl || null;
-      } else {
-        console.log(`♻️ [Syllable Reuse] Reusing existing ${langKey.toUpperCase()} audio for syllable "${syl}": ${audioUrl}`);
-      }
-
-      resultList.push({
-        syllable: syl,
-        audioUrl: audioUrl,
-      });
-    } catch (e) {
-      console.warn(`[pronunciationService] Failed to get/synthesize syllable "${syl}":`, e.message);
-      resultList.push({ syllable: syl, audioUrl: null });
-    }
-  }
-
-  // 3. Persist to DB
-  try {
-    await db.query(
-      `UPDATE vocabulary_bank SET syllable_audio_urls = $1, updated_at = NOW() WHERE item_id = $2`,
-      [JSON.stringify(resultList), itemId]
-    );
-  } catch (dbErr) {
-    console.warn('[pronunciationService] Could not cache syllable_audio_urls in DB:', dbErr.message);
-  }
-
-  return resultList;
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ATTEMPTS — STUDENT PRACTICE RECORDING
@@ -605,8 +463,6 @@ async function setContentStatus(itemId, status) {
 module.exports = {
   getSessionItems,
   getItemById,
-  getOrGenerateAudio,
-  getOrGenerateSyllableAudios,
   logAttempt,
   insertItem,
   setContentStatus,

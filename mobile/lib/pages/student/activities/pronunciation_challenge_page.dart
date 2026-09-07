@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -92,6 +94,8 @@ class _PronunciationChallengePageState
   // ── Audio Services ───────────────────────────────────────────────────────
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioRecorder _audioRecorder = AudioRecorder();
+  final FlutterTts _flutterTts = FlutterTts();
+  final Map<String, Uint8List> _audioCache = {}; // In-memory session cache for neural audio bytes
   String? _recordingPath;
   String _feedbackText = '';
 
@@ -137,10 +141,9 @@ class _PronunciationChallengePageState
                 if (map['syllables'] is List) {
                   map['syllables'] = (map['syllables'] as List).map((s) => s.toString()).toList();
                 }
-                // Restore syllableAudioMap as Map<String, String>
-                if (map['syllableAudioMap'] is Map) {
-                  map['syllableAudioMap'] = Map<String, String>.from(
-                    (map['syllableAudioMap'] as Map).map((k, v) => MapEntry(k.toString(), v.toString())),
+                if (map['syllableSoundMap'] is Map) {
+                  map['syllableSoundMap'] = Map<int, String>.from(
+                    (map['syllableSoundMap'] as Map).map((k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, v.toString())),
                   );
                 }
                 return map;
@@ -187,7 +190,6 @@ class _PronunciationChallengePageState
           });
 
           debugPrint('[PronunciationChallenge] Resumed session at word ${savedIndex + 1}/${savedWords.length} ($_sessionLanguage, $_sessionDifficulty)');
-          _preloadSyllablesForWord(_currentWordIndex);
           return;
         }
       }
@@ -215,6 +217,10 @@ class _PronunciationChallengePageState
       player.dispose();
     }
     _syllablePlayers.clear();
+    _audioCache.clear();
+    try {
+      _flutterTts.stop();
+    } catch (_) {}
     try {
       _audioRecorder.stop();
     } catch (_) {}
@@ -251,19 +257,21 @@ class _PronunciationChallengePageState
         }
 
         final words = rawList.map<Map<String, dynamic>>((item) {
-          // Normalize syllables: API returns List<dynamic> from JSONB
           final rawSyllables = item['syllables'];
-          final List<String> syllables = rawSyllables is List
-              ? rawSyllables.map((s) => s.toString()).toList()
-              : [];
+          final List<String> syllables = [];
+          final Map<int, String> syllableSoundMap = {};
 
-          // Normalize syllable audios from JSONB (Option B)
-          final rawSyllableAudios = item['syllableAudioUrls'];
-          final Map<String, String> syllableAudioMap = {};
-          if (rawSyllableAudios is List) {
-            for (final entry in rawSyllableAudios) {
-              if (entry is Map && entry['syllable'] != null && entry['audioUrl'] != null) {
-                syllableAudioMap[entry['syllable'].toString()] = entry['audioUrl'].toString();
+          if (rawSyllables is List) {
+            for (int i = 0; i < rawSyllables.length; i++) {
+              final s = rawSyllables[i];
+              if (s is Map) {
+                final text = (s['text'] ?? s['syllable'] ?? '').toString().trim();
+                final sound = (s['sound'] ?? s['phonetic'] ?? text).toString().trim();
+                syllables.add(text);
+                if (sound.isNotEmpty) syllableSoundMap[i] = sound;
+              } else {
+                final text = s.toString().trim();
+                syllables.add(text);
               }
             }
           }
@@ -275,8 +283,7 @@ class _PronunciationChallengePageState
             'definition': item['definition']?.toString() ?? '',
             'exampleSentence': item['exampleSentence']?.toString() ?? '',
             'syllables': syllables,
-            'audioUrl': item['audioUrl']?.toString(),
-            'syllableAudioMap': syllableAudioMap,
+            'syllableSoundMap': syllableSoundMap,
             'language': item['language']?.toString() ?? _sessionLanguage,
             'difficulty': item['difficulty']?.toString() ?? _sessionDifficulty,
           };
@@ -304,9 +311,6 @@ class _PronunciationChallengePageState
           language: _sessionLanguage,
           difficulty: _sessionDifficulty,
         );
-
-        // Preload first word's syllable audio in background so there is zero delay when tapped
-        _preloadSyllablesForWord(0);
       } else {
         setState(() {
           _loadError = 'Could not load practice words. Please try again.';
@@ -375,53 +379,56 @@ class _PronunciationChallengePageState
 
     try {
       final currentItem = _words[_currentWordIndex];
-      String? audioUrl = currentItem['audioUrl'] as String?;
-      final itemId = currentItem['itemId'] as String?;
+      final word = (currentItem['word'] as String? ?? '').trim();
+      final lang = (currentItem['language'] as String? ?? _sessionLanguage).toLowerCase().startsWith('en') ? 'en' : 'fil';
 
-      // If audioUrl not cached locally, request from backend endpoint
-      if ((audioUrl == null || audioUrl.isEmpty) && itemId != null && itemId.isNotEmpty) {
-        final res = await ApiService.get('/students/pronunciation/audio/$itemId');
-        if (res.success && res.data != null && res.data['audioUrl'] != null) {
-          audioUrl = res.data['audioUrl'].toString();
-          currentItem['audioUrl'] = audioUrl; // Cache in session
-        }
+      if (word.isEmpty) {
+        onAudioFinished();
+        return;
       }
 
-      // Preload and persist syllable audios into DB in background
-      if (itemId != null && itemId.isNotEmpty) {
-        final syllableMap = currentItem['syllableAudioMap'] as Map<String, String>?;
-        if (syllableMap == null || syllableMap.isEmpty) {
-          ApiService.get('/students/pronunciation/syllables-audio/$itemId').then((res) {
-            if (res.success && res.data?['syllableAudios'] is List) {
-              final list = res.data['syllableAudios'] as List;
-              for (final entry in list) {
-                if (entry is Map && entry['syllable'] != null && entry['audioUrl'] != null) {
-                  syllableMap?[entry['syllable'].toString()] = entry['audioUrl'].toString();
-                }
-              }
-            }
-          }).catchError((_) {});
+      // 1. Check in-memory session cache
+      final cacheKey = 'word_${lang}_$word';
+      Uint8List? audioBytes = _audioCache[cacheKey];
+
+      // 2. Fetch neural streaming TTS if not in cache
+      if (audioBytes == null || audioBytes.isEmpty) {
+        final query = '/students/sentence/tts?text=${Uri.encodeComponent(word)}&language=$lang&rate=-2%';
+        final fetched = await ApiService.getRawBytes(query);
+        if (fetched != null && fetched.isNotEmpty) {
+          audioBytes = fetched;
+          _audioCache[cacheKey] = fetched;
         }
       }
 
       if (!mounted) return;
 
-      if (audioUrl != null && audioUrl.isNotEmpty) {
+      // 3. Play via AudioPlayer BytesSource
+      if (audioBytes != null && audioBytes.isNotEmpty) {
         await _audioPlayer.stop();
         if (!mounted) return;
-        await _audioPlayer.play(UrlSource(audioUrl));
+        await _audioPlayer.play(BytesSource(audioBytes));
 
-        // Listen for completion to transition state
         _audioPlayer.onPlayerComplete.first.then((_) {
           if (mounted) onAudioFinished();
+        }).catchError((_) {
+          if (mounted) onAudioFinished();
         });
-      } else {
-        // Fallback timer if audio unavailable
-        _systemAudioTimer?.cancel();
-        _systemAudioTimer = Timer(const Duration(milliseconds: 1400), () {
-          onAudioFinished();
-        });
+        return;
       }
+
+      // 4. Offline / Network Fallback: device FlutterTts
+      debugPrint('[PronunciationChallenge] Falling back to device TTS for word: $word');
+      final ttsLang = lang == 'en' ? 'en-US' : 'fil-PH';
+      await _flutterTts.setLanguage(ttsLang);
+      await _flutterTts.setSpeechRate(0.42);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.speak(word);
+
+      _systemAudioTimer?.cancel();
+      _systemAudioTimer = Timer(const Duration(milliseconds: 1400), () {
+        if (mounted) onAudioFinished();
+      });
     } catch (e) {
       debugPrint('[PronunciationChallenge] TTS Playback error: $e');
       onAudioFinished();
@@ -552,12 +559,6 @@ class _PronunciationChallengePageState
             }
           });
 
-          if (isPassed) {
-            if (_currentWordIndex + 1 < _words.length) {
-              _preloadSyllablesForWord(_currentWordIndex + 1);
-            }
-          }
-
           _isAnalyzingAudio = false;
           return;
         } else {
@@ -640,20 +641,20 @@ class _PronunciationChallengePageState
 
     try {
       final currentItem = _words[_currentWordIndex];
-      final syllableMap = currentItem['syllableAudioMap'] as Map<String, String>?;
-      final cachedUrl = syllableMap?[syllable];
-      final itemId = currentItem['itemId'] as String? ?? '';
+      final lang = (currentItem['language'] as String? ?? widget.language).toLowerCase().startsWith('en') ? 'en' : 'fil';
+      final cleanSyllable = syllable.trim();
+      final soundMap = currentItem['syllableSoundMap'] as Map<int, String>?;
+      // If an explicit phonetic sound guide exists for this syllable, use it; otherwise use text
+      final phoneticSound = soundMap?[index] ?? cleanSyllable;
 
-      // Get or create a dedicated player per syllable INDEX so duplicate syllables
-      // (e.g. "ma", "ma") each have their own audio stream.
+      // Get or create dedicated player per syllable index for clean polyphony
       final player = _syllablePlayers.putIfAbsent(index, () => AudioPlayer());
 
-      // Plays a URL and unhighlights the chip when done or after a safety timeout.
-      Future<void> playAudioUrl(String url, int idx) async {
+      Future<void> playAudioBytes(Uint8List bytes, int idx) async {
         if (!mounted) return;
         await player.stop();
         if (!mounted) return;
-        await player.play(UrlSource(url));
+        await player.play(BytesSource(bytes));
 
         Timer? safetyTimer;
         safetyTimer = Timer(const Duration(milliseconds: 1600), () {
@@ -668,91 +669,37 @@ class _PronunciationChallengePageState
         });
       }
 
-      // Fast path: URL already cached in the session word map.
-      if (cachedUrl != null && cachedUrl.isNotEmpty) {
-        try {
-          await playAudioUrl(cachedUrl, index);
-          return;
-        } catch (_) {
-          // Stale/deleted Cloudinary file — invalidate and fall through to regenerate.
-          syllableMap?.remove(syllable);
+      // 1. Check in-memory cache
+      final cacheKey = 'syl_${lang}_$phoneticSound';
+      Uint8List? audioBytes = _audioCache[cacheKey];
+
+      // 2. Fetch raw neural bytes from backend TTS streaming endpoint
+      if (audioBytes == null || audioBytes.isEmpty) {
+        final query = '/students/sentence/tts?text=${Uri.encodeComponent(phoneticSound)}&language=$lang&rate=-10%';
+        final fetched = await ApiService.getRawBytes(query);
+        if (fetched != null && fetched.isNotEmpty) {
+          audioBytes = fetched;
+          _audioCache[cacheKey] = fetched;
         }
       }
 
-      // Slow path: fetch all syllable URLs for this item from the backend and cache them.
-      if (itemId.isNotEmpty) {
-        try {
-          final res = await ApiService.get('/students/pronunciation/syllables-audio/$itemId');
-          if (res.success && res.data?['syllableAudios'] is List) {
-            for (final entry in res.data['syllableAudios'] as List) {
-              if (entry is Map && entry['syllable'] != null && entry['audioUrl'] != null) {
-                syllableMap?[entry['syllable'].toString()] = entry['audioUrl'].toString();
-              }
-            }
-            final freshUrl = syllableMap?[syllable];
-            if (freshUrl != null && freshUrl.isNotEmpty) {
-              await playAudioUrl(freshUrl, index);
-              return;
-            }
-          }
-        } catch (_) {}
+      if (audioBytes != null && audioBytes.isNotEmpty) {
+        await playAudioBytes(audioBytes, index);
+        return;
       }
 
-      // Final fallback: synthesize directly via TTS endpoint.
-      await _regenerateAndPlaySyllable(index, syllable, itemId, syllableMap, playAudioUrl);
-    } catch (_) {
-      _clearSyllableHighlight(index);
-    }
-  }
+      // 3. Device TTS Fallback
+      final ttsLang = lang == 'en' ? 'en-US' : 'fil-PH';
+      await _flutterTts.setLanguage(ttsLang);
+      await _flutterTts.setSpeechRate(0.38);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.speak(phoneticSound);
 
-  Future<void> _regenerateAndPlaySyllable(
-    int index,
-    String syllable,
-    String itemId,
-    Map<String, String>? syllableMap,
-    Future<void> Function(String url, int idx) playAudioUrl,
-  ) async {
-    try {
-      final currentItem = _words[_currentWordIndex];
-      final lang = currentItem['language'] as String? ?? widget.language;
-      final langFolder = lang.toLowerCase().startsWith('en')
-          ? 'salintinig/pronunciation/syllables/eng'
-          : 'salintinig/pronunciation/syllables/fil';
-
-      final res = await ApiService.get(
-        '/tts/synthesize?text=${Uri.encodeComponent(syllable)}&language=$lang&rate=-12%&folder=$langFolder',
-      );
-
-      if (res.success && res.data?['audioUrl'] != null) {
-        final freshUrl = res.data['audioUrl'].toString();
-        syllableMap?[syllable] = freshUrl;
-        await playAudioUrl(freshUrl, index);
-      } else {
+      Timer(const Duration(milliseconds: 800), () {
         _clearSyllableHighlight(index);
-      }
+      });
     } catch (_) {
       _clearSyllableHighlight(index);
-    }
-  }
-
-  void _preloadSyllablesForWord(int wordIndex) {
-
-    if (wordIndex >= _words.length) return;
-    final item = _words[wordIndex];
-    final itemId = item['itemId'] as String? ?? '';
-    final syllableMap = item['syllableAudioMap'] as Map<String, String>?;
-
-    if (itemId.isNotEmpty && (syllableMap == null || syllableMap.isEmpty)) {
-      ApiService.get('/students/pronunciation/syllables-audio/$itemId').then((res) {
-        if (res.success && res.data?['syllableAudios'] is List) {
-          final list = res.data['syllableAudios'] as List;
-          for (final entry in list) {
-            if (entry is Map && entry['syllable'] != null && entry['audioUrl'] != null) {
-              syllableMap?[entry['syllable'].toString()] = entry['audioUrl'].toString();
-            }
-          }
-        }
-      }).catchError((_) {});
     }
   }
 
@@ -801,9 +748,6 @@ class _PronunciationChallengePageState
           'mistakesCount': _mistakesCount,
         },
       );
-
-      // Preload next word's syllable audio immediately
-      _preloadSyllablesForWord(_currentWordIndex);
     } else {
       // Session fully completed — calculate overall metrics and display celebration screen
       ActivityProgressService.clearProgress('pronunciation', _sessionLanguage);

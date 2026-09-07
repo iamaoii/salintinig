@@ -463,8 +463,6 @@ CREATE TABLE IF NOT EXISTS vocabulary_bank (
     example_sentence TEXT,                       -- e.g. "May magandang bahaghari pagkatapos ng ulan."
 
     syllables JSONB NOT NULL,                    -- e.g. ["Ba", "hag", "ha", "ri"]
-    audio_url TEXT,                              -- Edge-TTS cached reference audio (Cloudinary)
-    syllable_audio_urls JSONB DEFAULT '[]'::jsonb, -- Array of objects: [{"syllable": "Ba", "audio_url": "https://..."}]
     difficulty VARCHAR(20) DEFAULT 'medium',     -- 'easy' | 'medium' | 'hard'
 
     -- Content Pool Validation
