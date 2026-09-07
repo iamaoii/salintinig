@@ -8,6 +8,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/widgets/activity_loading_view.dart';
 
 class VocabularyMatchingPage extends StatefulWidget {
   /// Difficulty tier: 'easy', 'medium', 'hard'.
@@ -750,6 +751,19 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
+
+    // ── Unified Loading state ──────────────────────────────────────────────
+    if (_isLoading) {
+      return ActivityLoadingView(
+        activityTitle: 'Vocabulary Matching',
+        activitySubtitle: 'Pagtutugma ng Salita',
+        icon: Icons.style_rounded,
+        primaryColor: primaryBlue,
+        language: 'en',
+        difficulty: widget.difficulty,
+        onClose: () => Navigator.pop(context),
+      );
+    }
 
     // Progress calculation mirrored from Pronunciation Practice:
     // When on item 1 (0 matches so far), shows 1 / total progress shaded in

@@ -14,6 +14,7 @@ import 'package:confetti/confetti.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
+import 'package:salintinig/widgets/activity_loading_view.dart';
 
 
 enum PracticeState {
@@ -1032,48 +1033,14 @@ class _PronunciationChallengePageState
 
     // ── Loading state ──────────────────────────────────────────────────────
     if (_state == PracticeState.loading) {
-      return Scaffold(
-        backgroundColor: softCanvasBg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20.0, 4.0, 20.0, 2.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'PRONUNCIATION PRACTICE',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF94A3B8),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Iconify(Ph.x, size: 22, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: primaryBlue),
-                      SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      return ActivityLoadingView(
+        activityTitle: 'Pronunciation Practice',
+        activitySubtitle: 'Hamon sa Pagbigkas',
+        iconifyIcon: Ph.microphone,
+        primaryColor: primaryBlue,
+        language: _sessionLanguage,
+        difficulty: _sessionDifficulty,
+        onClose: () => Navigator.pop(context),
       );
     }
 
