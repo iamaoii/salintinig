@@ -25,86 +25,6 @@ class ActivitiesPage extends StatefulWidget {
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  bool _pronunciationInProgress = false;
-  int _pronunciationCurrentIndex = 0;
-  int _pronunciationTotalItems = 5;
-
-  bool _vocabularyInProgress = false;
-  int _vocabularyCurrentIndex = 0;
-  int _vocabularyTotalItems = 5;
-
-  bool _sentenceInProgress = false;
-  int _sentenceCurrentIndex = 0;
-  int _sentenceTotalItems = 5;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkActiveSessionsQuiet();
-    ActivityProgressService.progressChangeNotifier.addListener(_checkActiveSessionsQuiet);
-  }
-
-  @override
-  void dispose() {
-    ActivityProgressService.progressChangeNotifier.removeListener(_checkActiveSessionsQuiet);
-    super.dispose();
-  }
-
-  void _checkActiveSessionsQuiet() {
-    ActivityProgressService.getProgress('pronunciation').then((data) {
-      if (mounted) {
-        final bool has = data != null;
-        final int currentIdx = (data?['currentIndex'] as int?) ?? 0;
-        final int total = (data?['totalItems'] as int?) ?? 5;
-
-        if (has != _pronunciationInProgress ||
-            currentIdx != _pronunciationCurrentIndex ||
-            total != _pronunciationTotalItems) {
-          setState(() {
-            _pronunciationInProgress = has;
-            _pronunciationCurrentIndex = currentIdx;
-            _pronunciationTotalItems = total > 0 ? total : 5;
-          });
-        }
-      }
-    });
-
-    ActivityProgressService.getProgress('vocabulary').then((data) {
-      if (mounted) {
-        final bool has = data != null;
-        final int currentIdx = (data?['currentIndex'] as int?) ?? 0;
-        final int total = (data?['totalItems'] as int?) ?? 5;
-
-        if (has != _vocabularyInProgress ||
-            currentIdx != _vocabularyCurrentIndex ||
-            total != _vocabularyTotalItems) {
-          setState(() {
-            _vocabularyInProgress = has;
-            _vocabularyCurrentIndex = currentIdx;
-            _vocabularyTotalItems = total > 0 ? total : 5;
-          });
-        }
-      }
-    });
-
-    ActivityProgressService.getProgress('sentence').then((data) {
-      if (mounted) {
-        final bool has = data != null;
-        final int currentIdx = (data?['currentIndex'] as int?) ?? 0;
-        final int total = (data?['totalItems'] as int?) ?? 5;
-
-        if (has != _sentenceInProgress ||
-            currentIdx != _sentenceCurrentIndex ||
-            total != _sentenceTotalItems) {
-          setState(() {
-            _sentenceInProgress = has;
-            _sentenceCurrentIndex = currentIdx;
-            _sentenceTotalItems = total > 0 ? total : 5;
-          });
-        }
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -235,9 +155,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 iconSvg: PhIcons.userSoundBold,
                                 iconColor: const Color(0xFF1B64D8),
                                 iconBgColor: const Color(0xFFDBEAFE),
-                                isInProgress: _pronunciationInProgress,
-                                currentIndex: _pronunciationCurrentIndex,
-                                totalItems: _pronunciationTotalItems,
                                 onPlayTap: () => _showPronunciationMissionSetup(context),
                               ),
                               const SizedBox(height: 14),
@@ -249,9 +166,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 iconSvg: PhIcons.equalsBold,
                                 iconColor: const Color(0xFFD97706),
                                 iconBgColor: const Color(0xFFFEF3C7),
-                                isInProgress: _vocabularyInProgress,
-                                currentIndex: _vocabularyCurrentIndex,
-                                totalItems: _vocabularyTotalItems,
                                 onPlayTap: () => _showVocabularyMissionSetup(context),
                               ),
                               const SizedBox(height: 14),
@@ -263,9 +177,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 iconSvg: PhIcons.hammerBold,
                                 iconColor: const Color(0xFF10B981),
                                 iconBgColor: const Color(0xFFD1FAE5),
-                                isInProgress: _sentenceInProgress,
-                                currentIndex: _sentenceCurrentIndex,
-                                totalItems: _sentenceTotalItems,
                                 onPlayTap: () => _showSentenceMissionSetup(context),
                               ),
                               const SizedBox(height: 28),
@@ -365,15 +276,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     required Color iconColor,
     required Color iconBgColor,
     required VoidCallback onPlayTap,
-    bool isInProgress = false,
-    int currentIndex = 0,
-    int totalItems = 10,
   }) {
     const primaryBlue = Color(0xFF1B64D8);
-    final buttonText = isInProgress ? 'Continue' : 'Play';
-    final double progressValue = totalItems > 0
-        ? ((currentIndex + 1) / totalItems).clamp(0.0, 1.0)
-        : 0.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -413,7 +317,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           ),
           const SizedBox(width: 16),
 
-          // Title & Description & Progress
+          // Title & Description
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,41 +342,12 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                     height: 1.3,
                   ),
                 ),
-                if (isInProgress) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(100),
-                          child: LinearProgressIndicator(
-                            value: progressValue,
-                            minHeight: 5,
-                            backgroundColor: const Color(0xFFF1F5F9),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              primaryBlue,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${currentIndex + 1}/$totalItems',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
           const SizedBox(width: 12),
 
-          // Play / Continue Button (Shadowless & Clean Blue)
+          // Play Button (Shadowless & Clean Blue)
           ElevatedButton(
             onPressed: onPlayTap,
             style: ElevatedButton.styleFrom(
@@ -487,7 +362,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               ),
             ),
             child: Text(
-              buttonText,
+              'Play',
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -941,7 +816,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                   difficulty: effectiveDifficulty,
                                 ),
                               ),
-                            ).then((_) => _checkActiveSessionsQuiet());
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1B64D8),
@@ -1251,7 +1126,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                   difficulty: effectiveDifficulty,
                                 ),
                               ),
-                            ).then((_) => _checkActiveSessionsQuiet());
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1B64D8),
@@ -1594,7 +1469,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                   difficulty: effectiveDifficulty,
                                 ),
                               ),
-                            ).then((_) => _checkActiveSessionsQuiet());
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
@@ -1619,40 +1494,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                           ),
                         ),
                       ),
-                      if (hasOngoing) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 46,
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              await ActivityProgressService.clearProgress('sentence', selectedLanguage);
-                              _checkActiveSessionsQuiet();
-                              if (context.mounted) {
-                                Navigator.pop(ctx);
-                                _showSentenceMissionSetup(context);
-                              }
-                            },
-                            icon: const Icon(Icons.refresh_rounded, size: 18, color: Color(0xFF64748B)),
-                            label: Text(
-                              selectedLanguage == 'fil'
-                                  ? 'Ulitin / Magsimula Muli'
-                                  : 'Restart / Start Fresh Practice',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),

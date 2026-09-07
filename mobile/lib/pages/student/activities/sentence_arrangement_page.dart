@@ -69,7 +69,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Mabait si nanay.',
           'targetLanguage': 'fil',
-          'fullText': 'Mabait si nanay.',
           'correct': ['Mabait', 'si', 'nanay'],
           'scrambled': ['nanay', 'Mabait', 'si'],
         },
@@ -78,7 +77,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Masaya ang bata.',
           'targetLanguage': 'fil',
-          'fullText': 'Masaya ang bata.',
           'correct': ['Masaya', 'ang', 'bata'],
           'scrambled': ['bata', 'Masaya', 'ang'],
         },
@@ -87,7 +85,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Pula ang mansanas.',
           'targetLanguage': 'fil',
-          'fullText': 'Pula ang mansanas.',
           'correct': ['Pula', 'ang', 'mansanas'],
           'scrambled': ['mansanas', 'ang', 'Pula'],
         },
@@ -96,7 +93,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Mabilis ang aso.',
           'targetLanguage': 'fil',
-          'fullText': 'Mabilis ang aso.',
           'correct': ['Mabilis', 'ang', 'aso'],
           'scrambled': ['aso', 'Mabilis', 'ang'],
         },
@@ -105,7 +101,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Uminom ng tubig.',
           'targetLanguage': 'fil',
-          'fullText': 'Uminom ng tubig.',
           'correct': ['Uminom', 'ng', 'tubig'],
           'scrambled': ['tubig', 'Uminom', 'ng'],
         },
@@ -116,7 +111,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Naglalaro kami sa bakuran.',
           'targetLanguage': 'fil',
-          'fullText': 'Naglalaro kami sa bakuran.',
           'correct': ['Naglalaro', 'kami', 'sa', 'bakuran'],
           'scrambled': ['sa', 'bakuran', 'kami', 'Naglalaro'],
         },
@@ -125,7 +119,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Kumakain si kuya ng prutas.',
           'targetLanguage': 'fil',
-          'fullText': 'Kumakain si kuya ng prutas.',
           'correct': ['Kumakain', 'si', 'kuya', 'ng', 'prutas'],
           'scrambled': ['ng', 'prutas', 'Kumakain', 'si', 'kuya'],
         },
@@ -134,7 +127,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Malinis ang aming silid.',
           'targetLanguage': 'fil',
-          'fullText': 'Malinis ang aming silid.',
           'correct': ['Malinis', 'ang', 'aming', 'silid'],
           'scrambled': ['silid', 'aming', 'Malinis', 'ang'],
         },
@@ -143,7 +135,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Mataas ang berdeng puno.',
           'targetLanguage': 'fil',
-          'fullText': 'Mataas ang berdeng puno.',
           'correct': ['Mataas', 'ang', 'berdeng', 'puno'],
           'scrambled': ['puno', 'Mataas', 'berdeng', 'ang'],
         },
@@ -152,7 +143,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Nagtanim si lolo ng mais.',
           'targetLanguage': 'fil',
-          'fullText': 'Nagtanim si lolo ng mais.',
           'correct': ['Nagtanim', 'si', 'lolo', 'ng', 'mais'],
           'scrambled': ['mais', 'lolo', 'Nagtanim', 'si', 'ng'],
         },
@@ -163,7 +153,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Masipag mag-aral ang mga mag-aaral.',
           'targetLanguage': 'fil',
-          'fullText': 'Masipag mag-aral ang mga mag-aaral.',
           'correct': ['Masipag', 'mag-aral', 'ang', 'mga', 'mag-aaral'],
           'scrambled': ['mga', 'mag-aaral', 'Masipag', 'ang', 'mag-aral'],
         },
@@ -172,7 +161,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Tumutulong ako sa aking mga magulang.',
           'targetLanguage': 'fil',
-          'fullText': 'Tumutulong ako sa aking mga magulang.',
           'correct': ['Tumutulong', 'ako', 'sa', 'aking', 'mga', 'magulang'],
           'scrambled': ['magulang', 'sa', 'Tumutulong', 'mga', 'ako', 'aking'],
         },
@@ -181,7 +169,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Mahalaga ang pagtatanim ng mga halaman.',
           'targetLanguage': 'fil',
-          'fullText': 'Mahalaga ang pagtatanim ng mga halaman.',
           'correct': ['Mahalaga', 'ang', 'pagtatanim', 'ng', 'mga', 'halaman'],
           'scrambled': ['halaman', 'mga', 'ng', 'Mahalaga', 'pagtatanim', 'ang'],
         },
@@ -190,7 +177,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Laging magsabi ng totoo sa lahat.',
           'targetLanguage': 'fil',
-          'fullText': 'Laging magsabi ng totoo sa lahat.',
           'correct': ['Laging', 'magsabi', 'ng', 'totoo', 'sa', 'lahat'],
           'scrambled': ['lahat', 'totoo', 'Laging', 'sa', 'magsabi', 'ng'],
         },
@@ -199,7 +185,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Masayang sumayaw ang maliit na bata.',
           'targetLanguage': 'fil',
-          'fullText': 'Masayang sumayaw ang maliit na bata.',
           'correct': ['Masayang', 'sumayaw', 'ang', 'maliit', 'na', 'bata'],
           'scrambled': ['bata', 'sumayaw', 'Masayang', 'na', 'ang', 'maliit'],
         },
@@ -208,7 +193,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'en',
           'targetText': 'Igalang natin ang ating mga guro.',
           'targetLanguage': 'fil',
-          'fullText': 'Igalang natin ang ating mga guro.',
           'correct': ['Igalang', 'natin', 'ang', 'ating', 'mga', 'guro'],
           'scrambled': ['guro', 'ating', 'Igalang', 'mga', 'natin', 'ang'],
         },
@@ -221,7 +205,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Mother is kind.',
           'targetLanguage': 'en',
-          'fullText': 'Mother is kind.',
           'correct': ['Mother', 'is', 'kind'],
           'scrambled': ['kind', 'Mother', 'is'],
         },
@@ -230,7 +213,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The child is happy.',
           'targetLanguage': 'en',
-          'fullText': 'The child is happy.',
           'correct': ['The', 'child', 'is', 'happy'],
           'scrambled': ['happy', 'The', 'is', 'child'],
         },
@@ -239,7 +221,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The apple is red.',
           'targetLanguage': 'en',
-          'fullText': 'The apple is red.',
           'correct': ['The', 'apple', 'is', 'red'],
           'scrambled': ['red', 'is', 'The', 'apple'],
         },
@@ -248,7 +229,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The dog is fast.',
           'targetLanguage': 'en',
-          'fullText': 'The dog is fast.',
           'correct': ['The', 'dog', 'is', 'fast'],
           'scrambled': ['fast', 'The', 'dog', 'is'],
         },
@@ -257,7 +237,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Drink some water.',
           'targetLanguage': 'en',
-          'fullText': 'Drink some water.',
           'correct': ['Drink', 'some', 'water'],
           'scrambled': ['water', 'Drink', 'some'],
         },
@@ -268,7 +247,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'We play in the yard.',
           'targetLanguage': 'en',
-          'fullText': 'We play in the yard.',
           'correct': ['We', 'play', 'in', 'the', 'yard'],
           'scrambled': ['yard', 'in', 'We', 'the', 'play'],
         },
@@ -277,7 +255,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Older brother eats sweet fruit.',
           'targetLanguage': 'en',
-          'fullText': 'Older brother eats sweet fruit.',
           'correct': ['Older', 'brother', 'eats', 'sweet', 'fruit'],
           'scrambled': ['fruit', 'Older', 'sweet', 'eats', 'brother'],
         },
@@ -286,7 +263,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Our classroom is very clean.',
           'targetLanguage': 'en',
-          'fullText': 'Our classroom is very clean.',
           'correct': ['Our', 'classroom', 'is', 'very', 'clean'],
           'scrambled': ['clean', 'Our', 'very', 'is', 'classroom'],
         },
@@ -295,7 +271,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The green tree is tall.',
           'targetLanguage': 'en',
-          'fullText': 'The green tree is tall.',
           'correct': ['The', 'green', 'tree', 'is', 'tall'],
           'scrambled': ['tall', 'The', 'is', 'green', 'tree'],
         },
@@ -304,7 +279,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Grandfather planted fresh corn.',
           'targetLanguage': 'en',
-          'fullText': 'Grandfather planted fresh corn.',
           'correct': ['Grandfather', 'planted', 'fresh', 'corn'],
           'scrambled': ['corn', 'Grandfather', 'fresh', 'planted'],
         },
@@ -315,7 +289,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The students study very hard.',
           'targetLanguage': 'en',
-          'fullText': 'The students study very hard.',
           'correct': ['The', 'students', 'study', 'very', 'hard'],
           'scrambled': ['hard', 'very', 'The', 'students', 'study'],
         },
@@ -324,7 +297,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'I help my own parents.',
           'targetLanguage': 'en',
-          'fullText': 'I help my own parents.',
           'correct': ['I', 'help', 'my', 'own', 'parents'],
           'scrambled': ['parents', 'own', 'I', 'help', 'my'],
         },
@@ -333,7 +305,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Planting green plants is very important.',
           'targetLanguage': 'en',
-          'fullText': 'Planting green plants is very important.',
           'correct': ['Planting', 'green', 'plants', 'is', 'very', 'important'],
           'scrambled': ['important', 'very', 'Planting', 'is', 'plants', 'green'],
         },
@@ -342,7 +313,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Always tell truth to everyone.',
           'targetLanguage': 'en',
-          'fullText': 'Always tell truth to everyone.',
           'correct': ['Always', 'tell', 'truth', 'to', 'everyone'],
           'scrambled': ['everyone', 'truth', 'Always', 'to', 'tell'],
         },
@@ -351,7 +321,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'The little child danced happily.',
           'targetLanguage': 'en',
-          'fullText': 'The little child danced happily.',
           'correct': ['The', 'little', 'child', 'danced', 'happily'],
           'scrambled': ['happily', 'The', 'child', 'danced', 'little'],
         },
@@ -360,7 +329,6 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
           'promptLanguage': 'fil',
           'targetText': 'Let us respect our kind teachers.',
           'targetLanguage': 'en',
-          'fullText': 'Let us respect our kind teachers.',
           'correct': ['Let', 'us', 'respect', 'our', 'kind', 'teachers'],
           'scrambled': ['teachers', 'kind', 'Let', 'our', 'respect', 'us'],
         },
@@ -854,9 +822,8 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
         return {
           'promptText': s['promptText'] ?? '',
           'promptLanguage': s['promptLanguage'] ?? (langKey == 'fil' ? 'en' : 'fil'),
-          'targetText': s['targetText'] ?? s['fullText'] ?? '',
+          'targetText': s['targetText'] ?? '',
           'targetLanguage': s['targetLanguage'] ?? langKey,
-          'fullText': s['fullText'],
           'correct': List<String>.from(s['correct']),
           'scrambled': List<String>.from(s['scrambled']),
         };
@@ -1341,13 +1308,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
                                 final currentItem = _sentences.isNotEmpty && _currentIndex < _sentences.length
                                     ? _sentences[_currentIndex]
                                     : null;
-                                final promptText = (currentItem?['promptText'] != null && currentItem!['promptText'].toString().trim().isNotEmpty)
-                                    ? currentItem['promptText'].toString().trim()
-                                    : (currentItem?['translation']?.toString().trim() ??
-                                        currentItem?['prompt']?.toString().trim() ??
-                                        currentItem?['targetText']?.toString().trim() ??
-                                        currentItem?['fullText']?.toString().trim() ??
-                                        '');
+                                final promptText = currentItem?['promptText']?.toString().trim() ?? '';
                                 final promptLang = currentItem?['promptLanguage'] ?? (_sessionLanguage == 'fil' ? 'en' : 'fil');
 
                                 return Column(
@@ -1733,9 +1694,9 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
     required double fontSize,
   }) {
     return CustomPaint(
-      painter: _SpeechBubblePainter(
+      painter: const _SpeechBubblePainter(
         color: Colors.white,
-        borderColor: const Color(0xFF0F172A),
+        borderColor: Color(0xFF0F172A),
         borderWidth: 2.2,
         radius: 18.0,
       ),
@@ -1788,9 +1749,9 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
                 // 1. Top Centered Speech Bubble above Sally
                 Center(
                   child: CustomPaint(
-                    painter: _CelebrationSpeechBubblePainter(
+                    painter: const _SpeechBubblePainter(
                       color: Colors.white,
-                      borderColor: const Color(0xFF0F172A),
+                      borderColor: Color(0xFF0F172A),
                       borderWidth: 2.2,
                       radius: 24.0,
                     ),
@@ -2170,18 +2131,17 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
   }
 }
 
-/// Custom painter for the centered speech bubble above Sally during celebration
-class _CelebrationSpeechBubblePainter extends CustomPainter {
+class _SpeechBubblePainter extends CustomPainter {
   final Color color;
   final Color borderColor;
   final double borderWidth;
   final double radius;
 
-  _CelebrationSpeechBubblePainter({
+  const _SpeechBubblePainter({
     this.color = Colors.white,
     this.borderColor = const Color(0xFF0F172A),
     this.borderWidth = 2.2,
-    this.radius = 24.0,
+    this.radius = 18.0,
   });
 
   @override
@@ -2195,102 +2155,20 @@ class _CelebrationSpeechBubblePainter extends CustomPainter {
     const tailHalfWidth = 7.0;
     const tailHeight = 8.0;
 
-    final path = Path();
-    path.moveTo(r, 0);
-    path.lineTo(w - r, 0);
-    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
-    path.lineTo(w, h - r);
-    path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
-
-    // Bottom edge with center-pointing tail
-    path.lineTo(centerX + tailHalfWidth, h);
-    path.lineTo(centerX, h + tailHeight);
-    path.lineTo(centerX - tailHalfWidth, h);
-
-    path.lineTo(r, h);
-    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
-    path.lineTo(0, r);
-    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
-    path.close();
-
-    // Subtle drop shadow
-    canvas.drawPath(
-      path.shift(const Offset(0, 2)),
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.04)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-
-    // White fill
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill,
-    );
-
-    // Border stroke
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = borderColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = borderWidth
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CelebrationSpeechBubblePainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.borderColor != borderColor ||
-        oldDelegate.borderWidth != borderWidth ||
-        oldDelegate.radius != radius;
-  }
-}
-
-class _SpeechBubblePainter extends CustomPainter {
-  final Color color;
-  final Color borderColor;
-  final double borderWidth;
-  final double radius;
-
-  _SpeechBubblePainter({
-    this.color = Colors.white,
-    this.borderColor = const Color(0xFF0F172A),
-    this.borderWidth = 2.2,
-    this.radius = 18.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = radius;
-    final w = size.width;
-    final h = size.height;
-
-    // Tail on bottom center pointing straight down towards nerdy Sally's head
-    final centerX = w / 2;
-    const tailHalfWidth = 7.0;
-    const tailHeight = 8.0;
-
-    final path = Path();
-    path.moveTo(r, 0);
-    path.lineTo(w - r, 0);
-    path.arcToPoint(Offset(w, r), radius: Radius.circular(r));
-    path.lineTo(w, h - r);
-    path.arcToPoint(Offset(w - r, h), radius: Radius.circular(r));
-
-    // Bottom edge with center-pointing tail
-    path.lineTo(centerX + tailHalfWidth, h);
-    path.lineTo(centerX, h + tailHeight);
-    path.lineTo(centerX - tailHalfWidth, h);
-
-    path.lineTo(r, h);
-    path.arcToPoint(Offset(0, h - r), radius: Radius.circular(r));
-    path.lineTo(0, r);
-    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r));
-    path.close();
+    final path = Path()
+      ..moveTo(r, 0)
+      ..lineTo(w - r, 0)
+      ..arcToPoint(Offset(w, r), radius: Radius.circular(r))
+      ..lineTo(w, h - r)
+      ..arcToPoint(Offset(w - r, h), radius: Radius.circular(r))
+      ..lineTo(centerX + tailHalfWidth, h)
+      ..lineTo(centerX, h + tailHeight)
+      ..lineTo(centerX - tailHalfWidth, h)
+      ..lineTo(r, h)
+      ..arcToPoint(Offset(0, h - r), radius: Radius.circular(r))
+      ..lineTo(0, r)
+      ..arcToPoint(Offset(r, 0), radius: Radius.circular(r))
+      ..close();
 
     // Subtle drop shadow
     canvas.drawPath(
