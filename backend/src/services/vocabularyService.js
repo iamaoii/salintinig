@@ -34,8 +34,7 @@ async function getSessionPairs(difficulty = 'medium', limit = 5, studentId = nul
         word,
         translation,
         language,
-        difficulty,
-        audio_url
+        difficulty
       FROM vocabulary_bank
       WHERE is_active = true
         AND content_status = 'validated'
@@ -61,8 +60,7 @@ async function getSessionPairs(difficulty = 'medium', limit = 5, studentId = nul
           word,
           translation,
           language,
-          difficulty,
-          audio_url
+          difficulty
         FROM vocabulary_bank
         WHERE is_active = true
           AND content_status = 'validated'
@@ -105,7 +103,7 @@ async function getSessionPairs(difficulty = 'medium', limit = 5, studentId = nul
       englishWord,
       filipinoWord,
       difficulty: row.difficulty || diff,
-      audioUrl: row.audio_url || null,
+      audioUrl: null,
     });
 
     if (selectedPairs.length >= safeLimit) {
