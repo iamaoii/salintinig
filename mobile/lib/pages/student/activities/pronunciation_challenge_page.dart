@@ -276,6 +276,11 @@ class _PronunciationChallengePageState
             }
           }
 
+          // Convert syllableSoundMap int keys → String keys for JSON serialization
+          final Map<String, String> syllableSoundMapStr = syllableSoundMap.map(
+            (k, v) => MapEntry(k.toString(), v),
+          );
+
           return {
             'itemId': item['itemId']?.toString() ?? '',
             'word': item['word']?.toString() ?? '',
@@ -283,7 +288,7 @@ class _PronunciationChallengePageState
             'definition': item['definition']?.toString() ?? '',
             'exampleSentence': item['exampleSentence']?.toString() ?? '',
             'syllables': syllables,
-            'syllableSoundMap': syllableSoundMap,
+            'syllableSoundMap': syllableSoundMapStr,
             'language': item['language']?.toString() ?? _sessionLanguage,
             'difficulty': item['difficulty']?.toString() ?? _sessionDifficulty,
           };
@@ -643,9 +648,15 @@ class _PronunciationChallengePageState
       final currentItem = _words[_currentWordIndex];
       final lang = (currentItem['language'] as String? ?? widget.language).toLowerCase().startsWith('en') ? 'en' : 'fil';
       final cleanSyllable = syllable.trim();
-      final soundMap = currentItem['syllableSoundMap'] as Map<int, String>?;
-      // If an explicit phonetic sound guide exists for this syllable, use it; otherwise use text
-      final phoneticSound = soundMap?[index] ?? cleanSyllable;
+      // Safely extract phonetic sound from syllableSoundMap (supports both int and String keys)
+      String phoneticSound = cleanSyllable;
+      final rawSoundMap = currentItem['syllableSoundMap'];
+      if (rawSoundMap is Map) {
+        final match = rawSoundMap[index] ?? rawSoundMap[index.toString()];
+        if (match != null && match.toString().trim().isNotEmpty) {
+          phoneticSound = match.toString().trim();
+        }
+      }
 
       // Get or create dedicated player per syllable index for clean polyphony
       final player = _syllablePlayers.putIfAbsent(index, () => AudioPlayer());
@@ -669,8 +680,8 @@ class _PronunciationChallengePageState
         });
       }
 
-      // 1. Check in-memory cache
-      final cacheKey = 'syl_${lang}_$phoneticSound';
+      // 1. Check in-memory cache (v2 key ensures stale audio from prior runs is invalidated)
+      final cacheKey = 'syl_v2_${lang}_$phoneticSound';
       Uint8List? audioBytes = _audioCache[cacheKey];
 
       // 2. Fetch raw neural bytes from backend TTS streaming endpoint

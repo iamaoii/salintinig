@@ -532,9 +532,22 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 
   void _showPronunciationMissionSetup(BuildContext context) async {
-    // Check initial language active session
-    final filProgress = await ActivityProgressService.getProgress('pronunciation', 'fil');
-    final enProgress = await ActivityProgressService.getProgress('pronunciation', 'en');
+    // Check initial language active session for both Filipino and English
+    var filProgress = await ActivityProgressService.getProgress('pronunciation', 'fil');
+    var enProgress = await ActivityProgressService.getProgress('pronunciation', 'en');
+
+    // Fallback: If no language-specific session exists, check generic progress
+    if (filProgress == null && enProgress == null) {
+      final genericProgress = await ActivityProgressService.getProgress('pronunciation');
+      if (genericProgress != null) {
+        final lang = (genericProgress['language'] as String?)?.toLowerCase().trim() ?? '';
+        if (lang.startsWith('en')) {
+          enProgress = genericProgress;
+        } else {
+          filProgress = genericProgress;
+        }
+      }
+    }
 
     String selectedLanguage = 'fil';
     if (filProgress == null && enProgress != null) {
