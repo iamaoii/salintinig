@@ -881,6 +881,14 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
         ? 100
         : ((totalSentences / (totalSentences + _mistakesCount)) * 100).round().clamp(50, 99);
 
+    final itemsDetail = _sentences.map((s) {
+      return {
+        'promptText': s['promptText']?.toString() ?? '',
+        'targetText': s['targetText']?.toString() ?? '',
+        'correctWords': s['correct'] is List ? s['correct'] : [],
+      };
+    }).toList();
+
     try {
       debugPrint('[SentenceArrangement] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, lang=$_sessionLanguage, total=$totalSentences, score=$score, xp=$_earnedXp');
       final res = await ApiService.post('/students/sentence/attempt', {
@@ -891,6 +899,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
         'mistakesCount': _mistakesCount,
         'score': score,
         'xpEarned': _earnedXp,
+        'itemsDetail': itemsDetail,
       });
 
       debugPrint('[SentenceArrangement] Attempt response: success=${res.success}, data=${res.data}');

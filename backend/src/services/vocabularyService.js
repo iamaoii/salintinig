@@ -137,6 +137,7 @@ async function logAttempt({
   mistakesCount = 0,
   score = 100,
   xpEarned = 0,
+  itemsDetail = [],
 }) {
   let attemptId = null;
   let newBadgeUnlocked = false;
@@ -172,6 +173,8 @@ async function logAttempt({
       }
     }
 
+    const jsonItemsDetail = JSON.stringify(itemsDetail || []);
+
     if (existingAttempt) {
       // Retain best score and best XP if repeated
       const bestScore = Math.max(Number(existingAttempt.score) || 0, Number(score) || 0);
@@ -183,20 +186,21 @@ async function logAttempt({
              xp_earned = $2,
              mistakes_count = $3,
              difficulty = $4,
+             items_detail = $5,
              created_at = CURRENT_TIMESTAMP
-         WHERE attempt_id = $5
+         WHERE attempt_id = $6
          RETURNING attempt_id`,
-        [bestScore, bestXp, mistakesCount, difficulty, existingAttempt.attempt_id]
+        [bestScore, bestXp, mistakesCount, difficulty, jsonItemsDetail, existingAttempt.attempt_id]
       );
       attemptId = rows[0]?.attempt_id || existingAttempt.attempt_id;
     } else {
       // Insert new attempt
       const { rows } = await db.query(
         `INSERT INTO vocabulary_attempts (
-           student_id, session_id, difficulty, mistakes_count, score, xp_earned, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+           student_id, session_id, difficulty, mistakes_count, score, xp_earned, items_detail, created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
          RETURNING attempt_id`,
-        [resolvedStudentId, sessionId, difficulty, mistakesCount, score, xpEarned]
+        [resolvedStudentId, sessionId, difficulty, mistakesCount, score, xpEarned, jsonItemsDetail]
       );
       if (rows && rows.length > 0) {
         attemptId = rows[0].attempt_id;

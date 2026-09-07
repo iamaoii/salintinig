@@ -442,6 +442,14 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         ? 100
         : ((totalPairs / (totalPairs + _mistakesCount)) * 100).round().clamp(50, 99);
 
+    final itemsDetail = _pairings.entries.map((entry) {
+      return {
+        'englishWord': entry.key,
+        'filipinoWord': entry.value,
+        'isMatched': true,
+      };
+    }).toList();
+
     try {
       debugPrint('[VocabularyMatching] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, pairs=$totalPairs, score=$score, xp=$_earnedXp');
       final res = await ApiService.post('/students/vocabulary/attempt', {
@@ -451,6 +459,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         'mistakesCount': _mistakesCount,
         'score': score,
         'xpEarned': _earnedXp,
+        'itemsDetail': itemsDetail,
       });
 
       debugPrint('[VocabularyMatching] Attempt response: success=${res.success}, statusCode=${res.statusCode}, error=${res.error}, data=${res.data}');

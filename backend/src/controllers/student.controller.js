@@ -2945,7 +2945,17 @@ async function getPronunciationSyllableAudios(req, res) {
  */
 async function submitPronunciationAttempt(req, res) {
   try {
-    const { itemId, score, xpEarned = 0, transcript = null } = req.body;
+    const {
+      itemId = null,
+      sessionId = null,
+      language = 'fil',
+      difficulty = 'medium',
+      totalWords = 5,
+      mistakesCount = 0,
+      score,
+      xpEarned = 0,
+      itemsDetail = [],
+    } = req.body;
     let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id || null;
 
     if (process.env.DATABASE_URL) {
@@ -2969,19 +2979,30 @@ async function submitPronunciationAttempt(req, res) {
     if (!studentId) {
       return res.status(401).json({ success: false, error: 'Authentication required.' });
     }
-    if (!itemId || score === undefined || score === null) {
-      return res.status(400).json({ success: false, error: 'itemId and score are required.' });
+    if (score === undefined || score === null) {
+      return res.status(400).json({ success: false, error: 'score is required.' });
     }
-    if (score < 0 || score > 100) {
+    const numScore = Number(score) || 0;
+    if (numScore < 0 || numScore > 100) {
       return res.status(400).json({ success: false, error: 'score must be between 0 and 100.' });
     }
 
-    const attempt = await pronunciationService.logAttempt(studentId, itemId, score, xpEarned);
+    const attempt = await pronunciationService.logAttempt({
+      studentId,
+      sessionId,
+      language,
+      difficulty,
+      mistakesCount: Number(mistakesCount) || 0,
+      score: numScore,
+      xpEarned: Number(xpEarned) || 0,
+      itemsDetail,
+    });
 
     return res.json({
       success: true,
       attemptId: attempt.attemptId,
       xpEarned: attempt.xpEarned,
+      newBadgeUnlocked: attempt.newBadgeUnlocked || false,
     });
   } catch (err) {
     console.error('[submitPronunciationAttempt]', err.message);
@@ -3075,16 +3096,6 @@ async function verifyPronunciationAudio(req, res) {
     const baseWordXp = difficultyXpMap[item.difficulty?.toLowerCase()] || 15;
     const xpEarned = evalResult.isPassed ? baseWordXp : 0;
 
-    // Log or update the attempt in the current session (override pattern)
-    const attempt = await pronunciationService.logAttempt(
-      studentId,
-      itemId,
-      evalResult.accuracyScore,
-      xpEarned,
-      sessionId || null,
-      evalResult.isPassed
-    );
-
     // Clean up temporary uploaded file
     try {
       if (fs.existsSync(req.file.path)) {
@@ -3099,8 +3110,7 @@ async function verifyPronunciationAudio(req, res) {
       transcript: evalResult.transcript,
       feedback: evalResult.feedback,
       xpEarned,
-      attemptId: attempt?.attemptId,
-      attemptsCount: attempt?.attemptsCount || 1,
+      attemptsCount: 1,
     });
   } catch (err) {
     console.error('[verifyPronunciationAudio]', err.message);
@@ -3232,16 +3242,17 @@ async function submitVocabularyAttempt(req, res) {
       mistakesCount = 0,
       score = 100,
       xpEarned = 0,
+      itemsDetail = [],
     } = req.body;
 
     const result = await vocabularyService.logAttempt({
       studentId,
       sessionId,
       difficulty,
-      totalPairs: Number(totalPairs) || 5,
       mistakesCount: Number(mistakesCount) || 0,
       score: Number(score) || 100,
       xpEarned: Number(xpEarned) || 0,
+      itemsDetail,
     });
 
     return res.json({
@@ -3295,7 +3306,7 @@ async function getSentenceItems(req, res) {
 
 /**
  * POST /api/student/sentence/attempt
- * Body: { sessionId, language, difficulty, totalSentences, mistakesCount, score, xpEarned }
+ * Body: { sessionId, language, difficulty, totalSentences, mistakesCount, score, xpEarned, itemsDetail }
  *
  * Records the student's sentence arrangement attempt, awards XP,
  * and automatically unlocks the "Sentence builder" badge if mistakesCount is 0.
@@ -3334,6 +3345,7 @@ async function submitSentenceAttempt(req, res) {
       mistakesCount = 0,
       score = 100,
       xpEarned = 0,
+      itemsDetail = [],
     } = req.body;
 
     const result = await sentenceService.logAttempt({
@@ -3341,10 +3353,10 @@ async function submitSentenceAttempt(req, res) {
       sessionId,
       language,
       difficulty,
-      totalSentences: Number(totalSentences) || 5,
       mistakesCount: Number(mistakesCount) || 0,
       score: Number(score) || 100,
       xpEarned: Number(xpEarned) || 0,
+      itemsDetail,
     });
 
     return res.json({

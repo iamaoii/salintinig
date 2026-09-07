@@ -61,6 +61,7 @@ class _PronunciationChallengePageState
   // ── Celebration / Completion State ─────────────────────────────────────────
   bool _isFinished = false;
   final List<int> _wordAccuracies = [];
+  final List<Map<String, dynamic>> _sessionWordResults = [];
   int _mistakesCount = 0;
   int _finalAccuracy = 100;
   String _celebrationMessage = 'Awesome job!';
@@ -158,6 +159,17 @@ class _PronunciationChallengePageState
             return;
           }
 
+          final extra = (saved['extraMetadata'] as Map?) ?? {};
+          final restoredAccuracies = (extra['wordAccuracies'] as List?)
+                  ?.map((e) => int.tryParse(e.toString()) ?? 0)
+                  .toList() ??
+              [];
+          final restoredResults = (extra['sessionWordResults'] as List?)
+                  ?.map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList() ??
+              [];
+          final restoredMistakes = (extra['mistakesCount'] as int?) ?? 0;
+
           setState(() {
             _words = savedWords;
             _currentWordIndex = savedIndex;
@@ -165,6 +177,11 @@ class _PronunciationChallengePageState
             _sessionId = savedSessionId;
             _sessionLanguage = savedLanguage;
             _sessionDifficulty = savedDifficulty;
+            _wordAccuracies.clear();
+            _wordAccuracies.addAll(restoredAccuracies);
+            _sessionWordResults.clear();
+            _sessionWordResults.addAll(restoredResults);
+            _mistakesCount = restoredMistakes;
             _state = PracticeState.initial;
             _attemptsCount = 0;
           });
@@ -537,22 +554,7 @@ class _PronunciationChallengePageState
 
           if (isPassed) {
             if (_currentWordIndex + 1 < _words.length) {
-              // Persist next word immediately so if user exits during congrats, Continue resumes at next word
-              ActivityProgressService.saveProgress(
-                activityType: 'pronunciation',
-                currentIndex: _currentWordIndex + 1,
-                totalItems: _words.length,
-                words: _words,
-                earnedXp: _earnedXp,
-                sessionId: _sessionId,
-                language: _sessionLanguage,
-                difficulty: _sessionDifficulty,
-              );
-              // Preload next word's syllable audio in advance
               _preloadSyllablesForWord(_currentWordIndex + 1);
-            } else {
-              // Last word completed — clear session progress for this language so next time it starts fresh
-              ActivityProgressService.clearProgress('pronunciation', _sessionLanguage);
             }
           }
 
@@ -763,6 +765,17 @@ class _PronunciationChallengePageState
       _mistakesCount += (_attemptsCount - 1);
     }
 
+    if (_currentWordIndex < _words.length) {
+      final currentItem = _words[_currentWordIndex];
+      _sessionWordResults.add({
+        'itemId': currentItem['itemId']?.toString() ?? '',
+        'word': currentItem['word']?.toString() ?? '',
+        'accuracyScore': _accuracyScore,
+        'attemptsCount': _attemptsCount,
+        'isPassed': _accuracyScore >= 80,
+      });
+    }
+
     if (_currentWordIndex + 1 < _words.length) {
       setState(() {
         _currentWordIndex++;
@@ -782,6 +795,11 @@ class _PronunciationChallengePageState
         sessionId: _sessionId,
         language: _sessionLanguage,
         difficulty: _sessionDifficulty,
+        extraMetadata: {
+          'wordAccuracies': _wordAccuracies,
+          'sessionWordResults': _sessionWordResults,
+          'mistakesCount': _mistakesCount,
+        },
       );
 
       // Preload next word's syllable audio immediately
@@ -801,6 +819,54 @@ class _PronunciationChallengePageState
         _isFinished = true;
       });
       _confettiController.play();
+      _syncActivityCompletion();
+    }
+  }
+
+  Future<void> _syncActivityCompletion() async {
+    final totalWords = _words.length;
+    final avgAccuracy = _finalAccuracy;
+
+    try {
+      debugPrint('[PronunciationChallenge] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, lang=$_sessionLanguage, words=$totalWords, score=$avgAccuracy, xp=$_earnedXp');
+      final res = await ApiService.post('/students/pronunciation/attempt', {
+        'sessionId': _sessionId,
+        'language': _sessionLanguage,
+        'difficulty': _sessionDifficulty,
+        'totalWords': totalWords,
+        'mistakesCount': _mistakesCount,
+        'score': avgAccuracy,
+        'xpEarned': _earnedXp,
+        'itemsDetail': _sessionWordResults,
+      });
+
+      debugPrint('[PronunciationChallenge] Attempt response: success=${res.success}, data=${res.data}');
+
+      if (res.success && res.data != null && res.data['newBadgeUnlocked'] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.stars_rounded, color: Color(0xFFFBBF24)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Badge Unlocked: Sounds right! 🎙️',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF0F172A),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[PronunciationChallenge] Attempt submission error: $e');
     }
   }
 
@@ -808,6 +874,7 @@ class _PronunciationChallengePageState
     setState(() {
       _isFinished = false;
       _wordAccuracies.clear();
+      _sessionWordResults.clear();
       _mistakesCount = 0;
       _finalAccuracy = 100;
     });

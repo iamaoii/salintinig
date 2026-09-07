@@ -67,11 +67,13 @@ async function getSessionItems(language = 'fil', limit = 10, studentId = null, d
          AND pi.is_active = true
          AND pi.content_status = 'validated'
          ${diff ? 'AND pi.difficulty = $4' : ''}
-         AND pi.item_id NOT IN (
-           SELECT pa.item_id
-           FROM pronunciation_attempts pa
+         AND NOT EXISTS (
+           SELECT 1
+           FROM pronunciation_attempts pa,
+                jsonb_array_elements(pa.items_detail) elem
            WHERE pa.student_id = $2
              AND pa.created_at > NOW() - INTERVAL '24 hours'
+             AND elem->>'itemId' = pi.item_id::text
          )
        ORDER BY RANDOM()
        LIMIT $3`;
@@ -302,110 +304,231 @@ async function getOrGenerateSyllableAudios(itemId, syllables, language) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Record a student's pronunciation attempt and return updated XP.
+ * Record a student's pronunciation attempt (hybrid session or single-item) and award badges/XP.
  *
- * @param {string} studentId  Student UUID
- * @param {string} itemId        Pronunciation item UUID
- * @param {number} score         Accuracy score 0–100
- * @param {number} xpEarned      XP awarded for this attempt
- * @param {string|null} sessionId Unique session identifier
- * @param {boolean} isPassed     Whether this attempt passed the benchmark
- * @returns {Promise<{attemptId: string, xpEarned: number, attemptsCount: number}>}
+ * @param {object|string} param1  Student UUID (string) or session params object
+ * @returns {Promise<{attemptId: string, xpEarned: number, newBadgeUnlocked: boolean}>}
  */
-async function logAttempt(studentId, itemId, score, xpEarned = 0, sessionId = null, isPassed = false) {
-  try {
-    let existingAttempt = null;
+async function logAttempt(
+  studentIdOrParams,
+  itemId = null,
+  score = 0,
+  xpEarned = 0,
+  sessionId = null,
+  isPassed = false
+) {
+  let params = {};
+  if (typeof studentIdOrParams === 'object' && studentIdOrParams !== null) {
+    params = studentIdOrParams;
+  } else {
+    params = {
+      studentId: studentIdOrParams,
+      itemId,
+      score,
+      xpEarned,
+      sessionId,
+      isPassed,
+    };
+  }
 
-    if (sessionId) {
-      // Look for an existing attempt row for this item in the same session
+  const {
+    studentId,
+    sessionId: sId = null,
+    language = 'fil',
+    difficulty = 'medium',
+    totalWords = 5,
+    mistakesCount = 0,
+    score: attemptScore = 0,
+    xpEarned: earnedXp = 0,
+    itemsDetail = [],
+    itemId: legacyItemId = null,
+    isPassed: legacyPassed = false,
+  } = params;
+
+  let attemptId = null;
+  let newBadgeUnlocked = false;
+
+  try {
+    let resolvedStudentId = studentId;
+    if (studentId) {
+      try {
+        const stdCheck = await db.query(
+          'SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1',
+          [studentId]
+        );
+        if (stdCheck.rows && stdCheck.rows.length > 0) {
+          resolvedStudentId = stdCheck.rows[0].student_id;
+        } else {
+          const fallbackStd = await db.query('SELECT student_id FROM students LIMIT 1');
+          if (fallbackStd.rows && fallbackStd.rows.length > 0) {
+            resolvedStudentId = fallbackStd.rows[0].student_id;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!resolvedStudentId) {
+      throw new Error('Valid student ID is required.');
+    }
+
+    // 1. Check for existing session attempt to prevent duplicates
+    let existingAttempt = null;
+    if (sId) {
       const { rows } = await db.query(
-        `SELECT attempt_id, score, xp_earned, attempts_count, is_passed
-         FROM pronunciation_attempts
-         WHERE student_id = $1 AND item_id = $2 AND session_id = $3
+        `SELECT attempt_id, score, xp_earned, mistakes_count 
+         FROM pronunciation_attempts 
+         WHERE student_id = $1 AND session_id = $2 
          LIMIT 1`,
-        [studentId, itemId, sessionId]
-      );
-      if (rows && rows.length > 0) {
-        existingAttempt = rows[0];
-      }
-    } else {
-      // Fallback if no sessionId: check if attempted on this item within the last 30 minutes
-      const { rows } = await db.query(
-        `SELECT attempt_id, score, xp_earned, attempts_count, is_passed
-         FROM pronunciation_attempts
-         WHERE student_id = $1 AND item_id = $2 AND created_at > NOW() - INTERVAL '30 minutes'
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [studentId, itemId]
+        [resolvedStudentId, sId]
       );
       if (rows && rows.length > 0) {
         existingAttempt = rows[0];
       }
     }
 
+    const jsonItemsDetail = JSON.stringify(itemsDetail || []);
+
     if (existingAttempt) {
-      // Override/update the existing attempt: increment attempt counter, keep highest score and XP
-      const newAttemptsCount = (existingAttempt.attempts_count || 1) + 1;
-      const bestScore = Math.max(existingAttempt.score || 0, score);
-      const bestXp = Math.max(existingAttempt.xp_earned || 0, xpEarned);
-      const passedStatus = Boolean(existingAttempt.is_passed || isPassed);
+      const bestScore = Math.max(Number(existingAttempt.score) || 0, Number(attemptScore) || 0);
+      const bestXp = Math.max(Number(existingAttempt.xp_earned) || 0, Number(earnedXp) || 0);
 
       const { rows } = await db.query(
         `UPDATE pronunciation_attempts
          SET score = $1,
              xp_earned = $2,
-             attempts_count = $3,
-             is_passed = $4,
-             created_at = NOW()
-         WHERE attempt_id = $5
-         RETURNING attempt_id AS "attemptId", xp_earned AS "xpEarned", attempts_count AS "attemptsCount"`,
-        [bestScore, bestXp, newAttemptsCount, passedStatus, existingAttempt.attempt_id]
+             mistakes_count = $3,
+             difficulty = $4,
+             language = $5,
+             items_detail = $6,
+             created_at = CURRENT_TIMESTAMP
+         WHERE attempt_id = $7
+         RETURNING attempt_id AS "attemptId"`,
+        [
+          bestScore,
+          bestXp,
+          mistakesCount,
+          difficulty,
+          language,
+          jsonItemsDetail,
+          existingAttempt.attempt_id,
+        ]
       );
-      return rows[0];
+      attemptId = rows[0]?.attemptId || existingAttempt.attempt_id;
     } else {
-      // First attempt for this item in this session: INSERT
       const { rows } = await db.query(
-        `INSERT INTO pronunciation_attempts (student_id, item_id, score, xp_earned, session_id, attempts_count, is_passed)
-         VALUES ($1, $2, $3, $4, $5, 1, $6)
-         RETURNING attempt_id AS "attemptId", xp_earned AS "xpEarned", attempts_count AS "attemptsCount"`,
-        [studentId, itemId, score, xpEarned, sessionId, Boolean(isPassed)]
+        `INSERT INTO pronunciation_attempts (
+           student_id, session_id, language, difficulty, mistakes_count,
+           score, xp_earned, items_detail, created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+         RETURNING attempt_id AS "attemptId"`,
+        [
+          resolvedStudentId,
+          sId,
+          language,
+          difficulty,
+          mistakesCount,
+          attemptScore,
+          earnedXp,
+          jsonItemsDetail,
+        ]
       );
-      return rows[0];
+      attemptId = rows[0]?.attemptId;
     }
+
+    // 2. Badge Check: "Sounds right!"
+    // Criteria: student completed practice words accurately
+    try {
+      const passedItemsCount = Array.isArray(itemsDetail)
+        ? itemsDetail.filter((it) => it.isPassed || (it.accuracyScore && it.accuracyScore >= 80)).length
+        : (attemptScore >= 80 ? 1 : 0);
+
+      if (passedItemsCount >= 3 || attemptScore >= 80) {
+        const srBadge = await db.query(
+          `SELECT badge_id FROM badges 
+           WHERE LOWER(badge_name) LIKE '%sounds right%' 
+              OR criteria_type = 'pronun_score' 
+           LIMIT 1`
+        );
+        if (srBadge.rows && srBadge.rows.length > 0) {
+          const srInsert = await db.query(
+            `INSERT INTO student_badges (student_id, badge_id, earned_at)
+             VALUES ($1, $2, CURRENT_TIMESTAMP)
+             ON CONFLICT DO NOTHING
+             RETURNING student_badge_id`,
+            [resolvedStudentId, srBadge.rows[0].badge_id]
+          );
+          if (srInsert.rows && srInsert.rows.length > 0) {
+            newBadgeUnlocked = true;
+          }
+        }
+      }
+    } catch (bErr) {
+      console.warn('[pronunciationService.logAttempt] Sounds right badge notice:', bErr.message);
+    }
+
+    // 3. Badge Check: "First step"
+    // "Complete your very first practice activity."
+    try {
+      const { rows: pCount } = await db.query(
+        'SELECT COUNT(*) as count FROM pronunciation_attempts WHERE student_id = $1',
+        [resolvedStudentId]
+      );
+      const { rows: vCount } = await db.query(
+        'SELECT COUNT(*) as count FROM vocabulary_attempts WHERE student_id = $1',
+        [resolvedStudentId]
+      );
+      const { rows: sCount } = await db.query(
+        'SELECT COUNT(*) as count FROM sentence_attempts WHERE student_id = $1',
+        [resolvedStudentId]
+      );
+      const totalActivities =
+        (parseInt(pCount[0]?.count) || 0) +
+        (parseInt(vCount[0]?.count) || 0) +
+        (parseInt(sCount[0]?.count) || 0);
+
+      if (totalActivities <= 1) {
+        const fsBadge = await db.query(
+          `SELECT badge_id FROM badges 
+           WHERE LOWER(badge_name) LIKE '%first step%' 
+              OR criteria_type = 'activity_count'
+           LIMIT 1`
+        );
+        if (fsBadge.rows && fsBadge.rows.length > 0) {
+          const fsInsert = await db.query(
+            `INSERT INTO student_badges (student_id, badge_id, earned_at)
+             VALUES ($1, $2, CURRENT_TIMESTAMP)
+             ON CONFLICT DO NOTHING
+             RETURNING student_badge_id`,
+            [resolvedStudentId, fsBadge.rows[0].badge_id]
+          );
+          if (fsInsert.rows && fsInsert.rows.length > 0) {
+            newBadgeUnlocked = true;
+          }
+        }
+      }
+    } catch (fsErr) {
+      console.warn('[pronunciationService.logAttempt] First step badge notice:', fsErr.message);
+    }
+
+    return {
+      attemptId,
+      xpEarned: earnedXp,
+      newBadgeUnlocked,
+    };
   } catch (err) {
     console.warn('[pronunciationService.logAttempt] Notice:', err.message);
-    // Graceful fallback for legacy database schemas
     const { rows } = await db.query(
-      `INSERT INTO pronunciation_attempts (student_id, item_id, score, xp_earned)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO pronunciation_attempts (student_id, score, xp_earned)
+       VALUES ($1, $2, $3)
        RETURNING attempt_id AS "attemptId", xp_earned AS "xpEarned"`,
-      [studentId, itemId, score, xpEarned]
+      [params.studentId || resolvedStudentId, attemptScore, earnedXp]
     );
-    return rows[0];
+    return {
+      attemptId: rows[0]?.attemptId,
+      xpEarned: rows[0]?.xpEarned || earnedXp,
+      newBadgeUnlocked: false,
+    };
   }
-}
-
-/**
- * Get a student's practice history for a specific item.
- *
- * @param {string} studentId
- * @param {string} itemId
- * @returns {Promise<object[]>}
- */
-async function getAttemptHistory(studentId, itemId) {
-  const { rows } = await db.query(
-    `SELECT
-       attempt_id AS "attemptId",
-       score,
-       xp_earned AS "xpEarned",
-       created_at AS "createdAt"
-     FROM pronunciation_attempts
-     WHERE student_id = $1 AND item_id = $2
-     ORDER BY created_at DESC
-     LIMIT 10`,
-    [studentId, itemId]
-  );
-  return rows;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -485,7 +608,6 @@ module.exports = {
   getOrGenerateAudio,
   getOrGenerateSyllableAudios,
   logAttempt,
-  getAttemptHistory,
   insertItem,
   setContentStatus,
 };

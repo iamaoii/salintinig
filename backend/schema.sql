@@ -476,43 +476,44 @@ CREATE TABLE IF NOT EXISTS vocabulary_bank (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Pronunciation Practice Attempts & XP
+-- Pronunciation Practice Attempts & XP (Hybrid: 1 session attempt with items_detail breakdown)
 CREATE TABLE IF NOT EXISTS pronunciation_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    item_id UUID REFERENCES vocabulary_bank(item_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
-    attempts_count INT DEFAULT 1,
-    is_passed BOOLEAN DEFAULT false,
-    score INT NOT NULL,                          -- Accuracy 0 to 100
-    xp_earned INT DEFAULT 0,                     -- e.g. 10 XP
+    language VARCHAR(10) DEFAULT 'fil',
+    difficulty VARCHAR(20) DEFAULT 'medium',
+    mistakes_count INT DEFAULT 0,
+    score INT NOT NULL,                          -- Average Accuracy 0 to 100
+    xp_earned INT DEFAULT 0,                     -- Total Session XP
+    items_detail JSONB DEFAULT '[]'::jsonb,      -- Detailed breakdown per word
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Vocabulary Matching Practice Attempts & XP
+-- Vocabulary Matching Practice Attempts & XP (Hybrid: 1 session attempt with items_detail breakdown)
 CREATE TABLE IF NOT EXISTS vocabulary_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
     difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
-    total_pairs INT NOT NULL DEFAULT 5,
     mistakes_count INT DEFAULT 0,
     score INT NOT NULL DEFAULT 100,
     xp_earned INT DEFAULT 0,
+    items_detail JSONB DEFAULT '[]'::jsonb,      -- Detailed breakdown per pair
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Sentence Arrangement Practice Attempts & XP
+-- Sentence Arrangement Practice Attempts & XP (Hybrid: 1 session attempt with items_detail breakdown)
 CREATE TABLE IF NOT EXISTS sentence_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
     language VARCHAR(10) NOT NULL DEFAULT 'fil',
     difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
-    total_sentences INT NOT NULL DEFAULT 5,
     mistakes_count INT DEFAULT 0,
     score INT NOT NULL DEFAULT 100,
     xp_earned INT DEFAULT 0,
+    items_detail JSONB DEFAULT '[]'::jsonb,      -- Detailed breakdown per sentence
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

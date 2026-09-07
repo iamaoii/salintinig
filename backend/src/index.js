@@ -126,12 +126,18 @@ async function initDatabase() {
         console.warn('reading_profiles migration notice:', colErr.message);
       }
 
-      // Auto-migrate pronunciation_attempts columns for session attempt overriding
+      // Auto-migrate pronunciation_attempts columns for hybrid session attempt tracking
       try {
         await db.query(`
-          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS attempts_count INT DEFAULT 1;
+          ALTER TABLE pronunciation_attempts DROP COLUMN IF EXISTS item_id;
+          ALTER TABLE pronunciation_attempts DROP COLUMN IF EXISTS attempts_count;
+          ALTER TABLE pronunciation_attempts DROP COLUMN IF EXISTS is_passed;
+          ALTER TABLE pronunciation_attempts DROP COLUMN IF EXISTS total_words;
           ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS session_id VARCHAR(100);
-          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS is_passed BOOLEAN DEFAULT false;
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'fil';
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium';
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS mistakes_count INT DEFAULT 0;
+          ALTER TABLE pronunciation_attempts ADD COLUMN IF NOT EXISTS items_detail JSONB DEFAULT '[]'::jsonb;
           CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_session ON pronunciation_attempts(student_id, session_id);
         `);
       } catch (paErr) {
@@ -150,7 +156,7 @@ async function initDatabase() {
         console.warn('vocabulary_bank difficulty migration notice:', diffErr.message);
       }
 
-      // Unified Vocabulary Bank & Vocabulary Attempts migration
+      // Unified Vocabulary Bank & Vocabulary Attempts migration (Hybrid: items_detail)
       try {
         await db.query(`
           CREATE TABLE IF NOT EXISTS vocabulary_attempts (
@@ -158,12 +164,14 @@ async function initDatabase() {
               student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
               session_id VARCHAR(100),
               difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
-              total_pairs INT NOT NULL DEFAULT 5,
               mistakes_count INT DEFAULT 0,
               score INT NOT NULL DEFAULT 100,
               xp_earned INT DEFAULT 0,
+              items_detail JSONB DEFAULT '[]'::jsonb,
               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
+          ALTER TABLE vocabulary_attempts DROP COLUMN IF EXISTS total_pairs;
+          ALTER TABLE vocabulary_attempts ADD COLUMN IF NOT EXISTS items_detail JSONB DEFAULT '[]'::jsonb;
           CREATE INDEX IF NOT EXISTS idx_vocab_attempts_student ON vocabulary_attempts(student_id, session_id);
           CREATE INDEX IF NOT EXISTS idx_vocab_bank_lang_diff ON vocabulary_bank(language, difficulty, is_active);
         `);
@@ -171,7 +179,7 @@ async function initDatabase() {
         console.warn('vocabulary_bank migration notice:', vocabErr.message);
       }
 
-      // Sentence Attempts migration
+      // Sentence Attempts migration (Hybrid: items_detail)
       try {
         await db.query(`
           CREATE TABLE IF NOT EXISTS sentence_attempts (
@@ -180,12 +188,14 @@ async function initDatabase() {
               session_id VARCHAR(100),
               language VARCHAR(10) NOT NULL DEFAULT 'fil',
               difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
-              total_sentences INT NOT NULL DEFAULT 5,
               mistakes_count INT DEFAULT 0,
               score INT NOT NULL DEFAULT 100,
               xp_earned INT DEFAULT 0,
+              items_detail JSONB DEFAULT '[]'::jsonb,
               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
+          ALTER TABLE sentence_attempts DROP COLUMN IF EXISTS total_sentences;
+          ALTER TABLE sentence_attempts ADD COLUMN IF NOT EXISTS items_detail JSONB DEFAULT '[]'::jsonb;
           CREATE INDEX IF NOT EXISTS idx_sentence_attempts_student ON sentence_attempts(student_id, session_id);
         `);
       } catch (sentErr) {
