@@ -171,6 +171,44 @@ async function initDatabase() {
         console.warn('vocabulary_bank migration notice:', vocabErr.message);
       }
 
+      // Sentence Attempts migration
+      try {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS sentence_attempts (
+              attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+              session_id VARCHAR(100),
+              language VARCHAR(10) NOT NULL DEFAULT 'fil',
+              difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+              total_sentences INT NOT NULL DEFAULT 5,
+              mistakes_count INT DEFAULT 0,
+              score INT NOT NULL DEFAULT 100,
+              xp_earned INT DEFAULT 0,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_sentence_attempts_student ON sentence_attempts(student_id, session_id);
+        `);
+      } catch (sentErr) {
+        console.warn('sentence_attempts migration notice:', sentErr.message);
+      }
+
+      // Sentence Bank repository migration
+      try {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS sentence_bank (
+              sentence_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+              text_fil TEXT NOT NULL,
+              text_eng TEXT NOT NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_sentence_bank_difficulty ON sentence_bank(difficulty);
+        `);
+      } catch (sbErr) {
+        console.warn('sentence_bank migration notice:', sbErr.message);
+      }
+
       console.log('✅ Database schema verified & ready.');
     }
   } catch (err) {

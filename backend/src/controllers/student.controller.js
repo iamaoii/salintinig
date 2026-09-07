@@ -2844,6 +2844,8 @@ async function getStudentAssessmentResults(req, res) {
 
 const pronunciationService = require('../services/pronunciationService.js');
 const vocabularyService = require('../services/vocabularyService.js');
+const sentenceService = require('../services/sentenceService.js');
+const ttsService = require('../services/ttsService.js');
 
 /**
  * GET /api/student/pronunciation/items?language=tl&limit=5
@@ -3257,6 +3259,149 @@ async function submitVocabularyAttempt(req, res) {
   }
 }
 
+/**
+ * GET /api/student/sentence/items?language=fil&difficulty=medium&limit=5
+ *
+ * Returns randomized sentence arrangement challenges.
+ * Query params: language ('fil'|'en'), difficulty ('easy'|'medium'|'hard'), limit (default 5).
+ */
+async function getSentenceItems(req, res) {
+  try {
+    const language = (req.query.language || 'fil').toLowerCase();
+    const difficulty = (req.query.difficulty || 'medium').toLowerCase();
+    const limit = parseInt(req.query.limit) || 5;
+
+    const sentences = await sentenceService.getSessionSentences(language, difficulty, limit);
+
+    if (!sentences || sentences.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No sentences found for the specified criteria.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      sentences,
+    });
+  } catch (err) {
+    console.error('[getSentenceItems] Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sentence challenges.',
+    });
+  }
+}
+
+/**
+ * POST /api/student/sentence/attempt
+ * Body: { sessionId, language, difficulty, totalSentences, mistakesCount, score, xpEarned }
+ *
+ * Records the student's sentence arrangement attempt, awards XP,
+ * and automatically unlocks the "Sentence builder" badge if mistakesCount is 0.
+ */
+async function submitSentenceAttempt(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id || null;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        if (studentId) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+            [String(studentId).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        } else if (req.user?.lrn) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [String(req.user.lrn).trim()]
+          );
+          if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+        }
+      } catch (_) {}
+    }
+
+    if (!studentId) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    const {
+      sessionId = null,
+      language = 'fil',
+      difficulty = 'medium',
+      totalSentences = 5,
+      mistakesCount = 0,
+      score = 100,
+      xpEarned = 0,
+    } = req.body;
+
+    const result = await sentenceService.logAttempt({
+      studentId,
+      sessionId,
+      language,
+      difficulty,
+      totalSentences: Number(totalSentences) || 5,
+      mistakesCount: Number(mistakesCount) || 0,
+      score: Number(score) || 100,
+      xpEarned: Number(xpEarned) || 0,
+    });
+
+    return res.json({
+      success: true,
+      attemptId: result.attemptId,
+      xpEarned: result.xpEarned,
+      newBadgeUnlocked: result.newBadgeUnlocked,
+    });
+  } catch (err) {
+    console.error('[submitSentenceAttempt] Error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to record sentence attempt.',
+    });
+  }
+}
+
+/**
+ * GET /api/student/sentence/tts?text=...&language=...
+ *
+ * Streams high-fidelity neural speech (Blessica for Filipino, Rosa for English)
+ * directly to the client response on-the-fly.
+ * STRICTLY NO database writes, table queries, or permanent storage.
+ */
+async function streamSentenceTts(req, res) {
+  try {
+    const text = req.query.text || '';
+    const language = (req.query.language || 'fil').toLowerCase();
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, error: 'Text query parameter is required.' });
+    }
+
+    const audioStream = await ttsService.streamSpeechDirect(text.trim(), language, '-4%');
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Allow client to cache transiently in memory/HTTP
+
+    audioStream.on('error', (err) => {
+      console.error('[streamSentenceTts] Audio stream error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Audio stream failed.' });
+      } else {
+        res.end();
+      }
+    });
+
+    audioStream.pipe(res);
+  } catch (err) {
+    console.error('[streamSentenceTts] Error:', err.message);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, error: 'TTS generation failed.' });
+    }
+    res.end();
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3285,7 +3430,11 @@ module.exports = {
   ingestPronunciationWord,
   getVocabularyItems,
   submitVocabularyAttempt,
+  getSentenceItems,
+  submitSentenceAttempt,
+  streamSentenceTts,
 };
+
 
 
 

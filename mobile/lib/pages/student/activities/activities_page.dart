@@ -33,6 +33,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   int _vocabularyCurrentIndex = 0;
   int _vocabularyTotalItems = 5;
 
+  bool _sentenceInProgress = false;
+  int _sentenceCurrentIndex = 0;
+  int _sentenceTotalItems = 5;
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +82,24 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             _vocabularyInProgress = has;
             _vocabularyCurrentIndex = currentIdx;
             _vocabularyTotalItems = total > 0 ? total : 5;
+          });
+        }
+      }
+    });
+
+    ActivityProgressService.getProgress('sentence').then((data) {
+      if (mounted) {
+        final bool has = data != null;
+        final int currentIdx = (data?['currentIndex'] as int?) ?? 0;
+        final int total = (data?['totalItems'] as int?) ?? 5;
+
+        if (has != _sentenceInProgress ||
+            currentIdx != _sentenceCurrentIndex ||
+            total != _sentenceTotalItems) {
+          setState(() {
+            _sentenceInProgress = has;
+            _sentenceCurrentIndex = currentIdx;
+            _sentenceTotalItems = total > 0 ? total : 5;
           });
         }
       }
@@ -241,12 +263,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 iconSvg: PhIcons.hammerBold,
                                 iconColor: const Color(0xFF10B981),
                                 iconBgColor: const Color(0xFFD1FAE5),
-                                onPlayTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const SentenceArrangementPage()),
-                                  );
-                                },
+                                isInProgress: _sentenceInProgress,
+                                currentIndex: _sentenceCurrentIndex,
+                                totalItems: _sentenceTotalItems,
+                                onPlayTap: () => _showSentenceMissionSetup(context),
                               ),
                               const SizedBox(height: 28),
 
@@ -873,8 +893,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: RichText(
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                   text: TextSpan(
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
@@ -1267,18 +1285,582 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     );
   }
 
+  int _sentenceXpPerItem(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 10;
+      case 'hard':
+        return 25;
+      case 'medium':
+      default:
+        return 15;
+    }
+  }
+
+  void _showSentenceMissionSetup(BuildContext context) async {
+    // Check initial language active session for both Filipino and English
+    final filProgress = await ActivityProgressService.getProgress('sentence', 'fil');
+    final enProgress = await ActivityProgressService.getProgress('sentence', 'en');
+
+    String selectedLanguage = 'fil';
+    if (filProgress == null && enProgress != null) {
+      selectedLanguage = 'en';
+    }
+    String selectedDifficulty = 'easy';
+
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            final activeProgress = selectedLanguage == 'fil' ? filProgress : enProgress;
+            final bool hasOngoing = activeProgress != null &&
+                (activeProgress['currentIndex'] as int? ?? 0) <
+                    (activeProgress['totalItems'] as int? ?? 5);
+
+            final int activeSentenceIdx =
+                (activeProgress?['currentIndex'] as int? ?? 0) + 1;
+            final int activeTotal =
+                (activeProgress?['totalItems'] as int? ?? 5);
+
+            final effectiveDifficulty = hasOngoing
+                ? ((activeProgress['difficulty'] as String?) ?? selectedDifficulty)
+                : selectedDifficulty;
+
+            final int maxTotalXp = _sentenceXpPerItem(effectiveDifficulty) * 5;
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 22,
+                  right: 22,
+                  top: 14,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Drag handle
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Header
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFD1FAE5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Iconify(
+                                PhIcons.hammerBold,
+                                color: Color(0xFF10B981),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sentence Arrangement',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Arrange words to form complete sentences!',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close_rounded,
+                                color: Color(0xFF64748B)),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // 1. Language Selection
+                      Text(
+                        selectedLanguage == 'fil' ? 'PUMILI NG WIKA' : 'SELECT LANGUAGE',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF94A3B8),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildLanguageOptionCard(
+                              label: 'Filipino',
+                              isSelected: selectedLanguage == 'fil',
+                              onTap: () {
+                                setModalState(() => selectedLanguage = 'fil');
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildLanguageOptionCard(
+                              label: 'English',
+                              isSelected: selectedLanguage == 'en',
+                              onTap: () {
+                                setModalState(() => selectedLanguage = 'en');
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Dynamic Content: Ongoing Session Card VS Difficulty Selection
+                      if (hasOngoing) ...[
+                        Text(
+                          selectedLanguage == 'fil' ? 'KASALUKUYANG SESYON' : 'ONGOING SESSION',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildOngoingSentenceSessionCard(
+                          language: selectedLanguage,
+                          difficulty: effectiveDifficulty,
+                          currentSentenceIndex: activeSentenceIdx,
+                          totalSentences: activeTotal,
+                        ),
+                        const SizedBox(height: 14),
+                      ] else ...[
+                        Text(
+                          selectedLanguage == 'fil' ? 'ANTAS NG HIRAP' : 'DIFFICULTY LEVEL',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'easy',
+                          title: selectedLanguage == 'fil' ? 'Madali' : 'Easy',
+                          subtitle: selectedLanguage == 'fil'
+                              ? '3–4 salita • Maikli at simple'
+                              : '3–4 words • Short and simple',
+                          xpBadge: selectedLanguage == 'fil' ? '+10 XP bawat pangungusap' : '+10 XP per sentence',
+                          accentColor: const Color(0xFF10B981),
+                          isSelected: selectedDifficulty == 'easy',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'easy'),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'medium',
+                          title: selectedLanguage == 'fil' ? 'Katamtaman' : 'Medium',
+                          subtitle: selectedLanguage == 'fil'
+                              ? '4–5 salita • Karaniwang pangungusap'
+                              : '4–5 words • Standard sentences',
+                          xpBadge: selectedLanguage == 'fil' ? '+15 XP bawat pangungusap' : '+15 XP per sentence',
+                          accentColor: const Color(0xFFD97706),
+                          isSelected: selectedDifficulty == 'medium',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'medium'),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDifficultyOptionTile(
+                          keyDifficulty: 'hard',
+                          title: selectedLanguage == 'fil' ? 'Mahirap' : 'Hard',
+                          subtitle: selectedLanguage == 'fil'
+                              ? '5–6 salita • Buong pangungusap'
+                              : '5–6 words • Full sentences',
+                          xpBadge: selectedLanguage == 'fil' ? '+25 XP bawat pangungusap' : '+25 XP per sentence',
+                          accentColor: const Color(0xFFDC2626),
+                          isSelected: selectedDifficulty == 'hard',
+                          onTap: () =>
+                              setModalState(() => selectedDifficulty = 'hard'),
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Potential Reward Callout
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.stars_rounded,
+                                color: Color(0xFF10B981),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: const Color(0xFF334155),
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: selectedLanguage == 'fil'
+                                            ? 'Kumita ng hanggang '
+                                            : 'Earn up to ',
+                                      ),
+                                      TextSpan(
+                                        text: '+$maxTotalXp XP',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF10B981),
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: selectedLanguage == 'fil'
+                                            ? ' sa 5 pangungusap!'
+                                            : ' for 5 sentences!',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Start / Continue Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SentenceArrangementPage(
+                                  language: selectedLanguage,
+                                  difficulty: effectiveDifficulty,
+                                ),
+                              ),
+                            ).then((_) => _checkActiveSessionsQuiet());
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              hasOngoing
+                                  ? (selectedLanguage == 'fil' ? 'Ipagpatuloy' : 'Continue Practice')
+                                  : (selectedLanguage == 'fil'
+                                      ? 'Simulan ang Pagsasanay'
+                                      : 'Start Practice'),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (hasOngoing) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              await ActivityProgressService.clearProgress('sentence', selectedLanguage);
+                              _checkActiveSessionsQuiet();
+                              if (context.mounted) {
+                                Navigator.pop(ctx);
+                                _showSentenceMissionSetup(context);
+                              }
+                            },
+                            icon: const Icon(Icons.refresh_rounded, size: 18, color: Color(0xFF64748B)),
+                            label: Text(
+                              selectedLanguage == 'fil'
+                                  ? 'Ulitin / Magsimula Muli'
+                                  : 'Restart / Start Fresh Practice',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildOngoingSentenceSessionCard({
+    required String language,
+    required String difficulty,
+    required int currentSentenceIndex,
+    required int totalSentences,
+  }) {
+    String diffTitle;
+    Color diffColor;
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        diffTitle = language == 'fil' ? 'Madali' : 'Easy';
+        diffColor = const Color(0xFF10B981);
+        break;
+      case 'hard':
+        diffTitle = language == 'fil' ? 'Mahirap' : 'Hard';
+        diffColor = const Color(0xFFDC2626);
+        break;
+      case 'medium':
+      default:
+        diffTitle = language == 'fil' ? 'Katamtaman' : 'Medium';
+        diffColor = const Color(0xFFD97706);
+        break;
+    }
+
+    final double progressRatio = totalSentences > 0
+        ? (currentSentenceIndex - 1).clamp(0, totalSentences) / totalSentences
+        : 0.0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_circle_fill_rounded,
+                      color: Color(0xFF10B981),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    language == 'fil' ? 'Nakasimulang Gawain' : 'In-Progress Activity',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: diffColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: diffColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: diffColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      diffTitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: diffColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                language == 'fil' ? 'Progreso sa Pangungusap' : 'Sentence Progress',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF475569),
+                ),
+              ),
+              Text(
+                language == 'fil'
+                    ? 'Pangungusap $currentSentenceIndex ng $totalSentences'
+                    : 'Sentence $currentSentenceIndex of $totalSentences',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: progressRatio,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFD1FAE5),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            language == 'fil'
+                ? 'Tapusin muna ang natitirang mga pangungusap upang maitala ang iyong XP at puntos!'
+                : 'Finish the remaining sentences to record your XP and points!',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF64748B),
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
 
   Widget _buildLanguageOptionCard({
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
+    double fontSize = 14,
+    EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
   }) {
+    final textColor = isSelected ? const Color(0xFF1B64D8) : const Color(0xFF0F172A);
+    final textStyle = GoogleFonts.inter(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w800,
+      color: textColor,
+    );
+
+    Widget labelContent;
+    if (label.contains('→')) {
+      final parts = label.split('→');
+      final from = parts[0].trim();
+      final to = parts[1].trim();
+      labelContent = Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(from, style: textStyle),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5.0),
+            child: Icon(
+              Icons.arrow_forward_rounded,
+              size: (fontSize + 1).clamp(12.0, 16.0),
+              color: isSelected ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
+            ),
+          ),
+          Text(to, style: textStyle),
+        ],
+      );
+    } else {
+      labelContent = Text(label, style: textStyle);
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: padding,
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -1297,28 +1879,22 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               : null,
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: isSelected ? const Color(0xFF1B64D8) : const Color(0xFF0F172A),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: labelContent,
               ),
             ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF1B64D8),
-                size: 20,
-              )
-            else
-              const Icon(
-                Icons.radio_button_unchecked_rounded,
-                color: Color(0xFFCBD5E1),
-                size: 20,
-              ),
+            const SizedBox(width: 6),
+            Icon(
+              isSelected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? const Color(0xFF1B64D8) : const Color(0xFFCBD5E1),
+              size: 18,
+            ),
           ],
         ),
       ),

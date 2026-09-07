@@ -36,6 +36,9 @@ const {
   ingestPronunciationWord,
   getVocabularyItems,
   submitVocabularyAttempt,
+  getSentenceItems,
+  submitSentenceAttempt,
+  streamSentenceTts,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
@@ -71,6 +74,14 @@ router.post('/pronunciation/ingest-word', verifyToken, ingestPronunciationWord);
 router.get('/vocabulary/items', verifyToken, getVocabularyItems);
 // POST /api/student/vocabulary/attempt
 router.post('/vocabulary/attempt', verifyToken, submitVocabularyAttempt);
+
+// ── Sentence Arrangement Activity ──────────────────────────────────────────
+// GET  /api/student/sentence/items?language=fil&difficulty=medium&limit=5
+router.get('/sentence/items', verifyToken, getSentenceItems);
+// GET  /api/student/sentence/tts?text=...&language=... (On-the-fly streaming, NO database storage)
+router.get('/sentence/tts', verifyToken, streamSentenceTts);
+// POST /api/student/sentence/attempt
+router.post('/sentence/attempt', verifyToken, submitSentenceAttempt);
 
 
 

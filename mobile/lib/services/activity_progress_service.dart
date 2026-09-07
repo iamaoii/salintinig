@@ -84,6 +84,9 @@ class ActivityProgressService {
         if (rawLang != null && rawLang.isNotEmpty) {
           return jsonDecode(rawLang) as Map<String, dynamic>;
         }
+        // If a specific language is requested, do not fall back to generic
+        // to prevent Filipino sessions from masquerading as English sessions or vice versa.
+        return null;
       }
       final raw = prefs.getString(_getKey(activityType));
       if (raw != null && raw.isNotEmpty) {

@@ -289,4 +289,31 @@ class ApiService {
     }
     return null;
   }
+
+  static Future<Uint8List?> getRawBytes(String endpoint) async {
+    final clean = _cleanEndpoint(endpoint);
+    final urlsToTry = [
+      '${ApiConfig.baseUrl}$clean',
+      'http://10.0.2.2:5000/api$clean',
+      'http://192.168.1.146:5000/api$clean',
+    ];
+
+    for (final urlStr in urlsToTry) {
+      try {
+        final url = Uri.parse(urlStr);
+        final response = await http.get(
+          url,
+          headers: _headers,
+        ).timeout(const Duration(seconds: 12));
+
+        if (response.statusCode >= 200 && response.statusCode < 300 && response.bodyBytes.isNotEmpty) {
+          return response.bodyBytes;
+        }
+      } catch (e) {
+        debugPrint('[ApiService] getRawBytes notice for $urlStr: $e');
+      }
+    }
+    return null;
+  }
 }
+

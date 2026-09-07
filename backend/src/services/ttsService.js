@@ -400,7 +400,33 @@ async function synthesizeTextToAudio(text, lang = 'fil', rate = '-8%', passageId
   throw new Error('Cloudinary credentials are required for permanent audio hosting.');
 }
 
+/**
+ * Streams neural TTS audio directly to a writable stream (e.g. Express res)
+ * Purely on-the-fly streaming: DOES NOT write to database, Cloudinary, or disk.
+ * @param {string} text Prompt or sentence to speak
+ * @param {string} lang 'fil' or 'en'
+ * @param {string} rate Speed adjustment (e.g. '-4%', '0%')
+ * @returns {Promise<stream.Readable>} audioStream
+ */
+async function streamSpeechDirect(text, lang = 'fil', rate = '-4%') {
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    throw new Error('Text to synthesize is required.');
+  }
+
+  const cleanText = text.trim();
+  const langKey = (lang || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
+  const voice = VOICES[langKey] || VOICES.fil;
+
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, {});
+
+  const { audioStream } = tts.toStream(cleanText, { rate: rate, pitch: '+1Hz' });
+  return audioStream;
+}
+
 module.exports = {
   synthesizeTextToAudio,
+  streamSpeechDirect,
   VOICES,
 };
+

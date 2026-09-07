@@ -495,10 +495,35 @@ CREATE TABLE IF NOT EXISTS vocabulary_attempts (
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
     difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+    total_pairs INT NOT NULL DEFAULT 5,
     mistakes_count INT DEFAULT 0,
     score INT NOT NULL DEFAULT 100,
     xp_earned INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sentence Arrangement Practice Attempts & XP
+CREATE TABLE IF NOT EXISTS sentence_attempts (
+    attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
+    session_id VARCHAR(100),
+    language VARCHAR(10) NOT NULL DEFAULT 'fil',
+    difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+    total_sentences INT NOT NULL DEFAULT 5,
+    mistakes_count INT DEFAULT 0,
+    score INT NOT NULL DEFAULT 100,
+    xp_earned INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sentence Arrangement Sentence Repository (Unified DepEd Bilingual Sentence Bank)
+CREATE TABLE IF NOT EXISTS sentence_bank (
+    sentence_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',  -- 'easy' | 'medium' | 'hard'
+    text_fil TEXT NOT NULL,                            -- Filipino sentence (e.g. "Mabait ang aking nanay.")
+    text_eng TEXT NOT NULL,                            -- English sentence (e.g. "My mother is kind.")
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
@@ -518,6 +543,8 @@ CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id
 CREATE INDEX IF NOT EXISTS idx_assessment_answers_attempt ON assessment_answers(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_oral_results_attempt ON oral_reading_results(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_bank_language ON vocabulary_bank(language, difficulty, is_active);
+CREATE INDEX IF NOT EXISTS idx_sentence_bank_difficulty ON sentence_bank(difficulty);
 CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_student ON pronunciation_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_attempts_student ON vocabulary_attempts(student_id);
+CREATE INDEX IF NOT EXISTS idx_sentence_attempts_student ON sentence_attempts(student_id, session_id);
 
