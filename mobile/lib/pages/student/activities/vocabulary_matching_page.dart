@@ -756,11 +756,8 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
     if (_isLoading) {
       return ActivityLoadingView(
         activityTitle: 'Vocabulary Matching',
-        activitySubtitle: 'Pagtutugma ng Salita',
-        icon: Icons.style_rounded,
         primaryColor: primaryBlue,
         language: 'en',
-        difficulty: widget.difficulty,
         onClose: () => Navigator.pop(context),
       );
     }

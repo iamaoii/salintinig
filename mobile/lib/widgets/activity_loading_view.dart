@@ -23,11 +23,6 @@ class ActivityLoadingView extends StatelessWidget {
     this.onClose,
     this.message,
     this.language,
-    // Kept optional for caller flexibility
-    String? activitySubtitle,
-    IconData? icon,
-    String? iconifyIcon,
-    String? difficulty,
   });
 
   @override

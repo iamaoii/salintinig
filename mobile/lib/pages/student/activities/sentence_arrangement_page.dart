@@ -1226,11 +1226,8 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
     if (_isLoading) {
       return ActivityLoadingView(
         activityTitle: 'Sentence Arrangement',
-        activitySubtitle: 'Pagsasaayos ng Pangungusap',
-        icon: Icons.auto_stories_rounded,
         primaryColor: primaryBlue,
         language: widget.language,
-        difficulty: widget.difficulty,
         onClose: () => Navigator.pop(context),
       );
     }

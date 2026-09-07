@@ -1035,11 +1035,8 @@ class _PronunciationChallengePageState
     if (_state == PracticeState.loading) {
       return ActivityLoadingView(
         activityTitle: 'Pronunciation Practice',
-        activitySubtitle: 'Hamon sa Pagbigkas',
-        iconifyIcon: Ph.microphone,
         primaryColor: primaryBlue,
         language: _sessionLanguage,
-        difficulty: _sessionDifficulty,
         onClose: () => Navigator.pop(context),
       );
     }
