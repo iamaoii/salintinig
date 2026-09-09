@@ -18,7 +18,7 @@ export default function AdminSchoolYearModal({ isOpen, onClose, onSchoolYearChan
       const scrollY = window.scrollY;
       document.body.style.position = 'fixed';
       document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
+      document.body.style.width = '50%';
     } else {
       const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
       document.body.style.position = '';
