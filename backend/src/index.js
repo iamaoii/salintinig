@@ -1,11 +1,14 @@
 require('dotenv').config()
 const express = require('express')
+const http = require('http')
 const cors = require('cors')
 const fs = require('fs')
 const path = require('path')
 const db = require('./config/db.js')
+const { initSocket } = require('./config/socket.js')
 
 const app = express()
+const server = http.createServer(app)
 const PORT = process.env.PORT || 5000
 
 // Middleware
@@ -228,7 +231,8 @@ async function initDatabase() {
   }
 }
 
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   console.log(`✅ Server is running on http://localhost:${PORT}`)
-  await initDatabase();
+  initSocket(server)
+  await initDatabase()
 })

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ArrowRight } from '@phosphor-icons/react';
 import ClassCard from '../class/ClassCard.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { useSmartNotificationPoll } from '../../../hooks/useSmartNotificationPoll.js';
 
 function formatNotificationDate(dateString) {
   if (!dateString) return '';
@@ -22,38 +23,26 @@ export default function Sidebar() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchNotifications() {
-      try {
-        const token = getToken();
-        if (!token) return;
-        const res = await fetch('http://localhost:5000/api/notifications', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (isMounted && res.ok && data.success) {
-          setNotifications(data.notifications || []);
-        }
-      } catch (err) {
-        console.warn('Overview notification widget fetch notice:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const newNotifs = data.notifications || [];
+        setNotifications((prev) => (JSON.stringify(prev) !== JSON.stringify(newNotifs) ? newNotifs : prev));
       }
+    } catch (err) {
+      console.warn('Overview notification widget fetch notice:', err);
+    } finally {
+      setLoading(false);
     }
-
-    fetchNotifications();
-
-    const handleUpdate = () => fetchNotifications();
-    window.addEventListener('notificationsUpdated', handleUpdate);
-    const interval = setInterval(fetchNotifications, 30000);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener('notificationsUpdated', handleUpdate);
-      clearInterval(interval);
-    };
   }, []);
+
+  useSmartNotificationPoll(fetchNotifications, 45000);
 
   return (
     <aside className="flex w-full flex-col gap-4 lg:max-w-[400px] lg:shrink-0">

@@ -1,23 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useSmartNotificationPoll } from '../../hooks/useSmartNotificationPoll.js';
 import {
   House,
-  Student,
-  ChalkboardTeacher,
   IdentificationCard,
   Bell,
   DotsThree,
-  UserCheck,
   ArrowRight,
-  ChartBar,
   List,
   X,
   Users,
   BookOpen,
-  CalendarDots,
-  FlagPennant,
-  Article,
-  ChartPie,
 } from '@phosphor-icons/react';
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
@@ -31,8 +24,6 @@ const NAV_ITEMS = [
   { to: '/admin/sections', label: 'Sections & Faculty', icon: IdentificationCard, group: 'sections' },
   { to: '/admin/phil-iri', label: 'Phil-IRI', icon: BookOpen, group: 'phil-iri' },
 ];
-
-
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -48,25 +39,30 @@ export default function AdminLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
 
-  // Fetch live notifications
-  const fetchNotifications = async (isInitial = false) => {
+  // Fetch live notifications efficiently
+  const fetchNotifications = useCallback(async () => {
     try {
-      if (isInitial) setLoadingNotifs(true);
       const token = getToken();
+      if (!token) return;
       const res = await fetch('http://localhost:5000/api/notifications', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        const newNotifs = data.notifications || [];
+        const newUnread = data.unreadCount || 0;
+        setNotifications((prev) => (JSON.stringify(prev) !== JSON.stringify(newNotifs) ? newNotifs : prev));
+        setUnreadCount((prev) => (prev !== newUnread ? newUnread : prev));
       }
     } catch (err) {
       console.warn('Failed to fetch notifications:', err.message);
     } finally {
-      if (isInitial) setLoadingNotifs(false);
+      setLoadingNotifs(false);
     }
-  };
+  }, []);
+
+  // Use smart visibility-aware background polling
+  useSmartNotificationPoll(fetchNotifications, 45000, [location.pathname]);
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -78,7 +74,7 @@ export default function AdminLayout() {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications(false);
+      fetchNotifications();
     } catch (err) {
       console.warn('Error marking notification as read:', err.message);
     }
@@ -94,7 +90,7 @@ export default function AdminLayout() {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications(false);
+      fetchNotifications();
     } catch (err) {
       console.warn('Error marking all notifications as read:', err.message);
     }
@@ -109,26 +105,6 @@ export default function AdminLayout() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    fetchNotifications(true);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const handleNotifUpdate = () => {
-      fetchNotifications(false);
-    };
-    window.addEventListener('notificationsUpdated', handleNotifUpdate);
-    return () => window.removeEventListener('notificationsUpdated', handleNotifUpdate);
-  }, []);
-
-  // Poll every 30 seconds silently for new notifications
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchNotifications(false);
-    }, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -325,26 +301,7 @@ export default function AdminLayout() {
                   <Icon size={18} weight="regular" />
                   <span>{label}</span>
                 </NavLink>
-                {/* Mobile sub-items */}
-                {group && location.pathname.startsWith(`/admin/${group}`) && SUB_NAV[group] && (
-                  <div className="ml-6 mt-1 flex flex-col gap-1">
-                    {SUB_NAV[group].map(({ to: subTo, label: subLabel, icon: SubIcon }) => (
-                      <NavLink
-                        key={subTo}
-                        to={subTo}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={({ isActive }) =>
-                          `flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                            isActive ? 'bg-brand-red/10 text-brand-red' : 'text-ink/70 hover:bg-ink/5'
-                          }`
-                        }
-                      >
-                        <SubIcon size={14} weight="bold" />
-                        <span>{subLabel}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
+
               </div>
             ))}
           </div>

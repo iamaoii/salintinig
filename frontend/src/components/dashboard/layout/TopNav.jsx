@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { House, PresentationChart, Article, FlagPennant, Bell, List, X, CaretRight } from '@phosphor-icons/react';
+import { House, PresentationChart, Article, FlagPennant, Bell, List, X } from '@phosphor-icons/react';
 import logo from '../../../assets/logo/logo.webp';
 import ProfileDropdown from './ProfileDropdown.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { useSmartNotificationPoll } from '../../../hooks/useSmartNotificationPoll.js';
 
 const NAV_ITEMS = [
   { to: '/teacher/overview', label: 'Overview', icon: House },
@@ -20,7 +21,7 @@ export default function TopNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const token = getToken();
       if (!token) return;
@@ -29,28 +30,33 @@ export default function TopNav() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        const newNotifs = data.notifications || [];
+        const newUnread = data.unreadCount || 0;
+        setNotifications((prev) => (JSON.stringify(prev) !== JSON.stringify(newNotifs) ? newNotifs : prev));
+        setUnreadCount((prev) => (prev !== newUnread ? newUnread : prev));
       }
     } catch (err) {
       console.warn('Teacher TopNav notifications fetch notice:', err);
     }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-
-    const handleNotifUpdate = () => fetchNotifications();
-    window.addEventListener('notificationsUpdated', handleNotifUpdate);
-
-    // Silent background poll every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-
-    return () => {
-      window.removeEventListener('notificationsUpdated', handleNotifUpdate);
-      clearInterval(interval);
-    };
   }, []);
+
+  useSmartNotificationPoll(fetchNotifications, 45000);
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      const token = getToken();
+      if (!token) return;
+      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.warn('Error marking notification as read:', err.message);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {

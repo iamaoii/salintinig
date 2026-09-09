@@ -1,4 +1,5 @@
 const db = require('../config/db.js');
+const { emitNotification } = require('../config/socket.js');
 const { supabase, uploadImageToSupabase } = require('../config/supabase.js');
 
 /**
