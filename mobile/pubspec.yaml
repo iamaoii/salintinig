@@ -102,9 +102,8 @@ flutter:
     - assets/mascot/
     - assets/student page/
     - assets/teacher page/
-    - assets/stories/
     - assets/badges/
-    - .env
+    - assets/.env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -26,7 +26,7 @@ void main() async {
   );
 
   try {
-    await dotenv.load(fileName: '.env');
+    await dotenv.load(fileName: 'assets/.env');
   } catch (e) {
     debugPrint('dotenv init notice: $e');
   }
