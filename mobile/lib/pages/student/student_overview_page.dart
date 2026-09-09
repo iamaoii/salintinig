@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
@@ -1439,26 +1440,16 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Actual book cover image asset
-          Container(
+          // Actual book cover widget
+          SizedBox(
             width: 90,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 4,
-                  offset: const Offset(1, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/stories/sari_sari_summers.jpg',
-                fit: BoxFit.cover,
-              ),
+            height: 130,
+            child: StyledBookCover(
+              book: const {
+                'title': 'Sari-Sari Summers',
+                'author': 'Juan dela Cruz',
+              },
+              index: 0,
             ),
           ),
           const SizedBox(width: 16),

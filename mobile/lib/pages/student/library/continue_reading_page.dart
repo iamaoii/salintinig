@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/student/library/story_preview_page.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 
 class ContinueReadingPage extends StatefulWidget {
   const ContinueReadingPage({super.key});
@@ -27,17 +27,14 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
     final unfinishedBooks = [
       {
         'title': 'SARI - SARI SUMMERS',
-        'cover': 'assets/stories/sari_sari_summers.jpg',
         'progress': 0.12,
       },
       {
         'title': 'A Song of Frutas',
-        'cover': 'assets/stories/a_song_of_frutas.png',
         'progress': 0.45,
       },
       {
         'title': 'OLD CLOTHES FOR DINNER',
-        'cover': 'assets/stories/old_clothes_for_dinner.png',
         'progress': 0.60,
       },
     ];
@@ -119,7 +116,7 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                             Row(
                               children: [
                                 const Iconify(
-                                  PhIcons.bookOpenRegular,
+                                  PhIcons.bookOpenBold,
                                   color: Color(0xFF1B64D8),
                                   size: 24,
                                 ),
@@ -151,7 +148,7 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
                               itemCount: unfinishedBooks.length,
                               itemBuilder: (context, index) {
                                 final book = unfinishedBooks[index];
-                                return _buildBookCard(book);
+                                return _buildBookCard(book, index);
                               },
                             ),
                           ],
@@ -206,82 +203,29 @@ class _ContinueReadingPageState extends State<ContinueReadingPage> {
     );
   }
 
-  Widget _buildBookCard(Map<String, dynamic> book) {
-    return GestureDetector(
-      onTap: () {
-        Feedback.forTap(context);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => StoryPreviewPage(
-              bookTitle: book['title']!,
-              initialProgress: book['progress'] as double?,
-            ),
+  Widget _buildBookCard(Map<String, dynamic> book, int index) {
+    return Column(
+      children: [
+        Expanded(
+          child: StyledBookCover(
+            book: {
+              'title': book['title'] as String,
+              'author': 'Juan dela Cruz',
+            },
+            index: index,
           ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 3 / 4,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  book['cover']!,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    book['title']!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      height: 1.2,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: book['progress'] as double,
-                        backgroundColor: const Color(0xFFE4E2DC),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                        minHeight: 8,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: book['progress'] as double,
+            backgroundColor: const Color(0xFFE4E2DC),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
+            minHeight: 6,
+          ),
         ),
-      ),
+      ],
     );
   }
 }

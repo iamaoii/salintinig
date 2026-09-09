@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:salintinig/pages/student/library/practice_reader_page.dart';
 
 class StoryPreviewPage extends StatefulWidget {
@@ -23,9 +24,8 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
 
   // Rich metadata database for stories
   final Map<String, Map<String, dynamic>> _storyDatabase = {
-    'SARI - SARI SUMMERS': {
-      'title': 'SARI - SARI SUMMERS',
-      'cover': 'assets/stories/sari_sari_summers.jpg',
+    'Sari-Sari Summers': {
+      'title': 'Sari-Sari Summers',
       'author': 'Lynnor Bontigao',
       'desc': 'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
       'tags': ['Grade 4+', 'Filipino', 'Easy to Read'],
@@ -52,7 +52,6 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
     },
     'A Song of Frutas': {
       'title': 'A Song of Frutas',
-      'cover': 'assets/stories/a_song_of_frutas.png',
       'author': 'Margarita Engle',
       'desc': 'Tells the story of a young Filipino boy who helps his family sell colorful fruits while discovering the beauty of music, culture, and community.',
       'tags': ['Grade 4+', 'Filipino', 'Easy to Read'],
@@ -77,9 +76,8 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
         },
       ],
     },
-    'OLD CLOTHES FOR DINNER': {
-      'title': 'OLD CLOTHES FOR DINNER',
-      'cover': 'assets/stories/old_clothes_for_dinner.png',
+    'Old Clothes for Dinner': {
+      'title': 'Old Clothes for Dinner',
       'author': 'Chelo Aestrid',
       'desc': 'A delightful story about a child\'s perspective on home-cooked meals and family traditions during dinner time.',
       'tags': ['Grade 4+', 'Filipino', 'Easy to Read'],
@@ -98,8 +96,8 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
           'correctAnswerIndex': 0,
         },
         {
-          'questionText': 'What is "old clothes" (Ropa Vieja) actually representing?',
-          'options': ['Thriftiness and love', 'New clothes', 'Fancy dinner', 'A dirty table'],
+          'questionText': 'What kind of dish is "old clothes" in the story?',
+          'options': ['Shredded beef stew', 'Fried chicken', 'Adobo', 'Sinigang'],
           'correctAnswerIndex': 0,
         },
       ],
@@ -118,7 +116,6 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
       (element) => element['title']!.toLowerCase() == currentTitle.toLowerCase(),
       orElse: () => {
         'title': currentTitle,
-        'cover': 'assets/stories/sari_sari_summers.jpg',
         'author': 'Unknown Author',
         'desc': 'No description available for this story.',
         'tags': ['Story'],
@@ -127,7 +124,6 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
     );
 
     final String title = book['title'];
-    final String cover = book['cover'];
     final String author = book['author'];
     final String desc = book['desc'];
     final List<String> tags = List<String>.from(book['tags']);
@@ -216,25 +212,16 @@ class _StoryPreviewPageState extends State<StoryPreviewPage> {
                           children: [
                             const SizedBox(height: 12),
                             // Large Book Cover Image
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                    blurRadius: 24,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: Image.asset(
-                                  cover,
-                                  width: isTablet ? 300 : double.infinity,
-                                  height: isTablet ? 400 : null,
-                                  fit: BoxFit.cover,
-                                ),
+                            SizedBox(
+                              width: isTablet ? 300 : 200,
+                              height: isTablet ? 400 : 280,
+                              child: StyledBookCover(
+                                book: {
+                                  'title': title,
+                                  'author': author,
+                                },
+                                index: 0,
+                                enableTap: false,
                               ),
                             ),
                             const SizedBox(height: 20),

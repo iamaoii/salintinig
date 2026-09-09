@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
@@ -16,7 +17,6 @@ import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
-import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
@@ -806,24 +806,24 @@ class _ProgressPageState extends State<ProgressPage> {
   Widget _buildContinueReadingRow() {
     final continueReadingBooks = [
       {
-        'title': 'SARI - SARI SUMMERS',
-        'cover': 'assets/stories/sari_sari_summers.jpg',
+        'title': 'Sari-Sari Summers',
+        'author': 'Juan dela Cruz',
         'progress': 0.35,
       },
       {
         'title': 'A Song of Frutas',
-        'cover': 'assets/stories/a_song_of_frutas.png',
+        'author': 'Juan dela Cruz',
         'progress': 0.70,
       },
       {
-        'title': 'OLD CLOTHES FOR DINNER',
-        'cover': 'assets/stories/old_clothes_for_dinner.png',
+        'title': 'Old Clothes for Dinner',
+        'author': 'Juan dela Cruz',
         'progress': 0.45,
       },
     ];
 
     return SizedBox(
-      height: 255, // Height matching library's bookshelf
+      height: 230,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -831,24 +831,33 @@ class _ProgressPageState extends State<ProgressPage> {
         itemCount: continueReadingBooks.length,
         itemBuilder: (context, index) {
           final book = continueReadingBooks[index];
-          return GestureDetector(
-            onTap: () {
-              Feedback.forTap(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => StoryPreviewPage(
-                    bookTitle: book['title'] as String,
-                    initialProgress: book['progress'] as double?,
+          return Container(
+            width: 135,
+            margin: EdgeInsets.only(
+              right: index == continueReadingBooks.length - 1 ? 0.0 : 16.0,
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: StyledBookCover(
+                    book: {
+                      'title': book['title'] as String,
+                      'author': book['author'] as String,
+                    },
+                    index: index,
                   ),
                 ),
-              );
-            },
-            child: _buildContinueReadingItem(
-              book['title'] as String,
-              book['cover'] as String,
-              book['progress'] as double,
-              isLast: index == continueReadingBooks.length - 1,
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: book['progress'] as double,
+                    backgroundColor: const Color(0xFFE4E2DC),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
+                    minHeight: 6,
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -856,74 +865,7 @@ class _ProgressPageState extends State<ProgressPage> {
     );
   }
 
-  Widget _buildContinueReadingItem(String title, String imageAsset, double progress, {bool isLast = false}) {
-    const shadowColor = Color(0xFFE2E8F0);
-    return Container(
-      width: 140, // Fixed width matching library's bookshelf
-      margin: EdgeInsets.only(
-        right: isLast ? 0.0 : 16.0,
-        bottom: 12.0,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: shadowColor,
-          width: 1.0,
-        ),
-      ),
-      padding: const EdgeInsets.all(12.0), // Padding matching library's bookshelf
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          AspectRatio(
-            aspectRatio: 3 / 4, // Aspect ratio matching library's bookshelf
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                imageAsset,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                    height: 1.2,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4.0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: const Color(0xFFE2E8F0),
-                      color: const Color(0xFF1B64D8),
-                      minHeight: 6,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // ── Analytics Stats Row ──
   Widget _buildAnalyticsStats(Color primaryBlue) {

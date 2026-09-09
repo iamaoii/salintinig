@@ -143,41 +143,30 @@ CREATE TABLE IF NOT EXISTS student_grade_history (
 );
 
 -- -----------------------------------------------------------------------------
--- 5. READING MATERIALS & QUESTION BANK (Practice Story Library)
+-- 5. READING MATERIALS (Practice Stories, Poems, Fables & Question Bank)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reading_materials (
     material_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    created_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
+    author VARCHAR(150) DEFAULT 'Unknown',
     description TEXT,
     content_text TEXT NOT NULL,
-    language VARCHAR(20) DEFAULT 'fil', -- 'fil' or 'en'
-    difficulty_level VARCHAR(50),
-    category VARCHAR(50),
-    material_type VARCHAR(50) DEFAULT 'practice_story',
-    grade_level_target VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'active',
+    language VARCHAR(20) NOT NULL DEFAULT 'fil', -- 'fil' or 'en'
+    category VARCHAR(50) NOT NULL DEFAULT 'Short Story', -- 'Short Story', 'Poem', 'Fable', 'Folktale', 'Informational'
+    grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4', -- 'Grade 4', 'Grade 5', 'Grade 6'
+    difficulty_level VARCHAR(50) DEFAULT 'Easy', -- 'Easy', 'Medium', 'Hard'
+    reading_time_minutes INT DEFAULT 3,
     cover_image_url TEXT,
+    tags JSONB DEFAULT '[]'::jsonb,
+    quiz_questions JSONB DEFAULT '[]'::jsonb,
+    source_attribution VARCHAR(255) DEFAULT 'Public Domain',
+    status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS questions (
-    question_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
-    question_type VARCHAR(50) NOT NULL,
-    question_text TEXT NOT NULL,
-    points INT DEFAULT 1,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS question_choices (
-    choice_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    question_id UUID REFERENCES questions(question_id) ON DELETE CASCADE,
-    choice_text TEXT NOT NULL,
-    is_correct BOOLEAN DEFAULT FALSE
-);
+CREATE INDEX IF NOT EXISTS idx_reading_materials_filter ON reading_materials(language, grade_level_target, category, status);
+CREATE INDEX IF NOT EXISTS idx_reading_materials_title ON reading_materials(title);
 
 -- -----------------------------------------------------------------------------
 -- 5B. DEDICATED PHIL-IRI PASSAGES & QUESTIONS (Formal Assessment Schema)
@@ -333,33 +322,33 @@ CREATE TABLE IF NOT EXISTS student_progress (
 
 CREATE TABLE IF NOT EXISTS student_story_progress (
     story_progress_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
-    status VARCHAR(50) DEFAULT 'in_progress', -- 'in_progress' or 'completed'
+    student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    material_id UUID NOT NULL REFERENCES reading_materials(material_id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'in_progress', -- 'in_progress', 'completed'
+    reading_progress DECIMAL(4,2) DEFAULT 0.0, -- 0.00 to 1.00
+    last_page_read INT DEFAULT 0,
+    quiz_score INT DEFAULT NULL,
+    total_questions INT DEFAULT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_student_story_material UNIQUE (student_id, material_id)
 );
 
--- Detailed Practice Story Attempts (Analytics)
+CREATE INDEX IF NOT EXISTS idx_student_story_progress_lookup ON student_story_progress(student_id, status);
+
 CREATE TABLE IF NOT EXISTS story_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    material_id UUID REFERENCES reading_materials(material_id) ON DELETE CASCADE,
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    score DECIMAL(5,2),
-    total_questions INT DEFAULT 0,
-    status VARCHAR(50) DEFAULT 'in_progress'
+    student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    material_id UUID NOT NULL REFERENCES reading_materials(material_id) ON DELETE CASCADE,
+    score INT NOT NULL DEFAULT 0,
+    total_questions INT NOT NULL DEFAULT 0,
+    selected_answers JSONB DEFAULT '[]'::jsonb,
+    time_spent_seconds INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS story_answers (
-    answer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    attempt_id UUID REFERENCES story_attempts(attempt_id) ON DELETE CASCADE,
-    question_id UUID REFERENCES questions(question_id) ON DELETE CASCADE,
-    selected_choice_id UUID REFERENCES question_choices(choice_id) ON DELETE SET NULL,
-    is_correct BOOLEAN DEFAULT FALSE,
-    answered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+CREATE INDEX IF NOT EXISTS idx_story_attempts_lookup ON story_attempts(student_id, material_id);
 
 -- ── 8B. NORMALIZED STUDENT READING PROFILES (Single Source of Truth) ──
 CREATE TABLE IF NOT EXISTS student_reading_profiles (

@@ -6,6 +6,9 @@ class PhIcons {
   static const String bookBold =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M208 20H72a36 36 0 0 0-36 36v168a12 12 0 0 0 12 12h144a12 12 0 0 0 0-24H60v-4a12 12 0 0 1 12-12h136a12 12 0 0 0 12-12V32a12 12 0 0 0-12-12m-12 152H72a35.6 35.6 0 0 0-12 2.06V56a12 12 0 0 1 12-12h124Z"/></svg>';
 
+  static const String booksBold =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="M236.42 191.13l-33.19-157.8A20.08 20.08 0 0 0 179.48 18l-46.81 10.06a20.07 20.07 0 0 0-15.4 23.71l33.19 157.8A20.08 20.08 0 0 0 174.22 225h.1a20.35 20.35 0 0 0 4.22-.45l46.81-10.06a20.09 20.09 0 0 0 15.37-23.36ZM108 28H56a20 20 0 0 0-20 20v160a20 20 0 0 0 20 20h52a20 20 0 0 0 20-20V48a20 20 0 0 0-20-20Zm-8 168H60V52h40Z"/></svg>';
+
   static const String flagPennantBold =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="currentColor" d="m243.94 92.67l-184-64A12 12 0 0 0 44 40v176a12 12 0 0 0 24 0v-39.47l175.94-61.2a12 12 0 0 0 0-22.66M68 151.12V56.88L203.47 104Z"/></svg>';
 

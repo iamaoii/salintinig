@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "seed:vocab": "node scripts/seed_vocabulary_bank.js",
     "seed:sentences": "node scripts/seed_sentence_bank.js",
-    "seed:badges": "node scripts/seed_badges.js"
+    "seed:badges": "node scripts/seed_badges.js",
+    "seed:stories": "node scripts/seed_story_library.js"
   },
   "keywords": [],
   "author": "",

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
@@ -139,7 +140,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             const SizedBox(height: 20),
                             // Continue Reading Panel
                             _buildSectionHeader(
-                              icon: PhIcons.bookOpenRegular,
+                              icon: PhIcons.bookOpenBold,
                               title: 'Continue Reading',
                               onSeeAll: () {
                                 Navigator.push(
@@ -226,7 +227,7 @@ class _LibraryPageState extends State<LibraryPage> {
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: Colors.black,
+                color: const Color(0xFF0F172A),
                 letterSpacing: -0.5,
               ),
             ),
@@ -238,7 +239,7 @@ class _LibraryPageState extends State<LibraryPage> {
             'See all',
             style: GoogleFonts.inter(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: const Color(0xFF1B64D8),
             ),
           ),
@@ -248,10 +249,10 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildContinueReadingCard() {
-    const cardBg = Color(0xFFFEF8EC); // Creamy warm beige
-    const tagBg = Color(0xFFF1F5F9);
-    const tagTextColor = Color(0xFF475569);
-    const continueBtnColor = Color(0xFFFBBF24);
+    const cardBg = Colors.white;
+    const tagBg = Color(0xFFEFF6FF); // Light blue tint
+    const tagTextColor = Color(0xFF2563EB); // Royal blue text
+    const primaryBlue = Color(0xFF1B64D8);
 
     return GestureDetector(
       onTap: () {
@@ -260,8 +261,8 @@ class _LibraryPageState extends State<LibraryPage> {
           context,
           MaterialPageRoute(
             builder: (context) => const StoryPreviewPage(
-              bookTitle: 'SARI - SARI SUMMERS',
-              initialProgress: 0.12,
+              bookTitle: 'Sari-Sari Summers',
+              initialProgress: 0.35,
             ),
           ),
         );
@@ -270,114 +271,167 @@ class _LibraryPageState extends State<LibraryPage> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFFDEEBE), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 16,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Large Book Cover
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: AspectRatio(
-                aspectRatio: 3 / 4,
-                child: Image.asset(
-                  'assets/stories/sari_sari_summers.jpg',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
+            // Left Column: Compact Book Cover Aspect Ratio
+            SizedBox(
+              width: 110,
+              height: 160,
+              child: StyledBookCover(
+                book: const {
+                  'title': 'Sari-Sari Summers',
+                  'author': 'Juan dela Cruz',
+                },
+                index: 0,
+                enableTap: false,
               ),
             ),
-            const SizedBox(height: 16),
-            // Book Title
-            Text(
-              'SARI - SARI SUMMERS',
-              style: GoogleFonts.merriweather(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Book Description
-            Text(
-              'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: const Color(0xFF71717A),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Progress Bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: const LinearProgressIndicator(
-                value: 0.12, // approx progress value from mockup
-                backgroundColor: Color(0xFFE4E2DC),
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                minHeight: 6,
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Tag & Continue Button Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: tagBg,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  child: Text(
-                    'Filipino',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: tagTextColor,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Feedback.forTap(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const StoryPreviewPage(
-                          bookTitle: 'SARI - SARI SUMMERS',
-                          initialProgress: 0.12,
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: continueBtnColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                    shape: RoundedRectangleBorder(
+            const SizedBox(width: 14),
+
+            // Right Column: Info & Action Controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Category Tag Row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
                       borderRadius: BorderRadius.circular(100),
                     ),
-                  ),
-                  child: Text(
-                    'Continue',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                    child: Text(
+                      'Filipino',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+
+                  // Main Story Title (Serif formal Playfair style)
+                  Text(
+                    'Ang Alamat ng Bahaghari',
+                    maxLines: 2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Short Synopsis/Description
+                  Text(
+                    'Tuklasin kung paano nagkaroon ng sari-saring kulay ang kalangitan.',
+                    maxLines: 2,
+                    overflow: TextOverflow.clip,
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: const Color(0xFF64748B),
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Reading Progress Indicator (Pages & Percentage)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Page 7 of 20',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      Text(
+                        '35%',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: const LinearProgressIndicator(
+                      value: 0.35,
+                      backgroundColor: Color(0xFFF1F5F9),
+                      valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Full-Width Primary Button ("Continue Reading ->")
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Feedback.forTap(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const StoryPreviewPage(
+                              bookTitle: 'Sari-Sari Summers',
+                              initialProgress: 0.35,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Continue Reading',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -388,21 +442,21 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget _buildBookshelfRow() {
     final books = [
       {
-        'title': 'SARI - SARI SUMMERS',
-        'cover': 'assets/stories/sari_sari_summers.jpg',
+        'title': 'Sari-Sari Summers',
+        'author': 'Juan dela Cruz',
       },
       {
         'title': 'A Song of Frutas',
-        'cover': 'assets/stories/a_song_of_frutas.png',
+        'author': 'Juan dela Cruz',
       },
       {
-        'title': 'OLD CLOTHES FOR DINNER',
-        'cover': 'assets/stories/old_clothes_for_dinner.png',
+        'title': 'Old Clothes for Dinner',
+        'author': 'Juan dela Cruz',
       },
     ];
 
     return SizedBox(
-      height: 255,
+      height: 230,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -411,63 +465,14 @@ class _LibraryPageState extends State<LibraryPage> {
         itemCount: books.length,
         itemBuilder: (context, index) {
           final book = books[index];
-          return GestureDetector(
-            onTap: () {
-              Feedback.forTap(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => StoryPreviewPage(bookTitle: book['title']!),
-                ),
-              );
-            },
-            child: Container(
-              width: 140,
-              margin: EdgeInsets.only(
-                right: index == books.length - 1 ? 0.0 : 16.0,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AspectRatio(
-                    aspectRatio: 3 / 4,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        book['cover']!,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Text(
-                      book['title']!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black,
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          return Container(
+            width: 135,
+            margin: EdgeInsets.only(
+              right: index == books.length - 1 ? 0.0 : 16.0,
+            ),
+            child: StyledBookCover(
+              book: book,
+              index: index,
             ),
           );
         },
