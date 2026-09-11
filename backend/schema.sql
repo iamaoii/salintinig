@@ -156,10 +156,7 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4', -- 'Grade 4', 'Grade 5', 'Grade 6'
     difficulty_level VARCHAR(50) DEFAULT 'Easy', -- 'Easy', 'Medium', 'Hard'
     reading_time_minutes INT DEFAULT 3,
-    cover_image_url TEXT,
-    tags JSONB DEFAULT '[]'::jsonb,
     quiz_questions JSONB DEFAULT '[]'::jsonb,
-    source_attribution VARCHAR(255) DEFAULT 'Public Domain',
     status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
