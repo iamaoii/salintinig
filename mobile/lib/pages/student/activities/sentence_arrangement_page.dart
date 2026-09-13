@@ -12,6 +12,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class SentenceArrangementPage extends StatefulWidget {
   /// Language code: 'fil' or 'en'
@@ -54,6 +55,14 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
   int _finalAccuracy = 100;
   String _celebrationMessage = 'Awesome job!';
   String _celebrationSubtitle = 'Great sentence building!';
+
+  void _navigateToActivitiesTab() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+      (route) => route.isFirst,
+    );
+  }
 
   // Sentence Items & Current State
   List<Map<String, dynamic>> _sentences = [];
@@ -1240,6 +1249,17 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _navigateToActivitiesTab();
+      },
+      child: _buildPageContent(context),
+    );
+  }
+
+  Widget _buildPageContent(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
 
@@ -1249,7 +1269,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
         activityTitle: 'Sentence Arrangement',
         primaryColor: primaryBlue,
         language: widget.language,
-        onClose: () => Navigator.pop(context),
+        onClose: _navigateToActivitiesTab,
       );
     }
 
@@ -1314,7 +1334,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
                                     IconButton(
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: _navigateToActivitiesTab,
                                       icon: const Iconify(
                                         Ph.x,
                                         size: 22,
@@ -2098,7 +2118,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _navigateToActivitiesTab,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       foregroundColor: Colors.white,

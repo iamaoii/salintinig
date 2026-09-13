@@ -30,6 +30,7 @@ import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/widgets/activity_modal_helper.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -1050,6 +1051,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.userSoundBold,
                                           const Color(0xFFD0E1F9),
                                           primaryBlue,
+                                          activityType: 'pronunciation',
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -1059,6 +1061,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.equalsBold,
                                           const Color(0xFFFFF0C2),
                                           const Color(0xFFF59E0B),
+                                          activityType: 'vocabulary',
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -1068,6 +1071,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.hammerBold,
                                           const Color(0xFFC7ECDA),
                                           const Color(0xFF10B981),
+                                          activityType: 'sentence',
                                         ),
                                       ),
                                     ],
@@ -1754,8 +1758,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     String label,
     String iconSvg,
     Color iconBg,
-    Color iconColor,
-  ) {
+    Color iconColor, {
+    String? activityType,
+  }) {
     return Container(
       height: 156,
       decoration: BoxDecoration(
@@ -1776,11 +1781,17 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
           borderRadius: BorderRadius.circular(16),
           onTap: () {
             Feedback.forTap(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Launching ${label.replaceAll('\n', ' ')}...'),
-              ),
-            );
+            switch (activityType?.toLowerCase()) {
+              case 'pronunciation':
+                ActivityModalHelper.showPronunciationModal(context);
+                break;
+              case 'vocabulary':
+                ActivityModalHelper.showVocabularyModal(context);
+                break;
+              case 'sentence':
+                ActivityModalHelper.showSentenceModal(context);
+                break;
+            }
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(

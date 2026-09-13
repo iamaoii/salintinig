@@ -9,6 +9,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class VocabularyMatchingPage extends StatefulWidget {
   /// Difficulty tier: 'easy', 'medium', 'hard'.
@@ -39,6 +40,14 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
   int _finalAccuracy = 100;
   String _celebrationMessage = 'Awesome job!';
   String _celebrationSubtitle = 'You completed the vocabulary matching practice.';
+
+  void _navigateToActivitiesTab() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+      (route) => route.isFirst,
+    );
+  }
 
   // Words & Pairings (Left: English, Right: Filipino)
   List<String> _leftWords = [];
@@ -771,6 +780,17 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _navigateToActivitiesTab();
+      },
+      child: _buildPageContent(context),
+    );
+  }
+
+  Widget _buildPageContent(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
 
@@ -780,7 +800,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
         activityTitle: 'Vocabulary Matching',
         primaryColor: primaryBlue,
         language: 'en',
-        onClose: () => Navigator.pop(context),
+        onClose: _navigateToActivitiesTab,
       );
     }
 
@@ -864,7 +884,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
                                     IconButton(
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: _navigateToActivitiesTab,
                                       icon: const Iconify(
                                         Ph.x,
                                         size: 22,
@@ -1578,7 +1598,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _navigateToActivitiesTab,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       foregroundColor: Colors.white,

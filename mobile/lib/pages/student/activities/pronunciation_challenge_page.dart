@@ -15,6 +15,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 
 enum PracticeState {
@@ -90,6 +91,14 @@ class _PronunciationChallengePageState
 
   // Words are fetched from the API (validated content pool)
   List<Map<String, dynamic>> _words = [];
+
+  void _navigateToActivitiesTab() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+      (route) => route.isFirst,
+    );
+  }
 
   // ── Syllable Scaffolding ───────────────────────────────────────────────────
   int _activeGuidedSyllableIndex = -1;
@@ -1039,6 +1048,17 @@ class _PronunciationChallengePageState
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _navigateToActivitiesTab();
+      },
+      child: _buildPageContent(context),
+    );
+  }
+
+  Widget _buildPageContent(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const primaryGreen = Color(0xFF10B981);
     const softCanvasBg = Color(0xFFFCFAF7);
@@ -1070,7 +1090,7 @@ class _PronunciationChallengePageState
         activityTitle: 'Pronunciation Practice',
         primaryColor: primaryBlue,
         language: _sessionLanguage,
-        onClose: () => Navigator.pop(context),
+        onClose: _navigateToActivitiesTab,
       );
     }
 
@@ -1110,7 +1130,7 @@ class _PronunciationChallengePageState
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _navigateToActivitiesTab,
                       icon: const Iconify(
                         Ph.x,
                         size: 22,
@@ -1244,7 +1264,7 @@ class _PronunciationChallengePageState
                               IconButton(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                onPressed: () => Navigator.pop(context),
+                                onPressed: _navigateToActivitiesTab,
                                 icon: const Iconify(
                                   Ph.x,
                                   size: 22,
@@ -2177,7 +2197,7 @@ class _PronunciationChallengePageState
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _navigateToActivitiesTab,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       foregroundColor: Colors.white,
