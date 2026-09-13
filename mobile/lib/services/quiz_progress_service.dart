@@ -7,6 +7,7 @@ class QuizProgressService {
 
   static String normalizeType(dynamic rawType) {
     final t = (rawType ?? 'oral').toString().toLowerCase().trim();
+    if (t.contains('practice')) return 'practice';
     if (t.contains('listen')) return 'listening';
     if (t.contains('silent')) return 'silent';
     return 'oral';

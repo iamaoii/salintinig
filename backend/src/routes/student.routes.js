@@ -37,6 +37,10 @@ const {
   getSentenceItems,
   submitSentenceAttempt,
   streamSentenceTts,
+  getLibraryBooks,
+  getStudentReadingProgress,
+  startStoryProgress,
+  getPracticeRemedialQuestion,
 } = require('../controllers/student.controller.js');
 
 // Routes for Student Records management & assessment submissions
@@ -49,8 +53,8 @@ router.post('/assessment/start-progress', updateAssessmentStartProgress);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/assessment/submit-oral-audio', upload.single('audio'), submitStudentOralAudio);
 router.post('/assessment/denoise-test-audio', upload.single('audio'), denoiseTestAudio);
-router.post('/story/complete', completeStoryProgress);
-router.post('/activity/complete', completeActivityProgress);
+router.post('/story/complete', verifyToken, completeStoryProgress);
+router.post('/activity/complete', verifyToken, completeActivityProgress);
 
 // ── Pronunciation Challenge ──────────────────────────────────────────────────
 // GET  /api/student/pronunciation/items?language=fil&limit=10
@@ -76,6 +80,20 @@ router.get('/sentence/items', verifyToken, getSentenceItems);
 router.get('/sentence/tts', verifyToken, streamSentenceTts);
 // POST /api/student/sentence/attempt
 router.post('/sentence/attempt', verifyToken, submitSentenceAttempt);
+
+// ── Library ──────────────────────────────────────────────────────────
+// GET  /api/student/library/books?language=fil&category=Alamat&grade=Grade+4
+router.get('/library/books', getLibraryBooks);
+// GET  /api/student/library/progress (student's in-progress & completed stories)
+router.get('/library/progress', verifyToken, getStudentReadingProgress);
+// POST /api/student/library/progress/start (record/update story progress)
+router.post('/library/progress/start', verifyToken, startStoryProgress);
+
+// ── Practice Story: AI Remedial Follow-Up Question ───────────────────────────
+// POST /api/student/practice/remedial-question
+// Called when a student answers a practice quiz question incorrectly.
+// Returns GROQ AI-generated hint + follow-up question (~200 tokens per call).
+router.post('/practice/remedial-question', verifyToken, getPracticeRemedialQuestion);
 
 
 

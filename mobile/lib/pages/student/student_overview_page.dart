@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
@@ -21,12 +22,14 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/library_service.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -40,8 +43,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _isLoadingAssignments = true;
+  bool _isLoadingReadingProgress = true;
 
   List<Map<String, dynamic>> _assignedList = [];
+  List<Map<String, dynamic>> _inProgressBooks = [];
   Map<dynamic, bool> _activeDrafts = {};
   Map<String, dynamic>? _readingProfiles;
   String _selectedHeaderLang = 'fil'; // 'fil' or 'en'
@@ -54,11 +59,37 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     super.initState();
 
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
-    // Refresh user profile & fetch backend assigned Phil-IRI assessments
+    LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
+    // Refresh user profile & fetch backend assigned Phil-IRI assessments & reading progress
     _refreshUserProfile();
     _fetchTeacherAssignment();
+    _loadReadingProgress();
     _setupRealtimeSubscription();
     _startCarouselTimer();
+  }
+
+  void _onLibraryProgressChanged() {
+    if (!mounted) return;
+    setState(() {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.progressNotifier.value);
+      _isLoadingReadingProgress = false;
+    });
+  }
+
+  Future<void> _loadReadingProgress({bool forceRefresh = false}) async {
+    try {
+      final progress = await LibraryService.fetchReadingProgress(forceRefresh: forceRefresh);
+      if (mounted) {
+        setState(() {
+          _inProgressBooks = LibraryService.filterInProgress(progress);
+          _isLoadingReadingProgress = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingReadingProgress = false);
+      }
+    }
   }
 
   void _startCarouselTimer() {
@@ -201,6 +232,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   void dispose() {
     _carouselTimer?.cancel();
     QuizProgressService.draftChangeNotifier.removeListener(_checkLocalDrafts);
+    LibraryService.progressNotifier.removeListener(_onLibraryProgressChanged);
     if (_realtimeSubscription != null) {
       try {
         Supabase.instance.client.removeChannel(_realtimeSubscription);
@@ -213,6 +245,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     await ApiService.initToken();
     final res = await AuthService.fetchMe();
     await _fetchTeacherAssignment();
+    await _loadReadingProgress(forceRefresh: true);
     if (res.success && mounted) {
       setState(() {});
     }
@@ -458,7 +491,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                           builder: (context) =>
                                                               const ProfilePage(),
                                                         ),
-                                                      );
+                                                      ).then((_) {
+                                                        _fetchTeacherAssignment();
+                                                        if (mounted) _loadReadingProgress(forceRefresh: true);
+                                                      });
                                                     },
                                                   ),
                                                 ],
@@ -1415,153 +1451,301 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   }
 
   Widget _buildContinueReadingCard(BuildContext context) {
-    const cardBg = Color(
-      0xFFFEF8EC,
-    ); // Warm cream/beige tint matching reference
-    const tagBg = Color(0xFFF1F5F9); // Light blue-grey background matching picture 4
-    const tagTextColor = Color(0xFF475569); // Dark slate text matching picture 4
-    const continueBtnColor = Color(0xFFFBBF24); // Vibrant golden yellow button
+    const cardBg = Colors.white;
+    const tagBg = Color(0xFFEFF6FF);
+    const tagTextColor = Color(0xFF2563EB);
+    const primaryBlue = Color(0xFF1B64D8);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFDEEBE), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Actual book cover image asset
-          Container(
-            width: 90,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 4,
-                  offset: const Offset(1, 2),
-                ),
-              ],
+    if (_isLoadingReadingProgress) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/stories/sari_sari_summers.jpg',
-                fit: BoxFit.cover,
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 110,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(height: 12, width: 80, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 10),
+                  Container(height: 18, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 6),
+                  Container(height: 14, width: 160, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 16),
+                  Container(height: 6, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                  const SizedBox(height: 10),
+                  Container(height: 38, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_inProgressBooks.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'No books in progress yet.\nHead to the Bookshelf to start reading!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFF94A3B8),
+              height: 1.5,
+            ),
           ),
-          const SizedBox(width: 16),
-          // Book details & controls
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SARI - SARI SUMMERS',
-                  style: GoogleFonts.merriweather(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF18181B),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: const Color(0xFF71717A),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Progress Bar (stretching full width of column)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: const LinearProgressIndicator(
-                    value:
-                        0.25, // Fill level matches reference indicator approx
-                    backgroundColor: Color(0xFFE4E2DC),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF1B64D8),
-                    ),
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Tag capsule
-                    Container(
-                      decoration: BoxDecoration(
-                        color: tagBg,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        'Filipino',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: tagTextColor,
+        ),
+      );
+    }
+
+    final book = _inProgressBooks.first;
+    final bookTitle = (book['title'] as String?) ?? '';
+    final rawLang = (book['language'] as String?) ?? 'en';
+    final category = (book['category'] as String?) ?? 'Short Story';
+    final description = (book['description'] as String?) ?? '';
+    final progressVal = LibraryService.parseDouble(book['progress']);
+    final langLabel = LibraryService.languageLabel(rawLang);
+    final progressPct = '${(progressVal * 100).toInt()}%';
+
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StoryPreviewPage(
+              bookTitle: bookTitle,
+              book: book,
+              initialProgress: progressVal,
+            ),
+          ),
+        ).then((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadReadingProgress(forceRefresh: true);
+          });
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Left Column: Styled Book Cover
+            SizedBox(
+              width: 110,
+              height: 160,
+              child: StyledBookCover(
+                book: book,
+                index: 0,
+                enableTap: false,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Right Column: Info & Action Controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Category & Language Tags Row
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: tagBg,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          langLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: tagTextColor,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          category,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFD97706),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Main Story Title
+                  Text(
+                    bookTitle,
+                    maxLines: 2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                      height: 1.15,
                     ),
-                    // Action button
-                    ElevatedButton(
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Short Synopsis
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.clip,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
+                        height: 1.35,
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Reading Progress Indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progress',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      Text(
+                        progressPct,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: LinearProgressIndicator(
+                      value: progressVal,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Full-Width Continue Reading Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton(
                       onPressed: () {
                         Feedback.forTap(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const LibraryPage(),
+                            builder: (context) => StoryPreviewPage(
+                              bookTitle: bookTitle,
+                              book: book,
+                              initialProgress: progressVal,
+                            ),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: continueBtnColor,
+                        backgroundColor: primaryBlue,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
                         elevation: 0,
-                      ),
-                      child: Text(
-                        'Continue',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
                         ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Continue Reading',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

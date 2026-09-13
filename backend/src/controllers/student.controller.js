@@ -1591,30 +1591,61 @@ async function submitPhilIriAssessment(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/students/story/complete â€” Mark story completed and award story badges
+// POST /api/students/story/complete — Mark story completed, record attempt & award story badges
 // ---------------------------------------------------------------------------
 async function completeStoryProgress(req, res) {
   try {
-    const { studentId, lrn, bookTitle, score, totalQuestions } = req.body;
+    const {
+      studentId,
+      lrn,
+      bookTitle,
+      materialId: explicitMaterialId,
+      score,
+      totalQuestions,
+      selectedAnswers = [],
+      timeSpentSeconds = 0,
+    } = req.body;
 
     if (process.env.DATABASE_URL) {
       try {
-        let resolvedStudentId = studentId;
-        if (!resolvedStudentId && lrn) {
-          const sRes = await db.query(`SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`, [String(lrn).trim()]);
+        const studentIdentifier =
+          studentId ||
+          req.user?.studentId ||
+          req.user?.student_id ||
+          req.user?.userId ||
+          req.user?.user_id ||
+          req.user?.id ||
+          null;
+
+        const resolvedLrn = lrn || req.user?.lrn || req.user?.idNo || req.user?.id_no || null;
+
+        let resolvedStudentId = null;
+        if (studentIdentifier || resolvedLrn) {
+          const sRes = await db.query(
+            `SELECT student_id FROM students 
+             WHERE student_id::text = $1 OR user_id::text = $1 OR TRIM(lrn) = $2 LIMIT 1`,
+            [String(studentIdentifier || '').trim(), String(resolvedLrn || '').trim()]
+          );
           if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
         }
 
         if (!resolvedStudentId) {
-          const firstStd = await db.query(`SELECT student_id FROM students LIMIT 1`);
-          if (firstStd.rows?.[0]) resolvedStudentId = firstStd.rows[0].student_id;
+          console.warn('[completeStoryProgress] Student record not found for user:', {
+            studentIdentifier,
+            resolvedLrn,
+            authUser: req.user,
+          });
+          return res.status(400).json({ success: false, error: 'Student record not found.' });
         }
 
         if (resolvedStudentId) {
-          // Resolve material_id by title or fallback to first material
-          let materialId;
-          if (bookTitle) {
-            const mRes = await db.query(`SELECT material_id FROM reading_materials WHERE LOWER(title) LIKE LOWER($1) LIMIT 1`, [`%${bookTitle}%`]);
+          // Resolve material_id by explicit ID, or title, or fallback to first material
+          let materialId = explicitMaterialId;
+          if (!materialId && bookTitle) {
+            const mRes = await db.query(
+              `SELECT material_id FROM reading_materials WHERE LOWER(title) LIKE LOWER($1) LIMIT 1`,
+              [`%${bookTitle}%`]
+            );
             if (mRes.rows?.[0]) materialId = mRes.rows[0].material_id;
           }
 
@@ -1624,15 +1655,51 @@ async function completeStoryProgress(req, res) {
           }
 
           if (materialId) {
+            const finalScore = Number(score || 0);
+            const finalTotal = Number(totalQuestions || 0);
+            const finalTimeSpent = Number(timeSpentSeconds || 0);
+            const finalSelectedAnswers = Array.isArray(selectedAnswers)
+              ? JSON.stringify(selectedAnswers)
+              : JSON.stringify([]);
+
+            // 1. Record individual attempt in story_attempts table
+            try {
+              await db.query(
+                `INSERT INTO story_attempts (
+                  student_id,
+                  material_id,
+                  score,
+                  total_questions,
+                  selected_answers,
+                  time_spent_seconds,
+                  created_at
+                ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, CURRENT_TIMESTAMP)`,
+                [
+                  resolvedStudentId,
+                  materialId,
+                  finalScore,
+                  finalTotal,
+                  finalSelectedAnswers,
+                  finalTimeSpent,
+                ]
+              );
+              console.log(
+                `[completeStoryProgress]: Recorded story_attempt for student ${resolvedStudentId}, material ${materialId} (Score: ${finalScore}/${finalTotal})`
+              );
+            } catch (attErr) {
+              console.warn('[completeStoryProgress]: Notice saving story_attempt:', attErr.message);
+            }
+
+            // 2. Upsert overall story progress
             await db.query(
-              `INSERT INTO student_story_progress (student_id, material_id, status, quiz_score, completed_at)
-               VALUES ($1, $2, 'completed', $3, CURRENT_TIMESTAMP)
+              `INSERT INTO student_story_progress (student_id, material_id, status, reading_progress, quiz_score, total_questions, completed_at, updated_at)
+               VALUES ($1, $2, 'completed', 1.0, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                ON CONFLICT (student_id, material_id)
-               DO UPDATE SET status = 'completed', quiz_score = $3, completed_at = CURRENT_TIMESTAMP`,
-              [resolvedStudentId, materialId, Number(score || 0)]
+               DO UPDATE SET status = 'completed', reading_progress = 1.0, quiz_score = $3, total_questions = $4, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`,
+              [resolvedStudentId, materialId, finalScore, finalTotal]
             );
 
-            // Auto-grant Bookworm badge
+            // 3. Auto-grant Bookworm badge
             try {
               await db.query(
                 `INSERT INTO student_badges (student_id, badge_id, awarded_at)
@@ -3359,6 +3426,267 @@ async function streamSentenceTts(req, res) {
   }
 }
 
+// ── Library: Books & Reading Progress ────────────────────────────────────────
+
+/**
+ * GET /api/student/library/books
+ * Returns all active reading_materials, optionally filtered by language, category, grade_level_target.
+ */
+async function getLibraryBooks(req, res) {
+  try {
+    const { language, category, grade } = req.query;
+
+    if (isDbConfigured()) {
+      try {
+        let conditions = [`status = 'active'`];
+        const params = [];
+
+        if (language) {
+          params.push(language);
+          conditions.push(`language = $${params.length}`);
+        }
+        if (category) {
+          params.push(category);
+          conditions.push(`category = $${params.length}`);
+        }
+        if (grade) {
+          params.push(grade);
+          conditions.push(`grade_level_target = $${params.length}`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const { rows } = await db.query(
+          `SELECT
+            material_id AS id,
+            title,
+            author,
+            description,
+            content_text AS "contentText",
+            language,
+            category,
+            grade_level_target AS "gradeLevel",
+            difficulty_level AS "difficultyLevel",
+            reading_time_minutes AS "readingTimeMinutes",
+            quiz_questions AS "quizQuestions",
+            created_at AS "createdAt"
+          FROM reading_materials
+          ${whereClause}
+          ORDER BY created_at DESC`,
+          params
+        );
+
+        return res.json({ success: true, books: rows });
+      } catch (dbErr) {
+        console.error('[getLibraryBooks] DB error:', dbErr.message);
+      }
+    }
+
+    // Fallback: return empty list when DB is not configured
+    return res.json({ success: true, books: [] });
+  } catch (err) {
+    console.error('[getLibraryBooks] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch library books.' });
+  }
+}
+
+/**
+ * GET /api/student/library/progress  (requires auth)
+ * Returns the authenticated student's in-progress and completed stories
+ * joined with reading_materials metadata.
+ */
+async function getStudentReadingProgress(req, res) {
+  try {
+    const studentLrn = req.user?.lrn || req.user?.idNo || req.user?.id_no;
+    const studentId  = req.user?.studentId || req.user?.student_id || req.user?.id;
+
+    if (!isDbConfigured()) {
+      return res.json({ success: true, progress: [] });
+    }
+
+    try {
+      // Resolve student UUID from user_id, student_id, or LRN
+      let resolvedStudentId = null;
+      if (studentId || studentLrn) {
+        const { rows: sRows } = await db.query(
+          `SELECT student_id FROM students 
+           WHERE student_id::text = $1 OR user_id::text = $1 OR TRIM(lrn) = $2 LIMIT 1`,
+          [String(studentId || '').trim(), String(studentLrn || '').trim()]
+        );
+        resolvedStudentId = sRows[0]?.student_id;
+      }
+
+      if (!resolvedStudentId) {
+        return res.json({ success: true, progress: [] });
+      }
+
+      const { rows } = await db.query(
+        `SELECT
+          sp.story_progress_id AS "progressId",
+          sp.status,
+          sp.reading_progress AS progress,
+          sp.last_page_read AS "lastPageRead",
+          sp.quiz_score AS "quizScore",
+          sp.total_questions AS "totalQuestions",
+          sp.completed_at AS "completedAt",
+          sp.updated_at AS "updatedAt",
+          rm.material_id AS id,
+          rm.title,
+          rm.author,
+          rm.description,
+          rm.content_text AS "contentText",
+          rm.language,
+          rm.category,
+          rm.grade_level_target AS "gradeLevel",
+          rm.difficulty_level AS "difficultyLevel",
+          rm.reading_time_minutes AS "readingTimeMinutes",
+          rm.quiz_questions AS "quizQuestions"
+        FROM student_story_progress sp
+        JOIN reading_materials rm ON rm.material_id = sp.material_id
+        WHERE sp.student_id = $1
+        ORDER BY sp.updated_at DESC`,
+        [resolvedStudentId]
+      );
+
+      return res.json({ success: true, progress: rows });
+    } catch (dbErr) {
+      console.error('[getStudentReadingProgress] DB error:', dbErr.message);
+      return res.json({ success: true, progress: [] });
+    }
+  } catch (err) {
+    console.error('[getStudentReadingProgress] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch reading progress.' });
+  }
+}
+
+/**
+ * POST /api/student/library/start (requires auth)
+ * Record or update a student's story reading progress (status = 'in_progress' by default).
+ */
+async function startStoryProgress(req, res) {
+  try {
+    const studentLrn = req.user?.lrn || req.user?.idNo || req.user?.id_no;
+    const studentId  = req.user?.studentId || req.user?.student_id || req.user?.userId || req.user?.user_id || req.user?.id;
+    const { materialId, bookTitle, progress, lastPageRead } = req.body;
+
+    if (!isDbConfigured()) {
+      return res.json({ success: true, message: 'Story progress saved (mock mode).' });
+    }
+
+    let resolvedStudentId = null;
+    if (studentId || studentLrn) {
+      const { rows: sRows } = await db.query(
+        `SELECT student_id FROM students 
+         WHERE student_id::text = $1 OR user_id::text = $1 OR TRIM(lrn) = $2 LIMIT 1`,
+        [String(studentId || '').trim(), String(studentLrn || '').trim()]
+      );
+      resolvedStudentId = sRows[0]?.student_id;
+    }
+
+    if (!resolvedStudentId) {
+      return res.status(400).json({ success: false, error: 'Student record not found for user.' });
+    }
+
+    // Resolve material_id by UUID or by title lookup
+    let resolvedMaterialId = materialId;
+    if (!resolvedMaterialId && bookTitle) {
+      const { rows: mRows } = await db.query(
+        `SELECT material_id FROM reading_materials WHERE LOWER(title) = LOWER($1) LIMIT 1`,
+        [bookTitle.trim()]
+      );
+      resolvedMaterialId = mRows[0]?.material_id;
+    }
+
+    if (!resolvedMaterialId) {
+      return res.status(400).json({ success: false, error: 'Story material not found.' });
+    }
+
+    const progVal = typeof progress === 'number' ? progress : 0.05;
+    const pageVal = typeof lastPageRead === 'number' ? lastPageRead : 1;
+
+    await db.query(
+      `INSERT INTO student_story_progress (student_id, material_id, status, reading_progress, last_page_read, updated_at)
+       VALUES ($1, $2, 'in_progress', $3, $4, CURRENT_TIMESTAMP)
+       ON CONFLICT (student_id, material_id)
+       DO UPDATE SET
+         status = CASE WHEN student_story_progress.status = 'completed' THEN 'completed' ELSE 'in_progress' END,
+         reading_progress = $3,
+         last_page_read = $4,
+         updated_at = CURRENT_TIMESTAMP`,
+      [resolvedStudentId, resolvedMaterialId, progVal, pageVal]
+    );
+
+    return res.json({ success: true, message: 'Story progress updated.' });
+  } catch (err) {
+    console.error('[startStoryProgress] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to record story progress.' });
+  }
+}
+
+// ── Practice Story: AI-Powered Remedial Follow-Up Question ──────────────────
+/**
+ * POST /api/student/practice/remedial-question
+ * Generates a dynamic remedial follow-up question using GROQ AI + Micro-RAG
+ * when a student answers a practice story quiz question incorrectly.
+ *
+ * Body: { materialId, questionText, options, selectedOptionIndex, correctOptionIndex, explanation, language }
+ * Returns: { hint, followUpQuestion, options, correctAnswerIndex, fromCache, fallback }
+ */
+const { generateRemedialQuestion } = require('../services/rag/practiceRemediationService.js');
+
+async function getPracticeRemedialQuestion(req, res) {
+  try {
+    const {
+      materialId,
+      questionText,
+      options,
+      selectedOptionIndex,
+      correctOptionIndex,
+      explanation = '',
+      language = 'fil',
+    } = req.body;
+
+    if (!materialId || !questionText || !Array.isArray(options)) {
+      return res.status(400).json({
+        success: false,
+        error: 'materialId, questionText, and options are required.',
+      });
+    }
+
+    if (typeof selectedOptionIndex !== 'number' || typeof correctOptionIndex !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: 'selectedOptionIndex and correctOptionIndex must be numbers.',
+      });
+    }
+
+    // Fetch story content for RAG context
+    const materialRes = await db.query(
+      'SELECT content_text FROM reading_materials WHERE material_id = $1 LIMIT 1',
+      [materialId]
+    );
+
+    const contentText = (materialRes.rows[0] || {}).content_text || '';
+
+    console.log(`[getPracticeRemedialQuestion]: Received remediation request for Material #${materialId} (Student LRN: ${req.user?.lrn || 'N/A'})`);
+
+    const result = await generateRemedialQuestion({
+      materialId,
+      contentText,
+      questionText,
+      options,
+      selectedOptionIndex,
+      correctOptionIndex,
+      explanation,
+      language,
+    });
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[getPracticeRemedialQuestion Error]:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to generate remedial question.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3388,6 +3716,10 @@ module.exports = {
   getSentenceItems,
   submitSentenceAttempt,
   streamSentenceTts,
+  getLibraryBooks,
+  getStudentReadingProgress,
+  startStoryProgress,
+  getPracticeRemedialQuestion,
 };
 
 

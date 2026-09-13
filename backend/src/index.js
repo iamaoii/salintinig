@@ -224,6 +224,25 @@ async function initDatabase() {
         console.warn('sentence_bank migration notice:', sbErr.message);
       }
 
+      // Ensure story_attempts table exists for tracking practice quiz attempts
+      try {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS story_attempts (
+              attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+              material_id UUID NOT NULL REFERENCES reading_materials(material_id) ON DELETE CASCADE,
+              score INT NOT NULL DEFAULT 0,
+              total_questions INT NOT NULL DEFAULT 0,
+              selected_answers JSONB DEFAULT '[]'::jsonb,
+              time_spent_seconds INT DEFAULT 0,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_story_attempts_lookup ON story_attempts(student_id, material_id);
+        `);
+      } catch (saErr) {
+        console.warn('story_attempts migration notice:', saErr.message);
+      }
+
       console.log('✅ Database schema verified & ready.');
     }
   } catch (err) {
