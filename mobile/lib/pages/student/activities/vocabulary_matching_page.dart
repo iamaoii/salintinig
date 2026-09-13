@@ -23,10 +23,14 @@ class VocabularyMatchingPage extends StatefulWidget {
   State<VocabularyMatchingPage> createState() => _VocabularyMatchingPageState();
 }
 
-class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
+class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
+    with SingleTickerProviderStateMixin {
   // ── Session State ──────────────────────────────────────────────────────────
   late String _sessionDifficulty;
   late ConfettiController _confettiController;
+  late AnimationController _mascotAnimController;
+  late Animation<double> _mascotScaleAnimation;
+  late Animation<double> _mascotFadeAnimation;
   String _sessionId = '';
   int _earnedXp = 0;
   bool _isFinished = false;
@@ -120,6 +124,22 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+
+    _mascotAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _mascotScaleAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: Curves.elasticOut,
+    );
+
+    _mascotFadeAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
+
     _sessionDifficulty = widget.difficulty;
     _initOrResumeSession();
   }
@@ -128,6 +148,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   void dispose() {
     _sallyResetTimer?.cancel();
     _confettiController.dispose();
+    _mascotAnimController.dispose();
     super.dispose();
   }
 
@@ -558,6 +579,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
             _celebrationSubtitle = feedback['subtitle'] ?? 'You completed the vocabulary matching practice.';
             _isFinished = true;
           });
+          _mascotAnimController.forward(from: 0.0);
           _confettiController.play();
           // Clear active session upon full completion
           ActivityProgressService.clearProgress('vocabulary');
@@ -1272,15 +1294,21 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // 2. Sally Mascot Illustration (Celebration)
-                Image.asset(
-                  'assets/mascot/sally_celebration.webp',
-                  height: 165,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'assets/mascot/sally_sitting.webp',
-                    height: 165,
-                    fit: BoxFit.contain,
+                // 2. Sally Mascot Illustration (Celebration) with elastic bounce animation
+                ScaleTransition(
+                  scale: _mascotScaleAnimation,
+                  child: FadeTransition(
+                    opacity: _mascotFadeAnimation,
+                    child: Image.asset(
+                      'assets/mascot/sally_celebration.webp',
+                      height: 165,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/mascot/sally_sitting.webp',
+                        height: 165,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

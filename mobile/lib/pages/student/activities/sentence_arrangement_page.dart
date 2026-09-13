@@ -30,7 +30,13 @@ class SentenceArrangementPage extends StatefulWidget {
   State<SentenceArrangementPage> createState() => _SentenceArrangementPageState();
 }
 
-class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
+class _SentenceArrangementPageState extends State<SentenceArrangementPage>
+    with SingleTickerProviderStateMixin {
+  // ── Mascot Animation ────────────────────────────────────────────────────────
+  late AnimationController _mascotAnimController;
+  late Animation<double> _mascotScaleAnimation;
+  late Animation<double> _mascotFadeAnimation;
+
   // ── Session Configuration & State ──────────────────────────────────────────
   late String _sessionLanguage;
   late String _sessionDifficulty;
@@ -353,6 +359,18 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
   @override
   void initState() {
     super.initState();
+    _mascotAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _mascotScaleAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: Curves.elasticOut,
+    );
+    _mascotFadeAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     _sessionLanguage = widget.language;
     _sessionDifficulty = widget.difficulty;
@@ -434,6 +452,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
 
   @override
   void dispose() {
+    _mascotAnimController.dispose();
     _sallyResetTimer?.cancel();
     _confettiController.dispose();
     _audioPlayer.dispose();
@@ -849,6 +868,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
       _sallyMessage = 'Arrange the words!';
     });
 
+    _mascotAnimController.reset();
     _sallyResetTimer?.cancel();
     _persistCurrentProgress();
   }
@@ -1079,6 +1099,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
         _isFinished = true;
       });
 
+      _mascotAnimController.forward(from: 0.0);
       _confettiController.play();
       ActivityProgressService.clearProgress('sentence', _sessionLanguage);
       _syncActivityCompletion();
@@ -1795,14 +1816,20 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage> {
                 const SizedBox(height: 12),
 
                 // 2. Sally Mascot Illustration (Celebration)
-                Image.asset(
-                  'assets/mascot/sally_celebration.webp',
-                  height: 165,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'assets/mascot/sally_sitting.webp',
-                    height: 165,
-                    fit: BoxFit.contain,
+                ScaleTransition(
+                  scale: _mascotScaleAnimation,
+                  child: FadeTransition(
+                    opacity: _mascotFadeAnimation,
+                    child: Image.asset(
+                      'assets/mascot/sally_celebration.webp',
+                      height: 165,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/mascot/sally_sitting.webp',
+                        height: 165,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

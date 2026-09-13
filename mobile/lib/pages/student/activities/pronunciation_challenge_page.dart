@@ -49,6 +49,11 @@ class PronunciationChallengePage extends StatefulWidget {
 class _PronunciationChallengePageState
     extends State<PronunciationChallengePage>
     with TickerProviderStateMixin {
+  // ── Mascot Animation ────────────────────────────────────────────────────────
+  late AnimationController _mascotAnimController;
+  late Animation<double> _mascotScaleAnimation;
+  late Animation<double> _mascotFadeAnimation;
+
   // ── Session State ──────────────────────────────────────────────────────────
   int _currentWordIndex = 0;
   PracticeState _state = PracticeState.loading;
@@ -114,6 +119,18 @@ class _PronunciationChallengePageState
   @override
   void initState() {
     super.initState();
+    _mascotAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _mascotScaleAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: Curves.elasticOut,
+    );
+    _mascotFadeAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     _sessionLanguage = widget.language;
     _sessionDifficulty = widget.difficulty;
@@ -204,6 +221,7 @@ class _PronunciationChallengePageState
 
   @override
   void dispose() {
+    _mascotAnimController.dispose();
     _waveformTimer?.cancel();
     _systemAudioTimer?.cancel();
     _confettiController.dispose();
@@ -774,6 +792,7 @@ class _PronunciationChallengePageState
         _celebrationSubtitle = feedback['subtitle']!;
         _isFinished = true;
       });
+      _mascotAnimController.forward(from: 0.0);
       _confettiController.play();
       _syncActivityCompletion();
     }
@@ -834,6 +853,7 @@ class _PronunciationChallengePageState
       _mistakesCount = 0;
       _finalAccuracy = 100;
     });
+    _mascotAnimController.reset();
     _confettiController.stop();
     _loadSessionWords();
   }
@@ -1022,12 +1042,25 @@ class _PronunciationChallengePageState
     const primaryBlue = Color(0xFF1B64D8);
     const primaryGreen = Color(0xFF10B981);
     const softCanvasBg = Color(0xFFFCFAF7);
+    const softCreamBg = Color(0xFFFDFBF7);
 
     // ── Celebration state ──────────────────────────────────────────────────
     if (_isFinished) {
       return Scaffold(
-        backgroundColor: softCanvasBg,
-        body: _buildCelebrationWidget(primaryBlue),
+        backgroundColor: softCreamBg,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isTablet = constraints.maxWidth > 600;
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isTablet ? 540.0 : double.infinity,
+                ),
+                child: _buildCelebrationWidget(primaryBlue),
+              ),
+            );
+          },
+        ),
       );
     }
 
@@ -1861,14 +1894,20 @@ class _PronunciationChallengePageState
                 const SizedBox(height: 12),
 
                 // 2. Sally Mascot Illustration (Celebration)
-                Image.asset(
-                  'assets/mascot/sally_celebration.webp',
-                  height: 165,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'assets/mascot/sally_sitting.webp',
-                    height: 165,
-                    fit: BoxFit.contain,
+                ScaleTransition(
+                  scale: _mascotScaleAnimation,
+                  child: FadeTransition(
+                    opacity: _mascotFadeAnimation,
+                    child: Image.asset(
+                      'assets/mascot/sally_celebration.webp',
+                      height: 165,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/mascot/sally_sitting.webp',
+                        height: 165,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
