@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../pages/student/library/story_preview_page.dart';
 
 class StyledBookCover extends StatelessWidget {
-  final Map<String, String> book;
+  final Map<String, dynamic> book;
   final int index;
   final bool enableTap;
   final double? width;
@@ -31,32 +31,68 @@ class StyledBookCover extends StatelessWidget {
     [Color(0xFF4C1D95), Color(0xFF7C3AED)], // Purple Majesty
   ];
 
+  /// Generates a rich, dynamic cover gradient deterministically using deep jewel tones across 360° HSL (prevents neon/harsh colors)
+  static List<Color> getGradientForBook(Map<String, dynamic> book, [int fallbackIndex = 0]) {
+    final title = (book['title'] as String?) ?? (book['id'] as String?) ?? '';
+    if (title.isEmpty) {
+      return _coverGradients[fallbackIndex % _coverGradients.length];
+    }
+
+    int hash = 0;
+    for (int i = 0; i < title.length; i++) {
+      hash = (hash * 37 + title.codeUnitAt(i)) & 0xFFFFFFFF;
+    }
+
+    // Map title hash to 0..360° Hue on HSL color wheel
+    final double hue = (hash.abs() % 360).toDouble();
+
+    // High-luminance hues (yellows, limes, cyans) are toned down to rich gold/emerald/teal to prevent neon strain
+    final bool isHighLuminance = hue >= 40 && hue <= 180;
+    final double sat1 = isHighLuminance ? 0.45 : 0.56;
+    final double light1 = isHighLuminance ? 0.22 : 0.25;
+
+    final double sat2 = isHighLuminance ? 0.52 : 0.62;
+    final double light2 = isHighLuminance ? 0.35 : 0.40;
+
+    final HSLColor primaryHsl = HSLColor.fromAHSL(1.0, hue, sat1, light1);
+    final HSLColor secondaryHsl = HSLColor.fromAHSL(1.0, (hue + 20) % 360, sat2, light2);
+
+    return [
+      primaryHsl.toColor(),
+      secondaryHsl.toColor(),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final gradient = _coverGradients[index % _coverGradients.length];
-    final title = book['title'] ?? 'Walang Pamagat';
-    final author = book['author'] ?? 'Juan dela Cruz';
+    final gradient = getGradientForBook(book, index);
+    final title = (book['title'] as String?) ?? 'Walang Pamagat';
+    final author = (book['author'] as String?) ?? 'Juan dela Cruz';
 
     Widget coverWidget = LayoutBuilder(
       builder: (context, constraints) {
-        final cardHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : 200.0;
+        // Derive scale from width — always finite and accurate in both grid & list
+        final effectiveWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 138.0;
+        final cardHeight = effectiveWidth * 1.45;
         final scale = (cardHeight / 200.0).clamp(0.5, 2.0);
 
-        return Container(
-          width: width ?? (constraints.maxWidth.isFinite ? null : 130),
-          height: height ?? (constraints.maxHeight.isFinite ? null : 200),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14 * scale),
-            boxShadow: [
-              BoxShadow(
-                color: gradient[0].withValues(alpha: 0.30),
-                blurRadius: 12 * scale,
-                offset: Offset(0, 5 * scale),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14 * scale),
+        return AspectRatio(
+          aspectRatio: 1 / 1.45,
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14 * scale),
+              boxShadow: [
+                BoxShadow(
+                  color: gradient[0].withValues(alpha: 0.30),
+                  blurRadius: 12 * scale,
+                  offset: Offset(0, 5 * scale),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14 * scale),
             child: Stack(
               children: [
                 // 1. Dual-tone Gradient Background
@@ -231,9 +267,10 @@ class StyledBookCover extends StatelessWidget {
               ],
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
 
     if (!enableTap) return coverWidget;
 

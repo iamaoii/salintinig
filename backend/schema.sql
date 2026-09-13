@@ -524,7 +524,6 @@ CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_reading_profiles_student ON student_reading_profiles(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_student ON story_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(material_id);
-CREATE INDEX IF NOT EXISTS idx_story_answers_attempt ON story_answers(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_assessment_answers_attempt ON assessment_answers(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_oral_results_attempt ON oral_reading_results(assessment_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_bank_language ON vocabulary_bank(language, difficulty, is_active);

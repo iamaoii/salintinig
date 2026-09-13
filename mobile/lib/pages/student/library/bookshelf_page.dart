@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/widgets/styled_book_cover.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
 
 class BookshelfPage extends StatefulWidget {
   const BookshelfPage({super.key});
@@ -15,14 +17,8 @@ class _BookshelfPageState extends State<BookshelfPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  final List<Map<String, String>> _allBooks = [
-    {'title': 'Sari-Sari Summers', 'cover': ''},
-    {'title': 'A Song of Frutas', 'cover': ''},
-    {'title': 'Old Clothes for Dinner', 'cover': ''},
-    {'title': 'Ang Alamat ng Pinya', 'cover': ''},
-    {'title': 'Si Pagong at si Matsing', 'cover': ''},
-    {'title': 'Ang Mahiwagang Batingaw', 'cover': ''},
-  ];
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _allBooks = [];
 
   @override
   void initState() {
@@ -32,6 +28,24 @@ class _BookshelfPageState extends State<BookshelfPage> {
         _searchQuery = _searchController.text.toLowerCase();
       });
     });
+    _loadBooks();
+  }
+
+  Future<void> _loadBooks({bool forceRefresh = false}) async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final books = await LibraryService.fetchBooks(forceRefresh: forceRefresh);
+      if (mounted) {
+        final List<Map<String, dynamic>> fetchedBooks = List<Map<String, dynamic>>.from(books);
+        setState(() {
+          _allBooks = fetchedBooks;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -45,8 +59,8 @@ class _BookshelfPageState extends State<BookshelfPage> {
     const softCreamBg = Color(0xFFFCFAF7);
     const primaryBlue = Color(0xFF1B64D8);
 
-    final filteredBooks = _allBooks.where((book) {
-      final title = book['title']!.toLowerCase();
+  final filteredBooks = _allBooks.where((book) {
+      final title = (book['title'] as String? ?? '').toLowerCase();
       return title.contains(_searchQuery);
     }).toList();
 
@@ -133,7 +147,7 @@ class _BookshelfPageState extends State<BookshelfPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Mga Kwentong Pambata',
+                                  'Bookshelf',
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
@@ -171,15 +185,57 @@ class _BookshelfPageState extends State<BookshelfPage> {
                                         SliverGridDelegateWithFixedCrossAxisCount(
                                           crossAxisCount: isTablet ? 5 : 3,
                                           crossAxisSpacing: 12,
-                                          mainAxisSpacing: 16,
-                                          childAspectRatio: 0.62,
+                                          mainAxisSpacing: 24,
+                                          childAspectRatio: () {
+                                            final count = isTablet ? 5 : 3;
+                                            final spacing = 12.0;
+                                            final cellWidth = (constraints.maxWidth - 40 - (count - 1) * spacing) / count;
+                                            final coverH = cellWidth * 1.45;
+                                            const belowH = 68.0;
+                                            return cellWidth / (coverH + belowH);
+                                          }(),
                                         ),
-                                    itemCount: filteredBooks.length,
+                                    itemCount: _isLoading ? 6 : filteredBooks.length,
                                     itemBuilder: (context, index) {
+                                      if (_isLoading) {
+                                        // Shimmer placeholder
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFE2E8F0),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Container(height: 10, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                                            const SizedBox(height: 4),
+                                            Container(height: 10, width: 70, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                                          ],
+                                        );
+                                      }
                                       final book = filteredBooks[index];
-                                      return _buildSelectedBookCard(
-                                        book,
-                                        index,
+                                      return GestureDetector(
+                                        onTap: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => StoryPreviewPage(
+                                                bookTitle: (book['title'] as String?) ?? '',
+                                                book: book,
+                                              ),
+                                            ),
+                                          ).then((_) {
+                                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                                              if (mounted) _loadBooks(forceRefresh: true);
+                                            });
+                                          });
+                                        },
+                                        child: _buildSelectedBookCard(book, index),
                                       );
                                     },
                                   ),
@@ -228,7 +284,43 @@ class _BookshelfPageState extends State<BookshelfPage> {
     );
   }
 
-  Widget _buildSelectedBookCard(Map<String, String> book, int index) {
-    return StyledBookCover(book: book, index: index);
+  Widget _buildSelectedBookCard(Map<String, dynamic> book, int index) {
+    final title = (book['title'] as String?) ?? '';
+    final language = LibraryService.languageLabel(book['language'] as String?);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Styled 3D Hardbound Cover (AspectRatio 1:1.45, width-driven)
+        StyledBookCover(
+          book: book,
+          index: index,
+        ),
+        const SizedBox(height: 6),
+
+        // Language label below cover
+        Text(
+          language,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 3),
+
+        // Story Title below cover
+        Text(
+          title,
+          maxLines: 2,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF0F172A),
+            height: 1.15,
+          ),
+        ),
+      ],
+    );
   }
 }

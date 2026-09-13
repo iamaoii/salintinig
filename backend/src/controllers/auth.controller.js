@@ -9,6 +9,8 @@ function createToken(user) {
 
   const payload = {
     id: user.id || user.user_id,
+    studentId: user.studentId || user.student_id || null,
+    lrn: user.lrn || null,
     username: user.username || user.email,
     name: user.name,
     email: user.email,
@@ -207,6 +209,8 @@ async function login(req, res) {
       let gradeLevel = null;
       let sectionName = null;
 
+      let studentDbId = null;
+
       if (matchedUser.role === 'admin') {
         displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
       } else if (matchedUser.role === 'teacher') {
@@ -218,7 +222,7 @@ async function login(req, res) {
       } else if (matchedUser.role === 'student') {
         try {
           const stRes = await db.query(
-            `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+            `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
              FROM students st
              LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
              LEFT JOIN classes c ON sgh.class_id = c.class_id
@@ -229,6 +233,7 @@ async function login(req, res) {
           );
           if (stRes.rows && stRes.rows.length > 0) {
             const stRow = stRes.rows[0];
+            studentDbId = stRow.student_id || null;
             firstName = stRow.first_name || firstName;
             lastName = stRow.last_name || lastName;
             lrn = stRow.lrn || lrn;
@@ -243,6 +248,7 @@ async function login(req, res) {
 
       const formattedUser = {
         id: matchedUser.user_id,
+        studentId: studentDbId,
         username: matchedUser.email,
         name: displayName,
         firstName: firstName || displayName,

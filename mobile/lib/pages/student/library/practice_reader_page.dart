@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/library/practice_quiz_page.dart';
+import 'package:salintinig/services/library_service.dart';
 
 class PracticeReaderPage extends StatefulWidget {
+  final String? materialId;
   final String bookTitle;
   final String storyText;
   final double initialProgress;
@@ -10,6 +12,7 @@ class PracticeReaderPage extends StatefulWidget {
 
   const PracticeReaderPage({
     super.key,
+    this.materialId,
     required this.bookTitle,
     required this.storyText,
     required this.initialProgress,
@@ -22,78 +25,127 @@ class PracticeReaderPage extends StatefulWidget {
 
 class _PracticeReaderPageState extends State<PracticeReaderPage> {
   bool _isDarkMode = false;
-  int _currentPage = 0;
-  final PageController _pageController = PageController();
-  bool _isPaginated = false;
-  List<List<String>> _pages = [];
+  final ScrollController _scrollController = ScrollController();
+  double _scrollProgress = 0.0;
+  bool _hasRestoredPosition = false;
+  bool _isShortStory = false;
+
+  bool get _isEnglish {
+    final title = widget.bookTitle.toLowerCase();
+    final text = widget.storyText.toLowerCase();
+    if (title.contains('english') || text.contains(' the ') || text.contains(' was ') || text.contains(' were ') || text.contains(' which ')) {
+      return true;
+    }
+    if (widget.quizQuestions.isNotEmpty) {
+      final qText = (widget.quizQuestions[0]['questionText'] ?? widget.quizQuestions[0]['question'] ?? '').toString().toLowerCase();
+      if (qText.contains('who ') || qText.contains('what ') || qText.contains('where ') || qText.contains('why ') || qText.contains('how ')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollProgress = widget.initialProgress;
+    _scrollController.addListener(_handleScroll);
+
+    // Record initial reading progress immediately so it registers as in-progress even before scrolling
+    final initialRatio = widget.initialProgress > 0.05 ? widget.initialProgress : 0.05;
+    _recordCurrentProgress(initialRatio);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkShortStoryAndRestoreScroll();
+    });
+  }
+
+  void _checkShortStoryAndRestoreScroll() {
+    if (!mounted || !_scrollController.hasClients) return;
+
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    // If maxScrollExtent is 0 or negligible, the entire story fits in 1 page/screen!
+    if (maxExtent <= 10.0) {
+      setState(() {
+        _isShortStory = true;
+        _scrollProgress = 1.0;
+        _hasRestoredPosition = true;
+      });
+      _recordCurrentProgress(1.0);
+      return;
+    }
+
+    if (!_hasRestoredPosition && widget.initialProgress > 0) {
+      _hasRestoredPosition = true;
+      final targetOffset = (widget.initialProgress * maxExtent).clamp(0.0, maxExtent);
+      _scrollController.jumpTo(targetOffset);
+    } else {
+      _hasRestoredPosition = true;
+    }
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients || !_hasRestoredPosition) return;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 10.0) {
+      if (_scrollProgress < 1.0) {
+        setState(() {
+          _isShortStory = true;
+          _scrollProgress = 1.0;
+        });
+        _recordCurrentProgress(1.0);
+      }
+      return;
+    }
+
+    final currentOffset = _scrollController.offset.clamp(0.0, maxExtent);
+    final ratio = (currentOffset / maxExtent).clamp(0.0, 1.0);
+
+    if ((ratio - _scrollProgress).abs() >= 0.01 || ratio >= 0.99) {
+      setState(() {
+        _scrollProgress = ratio;
+      });
+      _recordCurrentProgress(ratio);
+    }
+  }
+
+  void _recordCurrentProgress(double progressRatio) {
+    LibraryService.recordStoryProgress(
+      materialId: widget.materialId,
+      bookTitle: widget.bookTitle,
+      progress: progressRatio,
+      lastPageRead: ((progressRatio * 10).ceil()).clamp(1, 999),
+    );
+  }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  // Dynamic pagination algorithm: measures text height and divides paragraphs into pages
-  List<List<String>> _paginateStory({
-    required String fullText,
-    required double maxWidth,
-    required double maxHeight,
-    required TextStyle textStyle,
-    required double paragraphSpacing,
-  }) {
-    final List<String> paragraphs = fullText.split('\n\n');
-    final List<List<String>> pages = [];
-    List<String> currentPage = [];
-    double currentHeight = 0.0;
-
-    for (final paragraph in paragraphs) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: paragraph.trim(), style: textStyle),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout(maxWidth: maxWidth);
-      final double paraHeight = textPainter.height;
-
-      // Space between paragraphs
-      final double spacing = currentPage.isEmpty ? 0.0 : paragraphSpacing;
-
-      if (currentHeight + spacing + paraHeight <= maxHeight) {
-        currentPage.add(paragraph);
-        currentHeight += spacing + paraHeight;
-      } else {
-        if (currentPage.isEmpty) {
-          // If a single paragraph is taller than the max height, add it anyway to avoid lock
-          currentPage.add(paragraph);
-          pages.add(currentPage);
-          currentPage = [];
-          currentHeight = 0.0;
-        } else {
-          // Finish current page and start a new page with this paragraph
-          pages.add(currentPage);
-          currentPage = [paragraph];
-          currentHeight = paraHeight;
-        }
-      }
-    }
-
-    if (currentPage.isNotEmpty) {
-      pages.add(currentPage);
-    }
-
-    if (pages.isEmpty) {
-      pages.add(['']);
-    }
-
-    return pages;
+  List<String> _parseParagraphs(String fullText) {
+    final raw = fullText.split(RegExp(r'\n\s*\n'));
+    return raw.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Theme coloring configuration
     final Color bgColor = _isDarkMode ? const Color(0xFF1A1816) : const Color(0xFFFCFAF7);
     final Color textColor = _isDarkMode ? const Color(0xFFE5E0DB) : const Color(0xFF2D2D2D);
     final Color titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
     final Color secondaryTextColor = _isDarkMode ? const Color(0xFF8A8580) : const Color(0xFF64748B);
+    const Color primaryBlue = Color(0xFF1B64D8);
+
+    final paragraphs = _parseParagraphs(widget.storyText);
+
+    final TextStyle textStyle = GoogleFonts.lora(
+      fontSize: 22.0,
+      height: 1.75,
+      fontWeight: FontWeight.w500,
+      color: textColor,
+    );
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -105,11 +157,11 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: isTablet ? 520 : double.infinity,
+                  maxWidth: isTablet ? 540 : double.infinity,
                 ),
                 child: Column(
                   children: [
-                    // 1. Header with Close Button
+                    // 1. Header with Title & Close Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                       child: Row(
@@ -131,7 +183,8 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                           IconButton(
                             onPressed: () {
                               Feedback.forTap(context);
-                              Navigator.pop(context);
+                              _recordCurrentProgress(_scrollProgress);
+                              Navigator.pop(context, _scrollProgress);
                             },
                             icon: Icon(
                               Icons.close_rounded,
@@ -143,136 +196,163 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                       ),
                     ),
 
-                    // 2. Reading Text Block
+                    // 3. Scrollable Story Content (Continuous Vertical Scroll)
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, viewConstraints) {
-                          // Measure available space inside the scroll container
-                          final double horizontalPadding = 56.0; // 28 * 2
-                          final double verticalPadding = 48.0; // 24 * 2
-                          // Subtract space occupied by the page indicator and bottom control buttons + safety buffer
-                          final double footerControlsHeight = 135.0;
-                          final double maxWidth = viewConstraints.maxWidth - horizontalPadding;
-                          final double maxHeight = viewConstraints.maxHeight - verticalPadding - footerControlsHeight;
-
-                          // Text Style configuration for Painter measurements
-                          final TextStyle textStyle = GoogleFonts.lora(
-                            fontSize: 22,
-                            height: 1.65,
-                            fontWeight: FontWeight.w500,
-                            color: textColor,
-                          );
-
-                          // Only compute pagination once or when constraints change
-                          if (!_isPaginated) {
-                            _pages = _paginateStory(
-                              fullText: widget.storyText,
-                              maxWidth: maxWidth > 0 ? maxWidth : 100,
-                              maxHeight: maxHeight > 0 ? maxHeight : 100,
-                              textStyle: textStyle,
-                              paragraphSpacing: 28.0,
-                            );
-                            _isPaginated = true;
-
-                            // Adjust starting page based on initialProgress
-                            if (widget.initialProgress > 0) {
-                              final targetPage = (widget.initialProgress * _pages.length).floor();
-                              _currentPage = targetPage.clamp(0, _pages.length - 1);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (_pageController.hasClients) {
-                                  _pageController.jumpToPage(_currentPage);
-                                }
-                              });
-                            }
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (!_hasRestoredPosition) {
+                            _checkShortStoryAndRestoreScroll();
                           }
-
-                          final int totalPages = _pages.length;
-                          final int activePage = _currentPage.clamp(0, totalPages - 1);
-
-                          return Column(
-                            children: [
-                              // Swipable pages
-                              Expanded(
-                                child: PageView.builder(
-                                  controller: _pageController,
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: totalPages,
-                                  onPageChanged: (pageIndex) {
-                                    setState(() {
-                                      _currentPage = pageIndex;
-                                    });
-                                  },
-                                  itemBuilder: (context, pageIndex) {
-                                    final pageParagraphs = _pages[pageIndex];
-
-                                    return SingleChildScrollView(
-                                      physics: const BouncingScrollPhysics(),
-                                      padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        mainAxisAlignment: MainAxisAlignment.start,
-                                        children: List.generate(pageParagraphs.length, (pIndex) {
-                                          final paragraphText = pageParagraphs[pIndex].trim();
-                                          final isChapterHeader = paragraphText.startsWith('Chapter');
-                                          final isLast = pIndex == pageParagraphs.length - 1;
-
-                                          if (isChapterHeader) {
-                                            return Padding(
-                                              padding: const EdgeInsets.only(bottom: 20.0, top: 10.0),
-                                              child: Text(
-                                                paragraphText,
-                                                textAlign: TextAlign.center,
-                                                style: GoogleFonts.lora(
-                                                  fontSize: 26,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: titleColor,
-                                                ),
-                                              ),
-                                            );
-                                          }
-
-                                          return Padding(
-                                            padding: EdgeInsets.only(bottom: isLast ? 0.0 : 28.0),
-                                            child: Text(
-                                              paragraphText,
-                                              style: textStyle,
-                                            ),
-                                          );
-                                        }),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-
-                              // 3. Centered page count indicator
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Text(
-                                  '${activePage + 1}/$totalPages',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: secondaryTextColor,
-                                  ),
-                                ),
-                              ),
-
-                              // 4. Footer navigation controls
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    left: 24.0, right: 24.0, bottom: 20.0, top: 12.0),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _buildThemeSwitcher(),
-                                    _buildActionButton(activePage, totalPages),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
+                          return false;
                         },
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 24.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ...List.generate(paragraphs.length, (pIndex) {
+                                final paragraphText = paragraphs[pIndex];
+                                final lower = paragraphText.toLowerCase();
+                                final isChapterHeader = lower.startsWith('chapter') ||
+                                    lower.startsWith('kabanata') ||
+                                    paragraphText.startsWith('#');
+                                final isLast = pIndex == paragraphs.length - 1;
+
+                                if (isChapterHeader) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 24.0, top: 16.0),
+                                    child: Text(
+                                      paragraphText.replaceAll(RegExp(r'^#+\s*'), ''),
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.lora(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        color: titleColor,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                return Padding(
+                                  padding: EdgeInsets.only(bottom: isLast ? 24.0 : 30.0),
+                                  child: Text(
+                                    paragraphText,
+                                    style: textStyle,
+                                  ),
+                                );
+                              }),
+
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // 2. Reading Progress Indicator Bar (at the bottom, above footer)
+                    ClipRRect(
+                      child: LinearProgressIndicator(
+                        value: _scrollProgress.clamp(0.02, 1.0),
+                        backgroundColor: _isDarkMode
+                            ? const Color(0xFF2D2B28)
+                            : const Color(0xFFE2E8F0),
+                        valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                        minHeight: 3.5,
+                      ),
+                    ),
+
+                    // 4. Footer controls (Theme Switcher & Live Percentage / Finish Quiz Button)
+                    Container(
+                      height: 72,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 12.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        border: Border(
+                          top: BorderSide(
+                            color: _isDarkMode
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.black.withValues(alpha: 0.05),
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _buildThemeSwitcher(),
+                          SizedBox(
+                            height: 48,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: (_scrollProgress >= 0.99 || _isShortStory)
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        Feedback.forTap(context);
+                                        _showFinishedDialog();
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 12,
+                                        ),
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          color: primaryBlue,
+                                          borderRadius: BorderRadius.circular(24),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: primaryBlue.withValues(alpha: 0.25),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Finish & Start Quiz',
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      _isEnglish
+                                          ? '${(_scrollProgress * 100).toInt()}% completed'
+                                          : '${(_scrollProgress * 100).toInt()}% kumpleto',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: secondaryTextColor,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -285,7 +365,7 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
     );
   }
 
-  // Custom Animated Theme Switcher (Light / Dark mode toggle)
+  // Custom Animated Theme Switcher (Matching Phil-IRI Assessment height 48, width 96)
   Widget _buildThemeSwitcher() {
     return GestureDetector(
       onTap: () {
@@ -295,7 +375,7 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
         });
       },
       child: Container(
-        width: 90,
+        width: 96,
         height: 48,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
@@ -345,160 +425,6 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
     );
   }
 
-  // Action Button at bottom right (Next Page caret, Intermediate Dual, OR Complete practice)
-  Widget _buildActionButton(int activePage, int totalPages) {
-    final isFirstPage = activePage == 0;
-    final isLastPage = activePage == totalPages - 1;
-    final Color buttonBgColor = _isDarkMode ? const Color(0xFF1E2530) : const Color(0xFFE8ECF4);
-    final Color iconColor = _isDarkMode ? Colors.white : const Color(0xFF475569);
-
-    if (totalPages <= 1) {
-      return GestureDetector(
-        onTap: () {
-          Feedback.forTap(context);
-          _showFinishedDialog();
-        },
-        child: _buildFinishButton(),
-      );
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: isLastPage
-          ? Row(
-              key: const ValueKey('last_page_nav_row'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Back button to previous page
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _pageController.previousPage(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOutCubic,
-                    );
-                  },
-                  child: Container(
-                    width: 50,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: buttonBgColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      color: iconColor,
-                      size: 26,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Finish Button
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _showFinishedDialog();
-                  },
-                  child: _buildFinishButton(),
-                ),
-              ],
-            )
-          : Container(
-              key: const ValueKey('capsule_page_nav_btn'),
-              width: 100,
-              height: 48,
-              decoration: BoxDecoration(
-                color: buttonBgColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  // Left button (Back) - visible only if not on the first page
-                  isFirstPage
-                      ? const SizedBox(width: 50)
-                      : GestureDetector(
-                          onTap: () {
-                            Feedback.forTap(context);
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeInOutCubic,
-                            );
-                          },
-                          child: Container(
-                            width: 50,
-                            height: 48,
-                            color: Colors.transparent,
-                            child: Icon(
-                              Icons.chevron_left_rounded,
-                              color: iconColor,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                  // Right button (Next)
-                  GestureDetector(
-                    onTap: () {
-                      Feedback.forTap(context);
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeInOutCubic,
-                      );
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 48,
-                      color: Colors.transparent,
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        color: iconColor,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildFinishButton() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      height: 48,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B64D8),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1B64D8).withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Finish',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.check_rounded,
-            color: Colors.white,
-            size: 18,
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showFinishedDialog() {
     final titleColor = _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
     final descColor = _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF475569);
@@ -515,7 +441,7 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
           contentPadding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 24.0),
           actionsPadding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
           title: Text(
-            'Start Quiz?',
+            _isEnglish ? 'Start Quiz?' : 'Simulan ang Pagsusulit?',
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w800,
               fontSize: 24,
@@ -523,7 +449,9 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
             ),
           ),
           content: Text(
-            'You have finished reading "${widget.bookTitle}". Are you ready to start the quiz and test your understanding?',
+            _isEnglish
+                ? 'You have finished reading "${widget.bookTitle}". Are you ready to start the quiz and test your understanding?'
+                : 'Natapos mo nang basahin ang "${widget.bookTitle}". Handa ka na bang simulan ang pagsusulit upang subukin ang iyong pag-unawa?',
             style: GoogleFonts.inter(
               fontSize: 15,
               color: descColor,
@@ -533,10 +461,10 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
+                Navigator.pop(dialogContext);
               },
               child: Text(
-                'Cancel',
+                _isEnglish ? 'Cancel' : 'Kanselahin',
                 style: GoogleFonts.inter(
                   color: _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B),
                   fontWeight: FontWeight.w600,
@@ -546,11 +474,12 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
+                Navigator.pop(dialogContext);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder: (context) => PracticeQuizPage(
+                      materialId: widget.materialId,
                       bookTitle: widget.bookTitle,
                       questions: widget.quizQuestions,
                     ),
@@ -558,7 +487,7 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                 );
               },
               child: Text(
-                'Start',
+                _isEnglish ? 'Start' : 'Simulan',
                 style: GoogleFonts.inter(
                   color: const Color(0xFF1B64D8),
                   fontWeight: FontWeight.w700,

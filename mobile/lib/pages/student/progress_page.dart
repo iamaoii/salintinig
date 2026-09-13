@@ -20,6 +20,7 @@ import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/library_service.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -47,8 +48,16 @@ class _ProgressPageState extends State<ProgressPage> {
     _fetchLiveProgressData();
   }
 
+  List<Map<String, dynamic>> _inProgressBooks = [];
+
   Future<void> _fetchLiveProgressData() async {
     try {
+      final storyProgress = await LibraryService.fetchReadingProgress();
+      if (mounted) {
+        setState(() {
+          _inProgressBooks = storyProgress;
+        });
+      }
       final res = await ApiService.get('/students/assessment/my-assignment');
       if (res.success && res.data != null) {
         final attempts = res.data['attemptsStatus'];
@@ -804,23 +813,21 @@ class _ProgressPageState extends State<ProgressPage> {
 
   // ── Continue Reading Row ──
   Widget _buildContinueReadingRow() {
-    final continueReadingBooks = [
-      {
-        'title': 'Sari-Sari Summers',
-        'author': 'Juan dela Cruz',
-        'progress': 0.35,
-      },
-      {
-        'title': 'A Song of Frutas',
-        'author': 'Juan dela Cruz',
-        'progress': 0.70,
-      },
-      {
-        'title': 'Old Clothes for Dinner',
-        'author': 'Juan dela Cruz',
-        'progress': 0.45,
-      },
-    ];
+    final continueReadingBooks = LibraryService.filterInProgress(_inProgressBooks);
+
+    if (continueReadingBooks.isEmpty) {
+      return Container(
+        height: 100,
+        alignment: Alignment.center,
+        child: Text(
+          'No books in progress yet.',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: const Color(0xFF94A3B8),
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       height: 230,

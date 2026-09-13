@@ -1,8 +1,8 @@
 /**
- * SalinTinig — Stories Library & Reading Comprehension Seeder
+ * SalinTinig — Unified Stories Library & Reading Comprehension Seeder
  * 
  * Curated bilingual library collection for upper elementary (Grades 4-6):
- *   - Short Stories, Fables, Poems, and Informational Passages
+ *   - Short Stories, Fables, Poems, Alamat, and Informational Passages
  *   - Filipino & English leveled reading materials
  *   - Embedded multiple-choice comprehension questions with explanations
  * 
@@ -24,7 +24,7 @@ const storyBankData = [
   // 1. GRADE 4 (Foundational Comprehension & Moral Lessons)
   // ===========================================================================
   {
-    title: 'SARI - SARI SUMMERS',
+    title: 'Sari-Sari Summers',
     author: 'Lynnor Bontigao',
     description: 'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
     content_text:
@@ -39,9 +39,6 @@ const storyBankData = [
     grade_level_target: 'Grade 4',
     difficulty_level: 'Easy',
     reading_time_minutes: 3,
-    cover_image_url: 'assets/stories/sari_sari_summers.jpg',
-    tags: ['Grade 4', 'Filipino', 'Family', 'Community'],
-    source_attribution: 'SalinTinig Featured Collection',
     quiz_questions: [
       {
         questionText: 'Sino ang tinulungan ni Nora noong panahon ng bakasyon?',
@@ -79,9 +76,6 @@ const storyBankData = [
     grade_level_target: 'Grade 4',
     difficulty_level: 'Easy',
     reading_time_minutes: 3,
-    cover_image_url: 'assets/stories/a_song_of_frutas.png',
-    tags: ['Grade 4', 'English', 'Music', 'Culture'],
-    source_attribution: 'Open Educational Library',
     quiz_questions: [
       {
         questionText: 'Whom does the child visit in the city?',
@@ -117,9 +111,6 @@ const storyBankData = [
     grade_level_target: 'Grade 4',
     difficulty_level: 'Easy',
     reading_time_minutes: 4,
-    cover_image_url: 'assets/stories/sari_sari_summers.jpg',
-    tags: ['Grade 4', 'Filipino', 'Fable', 'Pabula'],
-    source_attribution: 'Public Domain / DepEd Filipino Folktales',
     quiz_questions: [
       {
         questionText: 'Bakit pinili ni Matsing ang itaas na bahagi ng puno ng saging?',
@@ -142,7 +133,7 @@ const storyBankData = [
     ]
   },
   {
-    title: 'Ang Sipag ng Langgam (Tula)',
+    title: 'Ang Sipag ng Langgam',
     author: 'Amado V. Hernandez',
     description: 'Isang masiglang tula na nagbibigay-pugay sa kasipagan at paghahanda ng munting langgam sa tag-ulan.',
     content_text:
@@ -163,9 +154,6 @@ const storyBankData = [
     grade_level_target: 'Grade 4',
     difficulty_level: 'Easy',
     reading_time_minutes: 2,
-    cover_image_url: 'assets/stories/sari_sari_summers.jpg',
-    tags: ['Grade 4', 'Filipino', 'Poem', 'Tula', 'Sipag'],
-    source_attribution: 'DepEd LRMDS Elementary Poems',
     quiz_questions: [
       {
         questionText: 'Ano ang ginagawa ng langgam kahit matindi ang init ng araw?',
@@ -181,12 +169,43 @@ const storyBankData = [
       }
     ]
   },
+  {
+    title: 'Ang Alamat ng Pinya',
+    author: 'Kuwentong Bayan',
+    description: 'Ang kwento ng isang tamad na batang babae na naghanap ng kanyang mga mata at kung paano naging pinya ang kanyang ulo.',
+    content_text:
+      'Kabanata 1\n\n' +
+      'Noong unang panahon, may isang batang babae na nakatira kasama ang kanyang ina. Siya ay napakatamarim — kahit ang pinakamaliit na bagay ay ayaw niyang gawin.\n\n' +
+      'Isang araw, nagkasakit ang kanyang ina. Humingi siya ng tulong ngunit ang batang babae ay nagreklamo dahil hindi niya mahanap ang sandok.\n\n' +
+      'Kabanata 2\n\n' +
+      '"Sana ay magkaroon ka ng maraming mata para mahanap mo ang lahat ng bagay!" sabi ng ina sa galit.\n\n' +
+      'Nang dumating ang gabi, nawala ang batang babae. Kinabukasan, isang halaman ang tumubo sa bakuran — isang prutas na may maraming mata sa katawan nito, na tinawag nilang pinya.',
+    language: 'fil',
+    category: 'Alamat',
+    grade_level_target: 'Grade 4',
+    difficulty_level: 'Easy',
+    reading_time_minutes: 4,
+    quiz_questions: [
+      {
+        questionText: 'Bakit naging pinya ang batang babae sa kwento?',
+        options: ['Dahil siya ay tamad at ayaw tumulong sa kanyang ina', 'Dahil gusto niyang maging halaman', 'Dahil siya ay masipag magtanim', 'Dahil kumain siya ng maraming prutas'],
+        correctAnswerIndex: 0,
+        explanation: 'Naging aral ang kanyang kasipagan at kawalan ng kusa sa tulong ng kanyang ina.'
+      },
+      {
+        questionText: 'Ano ang katangian ng prutas na kumakatawan sa batang babae?',
+        options: ['May maraming mata sa paligid nito', 'Napakaitim ng balat', 'Matamis na kulay berde', 'Walang anyo'],
+        correctAnswerIndex: 0,
+        explanation: 'Ang pinya ay may maraming mata bilang paalala sa kawalan niya ng tingin sa kanyang paligid.'
+      }
+    ]
+  },
 
   // ===========================================================================
   // 2. GRADE 5 (Tradition, Heritage, Science, and Responsibility)
   // ===========================================================================
   {
-    title: 'OLD CLOTHES FOR DINNER',
+    title: 'Old Clothes for Dinner',
     author: 'Chelo Aestrid',
     description: 'A delightful story about a child\'s perspective on home-cooked meals, family history, and cherished dining traditions.',
     content_text:
@@ -201,9 +220,6 @@ const storyBankData = [
     grade_level_target: 'Grade 5',
     difficulty_level: 'Medium',
     reading_time_minutes: 3,
-    cover_image_url: 'assets/stories/old_clothes_for_dinner.png',
-    tags: ['Grade 5', 'English', 'Tradition', 'Family'],
-    source_attribution: 'Open Educational Library',
     quiz_questions: [
       {
         questionText: 'What did the narrator think they were eating at first?',
@@ -232,9 +248,6 @@ const storyBankData = [
     grade_level_target: 'Grade 5',
     difficulty_level: 'Medium',
     reading_time_minutes: 4,
-    cover_image_url: 'assets/stories/a_song_of_frutas.png',
-    tags: ['Grade 5', 'Filipino', 'Agham', 'Kalikasan', 'Agila'],
-    source_attribution: 'DepEd Phil-IRI & DENR Wildlife Resources',
     quiz_questions: [
       {
         questionText: 'Saan sa Pilipinas karaniwang matatagpuan ang Philippine Eagle?',
@@ -265,9 +278,6 @@ const storyBankData = [
     grade_level_target: 'Grade 5',
     difficulty_level: 'Medium',
     reading_time_minutes: 3,
-    cover_image_url: 'assets/stories/old_clothes_for_dinner.png',
-    tags: ['Grade 5', 'English', 'Fable', 'Responsibility'],
-    source_attribution: 'Project Gutenberg / Aesop Fables',
     quiz_questions: [
       {
         questionText: 'What was the Ant doing during the sunny summer days?',
@@ -289,12 +299,77 @@ const storyBankData = [
       }
     ]
   },
+  {
+    title: 'Ang Mahiwagang Batingaw',
+    author: 'Kuwentong Bayan',
+    description: 'Isang kwento tungkol sa isang batingaw na nagbibigay ng iba\'t ibang himala sa isang maliit na nayon sa Pilipinas.',
+    content_text:
+      'Kabanata 1\n\n' +
+      'Sa isang maliit na nayon sa bundok, may isang lumang batingaw na nakabitin sa gitna ng plaza.\n\n' +
+      'Ayon sa mga matatanda, ang batingaw na ito ay may mahiwagang kapangyarihan — kung tutunog ito nang kusang-loob, may darating na bagay na magbabago ng nayon.\n\n' +
+      'Kabanata 2\n\n' +
+      'Isang umaga, tumunog ang batingaw nang walang tumatawid. Ang lahat ay natakot at naghanda para sa anumang darating.\n\n' +
+      'Ngunit ang dumating ay hindi sakuna — isang manlalakbay ang pumasok sa nayon na may dala-dalang mga buto ng natatanging halaman. Dahil sa kanya, naging masagana ang nayon magpahanggang ngayon.',
+    language: 'fil',
+    category: 'Short Story',
+    grade_level_target: 'Grade 5',
+    difficulty_level: 'Medium',
+    reading_time_minutes: 4,
+    quiz_questions: [
+      {
+        questionText: 'Saan nakabitin ang mahiwagang batingaw?',
+        options: ['Sa gitna ng plaza', 'Sa simbahan', 'Sa bahay ng alkalde', 'Sa puno'],
+        correctAnswerIndex: 0,
+        explanation: 'Nakatala na ang batingaw ay nakabitin sa gitna ng plaza ng nayon.'
+      },
+      {
+        questionText: 'Sino ang dumating nang tumunog ang batingaw?',
+        options: ['Isang manlalakbay na may dala-dalang mga buto ng halaman', 'Isang kalaban na hukbo', 'Isang malakas na bagyo', 'Isang anghel'],
+        correctAnswerIndex: 0,
+        explanation: 'Ang manlalakbay ang nagdala ng saganang pananim sa nayon.'
+      }
+    ]
+  },
+  {
+    title: 'The Little Prince and the Fox',
+    author: 'Antoine de Saint-Exupéry (adapted)',
+    description: 'A gentle story about friendship, taming, and what makes things truly special.',
+    content_text:
+      'Chapter 1\n\n' +
+      'The Little Prince met a fox one afternoon in a field of golden wheat.\n\n' +
+      '"Come and play with me," said the Little Prince. "I am so sad."\n\n' +
+      '"I cannot play with you," said the fox. "I am not tamed."\n\n' +
+      'Chapter 2\n\n' +
+      '"What does that mean — \'tame\'?" asked the Little Prince.\n\n' +
+      '"It means to establish ties," said the fox. "To me, you are still nothing more than a little boy who is just like a hundred thousand other little boys. But if you tame me, then we shall need each other. To me, you will be unique in all the world."\n\n' +
+      'The Little Prince thought about this for a long time. Then he smiled and sat down near the fox.\n\n' +
+      'And so, little by little, they became friends.',
+    language: 'en',
+    category: 'Short Story',
+    grade_level_target: 'Grade 5',
+    difficulty_level: 'Easy',
+    reading_time_minutes: 5,
+    quiz_questions: [
+      {
+        questionText: 'What does "tame" mean according to the fox?',
+        options: ['To establish ties', 'To catch an animal', 'To make something wild', 'To run fast'],
+        correctAnswerIndex: 0,
+        explanation: 'The fox explains that taming means creating meaningful ties between two individuals.'
+      },
+      {
+        questionText: 'What did the Little Prince do after thinking?',
+        options: ['He sat down near the fox', 'He ran away', 'He went home', 'He cried'],
+        correctAnswerIndex: 0,
+        explanation: 'He sat near the fox, beginning the process of taming and friendship.'
+      }
+    ]
+  },
 
   // ===========================================================================
   // 3. GRADE 6 (Critical Thinking, Environmental Stewardship, and Wit)
   // ===========================================================================
   {
-    title: 'Ang Tubbataha Reefs (Kayamanan sa Ilalim ng Dagat)',
+    title: 'Ang Tubbataha Reefs',
     author: 'DepEd Environmental Education',
     description: 'Isang paglalakbay sa tanyag na coral reef sanctuary sa Dagat Sulu na kinikilala sa buong daigdig.',
     content_text:
@@ -306,9 +381,6 @@ const storyBankData = [
     grade_level_target: 'Grade 6',
     difficulty_level: 'Hard',
     reading_time_minutes: 4,
-    cover_image_url: 'assets/stories/sari_sari_summers.jpg',
-    tags: ['Grade 6', 'Filipino', 'Agham', 'Kalikasan', 'Dagat'],
-    source_attribution: 'DepEd Phil-IRI Grade 6 / UNESCO Heritage',
     quiz_questions: [
       {
         questionText: 'Saang bahagi ng karagatan matatagpuan ang Tubbataha Reefs?',
@@ -338,9 +410,6 @@ const storyBankData = [
     grade_level_target: 'Grade 6',
     difficulty_level: 'Hard',
     reading_time_minutes: 3,
-    cover_image_url: 'assets/stories/a_song_of_frutas.png',
-    tags: ['Grade 6', 'English', 'Fable', 'Problem Solving'],
-    source_attribution: 'Project Gutenberg / Aesop Fables',
     quiz_questions: [
       {
         questionText: 'Why was the Crow unable to drink the water initially?',
@@ -361,15 +430,46 @@ const storyBankData = [
         explanation: 'Persistence and resourcefulness overcome seemingly impossible barriers.'
       }
     ]
+  },
+  {
+    title: 'Ang Alamat ng Bahaghari',
+    author: 'Genoveva Edroza-Matute',
+    description: 'Tuklasin kung paano nagkaroon ng sari-saring kulay ang kalangitan sa pamamagitan ng kwentong-bayan na ito.',
+    content_text:
+      'Kabanata 1\n\n' +
+      'Noong unang panahon, ang langit ay puro puti lamang. Walang kulay, walang saya — para sa mga tao sa lupa, ang langit ay parang isang malaking puting tela.\n\n' +
+      'Nanghihinayang ang Diyos kaya naman tinawag niya ang lahat ng kulay mula sa buong mundo.\n\n' +
+      'Kabanata 2\n\n' +
+      'Dumating ang Pula, ang Kahel, ang Dilaw, ang Berde, ang Asul, at ang Lila — bawat isa ay nagbigay ng kanilang pinakamagandang kulay sa langit.\n\n' +
+      'Ngunit hindi sila magkasundo kung sino ang pipili ng lugar sa langit. Kaya naman, ipinasya ng Diyos na ilagay sila lahat sa isang pagkakataon — tuwing may ulan at araw, makikita ang lahat ng kulay sa langit bilang bahaghari.',
+    language: 'fil',
+    category: 'Alamat',
+    grade_level_target: 'Grade 6',
+    difficulty_level: 'Medium',
+    reading_time_minutes: 4,
+    quiz_questions: [
+      {
+        questionText: 'Bakit walang kulay ang langit noong unang panahon?',
+        options: ['Dahil puro puti lamang ito', 'Dahil puti ang gusto ng Diyos', 'Dahil maulap lagi', 'Dahil gabi lagi'],
+        correctAnswerIndex: 0,
+        explanation: 'Sa simula ng kwento, ang langit ay inilarawan na puro puti lamang.'
+      },
+      {
+        questionText: 'Kailan makikita ang bahaghari sa kalangitan?',
+        options: ['Tuwing may ulan at araw', 'Tuwing gabi', 'Tuwing tag-init', 'Tuwing Pasko'],
+        correctAnswerIndex: 0,
+        explanation: 'Nagpapakita ang bahaghari kapag sumisikat ang araw habang umuulan.'
+      }
+    ]
   }
 ];
 
 async function seedStoryLibrary() {
   const client = await pool.connect();
   try {
-    console.log(`🚀 Starting Stories Library Seeding (${storyBankData.length} stories)...`);
+    console.log(`🚀 Starting Unified Stories Library Seeding (${storyBankData.length} stories)...`);
 
-    // Ensure table structure is present
+    // Ensure table structure is present & drop removed columns if they exist
     await client.query(`
       CREATE TABLE IF NOT EXISTS reading_materials (
           material_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -382,16 +482,16 @@ async function seedStoryLibrary() {
           grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4',
           difficulty_level VARCHAR(50) DEFAULT 'Easy',
           reading_time_minutes INT DEFAULT 3,
-          cover_image_url TEXT,
-          tags JSONB DEFAULT '[]'::jsonb,
           quiz_questions JSONB DEFAULT '[]'::jsonb,
-          source_attribution VARCHAR(255) DEFAULT 'Public Domain',
           status VARCHAR(50) DEFAULT 'active',
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Ensure UNIQUE constraint on title for safe idempotent re-seeding
+      ALTER TABLE reading_materials DROP COLUMN IF EXISTS cover_image_url;
+      ALTER TABLE reading_materials DROP COLUMN IF EXISTS tags;
+      ALTER TABLE reading_materials DROP COLUMN IF EXISTS source_attribution;
+
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -402,6 +502,14 @@ async function seedStoryLibrary() {
       END $$;
     `);
 
+    // Purge legacy duplicates or titles with different formatting/casing in the DB
+    const validTitles = storyBankData.map(s => s.title);
+    const placeholders = validTitles.map((_, i) => `$${i + 1}`).join(', ');
+    await client.query(
+      `DELETE FROM reading_materials WHERE LOWER(title) NOT IN (${placeholders});`,
+      validTitles.map(t => t.toLowerCase())
+    );
+
     let upsertedCount = 0;
 
     for (const story of storyBankData) {
@@ -409,8 +517,8 @@ async function seedStoryLibrary() {
         INSERT INTO reading_materials (
           title, author, description, content_text, language, category,
           grade_level_target, difficulty_level, reading_time_minutes,
-          cover_image_url, tags, quiz_questions, source_attribution, status, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', CURRENT_TIMESTAMP)
+          quiz_questions, status, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', CURRENT_TIMESTAMP)
         ON CONFLICT (title) DO UPDATE SET
           author = EXCLUDED.author,
           description = EXCLUDED.description,
@@ -420,10 +528,7 @@ async function seedStoryLibrary() {
           grade_level_target = EXCLUDED.grade_level_target,
           difficulty_level = EXCLUDED.difficulty_level,
           reading_time_minutes = EXCLUDED.reading_time_minutes,
-          cover_image_url = EXCLUDED.cover_image_url,
-          tags = EXCLUDED.tags,
           quiz_questions = EXCLUDED.quiz_questions,
-          source_attribution = EXCLUDED.source_attribution,
           status = 'active',
           updated_at = CURRENT_TIMESTAMP;
       `, [
@@ -436,15 +541,12 @@ async function seedStoryLibrary() {
         story.grade_level_target,
         story.difficulty_level,
         story.reading_time_minutes,
-        story.cover_image_url,
-        JSON.stringify(story.tags),
         JSON.stringify(story.quiz_questions),
-        story.source_attribution,
       ]);
       upsertedCount++;
     }
 
-    console.log(`✅ Upserted ${upsertedCount} stories into reading_materials.`);
+    console.log(`✅ Upserted ${upsertedCount} clean stories into reading_materials.`);
 
     // Print breakdown
     const gradeSummary = await client.query(`
@@ -466,7 +568,7 @@ async function seedStoryLibrary() {
       FROM reading_materials;
     `);
 
-    console.log(`\n🎉 Total Stories in Library: ${totalCount.rows[0].total_stories}`);
+    console.log(`\n🎉 Total Unique Stories in Library: ${totalCount.rows[0].total_stories}`);
     console.log(`🧠 Total Comprehension Questions: ${totalCount.rows[0].total_questions}\n`);
 
   } catch (err) {
