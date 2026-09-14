@@ -169,13 +169,14 @@ async function initDatabase() {
               student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
               session_id VARCHAR(100),
               difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+              total_pairs INT DEFAULT 5,
               mistakes_count INT DEFAULT 0,
               score INT NOT NULL DEFAULT 100,
               xp_earned INT DEFAULT 0,
               items_detail JSONB DEFAULT '[]'::jsonb,
               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
-          ALTER TABLE vocabulary_attempts DROP COLUMN IF EXISTS total_pairs;
+          ALTER TABLE vocabulary_attempts ADD COLUMN IF NOT EXISTS total_pairs INT DEFAULT 5;
           ALTER TABLE vocabulary_attempts ADD COLUMN IF NOT EXISTS items_detail JSONB DEFAULT '[]'::jsonb;
           CREATE INDEX IF NOT EXISTS idx_vocab_attempts_student ON vocabulary_attempts(student_id, session_id);
           CREATE INDEX IF NOT EXISTS idx_vocab_bank_lang_diff ON vocabulary_bank(language, difficulty, is_active);
