@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/streak_service.dart';
 
 /// Singleton service for fetching library books and reading progress.
 class LibraryService {
@@ -128,6 +129,7 @@ class LibraryService {
     double progress = 0.05,
     int lastPageRead = 1,
   }) async {
+    StreakService.recordActivityCompletion();
     _cachedProgress ??= [];
 
     // Find full story metadata from _cachedBooks if available

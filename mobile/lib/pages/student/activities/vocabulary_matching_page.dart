@@ -8,6 +8,8 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 
@@ -468,6 +470,8 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
   }
 
   Future<void> _syncActivityCompletion() async {
+    final wasCompletedBefore = await StreakService.hasCompletedToday();
+
     final totalPairs = _leftWords.length;
     final int score = _mistakesCount == 0
         ? 100
@@ -492,6 +496,14 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
         'xpEarned': _earnedXp,
         'itemsDetail': itemsDetail,
       });
+
+      // Now sync streak with backend to get authoritative updated streak
+      await StreakService.recordActivityCompletion();
+      final newStreakCount = await StreakService.getStreakCount();
+
+      if (!wasCompletedBefore && mounted) {
+        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
 
       debugPrint('[VocabularyMatching] Attempt response: success=${res.success}, statusCode=${res.statusCode}, error=${res.error}, data=${res.data}');
 

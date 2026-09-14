@@ -21,6 +21,8 @@ import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
 class ProgressPage extends StatefulWidget {
   const ProgressPage({super.key});
@@ -29,7 +31,8 @@ class ProgressPage extends StatefulWidget {
   State<ProgressPage> createState() => _ProgressPageState();
 }
 
-class _ProgressPageState extends State<ProgressPage> {
+class _ProgressPageState extends State<ProgressPage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isListeningDone = false;
   bool _isOralReadingDone = false;
@@ -37,6 +40,12 @@ class _ProgressPageState extends State<ProgressPage> {
   bool _isSilentReadingDone = false;
   Map<String, dynamic>? _readingProfiles;
   String _selectedPhilIriLang = 'fil'; // 'fil' or 'en'
+  int _streakCount = 0;
+  bool _hasPracticedToday = false;
+  List<Map<String, String>> _weeklyTrackerDays = [];
+
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
@@ -45,17 +54,65 @@ class _ProgressPageState extends State<ProgressPage> {
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    _glowAnimation = Tween<double>(begin: 0.18, end: 0.38).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+
+    StreakService.streakNotifier.addListener(_onStreakChanged);
+    _fetchLiveProgressData();
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    StreakService.streakNotifier.removeListener(_onStreakChanged);
+    super.dispose();
+  }
+
+  void _onStreakChanged() {
     _fetchLiveProgressData();
   }
 
   List<Map<String, dynamic>> _inProgressBooks = [];
 
+  Future<void> _loadLocalStreakInstantly() async {
+    try {
+      final streak = await StreakService.getStreakCount();
+      final tracker = await StreakService.getWeeklyTracker();
+      final practicedToday = await StreakService.hasCompletedToday();
+      if (mounted) {
+        setState(() {
+          _streakCount = streak;
+          _hasPracticedToday = practicedToday;
+          _weeklyTrackerDays = tracker;
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _fetchLiveProgressData() async {
     try {
+      // 1. Instant load from local device storage (0-delay initial render)
+      await _loadLocalStreakInstantly();
+
+      // 2. Perform backend sync in background to update server state
+      await StreakService.syncStreakWithBackend();
       final storyProgress = await LibraryService.fetchReadingProgress();
+      final streak = await StreakService.getStreakCount();
+      final tracker = await StreakService.getWeeklyTracker();
+      final practicedToday = await StreakService.hasCompletedToday();
       if (mounted) {
         setState(() {
           _inProgressBooks = storyProgress;
+          _streakCount = streak;
+          _hasPracticedToday = practicedToday;
+          _weeklyTrackerDays = tracker;
         });
       }
       final res = await ApiService.get('/students/assessment/my-assignment');
@@ -331,60 +388,105 @@ class _ProgressPageState extends State<ProgressPage> {
   }
 
   // ── Streak Widget ──
+  // ── Streak Widget ──
   Widget _buildStreakCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
-      child: Row(
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20.0, 28.0, 20.0, 24.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left: Flame + Streak count, message, and Weekly Tracker
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+          // 1. Flame Icon (Tap to trigger celebration modal)
+          GestureDetector(
+            onTap: () {
+              Feedback.forTap(context);
+              StreakCelebrationModal.show(
+                context,
+                streakCount: _streakCount,
+              );
+            },
+            child: SizedBox(
+              height: 125,
+              child: OverflowBox(
+                maxHeight: 160,
+                minHeight: 160,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    const Iconify(
-                      PhIcons.fireBold,
-                      color: Color(0xFFEA580C),
-                      size: 26,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '67 day streak',
-                      style: GoogleFonts.inter(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFFEA580C),
+                    // Outer Radial Glowing Flame Aura (matches celebration modal)
+                    if (_hasPracticedToday)
+                      AnimatedBuilder(
+                        animation: _glowAnimation,
+                        builder: (context, child) {
+                          return Container(
+                            width: 160,
+                            height: 160,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  const Color(0xFFF97316).withValues(alpha: _glowAnimation.value),
+                                  const Color(0xFFF97316).withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
+                    Icon(
+                      Icons.local_fire_department_rounded,
+                      size: 140,
+                      color: _hasPracticedToday ? const Color(0xFFF97316) : const Color(0xFFCBD5E1),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  "You're on fire!",
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF334155),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildWeeklyTracker(),
-              ],
+              ),
             ),
           ),
-          const SizedBox(width: 12),
-          // Right: Large Sally mascot celebration
-          SizedBox(
-            width: 100,
-            height: 105,
-            child: Image.asset(
-              'assets/mascot/sally_celebration.webp',
-              fit: BoxFit.contain,
+
+          // 2. Single-line Title Layout (e.g. "5 Days Streaks" or "1 Day Streak")
+          Text(
+            _streakCount == 1 ? '1 Day Streak' : '$_streakCount Days Streaks',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF0F172A),
+              letterSpacing: -0.5,
             ),
           ),
+          const SizedBox(height: 2),
+          Text(
+            _streakCount == 0
+                ? "Complete an activity today to start your streak!"
+                : "You are doing really great!",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Bottom Weekly Tracker (Day Labels on TOP, Circles on BOTTOM)
+          _buildWeeklyTracker(),
         ],
       ),
     );
@@ -425,53 +527,71 @@ class _ProgressPageState extends State<ProgressPage> {
   }
 
   Widget _buildWeeklyTracker() {
-    final days = [
-      {'label': 'M', 'state': 'done'},
-      {'label': 'T', 'state': 'done'},
-      {'label': 'W', 'state': 'done'},
-      {'label': 'T', 'state': 'missed'},
-      {'label': 'F', 'state': 'done'},
-      {'label': 'S', 'state': 'future'},
-      {'label': 'S', 'state': 'future'},
-    ];
+    final days = _weeklyTrackerDays.isNotEmpty
+        ? _weeklyTrackerDays
+        : [
+            {'label': 'M', 'state': 'future'},
+            {'label': 'T', 'state': 'future'},
+            {'label': 'W', 'state': 'future'},
+            {'label': 'T', 'state': 'future'},
+            {'label': 'F', 'state': 'future'},
+            {'label': 'S', 'state': 'future'},
+            {'label': 'S', 'state': 'future'},
+          ];
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: days.map((day) => _buildDayTrackerItem(day['label'] as String, day['state'] as String)).toList(),
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: days
+          .map((day) => _buildDayTrackerItem(
+                day['label'] as String,
+                day['state'] as String,
+              ))
+          .toList(),
     );
   }
 
   Widget _buildDayTrackerItem(String label, String state) {
-    Widget circleChild = const SizedBox();
-    Color circleBgColor = Colors.transparent;
+    Widget circleChild;
+    Color circleBgColor;
     Border? circleBorder;
-    Color labelColor = const Color(0xFF64748B); // Default slate-500 for better visibility
+    Color labelColor = const Color(0xFF94A3B8);
 
     if (state == 'done') {
-      circleBgColor = const Color(0xFFF97316); // Orange like Duolingo
+      circleBgColor = const Color(0xFFF97316);
       circleChild = const Icon(
-        Icons.check,
+        Icons.check_rounded,
         color: Colors.white,
-        size: 10,
+        size: 14,
       );
-      labelColor = const Color(0xFFEA580C); // Darker orange label color
-    } else if (state == 'missed') {
-      circleBgColor = const Color(0xFFE2E8F0); // Solid light gray
+      labelColor = const Color(0xFFF97316);
     } else {
-      // future
-      circleBorder = Border.all(
-        color: const Color(0xFFE2E8F0), // Thin border
-        width: 1.5,
+      // Missed or future days: soft light blue-grey filled circle with subtle checkmark (matching Picture 2)
+      circleBgColor = const Color(0xFFF1F5F9);
+      circleChild = const Icon(
+        Icons.check_rounded,
+        color: Color(0xFFCBD5E1),
+        size: 14,
       );
-      circleBgColor = Colors.white;
     }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Day Label ON TOP
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Circle ON BOTTOM
         Container(
-          width: 24,
-          height: 24,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: circleBgColor,
             shape: BoxShape.circle,
@@ -479,15 +599,6 @@ class _ProgressPageState extends State<ProgressPage> {
           ),
           alignment: Alignment.center,
           child: circleChild,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w800, // Slightly bolder for better legibility
-            color: labelColor,
-          ),
         ),
       ],
     );
@@ -848,8 +959,8 @@ class _ProgressPageState extends State<ProgressPage> {
                 Expanded(
                   child: StyledBookCover(
                     book: {
-                      'title': book['title'] as String,
-                      'author': book['author'] as String,
+                      'title': (book['title'] ?? '').toString(),
+                      'author': (book['author'] ?? '').toString(),
                     },
                     index: index,
                   ),
@@ -858,7 +969,7 @@ class _ProgressPageState extends State<ProgressPage> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
-                    value: book['progress'] as double,
+                    value: LibraryService.parseDouble(book['progress']),
                     backgroundColor: const Color(0xFFE4E2DC),
                     valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
                     minHeight: 6,

@@ -179,7 +179,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     final frameData = _frames[_selectedFrame] ?? _frames['None'];
     final frameColor = frameData['color'] as Color;
-    final frameWidth = frameData['width'] as double;
+    final frameWidth = (frameData['width'] as num?)?.toDouble() ?? 0.0;
     final hasGlow = frameData['glow'] as bool;
 
     return Scaffold(

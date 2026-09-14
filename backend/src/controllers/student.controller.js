@@ -1699,7 +1699,10 @@ async function completeStoryProgress(req, res) {
               [resolvedStudentId, materialId, finalScore, finalTotal]
             );
 
-            // 3. Auto-grant Bookworm badge
+            // 3. Fire & forget hybrid streak update for active student
+            updateStudentStreakInDb(resolvedStudentId).catch(() => {});
+
+            // 4. Auto-grant Bookworm badge
             try {
               await db.query(
                 `INSERT INTO student_badges (student_id, badge_id, awarded_at)
@@ -1841,8 +1844,6 @@ async function getStudentActiveAssignment(req, res) {
     const tokenUserId = studentUser.id || studentUser.user_id || studentUser.userId || null;
     const tokenLrn = (queryLrn || studentUser.lrn || '').trim();
 
-    console.log('[getStudentActiveAssignment] tokenUserId:', tokenUserId, '| tokenLrn:', tokenLrn);
-
     let targetStudentId = null;
     let targetGrade = 'Grade 4';
     let resolvedLrn = tokenLrn;
@@ -1874,7 +1875,6 @@ async function getStudentActiveAssignment(req, res) {
       if (sRow) {
         targetStudentId = sRow.student_id;
         resolvedLrn = sRow.lrn || tokenLrn;
-        console.log('[getStudentActiveAssignment] resolved student_id:', targetStudentId);
 
         // Get grade_level from student_grade_history â†’ classes
         const gradeRes = await db.query(
@@ -1928,7 +1928,6 @@ async function getStudentActiveAssignment(req, res) {
            ORDER BY a.created_at DESC`,
           [targetStudentId]
         );
-        console.log('[getStudentActiveAssignment] assessment rows found:', aRes.rows.length);
 
         // ─── Step 2: Fetch completed attempt types for this student ────────────
         try {
@@ -3009,6 +3008,9 @@ async function submitPronunciationAttempt(req, res) {
       itemsDetail,
     });
 
+    // Fire & forget hybrid streak update for active student
+    updateStudentStreakInDb(studentId).catch(() => {});
+
     return res.json({
       success: true,
       attemptId: attempt.attemptId,
@@ -3266,6 +3268,9 @@ async function submitVocabularyAttempt(req, res) {
       itemsDetail,
     });
 
+    // Fire & forget hybrid streak update for active student
+    updateStudentStreakInDb(studentId).catch(() => {});
+
     return res.json({
       success: true,
       attemptId: result.attemptId,
@@ -3369,6 +3374,9 @@ async function submitSentenceAttempt(req, res) {
       xpEarned: Number(xpEarned) || 0,
       itemsDetail,
     });
+
+    // Fire & forget hybrid streak update for active student
+    updateStudentStreakInDb(studentId).catch(() => {});
 
     return res.json({
       success: true,
@@ -3687,6 +3695,168 @@ async function getPracticeRemedialQuestion(req, res) {
   }
 }
 
+function formatYmdDate(val) {
+  if (!val) return null;
+  if (typeof val === 'string') {
+    return val.split('T')[0].split(' ')[0];
+  }
+  if (val instanceof Date) {
+    // Format using configured or Asia/Manila timezone (Philippine Standard Time, UTC+8)
+    const timeZone = process.env.APP_TIMEZONE || 'Asia/Manila';
+    const options = { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' };
+    const parts = new Intl.DateTimeFormat('en-CA', options).formatToParts(val);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  }
+  return String(val).split('T')[0].split(' ')[0];
+}
+async function updateStudentStreakInDb(studentId) {
+  if (!studentId || !process.env.DATABASE_URL) return null;
+  try {
+    const sRes = await db.query(
+      `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+      [String(studentId).trim()]
+    );
+    const realStudentId = sRes.rows?.[0]?.student_id || studentId;
+
+    const pRes = await db.query(
+      `SELECT progress_id, current_streak, longest_streak, last_activity_date 
+       FROM student_progress 
+       WHERE student_id = $1 LIMIT 1`,
+      [realStudentId]
+    );
+
+    const todayStr = formatYmdDate(new Date());
+
+    if (pRes.rows && pRes.rows.length > 0) {
+      const rec = pRes.rows[0];
+      const lastDateStr = rec.last_activity_date ? formatYmdDate(rec.last_activity_date) : null;
+
+      if (lastDateStr === todayStr) {
+        return {
+          currentStreak: rec.current_streak || 1,
+          longestStreak: rec.longest_streak || 1,
+          lastActivityDate: todayStr,
+          hasCompletedToday: true,
+        };
+      }
+
+      let newStreak = 1;
+      if (lastDateStr) {
+        const lastDate = new Date(lastDateStr + 'T00:00:00');
+        const today = new Date(todayStr + 'T00:00:00');
+        const diffTime = today.getTime() - lastDate.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+        if (diffDays === 1) {
+          newStreak = (rec.current_streak || 0) + 1;
+        } else if (diffDays <= 0) {
+          newStreak = rec.current_streak || 1;
+        } else {
+          newStreak = 1;
+        }
+      }
+
+      const newLongest = Math.max(newStreak, rec.longest_streak || 0);
+
+      await db.query(
+        `UPDATE student_progress 
+         SET current_streak = $1, longest_streak = $2, last_activity_date = $3, updated_at = CURRENT_TIMESTAMP 
+         WHERE student_id = $4`,
+        [newStreak, newLongest, todayStr, realStudentId]
+      );
+
+      return {
+        currentStreak: newStreak,
+        longestStreak: newLongest,
+        lastActivityDate: todayStr,
+        hasCompletedToday: true,
+        todayDate: todayStr,
+      };
+    } else {
+      await db.query(
+        `INSERT INTO student_progress (student_id, current_streak, longest_streak, last_activity_date) 
+         VALUES ($1, 1, 1, $2)`,
+        [realStudentId, todayStr]
+      );
+
+      return {
+        currentStreak: 1,
+        longestStreak: 1,
+        lastActivityDate: todayStr,
+        hasCompletedToday: true,
+        todayDate: todayStr,
+      };
+    }
+  } catch (err) {
+    console.warn('[updateStudentStreakInDb] Notice updating streak:', err.message);
+    return null;
+  }
+}
+
+/**
+ * GET /api/student/streak
+ * Returns current student streak from database.
+ */
+async function getStudentStreak(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
+    if (!studentId && req.user?.lrn) {
+      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    } else if (studentId) {
+      const sRes = await db.query(
+        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+        [String(studentId).trim()]
+      );
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    }
+
+    if (!studentId) {
+      return res.status(404).json({ success: false, message: 'Student record not found' });
+    }
+
+    const pRes = await db.query(
+      `SELECT current_streak, longest_streak, last_activity_date 
+       FROM student_progress 
+       WHERE student_id = $1 LIMIT 1`,
+      [studentId]
+    );
+
+    const todayStr = formatYmdDate(new Date());
+    let streakData = { currentStreak: 0, longestStreak: 0, lastActivityDate: null, hasCompletedToday: false, todayDate: todayStr };
+    if (pRes.rows && pRes.rows.length > 0) {
+      const rec = pRes.rows[0];
+      const lastDateStr = rec.last_activity_date ? formatYmdDate(rec.last_activity_date) : null;
+
+      let currentStreak = rec.current_streak || 0;
+      if (lastDateStr) {
+        const lastDate = new Date(lastDateStr + 'T00:00:00');
+        const today = new Date(todayStr + 'T00:00:00');
+        const diffDays = Math.round((today.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
+        if (diffDays > 1) {
+          currentStreak = 0;
+        }
+      }
+
+      streakData = {
+        currentStreak: currentStreak,
+        longestStreak: rec.longest_streak || 0,
+        lastActivityDate: lastDateStr,
+        hasCompletedToday: (lastDateStr === todayStr && currentStreak > 0),
+        todayDate: todayStr,
+      };
+    }
+
+    return res.json({ success: true, data: streakData });
+  } catch (err) {
+    console.error('[getStudentStreak] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Failed to fetch streak' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3720,6 +3890,8 @@ module.exports = {
   getStudentReadingProgress,
   startStoryProgress,
   getPracticeRemedialQuestion,
+  getStudentStreak,
+  updateStudentStreakInDb,
 };
 
 

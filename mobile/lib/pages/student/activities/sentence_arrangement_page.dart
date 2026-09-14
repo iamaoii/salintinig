@@ -11,6 +11,8 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 
@@ -906,6 +908,8 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
   }
 
   Future<void> _syncActivityCompletion() async {
+    final wasCompletedBefore = await StreakService.hasCompletedToday();
+
     final totalSentences = _sentences.length;
     final int score = _mistakesCount == 0
         ? 100
@@ -931,6 +935,14 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
         'xpEarned': _earnedXp,
         'itemsDetail': itemsDetail,
       });
+
+      // Now sync streak with backend to get authoritative updated streak
+      await StreakService.recordActivityCompletion();
+      final newStreakCount = await StreakService.getStreakCount();
+
+      if (!wasCompletedBefore && mounted) {
+        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
 
       debugPrint('[SentenceArrangement] Attempt response: success=${res.success}, data=${res.data}');
 

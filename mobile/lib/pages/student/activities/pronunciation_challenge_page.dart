@@ -14,6 +14,8 @@ import 'package:confetti/confetti.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 
@@ -808,6 +810,7 @@ class _PronunciationChallengePageState
   }
 
   Future<void> _syncActivityCompletion() async {
+    final wasCompletedBefore = await StreakService.hasCompletedToday();
     final totalWords = _words.length;
     final avgAccuracy = _finalAccuracy;
 
@@ -823,6 +826,14 @@ class _PronunciationChallengePageState
         'xpEarned': _earnedXp,
         'itemsDetail': _sessionWordResults,
       });
+
+      // Now sync streak with backend to get authoritative updated streak
+      await StreakService.recordActivityCompletion();
+      final newStreakCount = await StreakService.getStreakCount();
+
+      if (!wasCompletedBefore && mounted) {
+        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
 
       debugPrint('[PronunciationChallenge] Attempt response: success=${res.success}, data=${res.data}');
 

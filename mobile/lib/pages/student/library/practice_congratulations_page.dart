@@ -5,6 +5,8 @@ import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
 class PracticeCongratulationsPage extends StatefulWidget {
   final String bookTitle;
@@ -101,6 +103,8 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
   }
 
   Future<void> _syncStoryCompletion() async {
+    final wasCompletedBefore = await StreakService.hasCompletedToday();
+
     try {
       final user = AuthService.currentUser;
       await ApiService.post('/students/story/complete', {
@@ -114,6 +118,15 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
         if (user?.userId != null && user!.userId.isNotEmpty) 'studentId': user.userId,
       });
       LibraryService.invalidateAll();
+
+      // Now sync streak with backend to get authoritative updated streak
+      await StreakService.recordActivityCompletion();
+      final newStreakCount = await StreakService.getStreakCount();
+
+      // If this was the student's first activity completion today, show ignition celebration pop-up!
+      if (!wasCompletedBefore && mounted) {
+        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
     } catch (e) {
       debugPrint('Story completion sync notice: $e');
     }

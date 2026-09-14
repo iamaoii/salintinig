@@ -253,7 +253,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: _frames[_selectedFrame]?['color'] ?? Colors.transparent,
-                                    width: (_frames[_selectedFrame]?['width'] ?? 0.0) as double,
+                                    width: ((_frames[_selectedFrame]?['width'] as num?)?.toDouble() ?? 0.0),
                                   ),
                                   boxShadow: [
                                     BoxShadow(
