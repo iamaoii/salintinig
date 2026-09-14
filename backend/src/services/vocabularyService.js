@@ -6,7 +6,20 @@
  * student attempts in `vocabulary_attempts`.
  */
 
-const db = require('../config/db');
+const db = require('../config/db.js');
+const badgeService = require('./badgeService.js');
+
+async function initVocabTable() {
+  try {
+    await db.query(`
+      ALTER TABLE vocabulary_attempts 
+      ADD COLUMN IF NOT EXISTS total_pairs INT DEFAULT 5;
+    `);
+  } catch (err) {
+    console.warn('[vocabularyService] Notice init table:', err.message);
+  }
+}
+initVocabTable();
 
 /**
  * Fetch a session's worth of vocabulary word pairs for a student.
@@ -192,93 +205,58 @@ async function logAttempt({
       );
       attemptId = rows[0]?.attempt_id || existingAttempt.attempt_id;
     } else {
-      // Insert new attempt
       const { rows } = await db.query(
-        `INSERT INTO vocabulary_attempts (
-           student_id, session_id, difficulty, mistakes_count, score, xp_earned, items_detail, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+        `INSERT INTO vocabulary_attempts 
+         (student_id, session_id, difficulty, total_pairs, mistakes_count, score, xp_earned, items_detail)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING attempt_id`,
-        [resolvedStudentId, sessionId, difficulty, mistakesCount, score, xpEarned, jsonItemsDetail]
+        [
+          resolvedStudentId,
+          sessionId || null,
+          difficulty,
+          totalPairs,
+          mistakesCount,
+          score,
+          xpEarned,
+          jsonItemsDetail,
+        ]
       );
+
       if (rows && rows.length > 0) {
         attemptId = rows[0].attempt_id;
       }
     }
 
-    // 2. Check for "I'm a star!" badge: "Get a perfect score on a vocabulary matching activity"
-    if (Number(score) >= 100) {
+    if (xpEarned > 0) {
       try {
-        const badgeRes = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%i''m a star%' 
-              OR LOWER(description) LIKE '%vocabulary matching%'
-           LIMIT 1`
+        await db.query(
+          `INSERT INTO student_progress (student_id)
+           VALUES ($1)
+           ON CONFLICT DO NOTHING`,
+          [resolvedStudentId]
         );
-
-        if (badgeRes.rows && badgeRes.rows.length > 0) {
-          const badgeId = badgeRes.rows[0].badge_id;
-          const insertBadge = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, badgeId]
-          );
-
-          if (insertBadge.rows && insertBadge.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      } catch (bErr) {
-        console.warn('[vocabularyService.logAttempt] Badge check notice:', bErr.message);
+      } catch (xpErr) {
+        console.warn('[vocabularyService.logAttempt] Progress init notice:', xpErr.message);
       }
     }
 
-    // 3. Check for "First step" badge: "Complete your very first practice activity"
-    try {
-      const { rows: priorVocab } = await db.query(
-        'SELECT COUNT(*) as count FROM vocabulary_attempts WHERE student_id = $1',
-        [resolvedStudentId]
-      );
-      const { rows: priorPronun } = await db.query(
-        'SELECT COUNT(*) as count FROM pronunciation_attempts WHERE student_id = $1',
-        [resolvedStudentId]
-      );
-      const totalActivities = (parseInt(priorVocab[0]?.count) || 0) + (parseInt(priorPronun[0]?.count) || 0);
+    // Check all activity badges via badgeService
+    const newlyUnlockedBadges = await badgeService.checkActivityBadges(resolvedStudentId, 'vocabulary', {
+      score,
+      mistakesCount,
+    });
+    const newBadgeUnlocked = newlyUnlockedBadges.length > 0;
 
-      if (totalActivities <= 1) {
-        const fsBadgeRes = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%first step%' 
-              OR LOWER(description) LIKE '%very first practice%'
-           LIMIT 1`
-        );
-        if (fsBadgeRes.rows && fsBadgeRes.rows.length > 0) {
-          const fsInsert = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, fsBadgeRes.rows[0].badge_id]
-          );
-          if (fsInsert.rows && fsInsert.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      }
-    } catch (fsErr) {
-      console.warn('[vocabularyService.logAttempt] First step badge notice:', fsErr.message);
-    }
+    return {
+      attemptId,
+      xpEarned,
+      newBadgeUnlocked,
+      newlyUnlockedBadges,
+    };
   } catch (err) {
     console.error('[vocabularyService.logAttempt] Error:', err.message);
     throw err;
   }
-
-  return {
-    attemptId,
-    xpEarned,
-    newBadgeUnlocked,
-  };
 }
 
 module.exports = {

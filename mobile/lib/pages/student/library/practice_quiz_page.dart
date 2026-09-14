@@ -11,6 +11,7 @@ class PracticeQuizPage extends StatefulWidget {
   final List<Map<String, dynamic>> questions;
   final int? initialQuestionIndex;
   final List<int?>? initialSelectedAnswers;
+  final bool isDarkMode;
 
   const PracticeQuizPage({
     super.key,
@@ -19,6 +20,7 @@ class PracticeQuizPage extends StatefulWidget {
     required this.questions,
     this.initialQuestionIndex,
     this.initialSelectedAnswers,
+    this.isDarkMode = false,
   });
 
   @override
@@ -729,6 +731,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
           totalQuestions: widget.questions.length,
           selectedAnswers: detailedAnswers,
           timeSpentSeconds: timeSpentSeconds,
+          isDarkMode: widget.isDarkMode,
         ),
       ),
     );

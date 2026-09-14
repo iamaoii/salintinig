@@ -6,6 +6,7 @@ import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/badge_unlocked_modal.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
 class PracticeCongratulationsPage extends StatefulWidget {
@@ -15,6 +16,7 @@ class PracticeCongratulationsPage extends StatefulWidget {
   final int totalQuestions;
   final List<dynamic>? selectedAnswers;
   final int? timeSpentSeconds;
+  final bool isDarkMode;
 
   const PracticeCongratulationsPage({
     super.key,
@@ -24,6 +26,7 @@ class PracticeCongratulationsPage extends StatefulWidget {
     required this.totalQuestions,
     this.selectedAnswers,
     this.timeSpentSeconds,
+    this.isDarkMode = false,
   });
 
   @override
@@ -107,13 +110,14 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
 
     try {
       final user = AuthService.currentUser;
-      await ApiService.post('/students/story/complete', {
+      final response = await ApiService.post('/students/story/complete', {
         'bookTitle': widget.bookTitle,
         if (widget.materialId != null && widget.materialId!.isNotEmpty) 'materialId': widget.materialId,
         'score': widget.score,
         'totalQuestions': widget.totalQuestions,
         'selectedAnswers': widget.selectedAnswers ?? [],
         'timeSpentSeconds': widget.timeSpentSeconds ?? 0,
+        'isDarkMode': widget.isDarkMode,
         if (user?.lrn != null && user!.lrn.isNotEmpty) 'lrn': user.lrn,
         if (user?.userId != null && user!.userId.isNotEmpty) 'studentId': user.userId,
       });
@@ -125,7 +129,15 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
 
       // If this was the student's first activity completion today, show ignition celebration pop-up!
       if (!wasCompletedBefore && mounted) {
-        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+        await StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
+
+      // Check if badges were newly unlocked
+      if (mounted && response.data != null && response.data['newlyUnlockedBadges'] is List) {
+        final badges = response.data['newlyUnlockedBadges'] as List;
+        if (badges.isNotEmpty) {
+          await BadgeUnlockedModal.showMultiple(context, badges);
+        }
       }
     } catch (e) {
       debugPrint('Story completion sync notice: $e');

@@ -22,6 +22,20 @@ class QuestItem {
   });
 
   double get progressRatio => (currentProgress / maxProgress).clamp(0.0, 1.0);
+
+  factory QuestItem.fromJson(Map<String, dynamic> json) {
+    return QuestItem(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      badgeAsset: json['badgeAsset'] as String? ?? 'assets/badges/first_step_badge.webp',
+      category: json['category'] as String? ?? 'Milestone',
+      currentProgress: (json['currentProgress'] as num?)?.toInt() ?? 0,
+      maxProgress: (json['maxProgress'] as num?)?.toInt() ?? 1,
+      isUnlocked: json['isUnlocked'] == true,
+      rewardPoints: json['rewardPoints'] as String? ?? '+50 XP',
+    );
+  }
 }
 
 class BadgesData {

@@ -300,13 +300,7 @@ CREATE TABLE IF NOT EXISTS badges (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS student_badges (
-    student_badge_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    badge_id UUID REFERENCES badges(badge_id) ON DELETE CASCADE,
-    earned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
+-- Note: Earned badges are stored directly as a JSONB array in student_progress (earned_badges JSONB)
 CREATE TABLE IF NOT EXISTS student_progress (
     progress_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
@@ -314,6 +308,7 @@ CREATE TABLE IF NOT EXISTS student_progress (
     current_streak INT DEFAULT 0,
     longest_streak INT DEFAULT 0,
     last_activity_date DATE,
+    earned_badges JSONB DEFAULT '[]'::jsonb,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -480,6 +475,7 @@ CREATE TABLE IF NOT EXISTS vocabulary_attempts (
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     session_id VARCHAR(100),
     difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+    total_pairs INT DEFAULT 5,
     mistakes_count INT DEFAULT 0,
     score INT NOT NULL DEFAULT 100,
     xp_earned INT DEFAULT 0,

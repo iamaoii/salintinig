@@ -482,6 +482,7 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
                       materialId: widget.materialId,
                       bookTitle: widget.bookTitle,
                       questions: widget.quizQuestions,
+                      isDarkMode: _isDarkMode,
                     ),
                   ),
                 );

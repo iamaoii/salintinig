@@ -15,6 +15,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/badge_unlocked_modal.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
@@ -832,33 +833,16 @@ class _PronunciationChallengePageState
       final newStreakCount = await StreakService.getStreakCount();
 
       if (!wasCompletedBefore && mounted) {
-        StreakCelebrationModal.show(context, streakCount: newStreakCount);
+        await StreakCelebrationModal.show(context, streakCount: newStreakCount);
       }
 
       debugPrint('[PronunciationChallenge] Attempt response: success=${res.success}, data=${res.data}');
 
-      if (res.success && res.data != null && res.data['newBadgeUnlocked'] == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.stars_rounded, color: Color(0xFFFBBF24)),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Badge Unlocked: Sounds right! 🎙️',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF0F172A),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+      if (res.success && res.data != null && res.data['newlyUnlockedBadges'] is List && mounted) {
+        final badges = res.data['newlyUnlockedBadges'] as List;
+        if (badges.isNotEmpty) {
+          await BadgeUnlockedModal.showMultiple(context, badges);
+        }
       }
     } catch (e) {
       debugPrint('[PronunciationChallenge] Attempt submission error: $e');

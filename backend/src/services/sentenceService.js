@@ -7,6 +7,7 @@
  */
 
 const db = require('../config/db');
+const badgeService = require('./badgeService.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CURATED DEEP DEPED-ALIGNED SENTENCE REPOSITORY (Filipino & English)
@@ -278,78 +279,21 @@ async function logAttempt({
       }
     }
 
-    // 2. Badge Check: "Sentence builder"
-    // "Finish a sentence building activity without hitting retrying or hitting try again."
-    if (Number(mistakesCount) === 0) {
-      try {
-        const badgeRes = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%sentence builder%' 
-              OR criteria_type = 'sentence_first_try'
-           LIMIT 1`
-        );
+    const newlyUnlockedBadges = await badgeService.checkActivityBadges(resolvedStudentId, 'sentence', {
+      mistakesCount,
+    });
+    const newBadgeUnlocked = newlyUnlockedBadges.length > 0;
 
-        if (badgeRes.rows && badgeRes.rows.length > 0) {
-          const badgeId = badgeRes.rows[0].badge_id;
-          const insertBadge = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, badgeId]
-          );
-
-          if (insertBadge.rows && insertBadge.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      } catch (bErr) {
-        console.warn('[sentenceService.logAttempt] Badge check notice:', bErr.message);
-      }
-    }
-
-    // 3. Badge Check: "First step"
-    // "Complete your very first practice activity."
-    try {
-      const { rows: pCount } = await db.query('SELECT COUNT(*) as count FROM pronunciation_attempts WHERE student_id = $1', [resolvedStudentId]);
-      const { rows: vCount } = await db.query('SELECT COUNT(*) as count FROM vocabulary_attempts WHERE student_id = $1', [resolvedStudentId]);
-      const { rows: sCount } = await db.query('SELECT COUNT(*) as count FROM sentence_attempts WHERE student_id = $1', [resolvedStudentId]);
-
-      const totalActivities = (parseInt(pCount[0]?.count) || 0) + (parseInt(vCount[0]?.count) || 0) + (parseInt(sCount[0]?.count) || 0);
-
-      if (totalActivities <= 1) {
-        const fsBadgeRes = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%first step%' 
-              OR criteria_type = 'activity_count'
-           LIMIT 1`
-        );
-        if (fsBadgeRes.rows && fsBadgeRes.rows.length > 0) {
-          const fsInsert = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, fsBadgeRes.rows[0].badge_id]
-          );
-          if (fsInsert.rows && fsInsert.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      }
-    } catch (fsErr) {
-      console.warn('[sentenceService.logAttempt] First step badge notice:', fsErr.message);
-    }
+    return {
+      attemptId,
+      xpEarned,
+      newBadgeUnlocked,
+      newlyUnlockedBadges,
+    };
   } catch (err) {
     console.error('[sentenceService.logAttempt] Error:', err.message);
     throw err;
   }
-
-  return {
-    attemptId,
-    xpEarned,
-    newBadgeUnlocked,
-  };
 }
 
 module.exports = {

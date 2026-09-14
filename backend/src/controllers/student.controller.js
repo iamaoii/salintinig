@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-
+const badgeService = require('../services/badgeService.js');
 
 function generateParentAccessCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Upper case alphanumeric excluding confusing 0/O, 1/I
@@ -1702,15 +1702,16 @@ async function completeStoryProgress(req, res) {
             // 3. Fire & forget hybrid streak update for active student
             updateStudentStreakInDb(resolvedStudentId).catch(() => {});
 
-            // 4. Auto-grant Bookworm badge
-            try {
-              await db.query(
-                `INSERT INTO student_badges (student_id, badge_id, awarded_at)
-                 SELECT $1, badge_id, CURRENT_TIMESTAMP FROM badges WHERE name ILIKE '%Bookworm%' OR code = 'BADGE_BOOKWORM'
-                 ON CONFLICT DO NOTHING`,
-                [resolvedStudentId]
-              );
-            } catch (bErr) {}
+            // 4. Check reading badges (Night owl, The best of both worlds!, First step)
+            const newlyUnlockedBadges = await badgeService.checkReadingBadges(resolvedStudentId, {
+              isDarkMode: req.body?.isDarkMode === true,
+            });
+
+            return res.json({
+              success: true,
+              message: 'Story progress completed & recorded.',
+              newlyUnlockedBadges,
+            });
           }
         }
       } catch (dbErr) {
@@ -1718,7 +1719,7 @@ async function completeStoryProgress(req, res) {
       }
     }
 
-    return res.json({ success: true, message: 'Story progress completed & recorded.' });
+    return res.json({ success: true, message: 'Story progress completed & recorded.', newlyUnlockedBadges: [] });
   } catch (error) {
     console.error('Error completing story progress:', error);
     return res.status(500).json({ success: false, error: 'Failed to record story progress.' });
@@ -3768,6 +3769,9 @@ async function updateStudentStreakInDb(studentId) {
         [newStreak, newLongest, todayStr, realStudentId]
       );
 
+      // Evaluate streak badges ("6? 7!", "10 Streak Master!", "20 Streak Master!")
+      badgeService.checkStreakBadges(realStudentId, newStreak).catch(() => {});
+
       return {
         currentStreak: newStreak,
         longestStreak: newLongest,
@@ -3857,6 +3861,36 @@ async function getStudentStreak(req, res) {
   }
 }
 
+/**
+ * GET /api/student/badges
+ * Returns all badges with student unlock status and current progress.
+ */
+async function getStudentBadges(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
+    if (!studentId && req.user?.lrn) {
+      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    } else if (studentId) {
+      const sRes = await db.query(
+        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+        [String(studentId).trim()]
+      );
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    }
+
+    if (!studentId) {
+      return res.status(404).json({ success: false, message: 'Student record not found' });
+    }
+
+    const badges = await badgeService.getStudentBadgesProgress(studentId);
+    return res.json({ success: true, data: badges });
+  } catch (err) {
+    console.error('[getStudentBadges] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Failed to fetch badges' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3891,6 +3925,7 @@ module.exports = {
   startStoryProgress,
   getPracticeRemedialQuestion,
   getStudentStreak,
+  getStudentBadges,
   updateStudentStreakInDb,
 };
 

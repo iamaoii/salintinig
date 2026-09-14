@@ -9,11 +9,12 @@ import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/bookshelf_page.dart';
-import 'package:salintinig/pages/student/library/side_quests_page.dart';
+import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/services/badge_service.dart';
 import 'package:salintinig/models/quest_item.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 
@@ -41,6 +42,8 @@ class _LibraryPageState extends State<LibraryPage> {
       _inProgressBooks = LibraryService.filterInProgress(cached);
     }
     LibraryService.progressNotifier.addListener(_onProgressNotifierChanged);
+    BadgeService.badgeNotifier.addListener(_onBadgesUpdated);
+    BadgeService.fetchBadges();
     _loadData();
   }
 
@@ -51,9 +54,14 @@ class _LibraryPageState extends State<LibraryPage> {
     });
   }
 
+  void _onBadgesUpdated() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     LibraryService.progressNotifier.removeListener(_onProgressNotifierChanged);
+    BadgeService.badgeNotifier.removeListener(_onBadgesUpdated);
     super.dispose();
   }
 
@@ -262,7 +270,7 @@ class _LibraryPageState extends State<LibraryPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const SideQuestsPage(),
+                                    builder: (context) => const BadgesPage(),
                                   ),
                                 );
                               },
@@ -725,8 +733,64 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildSideQuestsList() {
-    final allQuests = BadgesData.allQuests;
-    final previewQuests = List<QuestItem>.from(allQuests)
+    final cached = BadgeService.cachedBadges;
+    if (cached.isEmpty) {
+      return Column(
+        children: List.generate(
+          3,
+          (index) => Container(
+            margin: const EdgeInsets.only(bottom: 10.0),
+            height: 88,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            padding: const EdgeInsets.all(14.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final previewQuests = List<QuestItem>.from(cached)
       ..sort((a, b) {
         if (a.isUnlocked != b.isUnlocked) {
           return a.isUnlocked ? 1 : -1;

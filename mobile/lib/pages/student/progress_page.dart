@@ -22,6 +22,7 @@ import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/services/badge_service.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
 class ProgressPage extends StatefulWidget {
@@ -65,6 +66,7 @@ class _ProgressPageState extends State<ProgressPage>
     );
 
     StreakService.streakNotifier.addListener(_onStreakChanged);
+    BadgeService.badgeNotifier.addListener(_onStreakChanged);
     _fetchLiveProgressData();
   }
 
@@ -72,6 +74,7 @@ class _ProgressPageState extends State<ProgressPage>
   void dispose() {
     _glowController.dispose();
     StreakService.streakNotifier.removeListener(_onStreakChanged);
+    BadgeService.badgeNotifier.removeListener(_onStreakChanged);
     super.dispose();
   }
 
@@ -103,6 +106,7 @@ class _ProgressPageState extends State<ProgressPage>
 
       // 2. Perform backend sync in background to update server state
       await StreakService.syncStreakWithBackend();
+      await BadgeService.fetchBadges();
       final storyProgress = await LibraryService.fetchReadingProgress();
       final streak = await StreakService.getStreakCount();
       final tracker = await StreakService.getWeeklyTracker();
@@ -494,6 +498,67 @@ class _ProgressPageState extends State<ProgressPage>
 
   // ── Badges Widget ──
   Widget _buildBadgesCard() {
+    final cached = BadgeService.cachedBadges;
+    if (cached.isEmpty) {
+      return _buildSkeletonBadgesCard();
+    }
+
+    final badges = cached.take(4).toList();
+
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const BadgesPage()),
+        ).then((_) => _fetchLiveProgressData());
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFE2E8F0),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(20.0),
+        child: Row(
+          children: badges.map((badge) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: ColorFiltered(
+                  colorFilter: badge.isUnlocked
+                      ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
+                      : const ColorFilter.matrix([
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0,      0,      0,      0.4, 0,
+                        ]),
+                  child: Image.asset(
+                    badge.badgeAsset,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonBadgesCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       decoration: BoxDecoration(
@@ -503,25 +568,24 @@ class _ProgressPageState extends State<ProgressPage>
           color: const Color(0xFFE2E8F0),
           width: 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       padding: const EdgeInsets.all(20.0),
       child: Row(
-        children: [
-          Expanded(child: _buildBadgeCard('First step', 'assets/badges/first_step_badge.webp')),
-          const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('I\'m a star!', 'assets/badges/im_a_star_badge.webp')),
-          const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('Sounds right!', 'assets/badges/sounds_right_badge.webp')),
-          const SizedBox(width: 8),
-          Expanded(child: _buildBadgeCard('Sentence builder', 'assets/badges/sentence_builder_badge.webp')),
-        ],
+        children: List.generate(4, (index) {
+          return Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const AspectRatio(
+                aspectRatio: 80 / 108,
+                child: SizedBox(),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -601,28 +665,6 @@ class _ProgressPageState extends State<ProgressPage>
           child: circleChild,
         ),
       ],
-    );
-  }
-
-  Widget _buildBadgeCard(String label, String imageAsset) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFD1D5DB), // gray-300
-          width: 1.0,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: AspectRatio(
-          aspectRatio: 80 / 108,
-          child: Image.asset(
-            imageAsset,
-            fit: BoxFit.fill,
-          ),
-        ),
-      ),
     );
   }
 
