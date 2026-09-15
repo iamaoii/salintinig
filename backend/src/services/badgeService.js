@@ -35,9 +35,63 @@ initBadgeColumn();
 /**
  * Helper to safely insert earned badge record into student_progress.earned_badges JSONB array.
  */
-async function awardBadge(studentId, badgeNamePattern) {
-  if (!studentId) return null;
+async function awardBadge(rawStudentId, badgeNamePattern) {
+  if (!rawStudentId) return null;
   try {
+    const sRes = await db.query(
+      `SELECT student_id, user_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+      [String(rawStudentId).trim()]
+    );
+    const studentId = sRes.rows?.[0]?.student_id || rawStudentId;
+    const userId = sRes.rows?.[0]?.user_id;
+
+    // Deduplicate student_progress rows if both student_id and user_id exist as separate rows
+    if (userId && userId !== studentId) {
+      try {
+        const dupCheck = await db.query(
+          `SELECT progress_id, earned_badges, current_streak, longest_streak, last_activity_date 
+           FROM student_progress 
+           WHERE student_id::text = $1 OR student_id::text = $2`,
+          [studentId, userId]
+        );
+        if (dupCheck.rows.length > 1) {
+          let mergedBadges = [];
+          let maxStreak = 0;
+          let maxLongest = 0;
+          let latestActivityDate = null;
+
+          dupCheck.rows.forEach((r) => {
+            if (r.earned_badges) {
+              const arr = Array.isArray(r.earned_badges)
+                ? r.earned_badges
+                : typeof r.earned_badges === 'string'
+                ? JSON.parse(r.earned_badges)
+                : [];
+              arr.forEach((b) => {
+                if (!mergedBadges.some((mb) => (mb.id || mb.badge_id) === (b.id || b.badge_id))) {
+                  mergedBadges.push(b);
+                }
+              });
+            }
+            if ((r.current_streak || 0) > maxStreak) maxStreak = r.current_streak;
+            if ((r.longest_streak || 0) > maxLongest) maxLongest = r.longest_streak;
+            if (r.last_activity_date) {
+              if (!latestActivityDate || new Date(r.last_activity_date) > new Date(latestActivityDate)) {
+                latestActivityDate = r.last_activity_date;
+              }
+            }
+          });
+
+          await db.query(`DELETE FROM student_progress WHERE student_id::text = $1 OR student_id::text = $2`, [studentId, userId]);
+          await db.query(
+            `INSERT INTO student_progress (student_id, earned_badges, current_streak, longest_streak, last_activity_date)
+             VALUES ($1, $2::jsonb, $3, $4, $5)`,
+            [studentId, JSON.stringify(mergedBadges), maxStreak, maxLongest, latestActivityDate]
+          );
+        }
+      } catch (_) {}
+    }
+
     const bRes = await db.query(
       `SELECT badge_id, badge_name, description, icon_path 
        FROM badges 
@@ -104,12 +158,27 @@ async function awardBadge(studentId, badgeNamePattern) {
   return null;
 }
 
+async function resolveCanonicalStudentId(rawId) {
+  if (!rawId) return null;
+  try {
+    const sRes = await db.query(
+      `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+      [String(rawId).trim()]
+    );
+    if (sRes.rows?.[0]?.student_id) {
+      return sRes.rows[0].student_id;
+    }
+  } catch (_) {}
+  return rawId;
+}
+
 /**
  * Evaluates streak-based badges ("6? 7!", "10 Streak Master!", "20 Streak Master!")
  */
-async function checkStreakBadges(studentId, streakCount) {
+async function checkStreakBadges(rawStudentId, streakCount) {
   const newlyUnlocked = [];
-  if (!studentId || streakCount <= 0) return newlyUnlocked;
+  if (!rawStudentId || streakCount <= 0) return newlyUnlocked;
+  const studentId = await resolveCanonicalStudentId(rawStudentId);
 
   if (streakCount >= 7) {
     const b = await awardBadge(studentId, '6? 7!');
@@ -130,9 +199,10 @@ async function checkStreakBadges(studentId, streakCount) {
 /**
  * Evaluates practice activity badges (First step, I'm a star!, Sounds right!, Sentence builder, Triple Crowned)
  */
-async function checkActivityBadges(studentId, activityType, resultData = {}) {
+async function checkActivityBadges(rawStudentId, activityType, resultData = {}) {
   const newlyUnlocked = [];
-  if (!studentId) return newlyUnlocked;
+  if (!rawStudentId) return newlyUnlocked;
+  const studentId = await resolveCanonicalStudentId(rawStudentId);
 
   try {
     // 1. "First step": Complete your very first practice activity
@@ -186,9 +256,10 @@ async function checkActivityBadges(studentId, activityType, resultData = {}) {
 /**
  * Evaluates reading badges (Night owl, The best of both worlds!, First step)
  */
-async function checkReadingBadges(studentId, options = {}) {
+async function checkReadingBadges(rawStudentId, options = {}) {
   const newlyUnlocked = [];
-  if (!studentId) return newlyUnlocked;
+  if (!rawStudentId) return newlyUnlocked;
+  const studentId = await resolveCanonicalStudentId(rawStudentId);
 
   try {
     // 1. "First step": Complete your very first activity
@@ -228,8 +299,9 @@ async function checkReadingBadges(studentId, options = {}) {
 /**
  * Returns all 10 badges with dynamic progress and unlock status for a student.
  */
-async function getStudentBadgesProgress(studentId) {
+async function getStudentBadgesProgress(rawStudentId) {
   try {
+    const studentId = await resolveCanonicalStudentId(rawStudentId);
     const { rows: allBadges } = await db.query(
       `SELECT badge_id, badge_name, description, icon_path, criteria_type, criteria_value 
        FROM badges 
@@ -348,13 +420,9 @@ async function getStudentBadgesProgress(studentId) {
           currentProgress = isUnlocked ? 3 : todayTripleCount;
         }
 
-        // Auto-heal / Auto-award if criteria met (e.g. currentProgress >= maxProgress)
+        // Calculate progress without auto-awarding in GET endpoint
         if (!isUnlocked && currentProgress >= maxProgress) {
-          const awarded = await awardBadge(studentId, b.badge_name);
-          if (awarded) {
-            isUnlocked = true;
-            earnedAt = awarded.earnedAt || new Date().toISOString();
-          }
+          // Progress is complete, will be awarded when student completes activity/action
         }
 
         return {

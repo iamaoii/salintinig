@@ -3017,6 +3017,7 @@ async function submitPronunciationAttempt(req, res) {
       attemptId: attempt.attemptId,
       xpEarned: attempt.xpEarned,
       newBadgeUnlocked: attempt.newBadgeUnlocked || false,
+      newlyUnlockedBadges: attempt.newlyUnlockedBadges || [],
     });
   } catch (err) {
     console.error('[submitPronunciationAttempt]', err.message);
@@ -3277,6 +3278,7 @@ async function submitVocabularyAttempt(req, res) {
       attemptId: result.attemptId,
       xpEarned: result.xpEarned,
       newBadgeUnlocked: result.newBadgeUnlocked,
+      newlyUnlockedBadges: result.newlyUnlockedBadges || [],
     });
   } catch (err) {
     console.error('[submitVocabularyAttempt] Error:', err.message);
@@ -3384,6 +3386,7 @@ async function submitSentenceAttempt(req, res) {
       attemptId: result.attemptId,
       xpEarned: result.xpEarned,
       newBadgeUnlocked: result.newBadgeUnlocked,
+      newlyUnlockedBadges: result.newlyUnlockedBadges || [],
     });
   } catch (err) {
     console.error('[submitSentenceAttempt] Error:', err.message);
@@ -3717,10 +3720,58 @@ async function updateStudentStreakInDb(studentId) {
   if (!studentId || !process.env.DATABASE_URL) return null;
   try {
     const sRes = await db.query(
-      `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+      `SELECT student_id, user_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
       [String(studentId).trim()]
     );
     const realStudentId = sRes.rows?.[0]?.student_id || studentId;
+    const userId = sRes.rows?.[0]?.user_id;
+
+    // Deduplicate student_progress rows if both student_id and user_id exist as separate rows
+    if (userId && userId !== realStudentId) {
+      try {
+        const dupCheck = await db.query(
+          `SELECT progress_id, earned_badges, current_streak, longest_streak, last_activity_date 
+           FROM student_progress 
+           WHERE student_id::text = $1 OR student_id::text = $2`,
+          [realStudentId, userId]
+        );
+        if (dupCheck.rows.length > 1) {
+          let mergedBadges = [];
+          let maxStreak = 0;
+          let maxLongest = 0;
+          let latestActivityDate = null;
+
+          dupCheck.rows.forEach((r) => {
+            if (r.earned_badges) {
+              const arr = Array.isArray(r.earned_badges)
+                ? r.earned_badges
+                : typeof r.earned_badges === 'string'
+                ? JSON.parse(r.earned_badges)
+                : [];
+              arr.forEach((b) => {
+                if (!mergedBadges.some((mb) => (mb.id || mb.badge_id) === (b.id || b.badge_id))) {
+                  mergedBadges.push(b);
+                }
+              });
+            }
+            if ((r.current_streak || 0) > maxStreak) maxStreak = r.current_streak;
+            if ((r.longest_streak || 0) > maxLongest) maxLongest = r.longest_streak;
+            if (r.last_activity_date) {
+              if (!latestActivityDate || new Date(r.last_activity_date) > new Date(latestActivityDate)) {
+                latestActivityDate = r.last_activity_date;
+              }
+            }
+          });
+
+          await db.query(`DELETE FROM student_progress WHERE student_id::text = $1 OR student_id::text = $2`, [realStudentId, userId]);
+          await db.query(
+            `INSERT INTO student_progress (student_id, earned_badges, current_streak, longest_streak, last_activity_date)
+             VALUES ($1, $2::jsonb, $3, $4, $5)`,
+            [realStudentId, JSON.stringify(mergedBadges), maxStreak, maxLongest, latestActivityDate]
+          );
+        }
+      } catch (_) {}
+    }
 
     const pRes = await db.query(
       `SELECT progress_id, current_streak, longest_streak, last_activity_date 
