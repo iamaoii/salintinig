@@ -420,10 +420,7 @@ async function getStudentBadgesProgress(rawStudentId) {
           currentProgress = isUnlocked ? 3 : todayTripleCount;
         }
 
-        // Calculate progress without auto-awarding in GET endpoint
-        if (!isUnlocked && currentProgress >= maxProgress) {
-          // Progress is complete, will be awarded when student completes activity/action
-        }
+
 
         return {
           id: b.badge_id,

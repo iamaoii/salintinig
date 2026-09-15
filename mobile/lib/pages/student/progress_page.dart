@@ -14,6 +14,7 @@ import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_re
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
@@ -65,8 +66,15 @@ class _ProgressPageState extends State<ProgressPage>
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
+    // 0ms instant render from in-memory caches
+    if (LibraryService.cachedProgress != null) {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+    }
+
     StreakService.streakNotifier.addListener(_onStreakChanged);
     BadgeService.badgeNotifier.addListener(_onStreakChanged);
+    LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
+
     _fetchLiveProgressData();
   }
 
@@ -75,11 +83,19 @@ class _ProgressPageState extends State<ProgressPage>
     _glowController.dispose();
     StreakService.streakNotifier.removeListener(_onStreakChanged);
     BadgeService.badgeNotifier.removeListener(_onStreakChanged);
+    LibraryService.progressNotifier.removeListener(_onLibraryProgressChanged);
     super.dispose();
   }
 
   void _onStreakChanged() {
     _fetchLiveProgressData();
+  }
+
+  void _onLibraryProgressChanged() {
+    if (!mounted) return;
+    setState(() {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.progressNotifier.value);
+    });
   }
 
   List<Map<String, dynamic>> _inProgressBooks = [];
@@ -101,47 +117,63 @@ class _ProgressPageState extends State<ProgressPage>
 
   Future<void> _fetchLiveProgressData() async {
     try {
-      // 1. Instant load from local device storage (0-delay initial render)
-      await _loadLocalStreakInstantly();
-
-      // 2. Perform backend sync in background to update server state
-      await StreakService.syncStreakWithBackend();
-      await BadgeService.fetchBadges();
-      final storyProgress = await LibraryService.fetchReadingProgress();
-      final streak = await StreakService.getStreakCount();
-      final tracker = await StreakService.getWeeklyTracker();
-      final practicedToday = await StreakService.hasCompletedToday();
-      if (mounted) {
+      // 1. Instant 0-delay render from cached memory
+      if (LibraryService.cachedProgress != null && mounted) {
         setState(() {
-          _inProgressBooks = storyProgress;
-          _streakCount = streak;
-          _hasPracticedToday = practicedToday;
-          _weeklyTrackerDays = tracker;
+          _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
         });
       }
-      final res = await ApiService.get('/students/assessment/my-assignment');
-      if (res.success && res.data != null) {
-        final attempts = res.data['attemptsStatus'];
-        final rpData = res.data['readingProfiles'];
-        if (mounted) {
-          setState(() {
-            if (rpData is Map<String, dynamic>) {
-              _readingProfiles = rpData;
-            }
-            if (attempts != null && attempts is Map) {
-              if (attempts['listening'] == true) _isListeningDone = true;
-              if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
-                _isOralReadingDone = true;
-                _isOralReadingPendingReview = false;
-              } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
-                _isOralReadingDone = false;
-                _isOralReadingPendingReview = true;
+      await _loadLocalStreakInstantly();
+
+      // 2. Non-blocking parallel background sync
+      Future.microtask(() async {
+        try {
+          await Future.wait([
+            LibraryService.fetchReadingProgress(),
+            StreakService.syncStreakWithBackend(),
+            BadgeService.fetchBadges(),
+          ]);
+
+          final streak = await StreakService.getStreakCount();
+          final tracker = await StreakService.getWeeklyTracker();
+          final practicedToday = await StreakService.hasCompletedToday();
+
+          if (mounted) {
+            setState(() {
+              if (LibraryService.cachedProgress != null) {
+                _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
               }
-              if (attempts['silent'] == true) _isSilentReadingDone = true;
-            }
-          });
+              _streakCount = streak;
+              _hasPracticedToday = practicedToday;
+              _weeklyTrackerDays = tracker;
+            });
+          }
+
+          final res = await ApiService.get('/students/assessment/my-assignment');
+          if (res.success && res.data != null && mounted) {
+            final attempts = res.data['attemptsStatus'];
+            final rpData = res.data['readingProfiles'];
+            setState(() {
+              if (rpData is Map<String, dynamic>) {
+                _readingProfiles = rpData;
+              }
+              if (attempts != null && attempts is Map) {
+                if (attempts['listening'] == true) _isListeningDone = true;
+                if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
+                  _isOralReadingDone = true;
+                  _isOralReadingPendingReview = false;
+                } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
+                  _isOralReadingDone = false;
+                  _isOralReadingPendingReview = true;
+                }
+                if (attempts['silent'] == true) _isSilentReadingDone = true;
+              }
+            });
+          }
+        } catch (e) {
+          debugPrint('[ProgressPage] bg sync error: $e');
         }
-      }
+      });
     } catch (e) {
       debugPrint('[ProgressPage] fetch progress error: $e');
     }
@@ -315,7 +347,9 @@ class _ProgressPageState extends State<ProgressPage>
                                       MaterialPageRoute(
                                         builder: (context) => const ContinueReadingPage(),
                                       ),
-                                    );
+                                    ).then((_) {
+                                      if (mounted) _fetchLiveProgressData();
+                                    });
                                   },
                                   child: Text(
                                     'See all',
@@ -328,7 +362,7 @@ class _ProgressPageState extends State<ProgressPage>
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              _buildContinueReadingRow(),
+                              _buildContinueReadingCard(),
                               const SizedBox(height: 28),
 
                               // ── Section: Analytics ──
@@ -964,63 +998,238 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-  // ── Continue Reading Row ──
-  Widget _buildContinueReadingRow() {
+  // ── Continue Reading Card (Matching Library Page) ──
+  Widget _buildContinueReadingCard() {
     final continueReadingBooks = LibraryService.filterInProgress(_inProgressBooks);
 
+    const cardBg = Colors.white;
+    const tagBg = Color(0xFFEFF6FF);
+    const tagTextColor = Color(0xFF2563EB);
+    const primaryBlue = Color(0xFF1B64D8);
+
+    // No in-progress books
     if (continueReadingBooks.isEmpty) {
       return Container(
-        height: 100,
-        alignment: Alignment.center,
-        child: Text(
-          'No books in progress yet.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: const Color(0xFF94A3B8),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'No books in progress yet.\nHead to the Bookshelf to start reading!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFF94A3B8),
+              height: 1.5,
+            ),
           ),
         ),
       );
     }
 
-    return SizedBox(
-      height: 230,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        clipBehavior: Clip.none,
-        itemCount: continueReadingBooks.length,
-        itemBuilder: (context, index) {
-          final book = continueReadingBooks[index];
-          return Container(
-            width: 135,
-            margin: EdgeInsets.only(
-              right: index == continueReadingBooks.length - 1 ? 0.0 : 16.0,
+    // Show the first in-progress book
+    final book = continueReadingBooks.first;
+    final bookTitle = book['title'] as String? ?? '';
+    final bookAuthor = book['author'] as String? ?? 'Juan dela Cruz';
+    final rawLang = book['language'] as String? ?? 'en';
+    final description = book['description'] as String? ?? '';
+    final progressVal = LibraryService.parseDouble(book['progress']);
+    final langLabel = LibraryService.languageLabel(rawLang);
+    final progressPct = '${(progressVal * 100).toInt()}%';
+
+    return GestureDetector(
+      onTap: () async {
+        Feedback.forTap(context);
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StoryPreviewPage(
+              bookTitle: bookTitle,
+              book: book,
             ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: StyledBookCover(
-                    book: {
-                      'title': (book['title'] ?? '').toString(),
-                      'author': (book['author'] ?? '').toString(),
-                    },
-                    index: index,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: LibraryService.parseDouble(book['progress']),
-                    backgroundColor: const Color(0xFFE4E2DC),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1B64D8)),
-                    minHeight: 6,
-                  ),
-                ),
-              ],
+          ),
+        );
+        if (mounted) _fetchLiveProgressData();
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-          );
-        },
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Left Column: Book Cover
+            SizedBox(
+              width: 110,
+              height: 160,
+              child: StyledBookCover(
+                book: {
+                  'title': bookTitle,
+                  'author': bookAuthor,
+                },
+                index: 0,
+                enableTap: false,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Right Column: Info & Action Controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Language Tag Row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      langLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Story Title
+                  Text(
+                    bookTitle,
+                    maxLines: 2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Description
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.clip,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
+                        height: 1.35,
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Reading Progress
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progress',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      Text(
+                        progressPct,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: LinearProgressIndicator(
+                      value: progressVal,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Continue Reading Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Feedback.forTap(context);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StoryPreviewPage(
+                              bookTitle: bookTitle,
+                              book: book,
+                            ),
+                          ),
+                        );
+                        if (mounted) _fetchLiveProgressData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Continue Reading',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

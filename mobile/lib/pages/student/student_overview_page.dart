@@ -1539,7 +1539,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     final book = _inProgressBooks.first;
     final bookTitle = (book['title'] as String?) ?? '';
     final rawLang = (book['language'] as String?) ?? 'en';
-    final category = (book['category'] as String?) ?? 'Short Story';
     final description = (book['description'] as String?) ?? '';
     final progressVal = LibraryService.parseDouble(book['progress']);
     final langLabel = LibraryService.languageLabel(rawLang);
@@ -1597,41 +1596,21 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Category & Language Tags Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: tagBg,
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Text(
-                          langLabel,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: tagTextColor,
-                          ),
-                        ),
+                  // Language Tag Row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      langLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Text(
-                          category,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFD97706),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 6),
 
