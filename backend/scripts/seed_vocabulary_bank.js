@@ -1301,4 +1301,8 @@ async function seedVocabularyBank() {
   }
 }
 
-seedVocabularyBank();
+if (require.main === module) {
+  seedVocabularyBank();
+}
+
+module.exports = { vocabularyBankData, seedVocabularyBank };

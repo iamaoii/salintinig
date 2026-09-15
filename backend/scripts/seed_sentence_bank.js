@@ -243,4 +243,9 @@ async function seedSentenceBank() {
   }
 }
 
-seedSentenceBank();
+if (require.main === module) {
+  seedSentenceBank();
+}
+
+module.exports = { sentenceBankData, seedSentenceBank };
+
