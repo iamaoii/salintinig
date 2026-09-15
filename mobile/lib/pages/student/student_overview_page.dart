@@ -292,6 +292,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        drawerEnableOpenDragGesture: true,
+        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
         backgroundColor: softCreamBg,
         drawer: StudentSidebarDrawer(
           currentIndex: 0, // Since this is the home/overview page

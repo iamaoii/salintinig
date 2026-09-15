@@ -60,6 +60,14 @@ class StreakService {
         await prefs.setStringList(_keyWeeklyCompletedDates, weekly);
       }
 
+      int currentStreak = prefs.getInt(_keyCachedStreak) ?? 0;
+      if (currentStreak == 0) {
+        currentStreak = 1;
+        await prefs.setInt(_keyCachedStreak, 1);
+      }
+
+      streakNotifier.value++;
+
       // Trigger backend sync to get authoritative server streak
       await syncStreakWithBackend();
 
@@ -93,18 +101,21 @@ class StreakService {
         final todayStr = serverToday ?? _formatDate(DateTime.now());
 
         final int oldStreak = prefs.getInt(_keyCachedStreak) ?? 0;
-        final bool oldCompletedToday = (prefs.getString(_keyCompletedDate) == todayStr ||
-                                         prefs.getString(_keyCachedLastDate) == todayStr);
+        final bool localHasCompletedToday = (prefs.getString(_keyCompletedDate) == todayStr ||
+                                             prefs.getString(_keyCachedLastDate) == todayStr);
 
-        await prefs.setInt(_keyCachedStreak, serverStreak);
+        int finalStreak = serverStreak;
+        if (finalStreak == 0 && localHasCompletedToday) {
+          finalStreak = (oldStreak > 0 ? oldStreak : 1);
+        }
+
+        await prefs.setInt(_keyCachedStreak, finalStreak);
 
         if (serverLastDate != null) {
           await prefs.setString(_keyCachedLastDate, serverLastDate);
-        } else {
-          await prefs.remove(_keyCachedLastDate);
         }
 
-        if (serverCompletedToday || serverLastDate == todayStr) {
+        if (serverCompletedToday || serverLastDate == todayStr || localHasCompletedToday) {
           await prefs.setString(_keyCompletedDate, todayStr);
           // Also ensure todayStr is in weekly completed dates
           final List<String> weekly = prefs.getStringList(_keyWeeklyCompletedDates) ?? [];
@@ -116,7 +127,7 @@ class StreakService {
           await prefs.remove(_keyCompletedDate);
         }
 
-        if (serverStreak == 0) {
+        if (finalStreak == 0 && !localHasCompletedToday) {
           await prefs.remove(_keyCompletedDate);
           await prefs.remove(_keyCachedLastDate);
           await prefs.remove(_keyWeeklyCompletedDates);
@@ -124,13 +135,13 @@ class StreakService {
 
         final bool newCompletedToday = (prefs.getString(_keyCompletedDate) == todayStr ||
                                         prefs.getString(_keyCachedLastDate) == todayStr) &&
-                                       serverStreak > 0;
+                                       finalStreak > 0;
 
         // Re-cache weekly tracker
         await getWeeklyTracker();
 
         // Only notify UI if streak count or completion state actually changed
-        if (oldStreak != serverStreak || oldCompletedToday != newCompletedToday) {
+        if (oldStreak != finalStreak || !newCompletedToday) {
           streakNotifier.value++;
         }
       }

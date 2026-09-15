@@ -1699,8 +1699,8 @@ async function completeStoryProgress(req, res) {
               [resolvedStudentId, materialId, finalScore, finalTotal]
             );
 
-            // 3. Fire & forget hybrid streak update for active student
-            updateStudentStreakInDb(resolvedStudentId).catch(() => {});
+            // 3. Update student streak synchronously for active student
+            await updateStudentStreakInDb(resolvedStudentId).catch(() => {});
 
             // 4. Check reading badges (Night owl, The best of both worlds!, First step)
             const newlyUnlockedBadges = await badgeService.checkReadingBadges(resolvedStudentId, {
@@ -3009,8 +3009,8 @@ async function submitPronunciationAttempt(req, res) {
       itemsDetail,
     });
 
-    // Fire & forget hybrid streak update for active student
-    updateStudentStreakInDb(studentId).catch(() => {});
+    // Synchronous streak update for active student
+    await updateStudentStreakInDb(studentId).catch(() => {});
 
     return res.json({
       success: true,
@@ -3270,8 +3270,8 @@ async function submitVocabularyAttempt(req, res) {
       itemsDetail,
     });
 
-    // Fire & forget hybrid streak update for active student
-    updateStudentStreakInDb(studentId).catch(() => {});
+    // Synchronous streak update for active student
+    await updateStudentStreakInDb(studentId).catch(() => {});
 
     return res.json({
       success: true,
@@ -3378,8 +3378,8 @@ async function submitSentenceAttempt(req, res) {
       itemsDetail,
     });
 
-    // Fire & forget hybrid streak update for active student
-    updateStudentStreakInDb(studentId).catch(() => {});
+    // Synchronous streak update for active student
+    await updateStudentStreakInDb(studentId).catch(() => {});
 
     return res.json({
       success: true,
