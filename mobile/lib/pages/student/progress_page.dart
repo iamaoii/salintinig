@@ -24,6 +24,7 @@ import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
 import 'package:salintinig/services/badge_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
 class ProgressPage extends StatefulWidget {
@@ -40,14 +41,50 @@ class _ProgressPageState extends State<ProgressPage>
   bool _isOralReadingDone = false;
   bool _isOralReadingPendingReview = false;
   bool _isSilentReadingDone = false;
-  Map<String, dynamic>? _readingProfiles;
   String _selectedPhilIriLang = 'fil'; // 'fil' or 'en'
+  String _selectedPhilIriPeriod = 'pre'; // 'pre' or 'post'
   int _streakCount = 0;
   bool _hasPracticedToday = false;
+  bool _isLoadingPhilIri = false;
+  List<Map<String, dynamic>> _assignedActivities = [];
   List<Map<String, String>> _weeklyTrackerDays = [];
+
+  Map<String, dynamic>? _getAssignedItem(String type) {
+    if (_assignedActivities.isEmpty) return null;
+    final normalizedTargetType = type.toLowerCase().trim();
+    final targetPeriod = _selectedPhilIriPeriod.toLowerCase().trim();
+
+    for (final act in _assignedActivities) {
+      final actType = (act['assessmentType'] ?? act['type'] ?? '').toString().toLowerCase().trim();
+      final actLang = (act['rawLanguage'] ?? act['language'] ?? 'fil').toString().toLowerCase().trim();
+      final actStage = (act['stage'] ?? act['testType'] ?? act['period'] ?? '').toString().toLowerCase().trim();
+      final selLang = _selectedPhilIriLang.toLowerCase().trim();
+      
+      bool langMatches = actLang == selLang || 
+          (selLang == 'fil' && (actLang == 'fil' || actLang == 'filipino')) ||
+          (selLang == 'en' && (actLang == 'en' || actLang == 'english'));
+
+      // Check if period matches:
+      // If target is 'post', actStage MUST explicitly indicate 'post'
+      // If target is 'pre', actStage MUST indicate 'pre' or default if stage is unlabelled
+      bool periodMatches = false;
+      if (targetPeriod == 'post') {
+        periodMatches = actStage.contains('post');
+      } else {
+        periodMatches = actStage.contains('pre') || (!actStage.contains('post'));
+      }
+
+      if (actType == normalizedTargetType && langMatches && periodMatches) {
+        return act;
+      }
+    }
+
+    return null;
+  }
 
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
+  static List<Map<String, dynamic>>? _cachedProgressAssignedActivities;
 
   @override
   void initState() {
@@ -56,6 +93,11 @@ class _ProgressPageState extends State<ProgressPage>
     _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
     _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+
+    if (_cachedProgressAssignedActivities != null) {
+      _assignedActivities = List<Map<String, dynamic>>.from(_cachedProgressAssignedActivities!);
+      _isLoadingPhilIri = false;
+    }
 
     _glowController = AnimationController(
       vsync: this,
@@ -75,11 +117,54 @@ class _ProgressPageState extends State<ProgressPage>
     BadgeService.badgeNotifier.addListener(_onStreakChanged);
     LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
 
+    _setupRealtimeSubscription();
     _fetchLiveProgressData();
+  }
+
+  dynamic _realtimeSubscription;
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeSubscription = client
+          .channel('public:progress_page_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_assignments',
+            callback: (payload) {
+              _fetchLiveProgressData();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assigned_activities',
+            callback: (payload) {
+              _fetchLiveProgressData();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assessments',
+            callback: (payload) {
+              _fetchLiveProgressData();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('[ProgressPage] Realtime subscription notice: $e');
+    }
   }
 
   @override
   void dispose() {
+    if (_realtimeSubscription != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeSubscription);
+      } catch (_) {}
+    }
     _glowController.dispose();
     StreakService.streakNotifier.removeListener(_onStreakChanged);
     BadgeService.badgeNotifier.removeListener(_onStreakChanged);
@@ -149,29 +234,55 @@ class _ProgressPageState extends State<ProgressPage>
             });
           }
 
+          if (_assignedActivities.isEmpty) {
+            setState(() {
+              _isLoadingPhilIri = true;
+            });
+          }
           final res = await ApiService.get('/students/assessment/my-assignment');
           if (res.success && res.data != null && mounted) {
             final attempts = res.data['attemptsStatus'];
-            final rpData = res.data['readingProfiles'];
+            final activitiesList = res.data['assignedActivities'];
             setState(() {
-              if (rpData is Map<String, dynamic>) {
-                _readingProfiles = rpData;
+              _isLoadingPhilIri = false;
+              if (activitiesList != null && activitiesList is List) {
+                _assignedActivities = List<Map<String, dynamic>>.from(activitiesList);
+                _cachedProgressAssignedActivities = List<Map<String, dynamic>>.from(_assignedActivities);
               }
               if (attempts != null && attempts is Map) {
-                if (attempts['listening'] == true) _isListeningDone = true;
-                if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
+                if (attempts['listening'] == true || PhilIriAssessmentPage.isListeningDone) {
+                  _isListeningDone = true;
+                  PhilIriAssessmentPage.isListeningDone = true;
+                }
+                if (attempts['oral'] == true || attempts['oral_status'] == 'completed' || PhilIriAssessmentPage.isOralReadingDone) {
                   _isOralReadingDone = true;
                   _isOralReadingPendingReview = false;
-                } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
+                  PhilIriAssessmentPage.isOralReadingDone = true;
+                  PhilIriAssessmentPage.isOralReadingPendingReview = false;
+                } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted' || PhilIriAssessmentPage.isOralReadingPendingReview) {
                   _isOralReadingDone = false;
                   _isOralReadingPendingReview = true;
+                  PhilIriAssessmentPage.isOralReadingPendingReview = true;
                 }
-                if (attempts['silent'] == true) _isSilentReadingDone = true;
+                if (attempts['silent'] == true || PhilIriAssessmentPage.isSilentReadingDone) {
+                  _isSilentReadingDone = true;
+                  PhilIriAssessmentPage.isSilentReadingDone = true;
+                }
               }
+            });
+          } else if (mounted) {
+            setState(() {
+              _isLoadingPhilIri = false;
             });
           }
         } catch (e) {
           debugPrint('[ProgressPage] bg sync error: $e');
+        } finally {
+          if (mounted && _isLoadingPhilIri) {
+            setState(() {
+              _isLoadingPhilIri = false;
+            });
+          }
         }
       });
     } catch (e) {
@@ -289,14 +400,7 @@ class _ProgressPageState extends State<ProgressPage>
                               _buildStreakCard(),
                               const SizedBox(height: 28),
 
-                              // ── Section: Phil-IRI Reading Profile Levels ──
-                              _buildSectionHeader(
-                                icon: PhIcons.examBold,
-                                title: 'Phil - IRI Reading Profile',
-                              ),
-                              const SizedBox(height: 12),
-                              _buildPhilIriModalityProfilesCard(),
-                              const SizedBox(height: 28),
+
 
                               // ── Section: Your Badges ──
                               _buildSectionHeader(
@@ -326,13 +430,79 @@ class _ProgressPageState extends State<ProgressPage>
                               _buildBadgesCard(),
                               const SizedBox(height: 28),
 
-                              // ── Section: Phil-IRI Assessments History ──
+                              // ── Section: Phil-IRI Reading Profile (Tap header badge to switch Pre-Test / Post-Test) ──
                               _buildSectionHeader(
                                 icon: PhIcons.examBold,
-                                title: 'Phil - IRI Assessments History',
+                                title: 'Phil - IRI Reading Profile',
+                                rightWidget: GestureDetector(
+                                  onTap: () {
+                                    Feedback.forTap(context);
+                                    setState(() {
+                                      _selectedPhilIriPeriod = _selectedPhilIriPeriod == 'pre' ? 'post' : 'pre';
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 250),
+                                    curve: Curves.easeInOut,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: _selectedPhilIriPeriod == 'pre'
+                                          ? const Color(0xFF1B64D8).withValues(alpha: 0.1)
+                                          : const Color(0xFF10B981).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(
+                                        color: _selectedPhilIriPeriod == 'pre'
+                                            ? const Color(0xFF1B64D8).withValues(alpha: 0.3)
+                                            : const Color(0xFF10B981).withValues(alpha: 0.3),
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        AnimatedSwitcher(
+                                          duration: const Duration(milliseconds: 220),
+                                          transitionBuilder: (Widget child, Animation<double> animation) {
+                                            return FadeTransition(
+                                              opacity: animation,
+                                              child: ScaleTransition(
+                                                scale: Tween<double>(begin: 0.88, end: 1.0).animate(animation),
+                                                child: child,
+                                              ),
+                                            );
+                                          },
+                                          child: Text(
+                                            _selectedPhilIriPeriod == 'pre' ? 'Pre-Test' : 'Post-Test',
+                                            key: ValueKey<String>(_selectedPhilIriPeriod),
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: _selectedPhilIriPeriod == 'pre'
+                                                  ? const Color(0xFF1B64D8)
+                                                  : const Color(0xFF059669),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        AnimatedRotation(
+                                          turns: _selectedPhilIriPeriod == 'pre' ? 0.0 : 0.5,
+                                          duration: const Duration(milliseconds: 250),
+                                          curve: Curves.easeInOut,
+                                          child: Icon(
+                                            Icons.swap_horiz_rounded,
+                                            size: 14,
+                                            color: _selectedPhilIriPeriod == 'pre'
+                                                ? const Color(0xFF1B64D8)
+                                                : const Color(0xFF059669),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 12),
-                              _buildAssessmentHistoryList(primaryBlue),
+                              _buildUnifiedPhilIriCard(primaryBlue),
                               const SizedBox(height: 28),
 
                               // ── Section: Continue Reading ──
@@ -548,7 +718,6 @@ class _ProgressPageState extends State<ProgressPage>
         ).then((_) => _fetchLiveProgressData());
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -620,6 +789,86 @@ class _ProgressPageState extends State<ProgressPage>
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _buildPhilIriSkeletonCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          // Language Pill Skeleton
+          Container(
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3 Row Skeletons
+          ...List.generate(3, (index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 130,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 180,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 70,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -702,127 +951,232 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-  // ── Phil-IRI Assessment History ──
-  Widget _buildAssessmentHistoryList(Color primaryBlue) {
-    return Column(
-      children: [
-        _buildAssessmentRowCard(
-          title: 'Listening Assessment',
-          isDone: _isListeningDone,
-          tagText: 'Required',
-          tagBg: const Color(0xFFFEE2E2),
-          tagTextCol: const Color(0xFFEF4444),
-          iconSvg: PhIcons.earBold,
-          iconBg: const Color(0xFFFEF3C7),
-          iconCol: const Color(0xFFF59E0B),
-          primaryBlue: primaryBlue,
-          onStart: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ListeningAssessmentInstructionsPage(),
-              ),
-            ).then((completed) {
-              if (completed == true) {
-                setState(() {
-                  _isListeningDone = true;
-                  PhilIriAssessmentPage.isListeningDone = true;
-                });
-              }
-            });
-          },
-          onViewResult: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ListeningResultPage(),
-              ),
-            );
-          },
+
+
+  // ── Unified Phil-IRI Reading Profile Container (Merged Card Design) ──
+  Widget _buildUnifiedPhilIriCard(Color primaryBlue) {
+    if (_isLoadingPhilIri) {
+      return _buildPhilIriSkeletonCard();
+    }
+
+    final oralItem = _getAssignedItem('oral');
+    final listeningItem = _getAssignedItem('listening');
+    final silentItem = _getAssignedItem('silent');
+
+    final isOralClosed = oralItem != null &&
+        !_isOralReadingDone &&
+        (oralItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
+    final isListeningClosed = listeningItem != null &&
+        !_isListeningDone &&
+        (listeningItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
+    final isSilentClosed = silentItem != null &&
+        !_isSilentReadingDone &&
+        (silentItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.0,
         ),
-        _buildAssessmentRowCard(
-          title: 'Silent Reading Assessment',
-          isDone: _isSilentReadingDone,
-          tagText: 'Optional',
-          tagBg: const Color(0xFFF3F4F6),
-          tagTextCol: const Color(0xFF71717A),
-          iconSvg: PhIcons.bookOpenBold,
-          iconBg: const Color(0xFFD1FAE5),
-          iconCol: const Color(0xFF10B981),
-          primaryBlue: primaryBlue,
-          isNotAvailable: !_isSilentReadingDone && !_isListeningDone, // Available only if listening done (as mockup concept)
-          onStart: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SilentReadingAssessmentInstructionsPage(),
-              ),
-            ).then((_) {
-              setState(() {
-                _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
-              });
-            });
-          },
-          onViewResult: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SilentReadingResultPage(),
-              ),
-            );
-          },
-        ),
-        _buildAssessmentRowCard(
-          title: 'Oral Reading Assessment',
-          isDone: _isOralReadingDone,
-          isPendingReview: _isOralReadingPendingReview,
-          tagText: 'Required',
-          tagBg: const Color(0xFFFEE2E2),
-          tagTextCol: const Color(0xFFEF4444),
-          iconSvg: PhIcons.userSoundBold,
-          iconBg: const Color(0xFFD0E1F9),
-          iconCol: primaryBlue,
-          primaryBlue: primaryBlue,
-          onStart: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const OralReadingAssessmentInstructionsPage(),
-              ),
-            ).then((_) {
-              setState(() {
-                _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
-                _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
-              });
-            });
-          },
-          onViewResult: () {
-            if (_isOralReadingPendingReview) {
-              AppToast.warning(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Language Toggle Pill Header (Filipino / English)
+          Container(
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Row(
+              children: [
+                Expanded(child: _buildPhilIriLangTab('fil', 'Filipino')),
+                Expanded(child: _buildPhilIriLangTab('en', 'English')),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 2. Modality Rows inside the card
+          _buildMergedAssessmentItemRow(
+            title: 'Oral Reading Assessment',
+            subTitle: 'Word Reading & Comprehension',
+            isDone: _isOralReadingDone,
+            isPendingReview: _isOralReadingPendingReview,
+            isClosed: isOralClosed,
+            isNotAvailable: oralItem == null,
+            iconSvg: PhIcons.userSoundBold,
+            iconBg: const Color(0xFFD0E1F9),
+            iconCol: primaryBlue,
+            primaryBlue: primaryBlue,
+            onStart: () {
+              Navigator.push(
                 context,
-                'Your recording is currently being reviewed by your teacher.',
+                MaterialPageRoute(
+                  builder: (context) => OralReadingAssessmentInstructionsPage(
+                    item: oralItem,
+                  ),
+                ),
+              ).then((_) {
+                setState(() {
+                  _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
+                  _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
+                });
+              });
+            },
+            onViewResult: () {
+              if (_isOralReadingPendingReview) {
+                AppToast.warning(
+                  context,
+                  'Your recording is currently being reviewed by your teacher.',
+                );
+                return;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const OralReadingResultPage(),
+                ),
               );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const OralReadingResultPage(),
-              ),
-            );
-          },
-        ),
-      ],
+            },
+          ),
+          const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
+
+          _buildMergedAssessmentItemRow(
+            title: 'Listening Assessment',
+            subTitle: 'Listening Comprehension Score',
+            isDone: _isListeningDone,
+            isClosed: isListeningClosed,
+            isNotAvailable: listeningItem == null,
+            iconSvg: PhIcons.earBold,
+            iconBg: const Color(0xFFFEF3C7),
+            iconCol: const Color(0xFFF59E0B),
+            primaryBlue: primaryBlue,
+            onStart: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ListeningAssessmentInstructionsPage(
+                    item: listeningItem,
+                  ),
+                ),
+              ).then((completed) {
+                if (completed == true) {
+                  setState(() {
+                    _isListeningDone = true;
+                    PhilIriAssessmentPage.isListeningDone = true;
+                  });
+                }
+              });
+            },
+            onViewResult: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ListeningResultPage(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
+
+          _buildMergedAssessmentItemRow(
+            title: 'Silent Reading Assessment',
+            subTitle: 'Silent Comprehension & Speed',
+            isDone: _isSilentReadingDone,
+            isClosed: isSilentClosed,
+            isNotAvailable: silentItem == null,
+            iconSvg: PhIcons.bookOpenBold,
+            iconBg: const Color(0xFFD1FAE5),
+            iconCol: const Color(0xFF10B981),
+            primaryBlue: primaryBlue,
+            onStart: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SilentReadingAssessmentInstructionsPage(
+                    item: silentItem,
+                  ),
+                ),
+              ).then((_) {
+                setState(() {
+                  _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
+                });
+              });
+            },
+            onViewResult: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SilentReadingResultPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildAssessmentRowCard({
+
+
+
+
+  Widget _buildPhilIriLangTab(String langKey, String label) {
+    bool isActive = _selectedPhilIriLang == langKey;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedPhilIriLang = langKey;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            color: isActive ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMergedAssessmentItemRow({
     required String title,
+    required String subTitle,
     required bool isDone,
     bool isPendingReview = false,
-    required String tagText,
-    required Color tagBg,
-    required Color tagTextCol,
+    bool isClosed = false,
     required String iconSvg,
     required Color iconBg,
     required Color iconCol,
@@ -831,170 +1185,142 @@ class _ProgressPageState extends State<ProgressPage>
     required VoidCallback onViewResult,
     bool isNotAvailable = false,
   }) {
-    Color cardBg = isPendingReview
-        ? const Color(0xFFFFFBEB)
-        : (isDone ? const Color(0xFFEAF5EC) : Colors.white);
-    Color borderCol = isPendingReview
-        ? const Color(0xFFFDE68A)
-        : (isDone ? const Color(0xFFBCE4CD) : const Color(0xFFE2E8F0));
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: borderCol,
-          width: 1.0,
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: iconBg,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Iconify(
+            iconSvg,
+            color: iconCol,
+            size: 22,
+          ),
         ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subTitle,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (isPendingReview)
           Container(
-            width: 48,
-            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(100),
             ),
-            alignment: Alignment.center,
-            child: Iconify(
-              iconSvg,
-              color: iconCol,
-              size: 24,
+            child: Text(
+              'Pending',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFFD97706),
+              ),
+            ),
+          )
+        else if (isDone)
+          ElevatedButton(
+            onPressed: () {
+              Feedback.forTap(context);
+              onViewResult();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00A859),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            child: Text(
+              'View Result',
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          )
+        else if (isClosed)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              'Closed',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          )
+        else if (isNotAvailable)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              'Not Available',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          )
+        else
+          ElevatedButton(
+            onPressed: () {
+              Feedback.forTap(context);
+              onStart();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryBlue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            child: Text(
+              'Start',
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: isPendingReview
-                        ? const Color(0xFFFEF3C7)
-                        : (isDone ? const Color(0xFFD1FAE5) : tagBg),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  child: Text(
-                    isPendingReview
-                        ? 'In Review'
-                        : (isDone ? 'Done' : tagText),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: isPendingReview
-                          ? const Color(0xFFD97706)
-                          : (isDone ? const Color(0xFF059669) : tagTextCol),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (isPendingReview)
-            ElevatedButton(
-              onPressed: () {
-                Feedback.forTap(context);
-                AppToast.warning(
-                  context,
-                  'Your recording is currently being reviewed by your teacher.',
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC000),
-                foregroundColor: const Color(0xFF451A03),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              child: Text(
-                'In Review',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF451A03)),
-              ),
-            )
-          else if (isDone)
-            ElevatedButton(
-              onPressed: () {
-                Feedback.forTap(context);
-                onViewResult();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00A859),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              child: Text(
-                'View Result',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
-              ),
-            )
-          else if (isNotAvailable)
-            ElevatedButton(
-              onPressed: null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE4E4E7),
-                foregroundColor: const Color(0xFFA1A1AA),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              child: Text(
-                'Not Available',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF9F9F9F)),
-              ),
-            )
-          else
-            ElevatedButton(
-              onPressed: () {
-                Feedback.forTap(context);
-                onStart();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryBlue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-              child: Text(
-                'Start',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1465,277 +1791,7 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-  // ── Phil-IRI 3-Modality Profile Level Cards with Language Toggle ──
-  Widget _buildPhilIriModalityProfilesCard() {
-    final isFil = _selectedPhilIriLang == 'fil';
 
-    final oralLevel = isFil
-        ? (_readingProfiles?['filOralProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engOralProfile']?.toString() ?? 'Pending Evaluation');
-
-    final listeningLevel = isFil
-        ? (_readingProfiles?['filListeningProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engListeningProfile']?.toString() ?? 'Pending Evaluation');
-
-    final silentLevel = isFil
-        ? (_readingProfiles?['filSilentProfile']?.toString() ?? 'Pending Evaluation')
-        : (_readingProfiles?['engSilentProfile']?.toString() ?? 'Pending Evaluation');
-
-    final oralAcc = isFil
-        ? (_readingProfiles?['filOralAccuracy'])
-        : (_readingProfiles?['engOralAccuracy']);
-
-    final oralComp = isFil
-        ? (_readingProfiles?['filOralComprehension'])
-        : (_readingProfiles?['engOralComprehension']);
-
-    final listComp = isFil
-        ? (_readingProfiles?['filListeningComprehension'])
-        : (_readingProfiles?['engListeningComprehension']);
-
-    final silentComp = isFil
-        ? (_readingProfiles?['filSilentComprehension'])
-        : (_readingProfiles?['engSilentComprehension']);
-
-    final silentWpm = isFil
-        ? (_readingProfiles?['filSilentWpm'])
-        : (_readingProfiles?['engSilentWpm']);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── Language Toggle Switch (Simplified without flags) ──
-          Container(
-            height: 38,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Feedback.forTap(context);
-                      setState(() => _selectedPhilIriLang = 'fil');
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isFil ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: isFil
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                )
-                              ]
-                            : null,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Filipino',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: isFil ? FontWeight.w700 : FontWeight.w500,
-                          color: isFil ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Feedback.forTap(context);
-                      setState(() => _selectedPhilIriLang = 'en');
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: !isFil ? Colors.white : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: !isFil
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                )
-                              ]
-                            : null,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'English',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: !isFil ? FontWeight.w700 : FontWeight.w500,
-                          color: !isFil ? const Color(0xFF1B64D8) : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _buildModalityLevelRow(
-            title: 'Oral Reading',
-            subtitle: oralAcc != null && oralComp != null
-                ? 'Accuracy: $oralAcc%  •  Comprehension: $oralComp%'
-                : 'Word Reading & Comprehension',
-            level: oralLevel,
-            icon: PhIcons.userSoundBold,
-            iconBg: const Color(0xFFD0E1F9),
-            iconCol: const Color(0xFF1B64D8),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12.0),
-            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ),
-          _buildModalityLevelRow(
-            title: 'Listening Comprehension',
-            subtitle: listComp != null
-                ? 'Comprehension: $listComp%'
-                : 'Listening Comprehension Score',
-            level: listeningLevel,
-            icon: PhIcons.earBold,
-            iconBg: const Color(0xFFFEF3C7),
-            iconCol: const Color(0xFFD97706),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12.0),
-            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ),
-          _buildModalityLevelRow(
-            title: 'Silent Reading',
-            subtitle: silentComp != null
-                ? 'Comprehension: $silentComp%${silentWpm != null ? '  •  $silentWpm WPM' : ''}'
-                : 'Silent Comprehension & Speed',
-            level: silentLevel,
-            icon: PhIcons.bookOpenBold,
-            iconBg: const Color(0xFFD1FAE5),
-            iconCol: const Color(0xFF10B981),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModalityLevelRow({
-    required String title,
-    required String subtitle,
-    required String level,
-    required String icon,
-    required Color iconBg,
-    required Color iconCol,
-  }) {
-    Color badgeBg;
-    Color badgeBorder;
-    Color badgeTextCol;
-    String displayLevel;
-
-    final lvl = level.toLowerCase().trim();
-    if (lvl.contains('independ')) {
-      badgeBg = const Color(0xFFECFDF5);
-      badgeBorder = const Color(0xFFA7F3D0);
-      badgeTextCol = const Color(0xFF047857);
-      displayLevel = 'Independent';
-    } else if (lvl.contains('instruct')) {
-      badgeBg = const Color(0xFFFFFBEB);
-      badgeBorder = const Color(0xFFFDE68A);
-      badgeTextCol = const Color(0xFFB45309);
-      displayLevel = 'Instructional';
-    } else if (lvl.contains('frustrat')) {
-      badgeBg = const Color(0xFFFEF2F2);
-      badgeBorder = const Color(0xFFFECACA);
-      badgeTextCol = const Color(0xFFB91C1C);
-      displayLevel = 'Frustration';
-    } else {
-      badgeBg = const Color(0xFFF4F4F5);
-      badgeBorder = const Color(0xFFE4E4E7);
-      badgeTextCol = const Color(0xFF71717A);
-      displayLevel = 'Pending';
-    }
-
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: iconBg,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Iconify(
-            icon,
-            color: iconCol,
-            size: 22,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: GoogleFonts.inter(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF71717A),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: badgeBg,
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: badgeBorder, width: 1),
-          ),
-          child: Text(
-            displayLevel,
-            style: GoogleFonts.inter(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: badgeTextCol,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // ── Live accuracy curve vector custom painter ──

@@ -50,9 +50,15 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
   Map<dynamic, bool> _activeDrafts = {};
   dynamic _realtimeSubscription;
 
+  static List<Map<String, dynamic>>? _cachedAssignedList;
+
   @override
   void initState() {
     super.initState();
+    if (_cachedAssignedList != null) {
+      _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
+      _isLoading = false;
+    }
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
     _fetchTeacherAssignment();
     _setupRealtimeSubscription();
@@ -123,24 +129,20 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
   Future<void> _fetchTeacherAssignment() async {
     try {
-      final res = await ApiService.get('/students/assessment/my-assignment');
-      debugPrint(
-        '[PhilIRI] API success=${res.success} statusCode=${res.statusCode}',
-      );
-      debugPrint('[PhilIRI] raw data=${res.data}');
-      if (res.data is Map) {
-        debugPrint('[PhilIRI] debug=${(res.data as Map)['debug']}');
+      if (_assignedList.isEmpty) {
+        setState(() {
+          _isLoading = true;
+        });
       }
+      final res = await ApiService.get('/students/assessment/my-assignment');
       if (res.success && res.data != null) {
         final activitiesList = res.data['assignedActivities'];
-        debugPrint('[PhilIRI] assignedActivities=$activitiesList');
         if (mounted) {
           setState(() {
             _isLoading = false;
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
-                // Sort by most recent assignment/creation date first (Newest first)
                 final dateA = DateTime.tryParse(
                       (a['assignedAt'] ?? a['created_at'] ?? a['createdAt'] ?? '')
                           .toString(),
@@ -151,7 +153,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                           .toString(),
                     ) ??
                     DateTime.fromMillisecondsSinceEpoch(0);
-                final dateCompare = dateB.compareTo(dateA); // Descending (most recent first)
+                final dateCompare = dateB.compareTo(dateA);
                 if (dateCompare != 0) {
                   return dateCompare;
                 }
@@ -160,6 +162,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                 final titleB = (b['title'] ?? '').toString();
                 return titleA.compareTo(titleB);
               });
+              _cachedAssignedList = List<Map<String, dynamic>>.from(_assignedList);
             }
           });
 
@@ -679,15 +682,64 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                 const SizedBox(height: 12),
 
                                 if (_isLoading)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 48,
-                                      horizontal: 20,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const CircularProgressIndicator(
-                                      color: primaryBlue,
-                                    ),
+                                  Column(
+                                    children: List.generate(3, (index) {
+                                      return Container(
+                                        margin: const EdgeInsets.only(bottom: 12),
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFF1F5F9),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    height: 14,
+                                                    width: 140,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFF1F5F9),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Container(
+                                                    height: 10,
+                                                    width: 100,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFF8FAFC),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              width: 64,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF1F5F9),
+                                                borderRadius: BorderRadius.circular(100),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
                                   )
                                 else if (displayedList.isNotEmpty)
                                   ...displayedList.map((item) {
@@ -794,13 +846,13 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                         : (isDone
                                             ? const Color(0xFF00A859)
                                             : (isClosed
-                                                ? const Color(0xFFE4E4E7)
+                                                ? const Color(0xFFF1F5F9)
                                                 : primaryBlue));
                                     final buttonTxtColor = isPendingReview
                                         ? const Color(0xFF451A03)
                                         : (isDone || !isClosed
                                             ? Colors.white
-                                            : const Color(0xFF9CA3AF));
+                                            : const Color(0xFF94A3B8));
 
                                     return _buildAssessmentCard(
                                       title: title,

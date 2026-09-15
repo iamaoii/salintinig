@@ -55,9 +55,20 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   dynamic _realtimeSubscription;
 
+  static List<Map<String, dynamic>>? _cachedAssignedList;
+  static Map<String, dynamic>? _cachedReadingProfiles;
+
   @override
   void initState() {
     super.initState();
+
+    if (_cachedAssignedList != null) {
+      _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
+      _isLoadingAssignments = false;
+    }
+    if (_cachedReadingProfiles != null) {
+      _readingProfiles = _cachedReadingProfiles;
+    }
 
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
     LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
@@ -118,6 +129,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       if (ApiService.authToken == null || ApiService.authToken!.isEmpty) {
         await ApiService.initToken();
       }
+      if (_assignedList.isEmpty) {
+        setState(() {
+          _isLoadingAssignments = true;
+        });
+      }
       final res = await ApiService.get('/students/assessment/my-assignment');
       debugPrint(
         '[OverviewPhilIRI] API success=${res.success} statusCode=${res.statusCode}',
@@ -131,6 +147,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             _isLoadingAssignments = false;
             if (rpData is Map<String, dynamic>) {
               _readingProfiles = rpData;
+              _cachedReadingProfiles = rpData;
             }
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
@@ -168,6 +185,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 final titleB = (b['title'] ?? '').toString();
                 return titleA.compareTo(titleB);
               });
+              _cachedAssignedList = List<Map<String, dynamic>>.from(_assignedList);
             }
           });
 
@@ -197,6 +215,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'student_grade_history',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -205,6 +224,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'assessments',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -213,6 +233,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'user_assignments',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -221,6 +242,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'assigned_activities',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .subscribe();
@@ -576,14 +598,64 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                   const SizedBox(height: 12),
 
                                   if (_isLoadingAssignments)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 32,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: const CircularProgressIndicator(
-                                        color: primaryBlue,
-                                      ),
+                                    Column(
+                                      children: List.generate(2, (index) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFFF1F5F9),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Container(
+                                                      height: 14,
+                                                      width: 140,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF1F5F9),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Container(
+                                                      height: 10,
+                                                      width: 100,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF8FAFC),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                width: 64,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF1F5F9),
+                                                  borderRadius: BorderRadius.circular(100),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
                                     )
                                   else if (_assignedList.isNotEmpty)
                                     ..._assignedList.take(3).map((item) {
@@ -673,13 +745,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           : (isDone
                                               ? const Color(0xFF00A859)
                                               : (isClosed
-                                                  ? const Color(0xFFE4E4E7)
+                                                  ? const Color(0xFFF1F5F9)
                                                   : primaryBlue));
                                       final buttonTxtColor = isPendingReview
                                           ? const Color(0xFF451A03)
                                           : (isDone || !isClosed
                                               ? Colors.white
-                                              : const Color(0xFF9CA3AF));
+                                              : const Color(0xFF94A3B8));
 
                                       return _buildAssessmentCard(
                                         title: title,
