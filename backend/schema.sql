@@ -304,7 +304,6 @@ CREATE TABLE IF NOT EXISTS badges (
 CREATE TABLE IF NOT EXISTS student_progress (
     progress_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
-    current_reading_level VARCHAR(50),
     current_streak INT DEFAULT 0,
     longest_streak INT DEFAULT 0,
     last_activity_date DATE,
