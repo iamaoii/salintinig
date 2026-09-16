@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/pages/student/library/practice_congratulations_page.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/reading_preferences_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 
 class PracticeQuizPage extends StatefulWidget {
@@ -718,6 +719,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
     final timeSpentSeconds = DateTime.now().difference(_startTime).inSeconds;
 
     await QuizProgressService.clearQuizDraft(_passageKey, 'practice');
+    await ReadingPreferencesService.saveStoryHighlights(_passageKey, []);
 
     if (!mounted) return;
 

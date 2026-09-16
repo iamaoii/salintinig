@@ -6,6 +6,7 @@ import 'package:record/record.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/reading_preferences_service.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
 
 class OralReadingAssessmentReaderPage extends StatefulWidget {
@@ -20,8 +21,11 @@ class OralReadingAssessmentReaderPage extends StatefulWidget {
 class _OralReadingAssessmentReaderPageState
     extends State<OralReadingAssessmentReaderPage> {
   bool _isDarkMode = false;
+  double _readingFontSize = 22.0;
+  bool _dyslexiaFont = false;
 
-  double _recordingProgress = 0.0;
+  final ValueNotifier<double> _recordingProgressNotifier =
+      ValueNotifier<double>(0.0);
   bool _isPaused = false;
   Timer? _progressTimer;
 
@@ -47,6 +51,7 @@ class _OralReadingAssessmentReaderPageState
   @override
   void initState() {
     super.initState();
+    _loadReadingPreferences();
     _extractItemData();
     _fetchPassageFromApi();
     _startCountdownSequence();
@@ -75,11 +80,20 @@ class _OralReadingAssessmentReaderPageState
         level = 0.0;
       }
       if (mounted) {
-        setState(() {
-          _recordingProgress = _isPaused ? 0.0 : level;
-        });
+        _recordingProgressNotifier.value = _isPaused ? 0.0 : level;
       }
     });
+  }
+
+  Future<void> _loadReadingPreferences() async {
+    final fontSize = await ReadingPreferencesService.getFontSize();
+    final dyslexia = await ReadingPreferencesService.getDyslexiaFont();
+    if (mounted) {
+      setState(() {
+        _readingFontSize = fontSize;
+        _dyslexiaFont = dyslexia;
+      });
+    }
   }
 
   void _startCountdownSequence() {
@@ -135,11 +149,7 @@ class _OralReadingAssessmentReaderPageState
 
   Future<void> _pauseVoiceRecording() async {
     _isPaused = true;
-    if (mounted) {
-      setState(() {
-        _recordingProgress = 0.0;
-      });
-    }
+    _recordingProgressNotifier.value = 0.0;
     try {
       if (await _audioRecorder.isRecording()) {
         await _audioRecorder.pause();
@@ -147,11 +157,7 @@ class _OralReadingAssessmentReaderPageState
     } catch (e) {
       debugPrint('[OralReader] Audio recording pause notice: $e');
     }
-    if (mounted) {
-      setState(() {
-        _recordingProgress = 0.0;
-      });
-    }
+    _recordingProgressNotifier.value = 0.0;
   }
 
   Future<void> _resumeVoiceRecording() async {
@@ -264,7 +270,9 @@ class _OralReadingAssessmentReaderPageState
                   _storyTitle = title;
                   _fullStoryText = text.trim();
                   _dynamicQuestions = questions;
-                  _passageId ??= QuizProgressService.extractPassageId(oralActivity);
+                  _passageId ??= QuizProgressService.extractPassageId(
+                    oralActivity,
+                  );
                 });
                 debugPrint(
                   '[OralReader] Successfully loaded student assignment passage: $title (passageId=$_passageId)',
@@ -332,6 +340,7 @@ class _OralReadingAssessmentReaderPageState
     _progressTimer?.cancel();
     _stopVoiceRecording();
     _audioRecorder.dispose();
+    _recordingProgressNotifier.dispose();
     super.dispose();
   }
 
@@ -419,25 +428,42 @@ class _OralReadingAssessmentReaderPageState
                                         ...(_fullStoryText.isEmpty
                                                 ? ['Naga-antay ng kwento...']
                                                 : _fullStoryText
-                                                    .replaceAll('\r\n', '\n')
-                                                    .replaceAll('\r', '\n')
-                                                    .split(RegExp(r'\n+'))
-                                                    .map((p) => p.trim())
-                                                    .where((p) => p.isNotEmpty))
-                                            .map((paragraph) => Padding(
-                                                  padding: const EdgeInsets.only(
-                                                    bottom: 24.0,
-                                                  ),
-                                                  child: Text(
-                                                    paragraph,
-                                                    style: GoogleFonts.lora(
-                                                      fontSize: 22.0,
-                                                      height: 1.75,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: textColor,
-                                                    ),
-                                                  ),
-                                                )),
+                                                      .replaceAll('\r\n', '\n')
+                                                      .replaceAll('\r', '\n')
+                                                      .split(RegExp(r'\n+'))
+                                                      .map((p) => p.trim())
+                                                      .where(
+                                                        (p) => p.isNotEmpty,
+                                                      ))
+                                            .map(
+                                              (paragraph) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 24.0,
+                                                ),
+                                                child: Text(
+                                                  paragraph,
+                                                  style: _dyslexiaFont
+                                                      ? TextStyle(
+                                                          fontFamily:
+                                                              'OpenDyslexic',
+                                                          fontSize:
+                                                              _readingFontSize,
+                                                          height: 1.75,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color: textColor,
+                                                        )
+                                                      : GoogleFonts.lora(
+                                                          fontSize:
+                                                              _readingFontSize,
+                                                          height: 1.75,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color: textColor,
+                                                        ),
+                                                ),
+                                              ),
+                                            ),
                                         const SizedBox(height: 32),
                                       ],
                                     ),
@@ -488,26 +514,36 @@ class _OralReadingAssessmentReaderPageState
                                                           ),
                                                     child: Stack(
                                                       children: [
-                                                        AnimatedContainer(
-                                                          duration:
-                                                              const Duration(
-                                                            milliseconds: 40,
-                                                          ),
-                                                          curve: Curves
-                                                              .easeOutCubic,
-                                                          width:
-                                                              barConstraints
-                                                                  .maxWidth *
-                                                              (_isPaused
-                                                                  ? 0.0
-                                                                  : _recordingProgress),
-                                                          decoration: BoxDecoration(
-                                                            color: primaryBlue,
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  4,
-                                                                ),
-                                                          ),
+                                                        ValueListenableBuilder<
+                                                          double
+                                                        >(
+                                                          valueListenable:
+                                                              _recordingProgressNotifier,
+                                                          builder: (context, progress, _) {
+                                                            return AnimatedContainer(
+                                                              duration:
+                                                                  const Duration(
+                                                                    milliseconds:
+                                                                        40,
+                                                                  ),
+                                                              curve: Curves
+                                                                  .easeOutCubic,
+                                                              width:
+                                                                  barConstraints
+                                                                      .maxWidth *
+                                                                  (_isPaused
+                                                                      ? 0.0
+                                                                      : progress),
+                                                              decoration: BoxDecoration(
+                                                                color:
+                                                                    primaryBlue,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      4,
+                                                                    ),
+                                                              ),
+                                                            );
+                                                          },
                                                         ),
                                                       ],
                                                     ),
@@ -857,7 +893,9 @@ class _OralReadingAssessmentReaderPageState
         initialAnswersList = [];
         for (var entry in map.entries) {
           final idx = int.tryParse(entry.key.toString());
-          final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+          final val = entry.value != null
+              ? int.tryParse(entry.value.toString())
+              : null;
           if (idx != null) {
             while (initialAnswersList.length <= idx) {
               initialAnswersList.add(null);

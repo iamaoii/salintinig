@@ -6,6 +6,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/reading_preferences_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -18,17 +19,39 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    _loadReadingPreferences();
     _loadUserSession();
   }
 
+  Future<void> _loadReadingPreferences() async {
+    final savedFontSize = await ReadingPreferencesService.getFontSize();
+    final savedDyslexiaFont = await ReadingPreferencesService.getDyslexiaFont();
+    final savedHighlighting =
+        await ReadingPreferencesService.getTextHighlighting();
+    final savedHighlightColor =
+        await ReadingPreferencesService.getHighlightColor();
+    if (mounted) {
+      setState(() {
+        _readingFontSize = savedFontSize;
+        _dyslexiaFont = savedDyslexiaFont;
+        _textHighlighting = savedHighlighting;
+        _highlightColor = savedHighlightColor;
+      });
+    }
+  }
+
   Future<void> _loadUserSession() async {
-    await AuthService.fetchMe();
-    if (mounted) setState(() {});
+    try {
+      await AuthService.fetchMe();
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   // Reading Preferences state
-  double _readingFontSize = 16.0;
+  double _readingFontSize = 22.0;
   bool _dyslexiaFont = false;
+  bool _textHighlighting = true;
+  Color _highlightColor = const Color(0xFFFEF08A);
 
   // Audio & Microphone state
   double _voiceGuidanceVolume = 0.8;
@@ -56,7 +79,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   // Trigger time picker for reminders
-  Future<void> _selectReminderTime(BuildContext modalContext, StateSetter setModalState) async {
+  Future<void> _selectReminderTime(
+    BuildContext modalContext,
+    StateSetter setModalState,
+  ) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _reminderTime,
@@ -100,7 +126,10 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               const Icon(Icons.check_circle, color: Colors.white),
               const SizedBox(width: 8),
-              Text('Temporary app files cleared successfully!', style: GoogleFonts.inter()),
+              Text(
+                'Temporary app files cleared successfully!',
+                style: GoogleFonts.inter(),
+              ),
             ],
           ),
           backgroundColor: const Color(0xFF00A859),
@@ -143,13 +172,23 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showProfileDetails() {
     final user = AuthService.currentUser;
     final fullName = user?.displayName ?? 'Student User';
-    final nickname = user?.nickname?.isNotEmpty == true ? user!.nickname! : (user?.firstName ?? 'N/A');
-    final gradeStr = user?.gradeLevel.isNotEmpty == true ? 'Grade ${user?.gradeLevel}' : '';
-    final sectionStr = user?.sectionName.isNotEmpty == true ? user!.sectionName : '';
-    final gradeSection = [gradeStr, sectionStr].where((s) => s.isNotEmpty).join(' - ');
+    final nickname = user?.nickname?.isNotEmpty == true
+        ? user!.nickname!
+        : (user?.firstName ?? 'N/A');
+    final gradeStr = user?.gradeLevel.isNotEmpty == true
+        ? 'Grade ${user?.gradeLevel}'
+        : '';
+    final sectionStr = user?.sectionName.isNotEmpty == true
+        ? user!.sectionName
+        : '';
+    final gradeSection = [
+      gradeStr,
+      sectionStr,
+    ].where((s) => s.isNotEmpty).join(' - ');
     final lrn = user?.lrn.isNotEmpty == true ? user!.lrn : 'N/A';
     final email = user?.email.isNotEmpty == true ? user!.email : 'N/A';
-    final school = user?.rawUser?['school_name']?.toString() ??
+    final school =
+        user?.rawUser?['school_name']?.toString() ??
         user?.rawUser?['schoolName']?.toString() ??
         'Salintinig Elementary School';
 
@@ -176,7 +215,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Profile Details',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -187,7 +229,10 @@ class _SettingsPageState extends State<SettingsPage> {
               const Divider(height: 24),
               _buildModalInfoRow('Full Name', fullName),
               _buildModalInfoRow('Nickname', nickname),
-              _buildModalInfoRow('Grade & Section', gradeSection.isNotEmpty ? gradeSection : 'N/A'),
+              _buildModalInfoRow(
+                'Grade & Section',
+                gradeSection.isNotEmpty ? gradeSection : 'N/A',
+              ),
               _buildModalInfoRow('LRN', lrn),
               _buildModalInfoRow('Email Address', email),
               _buildModalInfoRow('School', school),
@@ -207,12 +252,20 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF71717A)),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF71717A),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.black,
+            ),
           ),
           const Divider(height: 16),
         ],
@@ -254,7 +307,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Change Password',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -268,7 +324,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'Current Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -277,7 +335,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'New Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -286,7 +346,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -295,7 +357,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (newController.text != confirmController.text) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Passwords do not match!', style: GoogleFonts.inter()),
+                        content: Text(
+                          'Passwords do not match!',
+                          style: GoogleFonts.inter(),
+                        ),
                         backgroundColor: const Color(0xFFEF4444),
                       ),
                     );
@@ -304,7 +369,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Password updated successfully!', style: GoogleFonts.inter()),
+                      content: Text(
+                        'Password updated successfully!',
+                        style: GoogleFonts.inter(),
+                      ),
                       backgroundColor: const Color(0xFF00A859),
                     ),
                   );
@@ -313,9 +381,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   backgroundColor: const Color(0xFF1B64D8),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: Text('Update Password', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+                child: Text(
+                  'Update Password',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -353,7 +426,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Text(
                         'Notification Settings',
-                        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
@@ -363,8 +439,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const Divider(height: 24),
                   SwitchListTile.adaptive(
-                    title: Text('Daily Practice Reminder', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
-                    subtitle: Text('Reminds you to read daily', style: GoogleFonts.inter(fontSize: 12, color: textGray)),
+                    title: Text(
+                      'Daily Practice Reminder',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Reminds you to read daily',
+                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
+                    ),
                     value: _dailyReminder,
                     activeTrackColor: primaryBlue.withValues(alpha: 0.5),
                     activeThumbColor: primaryBlue,
@@ -376,16 +461,38 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   if (_dailyReminder) ...[
                     ListTile(
-                      title: Text('Reminder Time', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                      trailing: Text(_formatTimeOfDay(_reminderTime), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: primaryBlue)),
+                      title: Text(
+                        'Reminder Time',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: Text(
+                        _formatTimeOfDay(_reminderTime),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
                       onTap: () => _selectReminderTime(context, setModalState),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ],
                   const SizedBox(height: 8),
                   SwitchListTile.adaptive(
-                    title: Text('Achievement Alerts', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
-                    subtitle: Text('Get notified when you unlock badges', style: GoogleFonts.inter(fontSize: 12, color: textGray)),
+                    title: Text(
+                      'Achievement Alerts',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Get notified when you unlock badges',
+                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
+                    ),
                     value: _achievementAlerts,
                     activeTrackColor: primaryBlue.withValues(alpha: 0.5),
                     activeThumbColor: primaryBlue,
@@ -429,7 +536,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'About SalinTinig',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -440,14 +550,27 @@ class _SettingsPageState extends State<SettingsPage> {
               const Divider(height: 24),
               Text(
                 'SalinTinig is a speech-to-text capstone reading application designed to assist elementary students in reinforcing their reading comprehension, speed, and pronunciation through immersive stories and quizzes.',
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3F3F46), height: 1.5),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF3F3F46),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('App Version', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                  Text('v1.0.0 (Build 24)', style: GoogleFonts.inter(color: const Color(0xFF71717A), fontWeight: FontWeight.w600)),
+                  Text(
+                    'App Version',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    'v1.0.0 (Build 24)',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF71717A),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -483,7 +606,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Help / FAQ',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -497,7 +623,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   physics: const BouncingScrollPhysics(),
                   children: [
                     ExpansionTile(
-                      title: Text('How do I complete a story?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How do I complete a story?',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
@@ -509,7 +638,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How is my Reading Streak calculated?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How is my Reading Streak calculated?',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
@@ -521,7 +653,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('Can I change my registered Grade level?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'Can I change my registered Grade level?',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
@@ -549,8 +684,16 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Deactivate Account?', style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: const Color(0xFFEF4444))),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Deactivate Account?',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFFEF4444),
+            ),
+          ),
           content: Text(
             'This action is irreversible. You will lose all your reading records, streaks, and accumulated badges.',
             style: GoogleFonts.inter(height: 1.4),
@@ -558,20 +701,37 @@ class _SettingsPageState extends State<SettingsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF71717A), fontWeight: FontWeight.w600)),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF71717A),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Account deactivation requested.', style: GoogleFonts.inter()),
+                    content: Text(
+                      'Account deactivation requested.',
+                      style: GoogleFonts.inter(),
+                    ),
                     backgroundColor: const Color(0xFFEF4444),
                   ),
                 );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-              child: Text('Deactivate', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+              ),
+              child: Text(
+                'Deactivate',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         );
@@ -589,9 +749,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final firstName = user?.nickname?.isNotEmpty == true
         ? user!.nickname!
         : (user?.firstName.isNotEmpty == true ? user!.firstName : 'Student');
-    final gradeStr = user?.gradeLevel.isNotEmpty == true ? 'Grade ${user?.gradeLevel}' : '';
-    final sectionStr = user?.sectionName.isNotEmpty == true ? user!.sectionName : '';
-    final gradeSection = [gradeStr, sectionStr].where((s) => s.isNotEmpty).join(' - ');
+    final gradeStr = user?.gradeLevel.isNotEmpty == true
+        ? 'Grade ${user?.gradeLevel}'
+        : '';
+    final sectionStr = user?.sectionName.isNotEmpty == true
+        ? user!.sectionName
+        : '';
+    final gradeSection = [
+      gradeStr,
+      sectionStr,
+    ].where((s) => s.isNotEmpty).join(' - ');
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -609,7 +776,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     // ── Header (Custom App Bar) ───────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -632,7 +802,9 @@ class _SettingsPageState extends State<SettingsPage> {
                               letterSpacing: -0.5,
                             ),
                           ),
-                          const SizedBox(width: 48), // Spacer to keep title centered
+                          const SizedBox(
+                            width: 48,
+                          ), // Spacer to keep title centered
                         ],
                       ),
                     ),
@@ -684,7 +856,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                       children: [
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Hello, $firstName!',
@@ -697,11 +870,14 @@ class _SettingsPageState extends State<SettingsPage> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                gradeSection.isNotEmpty ? gradeSection : 'Student Portal',
+                                                gradeSection.isNotEmpty
+                                                    ? gradeSection
+                                                    : 'Student Portal',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w500,
-                                                  color: Colors.white.withValues(alpha: 0.8),
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8),
                                                 ),
                                               ),
                                             ],
@@ -757,14 +933,15 @@ class _SettingsPageState extends State<SettingsPage> {
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFFBF8F5),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFFEAEAEA)),
+                                      border: Border.all(
+                                        color: const Color(0xFFEAEAEA),
+                                      ),
                                     ),
                                     padding: const EdgeInsets.all(16),
-                                    child: RichText(
-                                      text: TextSpan(
-                                        style: _dyslexiaFont
-                                            ? TextStyle(
-                                                fontFamily: 'OpenDyslexic',
+                                    child: Builder(
+                                      builder: (context) {
+                                        final previewStyle = _dyslexiaFont
+                                            ? GoogleFonts.lexend(
                                                 fontSize: _readingFontSize,
                                                 color: Colors.black,
                                                 height: 1.5,
@@ -773,24 +950,47 @@ class _SettingsPageState extends State<SettingsPage> {
                                                 fontSize: _readingFontSize,
                                                 color: Colors.black,
                                                 height: 1.5,
+                                              );
+                                        return RichText(
+                                          text: TextSpan(
+                                            style: previewStyle,
+                                            children: [
+                                              const TextSpan(
+                                                text:
+                                                    'Nora was excited. It was ',
                                               ),
-                                        children: const [
-                                          TextSpan(
-                                            text: 'Nora was excited. It was summer and Lola was making mango ice candy.',
+                                              TextSpan(
+                                                text: 'summer and Lola',
+                                                style: previewStyle.copyWith(
+                                                  backgroundColor:
+                                                      _textHighlighting
+                                                      ? _highlightColor
+                                                      : null,
+                                                ),
+                                              ),
+                                              const TextSpan(
+                                                text:
+                                                    ' was making mango ice candy.',
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        );
+                                      },
                                     ),
                                   ),
                                   const SizedBox(height: 20),
 
                                   // Font Size
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         'Font Size',
-                                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                       Text(
                                         '${_readingFontSize.round()} px',
@@ -804,12 +1004,15 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   Slider(
                                     min: 14.0,
-                                    max: 26.0,
-                                    divisions: 6,
+                                    max: 30.0,
+                                    divisions: 8,
                                     value: _readingFontSize,
                                     activeColor: primaryBlue,
                                     onChanged: (val) {
                                       setState(() => _readingFontSize = val);
+                                      ReadingPreferencesService.setFontSize(
+                                        val,
+                                      );
                                     },
                                   ),
                                   const SizedBox(height: 20),
@@ -818,20 +1021,148 @@ class _SettingsPageState extends State<SettingsPage> {
                                   SwitchListTile.adaptive(
                                     title: Text(
                                       'Dyslexia-Friendly Font',
-                                      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                     subtitle: Text(
                                       'Specially designed for easier reading',
-                                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: textGray,
+                                      ),
                                     ),
                                     value: _dyslexiaFont,
-                                    activeTrackColor: primaryBlue.withValues(alpha: 0.5),
+                                    activeTrackColor: primaryBlue.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     activeThumbColor: primaryBlue,
                                     contentPadding: EdgeInsets.zero,
                                     onChanged: (val) {
                                       setState(() => _dyslexiaFont = val);
+                                      ReadingPreferencesService.setDyslexiaFont(
+                                        val,
+                                      );
                                     },
                                   ),
+                                  const SizedBox(height: 8),
+
+                                  // Text Highlighting Tool Switch
+                                  SwitchListTile.adaptive(
+                                    title: Text(
+                                      'Text Highlighting Tool',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      'Allows selecting and highlighting text while practice reading',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: textGray,
+                                      ),
+                                    ),
+                                    value: _textHighlighting,
+                                    activeTrackColor: primaryBlue.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    activeThumbColor: primaryBlue,
+                                    contentPadding: EdgeInsets.zero,
+                                    onChanged: (val) {
+                                      setState(() => _textHighlighting = val);
+                                      ReadingPreferencesService.setTextHighlighting(
+                                        val,
+                                      );
+                                    },
+                                  ),
+
+                                  // Highlight Color Selector (When enabled)
+                                  if (_textHighlighting) ...[
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Highlight Color',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: textGray,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: ReadingPreferencesService
+                                              .highlightColorOptions
+                                              .map((color) {
+                                                final isSelected =
+                                                    _highlightColor
+                                                        .toARGB32() ==
+                                                    color.toARGB32();
+                                                return GestureDetector(
+                                                  onTap: () {
+                                                    setState(
+                                                      () => _highlightColor =
+                                                          color,
+                                                    );
+                                                    ReadingPreferencesService.setHighlightColor(
+                                                      color,
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          left: 10,
+                                                        ),
+                                                    width: 28,
+                                                    height: 28,
+                                                    decoration: BoxDecoration(
+                                                      color: color,
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(
+                                                        color: isSelected
+                                                            ? primaryBlue
+                                                            : Colors.black12,
+                                                        width: isSelected
+                                                            ? 2.5
+                                                            : 1,
+                                                      ),
+                                                      boxShadow: isSelected
+                                                          ? [
+                                                              BoxShadow(
+                                                                color: color
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.5,
+                                                                    ),
+                                                                blurRadius: 6,
+                                                                offset:
+                                                                    const Offset(
+                                                                      0,
+                                                                      2,
+                                                                    ),
+                                                              ),
+                                                            ]
+                                                          : null,
+                                                    ),
+                                                    child: isSelected
+                                                        ? const Icon(
+                                                            Icons.check_rounded,
+                                                            size: 16,
+                                                            color:
+                                                                Colors.black87,
+                                                          )
+                                                        : null,
+                                                  ),
+                                                );
+                                              })
+                                              .toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -867,7 +1198,10 @@ class _SettingsPageState extends State<SettingsPage> {
                                   // Voice assistant Volume
                                   Text(
                                     'Voice Assistant Volume',
-                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   Slider(
                                     min: 0.0,
@@ -875,7 +1209,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                     value: _voiceGuidanceVolume,
                                     activeColor: primaryBlue,
                                     onChanged: (val) {
-                                      setState(() => _voiceGuidanceVolume = val);
+                                      setState(
+                                        () => _voiceGuidanceVolume = val,
+                                      );
                                     },
                                   ),
                                   const SizedBox(height: 12),
@@ -884,14 +1220,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                   SwitchListTile.adaptive(
                                     title: Text(
                                       'Background Noise Reduction',
-                                      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                     subtitle: Text(
                                       'Filters out noisy school environment sounds',
-                                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: textGray,
+                                      ),
                                     ),
                                     value: _noiseReduction,
-                                    activeTrackColor: primaryBlue.withValues(alpha: 0.5),
+                                    activeTrackColor: primaryBlue.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     activeThumbColor: primaryBlue,
                                     contentPadding: EdgeInsets.zero,
                                     onChanged: (val) {
@@ -903,31 +1247,50 @@ class _SettingsPageState extends State<SettingsPage> {
                                   // Interactive Microphone test widget
                                   Text(
                                     'Test Your Microphone',
-                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'Say a few words to check if the app hears you.',
-                                    style: GoogleFonts.inter(fontSize: 12, color: textGray),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
                                   ),
                                   const SizedBox(height: 14),
 
                                   Row(
                                     children: [
                                       ElevatedButton(
-                                        onPressed: _isTestingMic ? null : _testMicrophone,
+                                        onPressed: _isTestingMic
+                                            ? null
+                                            : _testMicrophone,
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: _isTestingMic ? Colors.grey[200] : primaryBlue,
+                                          backgroundColor: _isTestingMic
+                                              ? Colors.grey[200]
+                                              : primaryBlue,
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
                                         ),
                                         child: Text(
-                                          _isTestingMic ? 'Listening...' : 'Test Mic',
-                                          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                                          _isTestingMic
+                                              ? 'Listening...'
+                                              : 'Test Mic',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
@@ -936,28 +1299,49 @@ class _SettingsPageState extends State<SettingsPage> {
                                           height: 40,
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFF4F4F5),
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
                                           child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: _isTestingMic
                                                 ? _waveform.map((heightValue) {
                                                     return AnimatedContainer(
-                                                      duration: const Duration(milliseconds: 100),
+                                                      duration: const Duration(
+                                                        milliseconds: 100,
+                                                      ),
                                                       width: 4,
-                                                      height: 6 + (28 * heightValue),
-                                                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                                                      height:
+                                                          6 +
+                                                          (28 * heightValue),
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 2,
+                                                          ),
                                                       decoration: BoxDecoration(
                                                         color: primaryBlue,
-                                                        borderRadius: BorderRadius.circular(2),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              2,
+                                                            ),
                                                       ),
                                                     );
                                                   }).toList()
                                                 : [
                                                     Icon(
-                                                      _micTestSuccess ? Icons.check_circle : Icons.mic_none,
-                                                      color: _micTestSuccess ? const Color(0xFF00A859) : textGray,
+                                                      _micTestSuccess
+                                                          ? Icons.check_circle
+                                                          : Icons.mic_none,
+                                                      color: _micTestSuccess
+                                                          ? const Color(
+                                                              0xFF00A859,
+                                                            )
+                                                          : textGray,
                                                       size: 18,
                                                     ),
                                                     const SizedBox(width: 8),
@@ -967,8 +1351,13 @@ class _SettingsPageState extends State<SettingsPage> {
                                                           : 'Click Test and speak!',
                                                       style: GoogleFonts.inter(
                                                         fontSize: 13,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: _micTestSuccess ? const Color(0xFF00A859) : textGray,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: _micTestSuccess
+                                                            ? const Color(
+                                                                0xFF00A859,
+                                                              )
+                                                            : textGray,
                                                       ),
                                                     ),
                                                   ],
@@ -1010,11 +1399,33 @@ class _SettingsPageState extends State<SettingsPage> {
                               clipBehavior: Clip.antiAlias,
                               child: Column(
                                 children: [
-                                  _buildSettingItem(Ph.user, 'Profile details', _showProfileDetails),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.lock, 'Password', _showChangePassword),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.bell, 'Notifications', _showNotificationSettings),
+                                  _buildSettingItem(
+                                    Ph.user,
+                                    'Profile details',
+                                    _showProfileDetails,
+                                  ),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 56,
+                                    endIndent: 16,
+                                    color: Color(0xFFF1F1F4),
+                                  ),
+                                  _buildSettingItem(
+                                    Ph.lock,
+                                    'Password',
+                                    _showChangePassword,
+                                  ),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 56,
+                                    endIndent: 16,
+                                    color: Color(0xFFF1F1F4),
+                                  ),
+                                  _buildSettingItem(
+                                    Ph.bell,
+                                    'Notifications',
+                                    _showNotificationSettings,
+                                  ),
                                 ],
                               ),
                             ),
@@ -1036,13 +1447,33 @@ class _SettingsPageState extends State<SettingsPage> {
                               clipBehavior: Clip.antiAlias,
                               child: Column(
                                 children: [
-                                  _buildSettingItem(Ph.info, 'About application', _showAboutApplication),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.chat_teardrop_text, 'Help / FAQ', _showHelpFAQ),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
+                                  _buildSettingItem(
+                                    Ph.info,
+                                    'About application',
+                                    _showAboutApplication,
+                                  ),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 56,
+                                    endIndent: 16,
+                                    color: Color(0xFFF1F1F4),
+                                  ),
+                                  _buildSettingItem(
+                                    Ph.chat_teardrop_text,
+                                    'Help / FAQ',
+                                    _showHelpFAQ,
+                                  ),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 56,
+                                    endIndent: 16,
+                                    color: Color(0xFFF1F1F4),
+                                  ),
                                   // Clear Cache row directly in Group 2
                                   ListTile(
-                                    onTap: _isClearingCache ? null : _clearCache,
+                                    onTap: _isClearingCache
+                                        ? null
+                                        : _clearCache,
                                     leading: Container(
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF4F4F5),
@@ -1069,7 +1500,10 @@ class _SettingsPageState extends State<SettingsPage> {
                                             height: 18,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    primaryBlue,
+                                                  ),
                                             ),
                                           )
                                         : const Icon(
@@ -1077,11 +1511,24 @@ class _SettingsPageState extends State<SettingsPage> {
                                             color: Color(0xFFA1A1AA),
                                             size: 20,
                                           ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
                                     visualDensity: VisualDensity.compact,
                                   ),
-                                  const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F1F4)),
-                                  _buildSettingItem(Ph.trash, 'Deactivate my account', _showDeactivateAccount, isDestructive: true),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 56,
+                                    endIndent: 16,
+                                    color: Color(0xFFF1F1F4),
+                                  ),
+                                  _buildSettingItem(
+                                    Ph.trash,
+                                    'Deactivate my account',
+                                    _showDeactivateAccount,
+                                    isDestructive: true,
+                                  ),
                                 ],
                               ),
                             ),
@@ -1102,9 +1549,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ── Helper Settings Item Builder ──────────────────────────────────────────
 
-  Widget _buildSettingItem(String iconSvg, String title, VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _buildSettingItem(
+    String iconSvg,
+    String title,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
     final textColor = isDestructive ? const Color(0xFFEF4444) : Colors.black87;
-    final iconColor = isDestructive ? const Color(0xFFEF4444) : const Color(0xFF71717A);
+    final iconColor = isDestructive
+        ? const Color(0xFFEF4444)
+        : const Color(0xFF71717A);
 
     return Material(
       color: Colors.transparent,
@@ -1112,15 +1566,13 @@ class _SettingsPageState extends State<SettingsPage> {
         onTap: onTap,
         leading: Container(
           decoration: BoxDecoration(
-            color: isDestructive ? const Color(0xFFFEF2F2) : const Color(0xFFF4F4F5),
+            color: isDestructive
+                ? const Color(0xFFFEF2F2)
+                : const Color(0xFFF4F4F5),
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(8),
-          child: Iconify(
-            iconSvg,
-            color: iconColor,
-            size: 20,
-          ),
+          child: Iconify(iconSvg, color: iconColor, size: 20),
         ),
         title: Text(
           title,

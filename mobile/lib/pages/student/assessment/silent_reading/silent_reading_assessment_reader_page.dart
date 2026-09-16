@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_quiz_page.dart';
-
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/reading_preferences_service.dart';
 
 class SilentReadingAssessmentReaderPage extends StatefulWidget {
   final Map<String, dynamic>? item;
@@ -19,6 +19,8 @@ class SilentReadingAssessmentReaderPage extends StatefulWidget {
 class _SilentReadingAssessmentReaderPageState
     extends State<SilentReadingAssessmentReaderPage> {
   bool _isDarkMode = false;
+  double _readingFontSize = 22.0;
+  bool _dyslexiaFont = false;
 
   String _fullStoryText = '';
   String _storyTitle = 'Silent Reading Passage';
@@ -28,6 +30,17 @@ class _SilentReadingAssessmentReaderPageState
 
   int _readingSecondsElapsed = 0;
   Timer? _readingTimer;
+
+  List<String> get _paragraphs {
+    if (_fullStoryText.isEmpty) return ['Naga-antay ng kwento...'];
+    return _fullStoryText
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split(RegExp(r'\n+'))
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
+  }
 
   bool get _isEnglish {
     final lang = _assessmentLanguage.toLowerCase();
@@ -40,18 +53,28 @@ class _SilentReadingAssessmentReaderPageState
   @override
   void initState() {
     super.initState();
+    _loadReadingPreferences();
     _extractItemData();
     _fetchPassageFromApi();
     _startReadingTimer();
+  }
+
+  Future<void> _loadReadingPreferences() async {
+    final fontSize = await ReadingPreferencesService.getFontSize();
+    final dyslexia = await ReadingPreferencesService.getDyslexiaFont();
+    if (mounted) {
+      setState(() {
+        _readingFontSize = fontSize;
+        _dyslexiaFont = dyslexia;
+      });
+    }
   }
 
   void _startReadingTimer() {
     _readingTimer?.cancel();
     _readingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() {
-          _readingSecondsElapsed++;
-        });
+        _readingSecondsElapsed++;
       }
     });
   }
@@ -302,26 +325,26 @@ class _SilentReadingAssessmentReaderPageState
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    ...(_fullStoryText.isEmpty
-                                            ? ['Naga-antay ng kwento...']
-                                            : _fullStoryText
-                                                .replaceAll('\r\n', '\n')
-                                                .replaceAll('\r', '\n')
-                                                .split(RegExp(r'\n+'))
-                                                .map((p) => p.trim())
-                                                .where((p) => p.isNotEmpty))
-                                        .map((paragraph) => Padding(
-                                              padding: const EdgeInsets.only(bottom: 24.0),
-                                              child: Text(
-                                                paragraph,
-                                                style: GoogleFonts.lora(
-                                                  fontSize: 22.0,
-                                                  height: 1.75,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: textColor,
-                                                ),
-                                              ),
-                                            )),
+                                    ..._paragraphs.map((paragraph) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 24.0),
+                                          child: Text(
+                                            paragraph,
+                                            style: _dyslexiaFont
+                                                ? TextStyle(
+                                                    fontFamily: 'OpenDyslexic',
+                                                    fontSize: _readingFontSize,
+                                                    height: 1.75,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: textColor,
+                                                  )
+                                                : GoogleFonts.lora(
+                                                    fontSize: _readingFontSize,
+                                                    height: 1.75,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: textColor,
+                                                  ),
+                                          ),
+                                        )),
                                     const SizedBox(height: 32),
                                   ],
                                 ),
