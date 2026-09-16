@@ -3942,6 +3942,180 @@ async function getStudentBadges(req, res) {
   }
 }
 
+/**
+ * GET /api/student/analytics
+ * Computes gamified Duolingo-style practice analytics for student.
+ */
+async function getStudentAnalytics(req, res) {
+  try {
+    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
+    if (!studentId && req.user?.lrn) {
+      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    } else if (studentId) {
+      const sRes = await db.query(
+        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+        [String(studentId).trim()]
+      );
+      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
+    }
+
+    if (!studentId) {
+      return res.status(404).json({ success: false, message: 'Student record not found' });
+    }
+
+    // 1. Fetch student_progress (streak & earned badges)
+    const progRes = await db.query(
+      `SELECT current_streak, earned_badges FROM student_progress WHERE student_id = $1 LIMIT 1`,
+      [studentId]
+    );
+    const currentStreak = progRes.rows[0]?.current_streak || 0;
+    const earnedBadges = progRes.rows[0]?.earned_badges || [];
+    const totalBadgesCount = Array.isArray(earnedBadges) ? earnedBadges.length : 0;
+
+    // 2. Fetch completed stories count & story quiz comprehension
+    const storyRes = await db.query(
+      `SELECT COUNT(*) as completed_count, AVG(CASE WHEN total_questions > 0 THEN (quiz_score::float / total_questions) * 100 ELSE 100 END) as avg_comp
+       FROM student_story_progress 
+       WHERE student_id = $1 AND status = 'completed'`,
+      [studentId]
+    );
+    const completedStoriesCount = parseInt(storyRes.rows[0]?.completed_count || '0', 10);
+    const storyComprehensionAvg = Math.round(parseFloat(storyRes.rows[0]?.avg_comp || '0'));
+
+    // 3. Fetch Vocabulary attempts summary
+    const vocabRes = await db.query(
+      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM vocabulary_attempts WHERE student_id = $1`,
+      [studentId]
+    );
+    const vocabCount = parseInt(vocabRes.rows[0]?.cnt || '0', 10);
+    const vocabAvg = Math.round(parseFloat(vocabRes.rows[0]?.avg_score || '0'));
+    const vocabXp = parseInt(vocabRes.rows[0]?.total_xp || '0', 10);
+
+    // 4. Fetch Sentence attempts summary
+    const sentRes = await db.query(
+      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM sentence_attempts WHERE student_id = $1`,
+      [studentId]
+    );
+    const sentCount = parseInt(sentRes.rows[0]?.cnt || '0', 10);
+    const sentAvg = Math.round(parseFloat(sentRes.rows[0]?.avg_score || '0'));
+    const sentXp = parseInt(sentRes.rows[0]?.total_xp || '0', 10);
+
+    // 5. Fetch Pronunciation attempts summary
+    const pronRes = await db.query(
+      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM pronunciation_attempts WHERE student_id = $1`,
+      [studentId]
+    );
+    const pronCount = parseInt(pronRes.rows[0]?.cnt || '0', 10);
+    const pronAvg = Math.round(parseFloat(pronRes.rows[0]?.avg_score || '0'));
+    const pronXp = parseInt(pronRes.rows[0]?.total_xp || '0', 10);
+
+    // Calculate total XP & overall accuracy & total sessions
+    const totalXp = vocabXp + sentXp + pronXp + (completedStoriesCount * 20);
+    const totalSessions = vocabCount + sentCount + pronCount + completedStoriesCount;
+
+    let overallAccuracy = 0;
+    const validScores = [];
+    if (vocabCount > 0) validScores.push(vocabAvg);
+    if (sentCount > 0) validScores.push(sentAvg);
+    if (pronCount > 0) validScores.push(pronAvg);
+    if (completedStoriesCount > 0 && storyComprehensionAvg > 0) validScores.push(storyComprehensionAvg);
+
+    if (validScores.length > 0) {
+      overallAccuracy = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
+    }
+
+    // Estimate practice time (approx 2 mins per session)
+    const totalTimeSpentMins = Math.max(totalSessions * 2, totalSessions > 0 ? 5 : 0);
+
+    // 6. Build Weekly Mon-Sun Activity Bar Chart data
+    const timeZone = process.env.APP_TIMEZONE || 'Asia/Manila';
+    const nowStr = new Date().toLocaleString('en-US', { timeZone });
+    const now = new Date(nowStr);
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const weeklyActivity = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dStr = formatYmdDate(d);
+
+      const dayRes = await db.query(
+        `SELECT AVG(score) as avg_score FROM (
+           SELECT score FROM vocabulary_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
+           UNION ALL
+           SELECT score FROM sentence_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
+           UNION ALL
+           SELECT score FROM pronunciation_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
+         ) sub`,
+        [studentId, dStr]
+      );
+      const avgScore = dayRes.rows[0]?.avg_score != null ? Math.round(parseFloat(dayRes.rows[0].avg_score)) : 0;
+      const isCompleted = dayRes.rows[0]?.avg_score != null;
+
+      weeklyActivity.push({
+        day: dayLabels[i],
+        date: dStr,
+        score: avgScore,
+        completed: isCompleted,
+      });
+    }
+
+    // 7. Dynamic Mascot Feedback Tip ("Sally's Tip")
+    let smartTip = "Welcome! Complete daily practice exercises and read stories to see your learning stats grow!";
+    if (totalSessions > 0) {
+      const skillPairs = [
+        { name: 'Sentence Building', score: sentCount > 0 ? sentAvg : -1 },
+        { name: 'Vocabulary Matching', score: vocabCount > 0 ? vocabAvg : -1 },
+        { name: 'Story Comprehension', score: completedStoriesCount > 0 ? storyComprehensionAvg : -1 },
+        { name: 'Pronunciation Challenge', score: pronCount > 0 ? pronAvg : -1 },
+      ].filter((s) => s.score >= 0);
+
+      if (skillPairs.length > 0) {
+        skillPairs.sort((a, b) => b.score - a.score);
+        const best = skillPairs[0];
+        const lowest = skillPairs[skillPairs.length - 1];
+
+        if (best.name !== lowest.name && lowest.score < 85) {
+          smartTip = `Superstar learner! Your ${best.name} is at ${best.score}%! Try 1 more ${lowest.name} exercise today to level up your skills!`;
+        } else {
+          smartTip = `Awesome job! Your highest accuracy is ${best.name} at ${best.score}%! Keep up the daily practice!`;
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        totalXp,
+        currentStreak,
+        completedStoriesCount,
+        totalBadgesCount,
+        totalTimeSpentMins,
+        totalSessionsCompleted: totalSessions,
+        overallAccuracy,
+        weeklyActivity,
+        skills: {
+          vocabulary: { accuracy: vocabAvg, count: vocabCount },
+          sentence: { accuracy: sentAvg, count: sentCount },
+          pronunciation: { accuracy: pronAvg, count: pronCount },
+          comprehension: { accuracy: storyComprehensionAvg, count: completedStoriesCount },
+        },
+        smartTip,
+      },
+    });
+  } catch (err) {
+    console.error('[getStudentAnalytics] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Failed to fetch student analytics' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -3977,6 +4151,7 @@ module.exports = {
   getPracticeRemedialQuestion,
   getStudentStreak,
   getStudentBadges,
+  getStudentAnalytics,
   updateStudentStreakInDb,
 };
 

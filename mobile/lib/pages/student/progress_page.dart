@@ -24,6 +24,7 @@ import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
 import 'package:salintinig/services/badge_service.dart';
+import 'package:salintinig/services/analytics_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
@@ -217,6 +218,7 @@ class _ProgressPageState extends State<ProgressPage>
             LibraryService.fetchReadingProgress(),
             StreakService.syncStreakWithBackend(),
             BadgeService.fetchBadges(),
+            AnalyticsService.fetchAnalytics(),
           ]);
 
           final streak = await StreakService.getStreakCount();
@@ -537,20 +539,14 @@ class _ProgressPageState extends State<ProgressPage>
                               _buildContinueReadingCard(),
                               const SizedBox(height: 28),
 
-                              // ── Section: Analytics ──
+                              // ── Section: Analytics (Duolingo Style Gamified Dashboard) ──
                               _buildSectionHeader(
                                 icon: PhIcons.chartBarBold,
                                 title: 'Analytics',
                               ),
                               const SizedBox(height: 16),
-                              _buildAnalyticsStats(primaryBlue),
-                              const SizedBox(height: 28),
-                              _buildAccuracyTrendCard(),
+                              _buildDuolingoAnalytics(primaryBlue),
                               const SizedBox(height: 24),
-
-                              // ── Section: Diagnostic Metric Cards ──
-                              _buildDiagnosticMetrics(),
-                              const SizedBox(height: 16),
                             ],
                           ),
                         ),
@@ -1564,228 +1560,764 @@ class _ProgressPageState extends State<ProgressPage>
 
 
 
-  // ── Analytics Stats Row ──
-  Widget _buildAnalyticsStats(Color primaryBlue) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatItem('5', 'Stories', PhIcons.booksRegular, primaryBlue),
-        _buildStatItem('5', 'Badges', PhIcons.shieldBold, primaryBlue),
-        _buildStatItem('5', 'Streak', PhIcons.fireBold, primaryBlue),
-      ],
-    );
-  }
-
-  Widget _buildStatItem(String val, String label, String iconSvg, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Iconify(
-          iconSvg,
-          color: color,
-          size: 32,
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              val,
-              style: GoogleFonts.inter(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                color: Colors.black,
-                height: 1.0,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF71717A),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ── Accuracy Trend Card ──
-  Widget _buildAccuracyTrendCard() {
-    const shadowColor = Color(0xFFE2E8F0);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: shadowColor,
-          width: 1.0,
-        ),
-      ),
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'model accuracy',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 180,
-            child: CustomPaint(
-              painter: AccuracyChartPainter(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Accuracy Trend',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF71717A),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Diagnostic Metrics ──
-  Widget _buildDiagnosticMetrics() {
+  Widget _buildAnalyticsSkeletonLoader() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 1. Overview Card Skeleton
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: List.generate(3, (i) => Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 50,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 40,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 2. Weekly Bar Chart Skeleton
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 160,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    width: 65,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 100,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(7, (index) => Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        width: 20,
+                        height: index % 2 == 0 ? 45 : 25,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 12,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ],
+                  )),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 3. Skill Mastery Grid Skeleton (2x2)
         Row(
           children: [
-            Expanded(
-              child: _buildMetricCard(
-                value: '67',
-                unit: 'wps',
-                label: 'Reading Speed',
-                icon: PhIcons.lightningFill,
-                iconBg: const Color(0xFFFEF3C7),
-                iconCol: const Color(0xFFF59E0B),
-              ),
-            ),
+            Expanded(child: _buildSkillCardSkeleton()),
             const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                value: '87%',
-                label: 'Accuracy',
-                icon: PhIcons.targetRegular,
-                iconBg: const Color(0xFFDBEAFE),
-                iconCol: const Color(0xFF1B64D8),
-              ),
-            ),
+            Expanded(child: _buildSkillCardSkeleton()),
           ],
         ),
+        const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(
-              child: _buildMetricCard(
-                value: '37%',
-                label: 'Comprehension',
-                icon: PhIcons.lightbulbRegular,
-                iconBg: const Color(0xFFD1FAE5),
-                iconCol: const Color(0xFF10B981),
-              ),
-            ),
+            Expanded(child: _buildSkillCardSkeleton()),
             const SizedBox(width: 12),
-            const Expanded(child: SizedBox()), // spacer to keep grids aligned
+            Expanded(child: _buildSkillCardSkeleton()),
           ],
+        ),
+        const SizedBox(height: 16),
+
+        // 4. Sally Smart Tip Card Skeleton
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF1B64D8).withValues(alpha: 0.15)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEFF6FF),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDBEAFE),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 140,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMetricCard({
-    required String value,
-    String? unit,
-    required String label,
-    required String icon,
-    required Color iconBg,
-    required Color iconCol,
-  }) {
-    const shadowColor = Color(0xFFE2E8F0);
+  Widget _buildSkillCardSkeleton() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: shadowColor,
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    value,
-                    style: GoogleFonts.inter(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black,
-                      height: 1.0,
-                    ),
-                  ),
-                  if (unit != null) ...[
-                    const SizedBox(width: 2),
-                    Text(
-                      unit,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF71717A),
-                      ),
-                    ),
-                  ],
-                ],
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               Container(
                 width: 36,
-                height: 36,
+                height: 16,
                 decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Iconify(
-                  icon,
-                  color: iconCol,
-                  size: 20,
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Container(
+            width: 70,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: 50,
+            height: 10,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SalinTinig Gamified Analytics Section ──
+  Widget _buildDuolingoAnalytics(Color primaryBlue) {
+    return ValueListenableBuilder<AnalyticsData?>(
+      valueListenable: AnalyticsService.analyticsNotifier,
+      builder: (context, data, _) {
+        if (data == null && AnalyticsService.cachedAnalytics == null) {
+          return _buildAnalyticsSkeletonLoader();
+        }
+        final totalXp = data?.totalXp ?? (BadgeService.cachedBadges.length * 15 + _streakCount * 10);
+        final streak = data?.currentStreak ?? _streakCount;
+        final stories = data?.completedStoriesCount ?? _inProgressBooks.length;
+        final weekly = data?.weeklyActivity ?? [];
+        final skills = data?.skills ?? {};
+        final smartTip = data?.smartTip ??
+            "Welcome! Complete daily practice exercises and read stories to see your learning stats grow!";
+
+        final vocabAcc = (skills['vocabulary']?['accuracy'] as num?)?.toInt() ?? 0;
+        final vocabCount = (skills['vocabulary']?['count'] as num?)?.toInt() ?? 0;
+        final sentAcc = (skills['sentence']?['accuracy'] as num?)?.toInt() ?? 0;
+        final sentCount = (skills['sentence']?['count'] as num?)?.toInt() ?? 0;
+        final pronAcc = (skills['pronunciation']?['accuracy'] as num?)?.toInt() ?? 0;
+        final pronCount = (skills['pronunciation']?['count'] as num?)?.toInt() ?? 0;
+        final compAcc = (skills['comprehension']?['accuracy'] as num?)?.toInt() ?? 0;
+        final compCount = (skills['comprehension']?['count'] as num?)?.toInt() ?? stories;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Unified Clean Overview Card (XP, Streak, Stories)
+            _buildUnifiedOverviewCard(
+              totalXp: totalXp,
+              streak: streak,
+              stories: stories,
+            ),
+            const SizedBox(height: 16),
+
+            // 2. Weekly Activity Bar Chart
+            _buildWeeklyBarChartCard(weekly),
+            const SizedBox(height: 16),
+
+            // 3. Skill Mastery Grid (2x2 Cards)
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSkillMasteryCard(
+                    title: 'Vocabulary',
+                    accuracy: vocabAcc,
+                    count: vocabCount,
+                    iconSvg: PhIcons.equalsBold,
+                    accentColor: const Color(0xFFD97706),
+                    bgColor: const Color(0xFFFEF3C7),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSkillMasteryCard(
+                    title: 'Sentence',
+                    accuracy: sentAcc,
+                    count: sentCount,
+                    iconSvg: PhIcons.hammerBold,
+                    accentColor: const Color(0xFF10B981),
+                    bgColor: const Color(0xFFD1FAE5),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSkillMasteryCard(
+                    title: 'Pronunciation',
+                    accuracy: pronAcc,
+                    count: pronCount,
+                    iconSvg: PhIcons.userSoundBold,
+                    accentColor: const Color(0xFF1B64D8),
+                    bgColor: const Color(0xFFDBEAFE),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSkillMasteryCard(
+                    title: 'Comprehension',
+                    accuracy: compAcc,
+                    count: compCount,
+                    iconSvg: PhIcons.lightbulbRegular,
+                    accentColor: const Color(0xFF8B5CF6),
+                    bgColor: const Color(0xFFF3E8FF),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 4. Sally Mascot Smart Learning Tip Card
+            _buildSallySmartTipCard(smartTip),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildUnifiedOverviewCard({
+    required int totalXp,
+    required int streak,
+    required int stories,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.lightningFill,
+              iconColor: const Color(0xFFF59E0B),
+              val: '$totalXp',
+              label: 'Total XP',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.fireBold,
+              iconColor: const Color(0xFFF97316),
+              val: '$streak',
+              label: 'Streak',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.booksRegular,
+              iconColor: const Color(0xFF1B64D8),
+              val: '$stories',
+              label: 'Stories',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewColumn({
+    required String iconSvg,
+    required Color iconColor,
+    required String val,
+    required String label,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Iconify(
+              iconSvg,
+              color: iconColor,
+              size: 20,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                val,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyBarChartCard(List<Map<String, dynamic>> weekly) {
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final todayIndex = StreakService.getTodayDayIndex();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weekly Practice Activity',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Mon – Sun completion history',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B64D8).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  'This Week',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1B64D8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // 7 Vertical Bars
+          SizedBox(
+            height: 110,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) {
+                Map<String, dynamic> item = {};
+                if (weekly.length > index) {
+                  item = weekly[index];
+                }
+
+                final bool isCompleted = item.isNotEmpty
+                    ? (item['completed'] == true)
+                    : (_weeklyTrackerDays.length > index &&
+                        _weeklyTrackerDays[index]['state'] == 'done');
+                final int score = (item['score'] as num?)?.toInt() ?? 0;
+                final bool isToday = index == todayIndex;
+
+                final double barRatio = isCompleted
+                    ? (score / 100).clamp(0.25, 1.0)
+                    : 0.12;
+
+                final Color barColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFFF1F5F9);
+
+                final Color textColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFF94A3B8);
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isCompleted)
+                      Text(
+                        '${score > 0 ? score : 100}%',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+
+                    // Bar Pill
+                    Container(
+                      width: 20,
+                      height: 64 * barRatio,
+                      decoration: BoxDecoration(
+                        color: barColor,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Day Label
+                    Text(
+                      dayLabels[index],
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: isToday ? FontWeight.w900 : FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkillMasteryCard({
+    required String title,
+    required int accuracy,
+    int count = 0,
+    required String iconSvg,
+    required Color accentColor,
+    required Color bgColor,
+  }) {
+    final bool hasData = count > 0 && accuracy > 0;
+    final double ratio = hasData ? (accuracy / 100).clamp(0.0, 1.0) : 0.0;
+    final String statusLabel = !hasData
+        ? 'Not Started'
+        : accuracy >= 85
+            ? 'Mastered'
+            : accuracy >= 60
+                ? 'Improving'
+                : 'Needs Practice';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Iconify(
+                  iconSvg,
+                  color: accentColor,
+                  size: 18,
+                ),
+              ),
+              Text(
+                hasData ? '$accuracy%' : '--',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
-            label,
+            title,
             style: GoogleFonts.inter(
               fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF52525B),
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            statusLabel,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: hasData ? ratio : 0.05,
+              backgroundColor: const Color(0xFFF1F5F9),
+              valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+              minHeight: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSallySmartTipCard(String tipMessage) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF1B64D8).withValues(alpha: 0.2),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1B64D8).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: 64,
+            width: 64,
+            child: Image.asset(
+              'assets/mascot/sally_reading.webp',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.face_rounded,
+                color: Color(0xFF1B64D8),
+                size: 36,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Sally's Learning Tip",
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1B64D8),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tipMessage,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF334155),
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1796,167 +2328,4 @@ class _ProgressPageState extends State<ProgressPage>
 
 }
 
-// ── Live accuracy curve vector custom painter ──
-class AccuracyChartPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintLineTrain = Paint()
-      ..color = const Color(0xFF1B64D8)
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
 
-    final paintLineTest = Paint()
-      ..color = const Color(0xFFF97316)
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final paintGrid = Paint()
-      ..color = const Color(0xFFF1F1F4)
-      ..strokeWidth = 1.0;
-
-    final paintAxis = Paint()
-      ..color = const Color(0xFFD4D4D8)
-      ..strokeWidth = 1.5;
-
-    // Dimensions
-    const paddingLeft = 32.0;
-    const paddingBottom = 24.0;
-    const paddingTop = 12.0;
-    const paddingRight = 12.0;
-
-    final width = size.width - paddingLeft - paddingRight;
-    final height = size.height - paddingTop - paddingBottom;
-
-    // Draw grid intersections
-    final yGridLines = 5;
-    for (int i = 0; i <= yGridLines; i++) {
-      final y = paddingTop + height * (1 - i / yGridLines);
-      canvas.drawLine(Offset(paddingLeft, y), Offset(size.width - paddingRight, y), paintGrid);
-    }
-
-    final xGridLines = 8;
-    for (int i = 0; i <= xGridLines; i++) {
-      final x = paddingLeft + width * (i / xGridLines);
-      canvas.drawLine(Offset(x, paddingTop), Offset(x, size.height - paddingBottom), paintGrid);
-    }
-
-    // Outer Axis Lines
-    canvas.drawLine(Offset(paddingLeft, paddingTop), Offset(paddingLeft, size.height - paddingBottom), paintAxis);
-    canvas.drawLine(Offset(paddingLeft, size.height - paddingBottom), Offset(size.width - paddingRight, size.height - paddingBottom), paintAxis);
-
-    // Labels & Legends text paints
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-    );
-
-    // X Axis ticks numbers (0, 2, 4, 6, 8)
-    final tickLabels = ['0', '2', '4', '6', '8'];
-    for (int i = 0; i < tickLabels.length; i++) {
-      final label = tickLabels[i];
-      final x = paddingLeft + width * (i * 2 / xGridLines);
-      
-      textPainter.text = TextSpan(
-        text: label,
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF71717A),
-        ),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - paddingBottom + 4));
-    }
-
-    // Centered "epoch" label
-    textPainter.text = TextSpan(
-      text: 'epoch',
-      style: GoogleFonts.inter(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(paddingLeft + width / 2 - textPainter.width / 2, size.height - 12));
-
-    // Live Vector curves calculation matching mockup
-    final trainPoints = [
-      Offset(paddingLeft, size.height - paddingBottom - height * 0.10),
-      Offset(paddingLeft + width * 0.125, size.height - paddingBottom - height * 0.40),
-      Offset(paddingLeft + width * 0.25, size.height - paddingBottom - height * 0.65),
-      Offset(paddingLeft + width * 0.375, size.height - paddingBottom - height * 0.78),
-      Offset(paddingLeft + width * 0.50, size.height - paddingBottom - height * 0.82),
-      Offset(paddingLeft + width * 0.625, size.height - paddingBottom - height * 0.83),
-      Offset(paddingLeft + width * 0.75, size.height - paddingBottom - height * 0.84),
-      Offset(paddingLeft + width * 0.875, size.height - paddingBottom - height * 0.85),
-      Offset(paddingLeft + width, size.height - paddingBottom - height * 0.87),
-    ];
-
-    final testPoints = [
-      Offset(paddingLeft, size.height - paddingBottom - height * 0.46),
-      Offset(paddingLeft + width * 0.125, size.height - paddingBottom - height * 0.58),
-      Offset(paddingLeft + width * 0.25, size.height - paddingBottom - height * 0.71),
-      Offset(paddingLeft + width * 0.375, size.height - paddingBottom - height * 0.81),
-      Offset(paddingLeft + width * 0.50, size.height - paddingBottom - height * 0.79),
-      Offset(paddingLeft + width * 0.625, size.height - paddingBottom - height * 0.68),
-      Offset(paddingLeft + width * 0.75, size.height - paddingBottom - height * 0.79),
-      Offset(paddingLeft + width * 0.875, size.height - paddingBottom - height * 0.79),
-      Offset(paddingLeft + width, size.height - paddingBottom - height * 0.83),
-    ];
-
-    // Smooth spline draw for Train
-    final pathTrain = Path()..moveTo(trainPoints[0].dx, trainPoints[0].dy);
-    for (int i = 0; i < trainPoints.length - 1; i++) {
-      final p1 = trainPoints[i];
-      final p2 = trainPoints[i + 1];
-      final controlX = p1.dx + (p2.dx - p1.dx) / 2;
-      pathTrain.cubicTo(controlX, p1.dy, controlX, p2.dy, p2.dx, p2.dy);
-    }
-    canvas.drawPath(pathTrain, paintLineTrain);
-
-    // Smooth spline draw for Test
-    final pathTest = Path()..moveTo(testPoints[0].dx, testPoints[0].dy);
-    for (int i = 0; i < testPoints.length - 1; i++) {
-      final p1 = testPoints[i];
-      final p2 = testPoints[i + 1];
-      final controlX = p1.dx + (p2.dx - p1.dx) / 2;
-      pathTest.cubicTo(controlX, p1.dy, controlX, p2.dy, p2.dx, p2.dy);
-    }
-    canvas.drawPath(pathTest, paintLineTest);
-
-    // Draw Legend frame in the top left
-    final legendX = paddingLeft + 12;
-    final legendY = paddingTop + 10;
-
-    // Train legend dot/line indicator
-    canvas.drawLine(Offset(legendX, legendY + 5), Offset(legendX + 15, legendY + 5), paintLineTrain);
-    textPainter.text = TextSpan(
-      text: 'train',
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(legendX + 20, legendY));
-
-    // Test legend dot/line indicator
-    canvas.drawLine(Offset(legendX, legendY + 17), Offset(legendX + 15, legendY + 17), paintLineTest);
-    textPainter.text = TextSpan(
-      text: 'test',
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(legendX + 20, legendY + 12));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

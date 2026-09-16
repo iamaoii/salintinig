@@ -100,24 +100,18 @@ class StreakService {
 
         final todayStr = serverToday ?? _formatDate(DateTime.now());
 
-        final int oldStreak = prefs.getInt(_keyCachedStreak) ?? 0;
-        final bool localHasCompletedToday = (prefs.getString(_keyCompletedDate) == todayStr ||
-                                             prefs.getString(_keyCachedLastDate) == todayStr);
-
         int finalStreak = serverStreak;
-        if (finalStreak == 0 && localHasCompletedToday) {
-          finalStreak = (oldStreak > 0 ? oldStreak : 1);
-        }
 
         await prefs.setInt(_keyCachedStreak, finalStreak);
 
         if (serverLastDate != null) {
           await prefs.setString(_keyCachedLastDate, serverLastDate);
+        } else {
+          await prefs.remove(_keyCachedLastDate);
         }
 
-        if (serverCompletedToday || serverLastDate == todayStr || localHasCompletedToday) {
+        if (serverCompletedToday) {
           await prefs.setString(_keyCompletedDate, todayStr);
-          // Also ensure todayStr is in weekly completed dates
           final List<String> weekly = prefs.getStringList(_keyWeeklyCompletedDates) ?? [];
           if (!weekly.contains(todayStr)) {
             weekly.add(todayStr);
@@ -127,23 +121,17 @@ class StreakService {
           await prefs.remove(_keyCompletedDate);
         }
 
-        if (finalStreak == 0 && !localHasCompletedToday) {
+        if (finalStreak == 0) {
           await prefs.remove(_keyCompletedDate);
           await prefs.remove(_keyCachedLastDate);
           await prefs.remove(_keyWeeklyCompletedDates);
         }
 
-        final bool newCompletedToday = (prefs.getString(_keyCompletedDate) == todayStr ||
-                                        prefs.getString(_keyCachedLastDate) == todayStr) &&
-                                       finalStreak > 0;
-
         // Re-cache weekly tracker
         await getWeeklyTracker();
 
-        // Only notify UI if streak count or completion state actually changed
-        if (oldStreak != finalStreak || !newCompletedToday) {
-          streakNotifier.value++;
-        }
+        // Notify UI of fresh backend state sync
+        streakNotifier.value++;
       }
     } catch (_) {
     } finally {
@@ -186,7 +174,6 @@ class StreakService {
       final bool hasLocalToday = prefs.getString(_keyCompletedDate) == todayStr ||
                                  prefs.getString(_keyCachedLastDate) == todayStr;
       final int streakCount    = prefs.getInt(_keyCachedStreak) ?? 0;
-      final String? lastDate   = prefs.getString(_keyCachedLastDate);
 
       final DateTime parsedToday = DateTime.tryParse(todayStr) ?? DateTime.now();
       final DateTime today       = DateTime(parsedToday.year, parsedToday.month, parsedToday.day);
@@ -199,21 +186,9 @@ class StreakService {
           .where((d) => d.compareTo(mondayStr) >= 0 && d.compareTo(todayStr) <= 0)
           .toSet();
 
-      // Merge active streak consecutive window ending at effectiveAnchorDate
-      if (streakCount > 0) {
-        final DateTime effectiveAnchorDate = hasLocalToday
-            ? today
-            : (lastDate != null ? (DateTime.tryParse(lastDate) ?? today) : today);
-        final DateTime anchorDate = DateTime(effectiveAnchorDate.year, effectiveAnchorDate.month, effectiveAnchorDate.day);
-
-        for (int i = 0; i < streakCount; i++) {
-          final DateTime d = anchorDate.subtract(Duration(days: i));
-          final String dStr = _formatDate(d);
-          if (dStr.compareTo(mondayStr) >= 0 && dStr.compareTo(todayStr) <= 0) {
-            doneDates.add(dStr);
-          }
-        }
-        if (hasLocalToday) doneDates.add(todayStr);
+      // Only add today if completed today
+      if (hasLocalToday && streakCount > 0) {
+        doneDates.add(todayStr);
       }
 
       const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];

@@ -43,11 +43,13 @@ const {
   getPracticeRemedialQuestion,
   getStudentStreak,
   getStudentBadges,
+  getStudentAnalytics,
 } = require('../controllers/student.controller.js');
 
-// ── GET /api/student/streak & /badges ─────────────────────────────────────────
+// ── GET /api/student/streak & /badges & /analytics ─────────────────────────
 router.get('/streak', verifyToken, getStudentStreak);
 router.get('/badges', verifyToken, getStudentBadges);
+router.get('/analytics', verifyToken, getStudentAnalytics);
 
 // Routes for Student Records management & assessment submissions
 router.get('/', getStudents);
