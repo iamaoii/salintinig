@@ -26,8 +26,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _isLoadingSession = true;
-
   @override
   void initState() {
     super.initState();
@@ -84,14 +82,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadUserSession() async {
     try {
       await AuthService.fetchMe();
-    } catch (_) {
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingSession = false;
-        });
-      }
-    }
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   // Reading Preferences state
@@ -1393,27 +1385,24 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(height: 12),
 
                             // ── Banner (Hello, {FirstName}!) ─────────────────────
-                            if (_isLoadingSession)
-                              _buildBannerSkeleton()
-                            else
-                              Container(
-                                clipBehavior: Clip.antiAlias,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  gradient: const LinearGradient(
-                                    colors: [primaryBlue, Color(0xFF195ECB)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryBlue.withValues(alpha: 0.2),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                            Container(
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: const LinearGradient(
+                                  colors: [primaryBlue, Color(0xFF195ECB)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                                child: Stack(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryBlue.withValues(alpha: 0.2),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
                                   children: [
                                     Positioned(
                                       right: 0,
@@ -2213,53 +2202,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ── Helper Settings Item & Skeleton Builders ─────────────────────────────
-
-  Widget _buildBannerSkeleton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(22.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 140,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 100,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-              color: Color(0xFFCBD5E1),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── Helper Settings Item Builder ──────────────────────────────────────────
 
   Widget _buildSettingItem(
     String iconSvg,

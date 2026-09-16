@@ -54,27 +54,33 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
   static List<Map<String, dynamic>>? _cachedAssignedList;
 
-  static void _loadAssignedDiskCache() {
+  Future<void> _loadAssignedDiskCache() async {
     try {
-      SharedPreferences.getInstance().then((prefs) {
-        final jsonStr = prefs.getString('cached_assigned_activities');
-        if (jsonStr != null && jsonStr.isNotEmpty) {
-          final List list = jsonDecode(jsonStr) as List;
-          _cachedAssignedList = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString('cached_assigned_activities');
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List list = jsonDecode(jsonStr) as List;
+        _cachedAssignedList =
+            list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (mounted && (_assignedList.isEmpty || _isLoading)) {
+          setState(() {
+            _assignedList =
+                List<Map<String, dynamic>>.from(_cachedAssignedList!);
+            _isLoading = false;
+          });
         }
-      });
+      }
     } catch (_) {}
   }
 
   @override
   void initState() {
     super.initState();
-    if (_cachedAssignedList == null) {
-      _loadAssignedDiskCache();
-    }
     if (_cachedAssignedList != null && _cachedAssignedList!.isNotEmpty) {
       _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
       _isLoading = false;
+    } else {
+      _loadAssignedDiskCache();
     }
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
     _fetchTeacherAssignment();
