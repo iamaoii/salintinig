@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -14,9 +15,19 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _loadUserSession();
+  }
+
+  Future<void> _loadUserSession() async {
+    await AuthService.fetchMe();
+    if (mounted) setState(() {});
+  }
+
   // Reading Preferences state
   double _readingFontSize = 16.0;
-  Color _selectedHighlightColor = const Color(0xFF1B64D8);
   bool _dyslexiaFont = false;
 
   // Audio & Microphone state
@@ -35,14 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // Cache clearing state
   bool _isClearingCache = false;
-
-  final List<Color> _highlightColors = [
-    const Color(0xFF1B64D8), // Primary Blue
-    const Color(0xFF00A859), // Green
-    const Color(0xFFFBBF24), // Yellow
-    const Color(0xFFEF4444), // Red
-    const Color(0xFF8B5CF6), // Purple
-  ];
 
   // Helper method to format TimeOfDay
   String _formatTimeOfDay(TimeOfDay time) {
@@ -138,6 +141,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // 1. Profile Details Modal
   void _showProfileDetails() {
+    final user = AuthService.currentUser;
+    final fullName = user?.displayName ?? 'Student User';
+    final nickname = user?.nickname?.isNotEmpty == true ? user!.nickname! : (user?.firstName ?? 'N/A');
+    final gradeStr = user?.gradeLevel.isNotEmpty == true ? 'Grade ${user?.gradeLevel}' : '';
+    final sectionStr = user?.sectionName.isNotEmpty == true ? user!.sectionName : '';
+    final gradeSection = [gradeStr, sectionStr].where((s) => s.isNotEmpty).join(' - ');
+    final lrn = user?.lrn.isNotEmpty == true ? user!.lrn : 'N/A';
+    final email = user?.email.isNotEmpty == true ? user!.email : 'N/A';
+    final school = user?.rawUser?['school_name']?.toString() ??
+        user?.rawUser?['schoolName']?.toString() ??
+        'Salintinig Elementary School';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -170,12 +185,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
               const Divider(height: 24),
-              _buildModalInfoRow('Full Name', 'Doechii E. Carganilla'),
-              _buildModalInfoRow('Nickname', 'Doechii'),
-              _buildModalInfoRow('Grade & Section', 'Grade 4 - Malinis'),
-              _buildModalInfoRow('LRN', '1366 7010 0099'),
-              _buildModalInfoRow('Email Address', 'doechii@edu.org.ph'),
-              _buildModalInfoRow('School', 'Fyang Elementary School'),
+              _buildModalInfoRow('Full Name', fullName),
+              _buildModalInfoRow('Nickname', nickname),
+              _buildModalInfoRow('Grade & Section', gradeSection.isNotEmpty ? gradeSection : 'N/A'),
+              _buildModalInfoRow('LRN', lrn),
+              _buildModalInfoRow('Email Address', email),
+              _buildModalInfoRow('School', school),
               const SizedBox(height: 16),
             ],
           ),
@@ -570,6 +585,14 @@ class _SettingsPageState extends State<SettingsPage> {
     const softCreamBg = Color(0xFFFCFAF7);
     const textGray = Color(0xFF71717A);
 
+    final user = AuthService.currentUser;
+    final firstName = user?.nickname?.isNotEmpty == true
+        ? user!.nickname!
+        : (user?.firstName.isNotEmpty == true ? user!.firstName : 'Student');
+    final gradeStr = user?.gradeLevel.isNotEmpty == true ? 'Grade ${user?.gradeLevel}' : '';
+    final sectionStr = user?.sectionName.isNotEmpty == true ? user!.sectionName : '';
+    final gradeSection = [gradeStr, sectionStr].where((s) => s.isNotEmpty).join(' - ');
+
     return Scaffold(
       backgroundColor: softCreamBg,
       body: SafeArea(
@@ -624,8 +647,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             const SizedBox(height: 12),
 
-                            // ── Banner (Hello, Doechii!) ─────────────────────
+                            // ── Banner (Hello, {FirstName}!) ─────────────────────
                             Container(
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
                                 gradient: const LinearGradient(
@@ -641,35 +665,52 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.all(22.0),
-                              child: Row(
+                              child: Stack(
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                  Positioned(
+                                    right: 0,
+                                    top: -12,
+                                    bottom: -12,
+                                    width: 200,
+                                    child: Image.asset(
+                                      'assets/student page/logo_bg.webp',
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.centerRight,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(22.0),
+                                    child: Row(
                                       children: [
-                                        Text(
-                                          'Hello, Doechii!',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                            letterSpacing: -0.5,
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Hello, $firstName!',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                  letterSpacing: -0.5,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                gradeSection.isNotEmpty ? gradeSection : 'Student Portal',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.white.withValues(alpha: 0.8),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Grade 4 - Malinis',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white.withValues(alpha: 0.8),
-                                          ),
-                                        ),
+                                        const UserAvatar(size: 52),
                                       ],
                                     ),
                                   ),
-                                  const UserAvatar(size: 52),
                                 ],
                               ),
                             ),
@@ -733,16 +774,10 @@ class _SettingsPageState extends State<SettingsPage> {
                                                 color: Colors.black,
                                                 height: 1.5,
                                               ),
-                                        children: [
-                                          const TextSpan(text: 'Nora was excited. It was '),
+                                        children: const [
                                           TextSpan(
-                                            text: 'summer',
-                                            style: TextStyle(
-                                              backgroundColor: _selectedHighlightColor.withValues(alpha: 0.25),
-                                              fontWeight: FontWeight.w800,
-                                            ),
+                                            text: 'Nora was excited. It was summer and Lola was making mango ice candy.',
                                           ),
-                                          const TextSpan(text: ' and Lola was making mango ice candy.'),
                                         ],
                                       ),
                                     ),
@@ -776,40 +811,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                     onChanged: (val) {
                                       setState(() => _readingFontSize = val);
                                     },
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // Highlight Colors
-                                  Text(
-                                    'Reading Highlight Color',
-                                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: _highlightColors.map((color) {
-                                      final isSelected = _selectedHighlightColor == color;
-                                      return GestureDetector(
-                                        onTap: () {
-                                          setState(() => _selectedHighlightColor = color);
-                                        },
-                                        child: Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: color,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: isSelected ? Colors.black : Colors.transparent,
-                                              width: 2.5,
-                                            ),
-                                          ),
-                                          child: isSelected
-                                              ? const Icon(Icons.check, color: Colors.white, size: 16)
-                                              : null,
-                                        ),
-                                      );
-                                    }).toList(),
                                   ),
                                   const SizedBox(height: 20),
 

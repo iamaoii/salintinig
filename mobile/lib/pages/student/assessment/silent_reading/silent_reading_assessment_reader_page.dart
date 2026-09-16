@@ -19,8 +19,6 @@ class SilentReadingAssessmentReaderPage extends StatefulWidget {
 class _SilentReadingAssessmentReaderPageState
     extends State<SilentReadingAssessmentReaderPage> {
   bool _isDarkMode = false;
-  int _currentPage = 0;
-  final PageController _pageController = PageController();
 
   String _fullStoryText = '';
   String _storyTitle = 'Silent Reading Passage';
@@ -65,7 +63,6 @@ class _SilentReadingAssessmentReaderPageState
   @override
   void dispose() {
     _readingTimer?.cancel();
-    _pageController.dispose();
     super.dispose();
   }
 
@@ -227,182 +224,6 @@ class _SilentReadingAssessmentReaderPageState
     }
   }
 
-  // Dynamic pagination algorithm that maximizes screen utilization while preserving paragraph breaks
-  List<List<String>> _paginateStory({
-    required String fullText,
-    required double maxWidth,
-    required double maxHeight,
-    required TextStyle textStyle,
-    required double paragraphSpacing,
-  }) {
-    final String normalizedText = fullText
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
-
-    // Check if the passage has explicit paragraph breaks
-    List<String> rawParagraphs;
-    if (normalizedText.contains('\n\n')) {
-      rawParagraphs = normalizedText
-          .split('\n\n')
-          .map((p) => p.trim())
-          .where((p) => p.isNotEmpty)
-          .toList();
-    } else if (normalizedText.contains('\n')) {
-      rawParagraphs = normalizedText
-          .split('\n')
-          .map((p) => p.trim())
-          .where((p) => p.isNotEmpty)
-          .toList();
-    } else {
-      // If it's a single continuous block, split it into natural 2-sentence thought groups
-      final allSentences = _splitIntoSentences(normalizedText);
-      if (allSentences.length > 3) {
-        rawParagraphs = [];
-        for (int i = 0; i < allSentences.length; i += 2) {
-          final end = (i + 2 < allSentences.length)
-              ? i + 2
-              : allSentences.length;
-          rawParagraphs.add(allSentences.sublist(i, end).join(' '));
-        }
-      } else {
-        rawParagraphs = [normalizedText.trim()];
-      }
-    }
-
-    final List<List<String>> pages = [];
-    List<String> currentPage = [];
-    double currentHeight = 0.0;
-
-    for (final paragraph in rawParagraphs) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: paragraph.trim(), style: textStyle),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout(maxWidth: maxWidth);
-      final double paraHeight = textPainter.height;
-
-      final double spacing = currentPage.isEmpty ? 0.0 : paragraphSpacing;
-
-      // 1. If entire paragraph fits comfortably on current page, add it
-      if (currentHeight + spacing + paraHeight <= maxHeight) {
-        currentPage.add(paragraph);
-        currentHeight += spacing + paraHeight;
-      } else {
-        // 2. If it doesn't fit completely, try fitting sentences of this paragraph into the remaining space
-        // so that the page is fully filled instead of leaving a huge empty gap!
-        final sentences = _splitIntoSentences(paragraph);
-        List<String> fittingSentences = [];
-        List<String> overflowSentences = [];
-
-        for (final sentence in sentences) {
-          final candidateSentences = [...fittingSentences, sentence].join(' ');
-          final sentPainter = TextPainter(
-            text: TextSpan(text: candidateSentences, style: textStyle),
-            textDirection: TextDirection.ltr,
-          );
-          sentPainter.layout(maxWidth: maxWidth);
-          final double candidateHeight = sentPainter.height;
-          final double testSpacing = currentPage.isEmpty
-              ? 0.0
-              : paragraphSpacing;
-
-          if (overflowSentences.isEmpty &&
-              (currentHeight + testSpacing + candidateHeight <= maxHeight)) {
-            fittingSentences.add(sentence);
-          } else {
-            overflowSentences.add(sentence);
-          }
-        }
-
-        if (fittingSentences.isNotEmpty) {
-          currentPage.add(fittingSentences.join(' '));
-          pages.add(currentPage);
-          currentPage = [];
-          currentHeight = 0.0;
-        } else if (currentPage.isNotEmpty) {
-          pages.add(currentPage);
-          currentPage = [];
-          currentHeight = 0.0;
-        }
-
-        // Process any remaining sentences of this paragraph on subsequent page(s)
-        if (overflowSentences.isNotEmpty) {
-          final remainderPara = overflowSentences.join(' ');
-          final remPainter = TextPainter(
-            text: TextSpan(text: remainderPara, style: textStyle),
-            textDirection: TextDirection.ltr,
-          );
-          remPainter.layout(maxWidth: maxWidth);
-          final double remHeight = remPainter.height;
-
-          if (remHeight <= maxHeight) {
-            currentPage.add(remainderPara);
-            currentHeight = remHeight;
-          } else {
-            // If remainder is still larger than a whole page, add sentence by sentence
-            for (final s in overflowSentences) {
-              final sPainter = TextPainter(
-                text: TextSpan(text: s, style: textStyle),
-                textDirection: TextDirection.ltr,
-              );
-              sPainter.layout(maxWidth: maxWidth);
-              final double sHeight = sPainter.height;
-              final double sSpacing = currentPage.isEmpty
-                  ? 0.0
-                  : paragraphSpacing;
-
-              if (currentHeight + sSpacing + sHeight <= maxHeight) {
-                currentPage.add(s);
-                currentHeight += sSpacing + sHeight;
-              } else {
-                if (currentPage.isNotEmpty) {
-                  pages.add(currentPage);
-                }
-                currentPage = [s];
-                currentHeight = sHeight;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (currentPage.isNotEmpty) {
-      pages.add(currentPage);
-    }
-
-    if (pages.isEmpty) {
-      pages.add(['']);
-    }
-
-    return pages;
-  }
-
-  List<String> _splitIntoSentences(String paragraph) {
-    final List<String> result = [];
-    int start = 0;
-    for (int i = 0; i < paragraph.length; i++) {
-      if (i < paragraph.length - 1) {
-        final char = paragraph[i];
-        final nextChar = paragraph[i + 1];
-        if ((char == '.' || char == '?' || char == '!') &&
-            (nextChar == ' ' || nextChar == '”' || nextChar == '"')) {
-          final int end = (nextChar == '”' || nextChar == '"') ? i + 2 : i + 1;
-          result.add(paragraph.substring(start, end).trim());
-          start = end;
-          i = end - 1;
-        }
-      }
-    }
-    if (start < paragraph.length) {
-      final remainder = paragraph.substring(start).trim();
-if (remainder.isNotEmpty) {
-        result.add(remainder);
-      }
-    }
-    return result.isEmpty ? [paragraph] : result;
-  }
-
   @override
   Widget build(BuildContext context) {
     // Theme coloring configuration
@@ -415,9 +236,6 @@ if (remainder.isNotEmpty) {
     final Color titleColor = _isDarkMode
         ? const Color(0xFFECE8E4)
         : const Color(0xFF1E293B);
-    final Color secondaryTextColor = _isDarkMode
-        ? const Color(0xFF8A8580)
-        : const Color(0xFF64748B);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -457,131 +275,73 @@ if (remainder.isNotEmpty) {
                         ),
                       ),
 
-                      // 2. Reading Text Block (PageView with dynamic pagination)
+                      // 2. Reading Text Block (Continuous Vertical Scrollable View)
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, viewConstraints) {
-                            final double horizontalPadding = 40.0;
-                            final double verticalPadding = 24.0;
-                            // Height for bottom page count indicator (35px) and footer controls (80px) + safety buffer
-                            final double footerControlsHeight = 135.0;
-                            final double maxWidth =
-                                viewConstraints.maxWidth - horizontalPadding;
-                            final double maxHeight =
-                                viewConstraints.maxHeight -
-                                verticalPadding -
-                                footerControlsHeight;
-
-                            final TextStyle textStyle = GoogleFonts.lora(
-                              fontSize: 22.0,
-                              height: 1.75,
-                              fontWeight: FontWeight.w500,
-                              color: textColor,
-                            );
-
-                            final dynamicPages = _paginateStory(
-                              fullText: _fullStoryText,
-                              maxWidth: maxWidth > 0 ? maxWidth : 100,
-                              maxHeight: maxHeight > 0 ? maxHeight : 100,
-                              textStyle: textStyle,
-                              paragraphSpacing: 30.0,
-                            );
-
-                            final int totalPages = dynamicPages.length;
-                            final int activePage = _currentPage.clamp(
-                              0,
-                              totalPages - 1,
-                            );
-
-                            return Column(
-                              children: [
-                                // Swipable pages
-                                Expanded(
-                                  child: PageView.builder(
-                                    controller: _pageController,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: totalPages,
-                                    onPageChanged: (pageIndex) {
-                                      setState(() {
-                                        _currentPage = pageIndex;
-                                      });
-                                    },
-                                    itemBuilder: (context, pageIndex) {
-                                      final pageParagraphs =
-                                          dynamicPages[pageIndex];
-
-                                      return SingleChildScrollView(
-                                        physics: const BouncingScrollPhysics(),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20.0,
-                                          vertical: 12.0,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.start,
-                                          children: List.generate(
-                                            pageParagraphs.length,
-                                            (pIndex) {
-                                              final isLast =
-                                                  pIndex ==
-                                                  pageParagraphs.length - 1;
-                                              return Padding(
-                                                padding: EdgeInsets.only(
-                                                  bottom: isLast ? 0.0 : 30.0,
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    ...(_fullStoryText.isEmpty
+                                            ? ['Naga-antay ng kwento...']
+                                            : _fullStoryText
+                                                .replaceAll('\r\n', '\n')
+                                                .replaceAll('\r', '\n')
+                                                .split(RegExp(r'\n+'))
+                                                .map((p) => p.trim())
+                                                .where((p) => p.isNotEmpty))
+                                        .map((paragraph) => Padding(
+                                              padding: const EdgeInsets.only(bottom: 24.0),
+                                              child: Text(
+                                                paragraph,
+                                                style: GoogleFonts.lora(
+                                                  fontSize: 22.0,
+                                                  height: 1.75,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: textColor,
                                                 ),
-                                                child: Text(
-                                                  pageParagraphs[pIndex].trim(),
-                                                  style: textStyle,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      );
+                                              ),
+                                            )),
+                                    const SizedBox(height: 32),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // 3. Footer Action Controls
+                            Container(
+                              padding: const EdgeInsets.all(20.0),
+                              decoration: BoxDecoration(
+                                color: bgColor,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: _isDarkMode
+                                        ? const Color(0xFF1E2530)
+                                        : const Color(0xFFE2E8F0),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _buildThemeSwitcher(),
+                                  GestureDetector(
+                                    key: const ValueKey('finish_reading_btn_scroll'),
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      _confirmStartQuiz(context);
                                     },
+                                    child: _buildStartQuizButton(),
                                   ),
-                                ),
-
-                                // 3. Centered page count indicator
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 8.0,
-                                  ),
-                                  child: Text(
-                                    '${activePage + 1}/$totalPages',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: secondaryTextColor,
-                                    ),
-                                  ),
-                                ),
-
-                                // 4. Footer navigation controls
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 24.0,
-                                    right: 24.0,
-                                    bottom: 20.0,
-                                    top: 12.0,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      _buildThemeSwitcher(),
-                                      _buildActionButton(
-                                        activePage,
-                                        totalPages,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -656,127 +416,6 @@ if (remainder.isNotEmpty) {
           ],
         ),
       ),
-    );
-  }
-
-  // Action Button at bottom right (Next Page caret, Intermediate Dual, OR Start Quiz)
-  Widget _buildActionButton(int activePage, int totalPages) {
-    final isFirstPage = activePage == 0;
-    final isLastPage = activePage == totalPages - 1;
-    final Color buttonBgColor = _isDarkMode
-        ? const Color(0xFF1E2530)
-        : const Color(0xFFE2E8F0);
-    final Color iconColor = _isDarkMode
-        ? Colors.white
-        : const Color(0xFF475569);
-
-    if (totalPages <= 1) {
-      return GestureDetector(
-        key: const ValueKey('finish_reading_btn_single'),
-        onTap: () {
-          Feedback.forTap(context);
-          _finishReading();
-        },
-        child: _buildStartQuizButton(),
-      );
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: isLastPage
-          ? Row(
-              key: const ValueKey('last_page_nav_row'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Back button to previous page
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _pageController.previousPage(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOutCubic,
-                    );
-                  },
-                  child: Container(
-                    width: 50,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: buttonBgColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      color: iconColor,
-                      size: 26,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Start Quiz Button
-                GestureDetector(
-                  onTap: () {
-                    Feedback.forTap(context);
-                    _confirmStartQuiz(context);
-                  },
-                  child: _buildStartQuizButton(),
-                ),
-              ],
-            )
-          : Container(
-              key: const ValueKey('capsule_page_nav_btn'),
-              width: 100,
-              height: 48,
-              decoration: BoxDecoration(
-                color: buttonBgColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  // Left button (Back) - visible only if not on the first page
-                  isFirstPage
-                      ? const SizedBox(width: 50)
-                      : GestureDetector(
-                          onTap: () {
-                            Feedback.forTap(context);
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeInOutCubic,
-                            );
-                          },
-                          child: Container(
-                            width: 50,
-                            height: 48,
-                            color: Colors.transparent,
-                            child: Icon(
-                              Icons.chevron_left_rounded,
-                              color: iconColor,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                  // Right button (Next)
-                  GestureDetector(
-                    onTap: () {
-                      Feedback.forTap(context);
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeInOutCubic,
-                      );
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 48,
-                      color: Colors.transparent,
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        color: iconColor,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
     );
   }
 
