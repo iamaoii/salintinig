@@ -20,6 +20,10 @@ class UserSession {
     this.rawUser,
   });
 
+  String? get nickname => rawUser?['nickname'] as String?;
+  String get avatarFrame => rawUser?['avatarFrame'] as String? ?? rawUser?['avatar_frame'] as String? ?? 'None';
+  String? get profileImage => rawUser?['profileImage'] as String? ?? rawUser?['profile_image'] as String?;
+
   String get displayName {
     if (rawUser == null) return email;
     final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String? ?? '';
@@ -98,13 +102,19 @@ class UserSession {
 
   String get gradeLevel {
     if (rawUser == null) return '';
-    final val = rawUser!['gradeLevel']?.toString() ?? rawUser!['grade']?.toString() ?? '';
+    final val = rawUser!['gradeLevel']?.toString() ??
+        rawUser!['grade_level']?.toString() ??
+        rawUser!['grade']?.toString() ??
+        '';
     return val.replaceAll(RegExp(r'^Grade\s*', caseSensitive: false), '').trim();
   }
 
   String get sectionName {
     if (rawUser == null) return '';
-    return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? '';
+    return rawUser!['sectionName']?.toString() ??
+        rawUser!['section_name']?.toString() ??
+        rawUser!['section']?.toString() ??
+        '';
   }
 
   String get schoolYear {
@@ -263,6 +273,25 @@ class AuthService {
       'resetCode': resetCode,
       'newPassword': newPassword,
     });
+  }
+
+  /// Update student profile details (nickname, avatarUrl, frame) in PostgreSQL database
+  static Future<ApiResponse> updateStudentProfile({
+    String? nickname,
+    String? avatarUrl,
+    String? frame,
+  }) async {
+    final res = await ApiService.post('/auth/profile', {
+      if (nickname != null) 'nickname': nickname,
+      if (avatarUrl != null) 'avatarUrl': avatarUrl,
+      if (frame != null) 'frame': frame,
+    });
+    if (res.success && res.data != null && res.data['user'] != null) {
+      final userMap = res.data['user'] as Map<String, dynamic>;
+      _currentUser = UserSession.fromJson(userMap);
+      await _saveSession(userMap);
+    }
+    return res;
   }
 
   static List<Map<String, dynamic>>? _cachedClassStudents;

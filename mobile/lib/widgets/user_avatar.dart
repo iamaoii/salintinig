@@ -48,6 +48,8 @@ ImageProvider? _getImageProvider(String? urlStr) {
     }
   } else if (clean.startsWith('http://') || clean.startsWith('https://')) {
     return NetworkImage(clean);
+  } else if (clean.startsWith('assets/')) {
+    return AssetImage(clean);
   }
   return null;
 }
@@ -118,9 +120,23 @@ class InitialsAvatar extends StatelessWidget {
 class UserAvatar extends StatelessWidget {
   final double size;
   final String? imageUrl;
+  final String? frame;
   final VoidCallback? onTap;
 
-  const UserAvatar({super.key, this.size = 56, this.imageUrl, this.onTap});
+  const UserAvatar({
+    super.key,
+    this.size = 56,
+    this.imageUrl,
+    this.frame,
+    this.onTap,
+  });
+
+  static const Map<String, dynamic> _frameStyles = {
+    'Bronze': {'color': Color(0xFFCD7F32), 'width': 3.5, 'glow': false},
+    'Silver': {'color': Color(0xFFC0C0C0), 'width': 3.5, 'glow': false},
+    'Gold Star': {'color': Color(0xFFF59E0B), 'width': 3.5, 'glow': true},
+    'Cosmic Neon': {'color': Color(0xFF8B5CF6), 'width': 3.5, 'glow': true},
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -131,9 +147,17 @@ class UserAvatar extends StatelessWidget {
     final url = imageUrl ?? user?.rawUser?['profileImage'] ?? user?.rawUser?['profile_image'];
     final imageProvider = _getImageProvider(url?.toString());
 
-    Widget avatarWidget;
+    final activeFrameKey = frame ?? user?.avatarFrame ?? 'None';
+    final frameData = _frameStyles[activeFrameKey];
+    final frameColor = (frameData?['color'] as Color?) ?? Colors.transparent;
+    final frameWidth = (frameData?['width'] as num?)?.toDouble() ?? 0.0;
+    final hasGlow = (frameData?['glow'] as bool?) ?? false;
+
+    final hasBorder = frameWidth > 0 && frameColor != Colors.transparent;
+
+    Widget avatarInner;
     if (imageProvider != null) {
-      avatarWidget = Container(
+      avatarInner = Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -145,7 +169,7 @@ class UserAvatar extends StatelessWidget {
         ),
       );
     } else {
-      avatarWidget = Container(
+      avatarInner = Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -165,15 +189,95 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
+    // 1. Base Avatar: Avatar photo icon with crisp white ring border
+    // This is the EXACT fixed layout widget. Layout dimensions never change, so header components never move!
+    final Widget baseAvatarWithWhiteRing = Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: avatarInner,
+    );
+
+    Widget finalWidget;
+
+    if (hasBorder) {
+      // Outer colored ring border & outward glow are placed BEHIND baseAvatarWithWhiteRing in the Stack
+      finalWidget = SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            // 1. Glow & Colored Ring Layer (behind avatar photo)
+            Positioned(
+              top: -3.5,
+              left: -3.5,
+              right: -3.5,
+              bottom: -3.5,
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: frameColor, width: 3.5),
+                    boxShadow: hasGlow
+                        ? [
+                            BoxShadow(
+                              color: frameColor.withValues(alpha: 0.50),
+                              blurRadius: 10,
+                              spreadRadius: 1.5,
+                              offset: Offset.zero,
+                            ),
+                            BoxShadow(
+                              color: frameColor.withValues(alpha: 0.20),
+                              blurRadius: 14,
+                              spreadRadius: 2.5,
+                              offset: Offset.zero,
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 4,
+                              spreadRadius: 0,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                  ),
+                ),
+              ),
+            ),
+            // 2. Base Avatar Photo with White Ring Layer (placed in front so icon remains 100% crisp and un-tinted)
+            baseAvatarWithWhiteRing,
+          ],
+        ),
+      );
+    } else {
+      // 'None': Render base avatar with white ring only. Zero layout change!
+      finalWidget = baseAvatarWithWhiteRing;
+    }
+
     if (onTap != null) {
       return GestureDetector(
         onTap: () {
           Feedback.forTap(context);
           onTap!();
         },
-        child: avatarWidget,
+        child: finalWidget,
       );
     }
-    return avatarWidget;
+    return finalWidget;
   }
 }

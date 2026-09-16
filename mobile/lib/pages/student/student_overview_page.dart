@@ -498,7 +498,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                           CrossAxisAlignment.start,
                                                       children: [
                                                         Text(
-                                                          'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
+                                                          'Hello, ${AuthService.currentUser?.nickname?.isNotEmpty == true ? AuthService.currentUser!.nickname! : (AuthService.currentUser?.firstName ?? 'Student')}!',
                                                           style: GoogleFonts.inter(
                                                             fontSize: 24.5,
                                                             fontWeight:
@@ -548,7 +548,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                           builder: (context) =>
                                                               const ProfilePage(),
                                                         ),
-                                                      ).then((_) {
+                                                      ).then((_) async {
+                                                        await AuthService.fetchMe();
+                                                        if (mounted) setState(() {});
                                                         _fetchTeacherAssignment();
                                                         if (mounted) _loadReadingProgress(forceRefresh: true);
                                                       });

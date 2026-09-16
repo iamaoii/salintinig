@@ -65,7 +65,6 @@ CREATE TABLE IF NOT EXISTS teachers (
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
     sex VARCHAR(20) DEFAULT 'Male',
-    profile_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -105,7 +104,8 @@ CREATE TABLE IF NOT EXISTS students (
     middle_name VARCHAR(100),
     last_name VARCHAR(100) NOT NULL,
     sex VARCHAR(20) CHECK (sex IN ('Male', 'Female')),
-    profile_image TEXT,
+    nickname VARCHAR(100),
+    avatar_frame VARCHAR(100) DEFAULT 'None',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

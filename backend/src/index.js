@@ -13,8 +13,8 @@ const PORT = process.env.PORT || 5000
 
 // Middleware
 app.use(cors())
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
 // Serve static files (backend public directory including logos)
 app.use(express.static(path.join(__dirname, '../public')));
@@ -72,6 +72,21 @@ async function initDatabase() {
         }
       } catch (hashErr) {
         console.warn('Password hash migration notice:', hashErr.message);
+      }
+
+      // Auto-migrate schema changes: Add nickname & avatar_frame strictly to students, drop redundant profile_image from teachers & students, drop nickname & avatar_frame from users
+      try {
+        await db.query(`
+          ALTER TABLE users DROP COLUMN IF EXISTS nickname;
+          ALTER TABLE users DROP COLUMN IF EXISTS avatar_frame;
+          ALTER TABLE students ADD COLUMN IF NOT EXISTS nickname VARCHAR(100);
+          ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_frame VARCHAR(100) DEFAULT 'None';
+          ALTER TABLE students DROP COLUMN IF EXISTS profile_image;
+          ALTER TABLE teachers DROP COLUMN IF EXISTS profile_image;
+          UPDATE students SET nickname = first_name WHERE nickname IS NULL OR nickname = '';
+        `);
+      } catch (schemaMigrateErr) {
+        console.warn('Schema migration notice:', schemaMigrateErr.message);
       }
 
       // Auto-migrate reading_profiles and student_reading_profiles normalized architecture

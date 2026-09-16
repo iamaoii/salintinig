@@ -425,11 +425,11 @@ async function createStudent(req, res) {
           const userId = userRows[0].user_id;
 
           const { rows: stdRows } = await db.query(
-            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex, nickname)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6, nickname = COALESCE(students.nickname, $7)
              RETURNING student_id`,
-            [userId, lrn, firstName, middleName || null, lastName, gender || 'Male']
+            [userId, lrn, firstName, middleName || null, lastName, gender || 'Male', firstName]
           );
 
           if (stdRows && stdRows[0]) {
@@ -909,11 +909,11 @@ async function importStudentsCSV(req, res) {
             const userId = userRows[0].user_id;
 
             const { rows: stdRows } = await db.query(
-              `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+              `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex, nickname)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6, nickname = COALESCE(students.nickname, $7)
                RETURNING student_id`,
-              [userId, lrn, firstName, middleName || null, lastName, gender]
+              [userId, lrn, firstName, middleName || null, lastName, gender, firstName]
             );
 
             if (stdRows && stdRows[0]) {
@@ -1847,6 +1847,7 @@ async function getStudentActiveAssignment(req, res) {
 
     let targetStudentId = null;
     let targetGrade = 'Grade 4';
+    let targetSection = 'Unassigned';
     let resolvedLrn = tokenLrn;
     let assignedActivities = [];
     let attemptsStatus = { listening: false, oral: false, silent: false };
@@ -1877,9 +1878,10 @@ async function getStudentActiveAssignment(req, res) {
         targetStudentId = sRow.student_id;
         resolvedLrn = sRow.lrn || tokenLrn;
 
-        // Get grade_level from student_grade_history â†’ classes
+        // Get grade_level and section_name from student_grade_history → classes
+        targetSection = 'Unassigned';
         const gradeRes = await db.query(
-          `SELECT c.grade_level
+          `SELECT c.grade_level, c.section_name
            FROM student_grade_history sgh
            JOIN classes c ON sgh.class_id = c.class_id
            WHERE sgh.student_id = $1
@@ -1888,6 +1890,9 @@ async function getStudentActiveAssignment(req, res) {
         );
         if (gradeRes.rows[0]?.grade_level) {
           targetGrade = gradeRes.rows[0].grade_level;
+        }
+        if (gradeRes.rows[0]?.section_name) {
+          targetSection = gradeRes.rows[0].section_name;
         }
       } else {
         console.warn('[getStudentActiveAssignment] No student record found for userId:', tokenUserId, 'lrn:', tokenLrn);
@@ -2213,6 +2218,8 @@ async function getStudentActiveAssignment(req, res) {
       studentId: targetStudentId,
       lrn: resolvedLrn,
       gradeLevel: targetGrade,
+      section: targetSection,
+      sectionName: targetSection,
     });
   } catch (error) {
     console.error('[getStudentActiveAssignment] unhandled error:', error);
