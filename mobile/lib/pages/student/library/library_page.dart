@@ -36,7 +36,12 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   void initState() {
     super.initState();
-    // Populate initial state from memory cache immediately if available
+    // Populate initial state from memory/disk cache immediately if available
+    final cachedBooks = LibraryService.cachedBooks;
+    if (cachedBooks != null && cachedBooks.isNotEmpty) {
+      _books = List<Map<String, dynamic>>.from(cachedBooks);
+      _isLoading = false;
+    }
     final cached = LibraryService.cachedProgressSnapshot;
     if (cached != null && cached.isNotEmpty) {
       _inProgressBooks = LibraryService.filterInProgress(cached);

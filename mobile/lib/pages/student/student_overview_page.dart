@@ -28,6 +28,7 @@ import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/student_prefetch_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
@@ -73,6 +74,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     if (_cachedReadingProfiles != null) {
       _readingProfiles = _cachedReadingProfiles;
     }
+    if (LibraryService.cachedProgress != null && LibraryService.cachedProgress!.isNotEmpty) {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+      _isLoadingReadingProgress = false;
+    }
 
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
     LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
@@ -85,6 +90,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     _loadReadingProgress();
     _setupRealtimeSubscription();
     _startCarouselTimer();
+    StudentPrefetchService.prefetchAll();
   }
 
   void _onAnalyticsChanged() {

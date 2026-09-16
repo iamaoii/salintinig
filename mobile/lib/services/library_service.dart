@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/streak_service.dart';
@@ -6,6 +8,9 @@ import 'package:salintinig/services/streak_service.dart';
 /// Singleton service for fetching library books and reading progress.
 class LibraryService {
   LibraryService._();
+
+  static const String _keyCachedBooks = 'cached_library_books';
+  static const String _keyCachedProgress = 'cached_library_progress';
 
   // In-memory cache
   static List<Map<String, dynamic>>? _cachedBooks;
@@ -15,8 +20,50 @@ class LibraryService {
 
   static const _cacheTtl = Duration(minutes: 5);
 
-  static List<Map<String, dynamic>>? get cachedBooks => _cachedBooks;
-  static List<Map<String, dynamic>>? get cachedProgress => _cachedProgress;
+  static List<Map<String, dynamic>>? get cachedBooks {
+    if (_cachedBooks == null) {
+      _loadBooksFromDisk();
+    }
+    return _cachedBooks;
+  }
+
+  static List<Map<String, dynamic>>? get cachedProgress {
+    if (_cachedProgress == null) {
+      _loadProgressFromDisk();
+    }
+    return _cachedProgress;
+  }
+
+  static void _loadBooksFromDisk() {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        final jsonStr = prefs.getString(_keyCachedBooks);
+        if (jsonStr != null && jsonStr.isNotEmpty) {
+          final List list = jsonDecode(jsonStr) as List;
+          _cachedBooks = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _booksCachedAt = DateTime.now();
+        }
+      });
+    } catch (e) {
+      debugPrint('[LibraryService] Error loading books from disk: $e');
+    }
+  }
+
+  static void _loadProgressFromDisk() {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        final jsonStr = prefs.getString(_keyCachedProgress);
+        if (jsonStr != null && jsonStr.isNotEmpty) {
+          final List list = jsonDecode(jsonStr) as List;
+          _cachedProgress = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _progressCachedAt = DateTime.now();
+          progressNotifier.value = List.unmodifiable(_cachedProgress!);
+        }
+      });
+    } catch (e) {
+      debugPrint('[LibraryService] Error loading progress from disk: $e');
+    }
+  }
 
   // ── Books ────────────────────────────────────────────────────────────────
 
@@ -28,6 +75,10 @@ class LibraryService {
     String? grade,
     bool forceRefresh = false,
   }) async {
+    if (_cachedBooks == null) {
+      _loadBooksFromDisk();
+    }
+
     // Return cache if still fresh and no filters are applied
     if (!forceRefresh &&
         _cachedBooks != null &&
@@ -60,6 +111,9 @@ class LibraryService {
           if (language == null && category == null && grade == null) {
             _cachedBooks = books;
             _booksCachedAt = DateTime.now();
+            SharedPreferences.getInstance().then((prefs) {
+              prefs.setString(_keyCachedBooks, jsonEncode(books));
+            });
           }
           return books;
         }
@@ -68,6 +122,7 @@ class LibraryService {
 
     return _cachedBooks ?? [];
   }
+
 
   // ── Reading Progress ─────────────────────────────────────────────────────
 
@@ -110,6 +165,9 @@ class LibraryService {
           _cachedProgress = mergedProgress;
           _progressCachedAt = DateTime.now();
           progressNotifier.value = List.unmodifiable(_cachedProgress!);
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString(_keyCachedProgress, jsonEncode(mergedProgress));
+          });
           return mergedProgress;
         }
       }

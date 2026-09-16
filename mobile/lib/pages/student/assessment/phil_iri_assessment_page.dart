@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,10 +54,25 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
   static List<Map<String, dynamic>>? _cachedAssignedList;
 
+  static void _loadAssignedDiskCache() {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        final jsonStr = prefs.getString('cached_assigned_activities');
+        if (jsonStr != null && jsonStr.isNotEmpty) {
+          final List list = jsonDecode(jsonStr) as List;
+          _cachedAssignedList = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      });
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
-    if (_cachedAssignedList != null) {
+    if (_cachedAssignedList == null) {
+      _loadAssignedDiskCache();
+    }
+    if (_cachedAssignedList != null && _cachedAssignedList!.isNotEmpty) {
       _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
       _isLoading = false;
     }
@@ -129,7 +146,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
   Future<void> _fetchTeacherAssignment() async {
     try {
-      if (_assignedList.isEmpty) {
+      if (_assignedList.isEmpty && _cachedAssignedList == null) {
         setState(() {
           _isLoading = true;
         });
@@ -163,6 +180,9 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                 return titleA.compareTo(titleB);
               });
               _cachedAssignedList = List<Map<String, dynamic>>.from(_assignedList);
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setString('cached_assigned_activities', jsonEncode(_assignedList));
+              });
             }
           });
 

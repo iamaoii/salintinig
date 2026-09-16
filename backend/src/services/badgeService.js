@@ -328,19 +328,6 @@ async function getStudentBadgesProgress(rawStudentId) {
       });
     }
 
-    // Dual fallback to student_badges table if present
-    try {
-      const { rows: earnedRows } = await db.query(
-        `SELECT badge_id, earned_at FROM student_badges WHERE student_id = $1`,
-        [studentId]
-      );
-      earnedRows.forEach((r) => {
-        if (!earnedMap.has(r.badge_id)) {
-          earnedMap.set(r.badge_id, r.earned_at);
-        }
-      });
-    } catch (_) {}
-
     // Fetch student progress metrics for locked badge progress calculation
     const [vRes, pronRes, sRes, storyLangsRes] = await Promise.all([
       db.query(`SELECT MAX(score) as max_score FROM vocabulary_attempts WHERE student_id = $1`, [studentId]),

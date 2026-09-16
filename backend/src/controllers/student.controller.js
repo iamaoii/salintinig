@@ -269,17 +269,20 @@ async function getStudentByLrn(req, res) {
 
           studentObj.activities = [];
 
-          // Fetch earned badges from DB
+          // Fetch earned badges from student_progress DB table
           try {
-            const { rows: badgeRows } = await db.query(
-              `SELECT b.badge_id AS id, b.badge_name AS name, COALESCE(b.icon_path, '') AS image
-               FROM student_badges sb
-               JOIN badges b ON sb.badge_id = b.badge_id
-               WHERE sb.student_id = $1
-               ORDER BY sb.earned_at DESC`,
+            const { rows: pRows } = await db.query(
+              `SELECT earned_badges FROM student_progress WHERE student_id = $1 LIMIT 1`,
               [studentId]
             );
-            studentObj.badges = badgeRows || [];
+            if (pRows.length > 0 && pRows[0].earned_badges) {
+              const badgesArr = typeof pRows[0].earned_badges === 'string'
+                ? JSON.parse(pRows[0].earned_badges)
+                : pRows[0].earned_badges;
+              studentObj.badges = Array.isArray(badgesArr) ? badgesArr : [];
+            } else {
+              studentObj.badges = [];
+            }
           } catch (bErr) {
             studentObj.badges = [];
           }
@@ -1547,22 +1550,9 @@ async function submitPhilIriAssessment(req, res) {
           console.error('[submitPhilIriAssessment] Error saving assessment details:', attErr);
         }
 
-        // Auto-grant First Step badge if first test completed
+        // Auto-evaluate badges for student
         try {
-          await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, awarded_at)
-             SELECT $1, badge_id, CURRENT_TIMESTAMP FROM badges WHERE name ILIKE '%First Step%' OR code = 'BADGE_FIRST_TEST'
-             ON CONFLICT DO NOTHING`,
-            [resolvedStudentId]
-          );
-          if (newLevel === 'Independent') {
-            await db.query(
-              `INSERT INTO student_badges (student_id, badge_id, awarded_at)
-               SELECT $1, badge_id, CURRENT_TIMESTAMP FROM badges WHERE name ILIKE '%Independent%' OR code = 'BADGE_INDEPENDENT'
-               ON CONFLICT DO NOTHING`,
-              [resolvedStudentId]
-            );
-          }
+          await badgeService.evaluateBadges(resolvedStudentId);
         } catch (badgeErr) {}
 
         return res.json({

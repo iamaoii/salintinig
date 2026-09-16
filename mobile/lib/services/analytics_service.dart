@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/services/api_service.dart';
 
 class AnalyticsData {
@@ -12,6 +14,7 @@ class AnalyticsData {
   final List<Map<String, dynamic>> weeklyActivity;
   final Map<String, dynamic> skills;
   final String smartTip;
+  final Map<String, dynamic>? rawJson;
 
   AnalyticsData({
     required this.totalXp,
@@ -24,6 +27,7 @@ class AnalyticsData {
     required this.weeklyActivity,
     required this.skills,
     required this.smartTip,
+    this.rawJson,
   });
 
   factory AnalyticsData.fromJson(Map<String, dynamic> json) {
@@ -47,19 +51,57 @@ class AnalyticsData {
       skills: skillsMap,
       smartTip: json['smartTip']?.toString() ??
           "Keep practicing daily exercises to boost your literacy skills!",
+      rawJson: json,
     );
   }
+
+  Map<String, dynamic> toJson() => rawJson ?? {
+    'totalXp': totalXp,
+    'currentStreak': currentStreak,
+    'completedStoriesCount': completedStoriesCount,
+    'totalBadgesCount': totalBadgesCount,
+    'totalTimeSpentMins': totalTimeSpentMins,
+    'totalSessionsCompleted': totalSessionsCompleted,
+    'overallAccuracy': overallAccuracy,
+    'weeklyActivity': weeklyActivity,
+    'skills': skills,
+    'smartTip': smartTip,
+  };
 }
 
 class AnalyticsService {
+  static const String _keyCachedAnalytics = 'cached_student_analytics';
   static AnalyticsData? _cachedAnalytics;
 
-  static AnalyticsData? get cachedAnalytics => _cachedAnalytics;
+  static AnalyticsData? get cachedAnalytics {
+    if (_cachedAnalytics == null) {
+      _loadFromDisk();
+    }
+    return _cachedAnalytics;
+  }
 
   static final ValueNotifier<AnalyticsData?> analyticsNotifier =
       ValueNotifier<AnalyticsData?>(null);
 
+  static void _loadFromDisk() {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        final jsonStr = prefs.getString(_keyCachedAnalytics);
+        if (jsonStr != null && jsonStr.isNotEmpty) {
+          final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+          _cachedAnalytics = AnalyticsData.fromJson(map);
+          analyticsNotifier.value = _cachedAnalytics;
+        }
+      });
+    } catch (e) {
+      debugPrint('[AnalyticsService] Error loading disk cache: $e');
+    }
+  }
+
   static Future<AnalyticsData?> fetchAnalytics({bool forceRefresh = false}) async {
+    if (_cachedAnalytics == null) {
+      _loadFromDisk();
+    }
     if (_cachedAnalytics != null && !forceRefresh) {
       _loadFromBackend();
       return _cachedAnalytics;
@@ -71,9 +113,16 @@ class AnalyticsService {
     try {
       final res = await ApiService.get('/student/analytics');
       if (res.success && res.data != null && res.data['data'] != null) {
-        final data = AnalyticsData.fromJson(res.data['data'] as Map<String, dynamic>);
+        final rawMap = res.data['data'] as Map<String, dynamic>;
+        final data = AnalyticsData.fromJson(rawMap);
         _cachedAnalytics = data;
         analyticsNotifier.value = data;
+
+        // Persist to disk asynchronously
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setString(_keyCachedAnalytics, jsonEncode(rawMap));
+        });
+
         return data;
       }
     } catch (e) {
@@ -82,3 +131,4 @@ class AnalyticsService {
     return _cachedAnalytics;
   }
 }
+

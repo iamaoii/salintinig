@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
@@ -86,6 +88,44 @@ class _ProgressPageState extends State<ProgressPage>
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
   static List<Map<String, dynamic>>? _cachedProgressAssignedActivities;
+  static Map<String, dynamic>? _cachedAttemptsStatus;
+
+  static void _loadAssignedCacheFromDisk() {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        final jsonStr = prefs.getString('cached_assigned_activities');
+        if (jsonStr != null && jsonStr.isNotEmpty) {
+          final List list = jsonDecode(jsonStr) as List;
+          _cachedProgressAssignedActivities = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+        final attemptsStr = prefs.getString('cached_attempts_status');
+        if (attemptsStr != null && attemptsStr.isNotEmpty) {
+          _cachedAttemptsStatus = jsonDecode(attemptsStr) as Map<String, dynamic>;
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _applyAttemptsStatus(Map<String, dynamic> attempts) {
+    if (attempts['listening'] == true || PhilIriAssessmentPage.isListeningDone) {
+      _isListeningDone = true;
+      PhilIriAssessmentPage.isListeningDone = true;
+    }
+    if (attempts['oral'] == true || attempts['oral_status'] == 'completed' || PhilIriAssessmentPage.isOralReadingDone) {
+      _isOralReadingDone = true;
+      _isOralReadingPendingReview = false;
+      PhilIriAssessmentPage.isOralReadingDone = true;
+      PhilIriAssessmentPage.isOralReadingPendingReview = false;
+    } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted' || PhilIriAssessmentPage.isOralReadingPendingReview) {
+      _isOralReadingDone = false;
+      _isOralReadingPendingReview = true;
+      PhilIriAssessmentPage.isOralReadingPendingReview = true;
+    }
+    if (attempts['silent'] == true || PhilIriAssessmentPage.isSilentReadingDone) {
+      _isSilentReadingDone = true;
+      PhilIriAssessmentPage.isSilentReadingDone = true;
+    }
+  }
 
   @override
   void initState() {
@@ -95,9 +135,16 @@ class _ProgressPageState extends State<ProgressPage>
     _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
     _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
 
-    if (_cachedProgressAssignedActivities != null) {
+    if (_cachedProgressAssignedActivities == null) {
+      _loadAssignedCacheFromDisk();
+    }
+
+    if (_cachedProgressAssignedActivities != null && _cachedProgressAssignedActivities!.isNotEmpty) {
       _assignedActivities = List<Map<String, dynamic>>.from(_cachedProgressAssignedActivities!);
       _isLoadingPhilIri = false;
+    }
+    if (_cachedAttemptsStatus != null) {
+      _applyAttemptsStatus(_cachedAttemptsStatus!);
     }
 
     _glowController = AnimationController(
@@ -174,7 +221,8 @@ class _ProgressPageState extends State<ProgressPage>
   }
 
   void _onStreakChanged() {
-    _fetchLiveProgressData();
+    if (!mounted) return;
+    _loadLocalStreakInstantly();
   }
 
   void _onLibraryProgressChanged() {
@@ -185,6 +233,7 @@ class _ProgressPageState extends State<ProgressPage>
   }
 
   List<Map<String, dynamic>> _inProgressBooks = [];
+  bool _isFetchingLiveProgress = false;
 
   Future<void> _loadLocalStreakInstantly() async {
     try {
@@ -202,6 +251,9 @@ class _ProgressPageState extends State<ProgressPage>
   }
 
   Future<void> _fetchLiveProgressData() async {
+    if (_isFetchingLiveProgress) return;
+    _isFetchingLiveProgress = true;
+
     try {
       // 1. Instant 0-delay render from cached memory
       if (LibraryService.cachedProgress != null && mounted) {
@@ -212,83 +264,75 @@ class _ProgressPageState extends State<ProgressPage>
       await _loadLocalStreakInstantly();
 
       // 2. Non-blocking parallel background sync
-      Future.microtask(() async {
-        try {
-          await Future.wait([
-            LibraryService.fetchReadingProgress(),
-            StreakService.syncStreakWithBackend(),
-            BadgeService.fetchBadges(),
-            AnalyticsService.fetchAnalytics(),
-          ]);
+      try {
+        await Future.wait([
+          LibraryService.fetchReadingProgress(),
+          StreakService.syncStreakWithBackend(),
+          AnalyticsService.fetchAnalytics(),
+        ]);
 
-          final streak = await StreakService.getStreakCount();
-          final tracker = await StreakService.getWeeklyTracker();
-          final practicedToday = await StreakService.hasCompletedToday();
+        final streak = await StreakService.getStreakCount();
+        final tracker = await StreakService.getWeeklyTracker();
+        final practicedToday = await StreakService.hasCompletedToday();
 
-          if (mounted) {
-            setState(() {
-              if (LibraryService.cachedProgress != null) {
-                _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
-              }
-              _streakCount = streak;
-              _hasPracticedToday = practicedToday;
-              _weeklyTrackerDays = tracker;
-            });
-          }
-
-          if (_assignedActivities.isEmpty) {
-            setState(() {
-              _isLoadingPhilIri = true;
-            });
-          }
-          final res = await ApiService.get('/students/assessment/my-assignment');
-          if (res.success && res.data != null && mounted) {
-            final attempts = res.data['attemptsStatus'];
-            final activitiesList = res.data['assignedActivities'];
-            setState(() {
-              _isLoadingPhilIri = false;
-              if (activitiesList != null && activitiesList is List) {
-                _assignedActivities = List<Map<String, dynamic>>.from(activitiesList);
-                _cachedProgressAssignedActivities = List<Map<String, dynamic>>.from(_assignedActivities);
-              }
-              if (attempts != null && attempts is Map) {
-                if (attempts['listening'] == true || PhilIriAssessmentPage.isListeningDone) {
-                  _isListeningDone = true;
-                  PhilIriAssessmentPage.isListeningDone = true;
-                }
-                if (attempts['oral'] == true || attempts['oral_status'] == 'completed' || PhilIriAssessmentPage.isOralReadingDone) {
-                  _isOralReadingDone = true;
-                  _isOralReadingPendingReview = false;
-                  PhilIriAssessmentPage.isOralReadingDone = true;
-                  PhilIriAssessmentPage.isOralReadingPendingReview = false;
-                } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted' || PhilIriAssessmentPage.isOralReadingPendingReview) {
-                  _isOralReadingDone = false;
-                  _isOralReadingPendingReview = true;
-                  PhilIriAssessmentPage.isOralReadingPendingReview = true;
-                }
-                if (attempts['silent'] == true || PhilIriAssessmentPage.isSilentReadingDone) {
-                  _isSilentReadingDone = true;
-                  PhilIriAssessmentPage.isSilentReadingDone = true;
-                }
-              }
-            });
-          } else if (mounted) {
-            setState(() {
-              _isLoadingPhilIri = false;
-            });
-          }
-        } catch (e) {
-          debugPrint('[ProgressPage] bg sync error: $e');
-        } finally {
-          if (mounted && _isLoadingPhilIri) {
-            setState(() {
-              _isLoadingPhilIri = false;
-            });
-          }
+        if (mounted) {
+          setState(() {
+            if (LibraryService.cachedProgress != null) {
+              _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+            }
+            _streakCount = streak;
+            _hasPracticedToday = practicedToday;
+            _weeklyTrackerDays = tracker;
+          });
         }
-      });
+
+        // Only show loading indicator if we don't have any cached assigned activities at all
+        if (_assignedActivities.isEmpty && _cachedProgressAssignedActivities == null && mounted) {
+          setState(() {
+            _isLoadingPhilIri = true;
+          });
+        }
+
+        final res = await ApiService.get('/students/assessment/my-assignment');
+        if (res.success && res.data != null && mounted) {
+          final attempts = res.data['attemptsStatus'];
+          final activitiesList = res.data['assignedActivities'];
+          setState(() {
+            _isLoadingPhilIri = false;
+            if (activitiesList != null && activitiesList is List) {
+              _assignedActivities = List<Map<String, dynamic>>.from(activitiesList);
+              _cachedProgressAssignedActivities = List<Map<String, dynamic>>.from(_assignedActivities);
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setString('cached_assigned_activities', jsonEncode(_assignedActivities));
+              });
+            }
+            if (attempts != null && attempts is Map) {
+              final map = Map<String, dynamic>.from(attempts);
+              _applyAttemptsStatus(map);
+              _cachedAttemptsStatus = map;
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setString('cached_attempts_status', jsonEncode(map));
+              });
+            }
+          });
+        } else if (mounted) {
+          setState(() {
+            _isLoadingPhilIri = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('[ProgressPage] bg sync error: $e');
+      } finally {
+        if (mounted && _isLoadingPhilIri) {
+          setState(() {
+            _isLoadingPhilIri = false;
+          });
+        }
+      }
     } catch (e) {
       debugPrint('[ProgressPage] fetch progress error: $e');
+    } finally {
+      _isFetchingLiveProgress = false;
     }
   }
 
