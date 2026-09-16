@@ -222,10 +222,12 @@ async function login(req, res) {
       } else if (matchedUser.role === 'student') {
         try {
           const stRes = await db.query(
-            `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+            `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name, sch.school_name
              FROM students st
              LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
              LEFT JOIN classes c ON sgh.class_id = c.class_id
+             LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
              ORDER BY sgh.created_at DESC
              LIMIT 1`,
@@ -240,6 +242,9 @@ async function login(req, res) {
             gradeLevel = stRow.grade_level ? String(stRow.grade_level) : null;
             sectionName = stRow.section_name || null;
             displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
+            if (stRow.school_name) {
+              matchedUser.school_name = stRow.school_name;
+            }
           }
         } catch (stErr) {
           console.warn('Student detail enrichment warning:', stErr.message);
@@ -259,6 +264,8 @@ async function login(req, res) {
         email: matchedUser.email,
         role: matchedUser.role,
         schoolId,
+        schoolName: matchedUser.school_name || null,
+        school_name: matchedUser.school_name || null,
         employeeId: empId,
         profileImage: matchedUser.profile_image || null,
         profile_image: matchedUser.profile_image || null,
@@ -340,7 +347,8 @@ async function getMe(req, res) {
                st.nickname,
                st.avatar_frame,
                COALESCE(c.grade_level, sgh.grade_level) AS grade_level, 
-               c.section_name
+               c.section_name,
+               sch.school_name
              FROM students st
              LEFT JOIN (
                SELECT DISTINCT ON (student_id) student_id, class_id, grade_level
@@ -348,6 +356,8 @@ async function getMe(req, res) {
                ORDER BY student_id, created_at DESC
              ) sgh ON st.student_id = sgh.student_id
              LEFT JOIN classes c ON sgh.class_id = c.class_id
+             LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
              LIMIT 1`,
             [userId, user.email || '']
@@ -368,6 +378,8 @@ async function getMe(req, res) {
                 lrn: stRow.lrn || user.lrn,
                 gradeLevel: stRow.grade_level ? String(stRow.grade_level) : (user.gradeLevel || '4'),
                 sectionName: stRow.section_name || user.sectionName || '',
+                schoolName: stRow.school_name || user.schoolName || user.school_name || '',
+                school_name: stRow.school_name || user.schoolName || user.school_name || '',
                 nickname: stRow.nickname || user.nickname || '',
                 avatarFrame: stRow.avatar_frame || user.avatarFrame || 'None',
                 avatar_frame: stRow.avatar_frame || user.avatar_frame || 'None',
@@ -1247,7 +1259,7 @@ async function changePassword(req, res) {
             [userId || '', userEmail || '']
           );
           if (userRes.rows.length > 0 && userRes.rows[0].password_hash) {
-            const isValid = comparePassword(currentPassword.trim(), userRes.rows[0].password_hash);
+            const isValid = checkPasswordMatch(currentPassword.trim(), userRes.rows[0].password_hash);
             if (!isValid) {
               return res.status(400).json({
                 success: false,

@@ -98,7 +98,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     if (school != null && school.toString().isNotEmpty) {
       return school.toString();
     }
-    return 'Mandaluyong Elementary School';
+    return 'N/A';
   }
 
   String get _assignedClass {

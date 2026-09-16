@@ -61,5 +61,13 @@ class BadgeService {
     }
     return _cachedBadges.isNotEmpty ? _cachedBadges : BadgesData.allQuests;
   }
+
+  static void clearMemoryAndDiskCache() {
+    _cachedBadges = [];
+    badgeNotifier.value++;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_keyCachedBadges);
+    });
+  }
 }
 

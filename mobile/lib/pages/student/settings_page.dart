@@ -1,12 +1,22 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:record/record.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/reading_preferences_service.dart';
+import 'package:salintinig/services/notification_preferences_service.dart';
+import 'package:salintinig/services/local_notification_service.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/services/badge_service.dart';
+import 'package:salintinig/services/library_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,11 +26,42 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  bool _isLoadingSession = true;
+
   @override
   void initState() {
     super.initState();
     _loadReadingPreferences();
+    _loadNotificationPreferences();
     _loadUserSession();
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlayingReplay = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final daily = await NotificationPreferencesService.getDailyReminder();
+    final hour = await NotificationPreferencesService.getReminderHour();
+    final minute = await NotificationPreferencesService.getReminderMinute();
+    final streak = await NotificationPreferencesService.getStreakProtection();
+    final achievements =
+        await NotificationPreferencesService.getAchievementAlerts();
+    final assignments =
+        await NotificationPreferencesService.getAssignmentAlerts();
+
+    if (mounted) {
+      setState(() {
+        _dailyReminder = daily;
+        _reminderTime = TimeOfDay(hour: hour, minute: minute);
+        _streakProtectionAlert = streak;
+        _achievementAlerts = achievements;
+        _assignmentAlerts = assignments;
+      });
+    }
   }
 
   Future<void> _loadReadingPreferences() async {
@@ -43,8 +84,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadUserSession() async {
     try {
       await AuthService.fetchMe();
-      if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSession = false;
+        });
+      }
+    }
   }
 
   // Reading Preferences state
@@ -53,19 +100,22 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _textHighlighting = true;
   Color _highlightColor = const Color(0xFFFEF08A);
 
-  // Audio & Microphone state
-  double _voiceGuidanceVolume = 0.8;
-  bool _noiseReduction = true;
-
   // Microphone test state
   bool _isTestingMic = false;
   bool _micTestSuccess = false;
+  bool _isPlayingReplay = false;
+  String? _lastRecordedPath;
   List<double> _waveform = [0.1, 0.15, 0.12, 0.18, 0.1];
+  Timer? _micTimer;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   // Notification Preferences state
   bool _dailyReminder = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 19, minute: 0);
+  bool _streakProtectionAlert = true;
   bool _achievementAlerts = true;
+  bool _assignmentAlerts = true;
 
   // Cache clearing state
   bool _isClearingCache = false;
@@ -106,50 +156,143 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _reminderTime = picked;
       });
+      await NotificationPreferencesService.setReminderHour(picked.hour);
+      await NotificationPreferencesService.setReminderMinute(picked.minute);
+      if (_dailyReminder) {
+        await LocalNotificationService.scheduleDailyReminder(
+          hour: picked.hour,
+          minute: picked.minute,
+        );
+      }
     }
   }
 
-  // Clear cache action
-  void _clearCache() {
+  // Clear temporary cache (audio recordings, cached API snapshots) while preserving auth session & settings
+  Future<void> _clearCache() async {
     setState(() {
       _isClearingCache = true;
     });
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() {
-        _isClearingCache = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(
-                'Temporary app files cleared successfully!',
-                style: GoogleFonts.inter(),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF00A859),
-        ),
-      );
-    });
+    int freedBytes = 0;
+
+    try {
+      // 1. Clear temp system directory (mic check recordings, temporary images)
+      final tempDir = Directory.systemTemp;
+      if (tempDir.existsSync()) {
+        final entities = tempDir.listSync();
+        for (final entity in entities) {
+          try {
+            if (entity is File) {
+              final name = entity.path.toLowerCase();
+              if (name.contains('mic_test') || name.endsWith('.m4a') || name.endsWith('.tmp') || name.endsWith('.webp') || name.endsWith('.jpg') || name.endsWith('.png')) {
+                freedBytes += entity.lengthSync();
+                entity.deleteSync();
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 2. Clear in-memory and disk cached API snapshots (Analytics, Badges, Library books & progress)
+      AnalyticsService.clearMemoryAndDiskCache();
+      BadgeService.clearMemoryAndDiskCache();
+      LibraryService.clearMemoryAndDiskCache();
+
+      // Artificial small delay for smooth visual feedback
+      await Future.delayed(const Duration(milliseconds: 600));
+    } catch (e) {
+      debugPrint('[SettingsPage] Error clearing cache: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isClearingCache = false;
+        });
+        AppToast.success(
+          context,
+          freedBytes > 0
+              ? 'Temporary cache cleared (${(freedBytes / 1024).toStringAsFixed(1)} KB freed). Account remains logged in!'
+              : 'Temporary cache cleared successfully! Account remains logged in.',
+        );
+      }
+    }
   }
 
-  // Test microphone action
-  void _testMicrophone() {
+  @override
+  void dispose() {
+    _micTimer?.cancel();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  // Test microphone action (Records 3.5s of audio sample)
+  Future<void> _testMicrophone() async {
+    final hasPermission = await _audioRecorder.hasPermission();
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Microphone permission is required for reading assessments.',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_isPlayingReplay) {
+      await _audioPlayer.stop();
+      _isPlayingReplay = false;
+    }
+
     setState(() {
       _isTestingMic = true;
       _micTestSuccess = false;
+      _waveform = [0.2, 0.4, 0.3, 0.5, 0.2];
     });
+
+    try {
+      final tempDir = Directory.systemTemp;
+      final tempPath =
+          '${tempDir.path}/mic_test_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          noiseSuppress: true,
+          echoCancel: true,
+          autoGain: true,
+        ),
+        path: tempPath,
+      );
+      _lastRecordedPath = tempPath;
+    } catch (e) {
+      debugPrint('[MicTest] Recording error: $e');
+    }
 
     int count = 0;
     final random = Random();
-    Timer.periodic(const Duration(milliseconds: 120), (timer) {
-      if (!mounted || count > 20) {
+    _micTimer?.cancel();
+    _micTimer = Timer.periodic(const Duration(milliseconds: 100), (
+      timer,
+    ) async {
+      count++;
+      double ampLevel = 0.15 + random.nextDouble() * 0.75;
+      try {
+        if (await _audioRecorder.isRecording()) {
+          final amp = await _audioRecorder.getAmplitude();
+          final db = amp.current; // -160 to 0 dB
+          ampLevel = ((db + 60) / 60).clamp(0.1, 1.0);
+        }
+      } catch (_) {}
+
+      if (!mounted || count >= 35) {
         timer.cancel();
+        try {
+          await _audioRecorder.stop();
+        } catch (_) {}
         if (mounted) {
           setState(() {
             _isTestingMic = false;
@@ -159,11 +302,44 @@ class _SettingsPageState extends State<SettingsPage> {
         }
         return;
       }
-      count++;
-      setState(() {
-        _waveform = List.generate(5, (_) => 0.15 + random.nextDouble() * 0.75);
-      });
+
+      if (mounted) {
+        setState(() {
+          _waveform = List.generate(
+            5,
+            (_) => (ampLevel + random.nextDouble() * 0.2).clamp(0.1, 1.0),
+          );
+        });
+      }
     });
+  }
+
+  // Toggle audio replay
+  Future<void> _toggleAudioReplay() async {
+    Feedback.forTap(context);
+    if (_isPlayingReplay) {
+      try {
+        await _audioPlayer.stop();
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _isPlayingReplay = false;
+        });
+      }
+      return;
+    }
+
+    if (_lastRecordedPath != null) {
+      final file = File(_lastRecordedPath!);
+      if (file.existsSync() && file.lengthSync() > 0) {
+        final bytes = await file.readAsBytes();
+        setState(() {
+          _isPlayingReplay = true;
+        });
+        await _audioPlayer.stop();
+        await _audioPlayer.play(BytesSource(bytes));
+      }
+    }
   }
 
   // ── Modals & Overlay Sheets ────────────────────────────────────────────────
@@ -187,10 +363,11 @@ class _SettingsPageState extends State<SettingsPage> {
     ].where((s) => s.isNotEmpty).join(' - ');
     final lrn = user?.lrn.isNotEmpty == true ? user!.lrn : 'N/A';
     final email = user?.email.isNotEmpty == true ? user!.email : 'N/A';
-    final school =
-        user?.rawUser?['school_name']?.toString() ??
-        user?.rawUser?['schoolName']?.toString() ??
-        'Salintinig Elementary School';
+    final school = (user?.schoolName.isNotEmpty == true)
+        ? user!.schoolName
+        : (user?.rawUser?['school_name']?.toString() ??
+              user?.rawUser?['schoolName']?.toString() ??
+              'N/A');
 
     showModalBottomSheet(
       context: context,
@@ -279,134 +456,322 @@ class _SettingsPageState extends State<SettingsPage> {
     final newController = TextEditingController();
     final confirmController = TextEditingController();
 
+    bool isSubmittingPassword = false;
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      builder: (modalCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            const primaryBlue = Color(0xFF1B64D8);
+            const textDark = Color(0xFF18181B);
+            const textGray = Color(0xFF71717A);
+            const borderColor = Color(0xFFE4E4E7);
+
+            InputDecoration buildInputDecoration(
+              String labelText,
+              String hintText,
+              bool isObscured,
+              VoidCallback onToggle,
+            ) {
+              return InputDecoration(
+                labelText: labelText,
+                hintText: hintText,
+                labelStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textGray,
+                ),
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFFA1A1AA),
+                ),
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                filled: true,
+                fillColor: const Color(0xFFFAFAFA),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: primaryBlue, width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Iconify(
+                    isObscured ? Ph.eye_slash : Ph.eye,
+                    size: 20,
+                    color: textGray,
+                  ),
+                  onPressed: onToggle,
+                ),
+              );
+            }
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Change Password',
-                    style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                  // Top Drag Handle & Title Row
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE4E4E7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryBlue.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Iconify(
+                              Ph.lock_key_bold,
+                              size: 20,
+                              color: primaryBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Change Password',
+                            style: GoogleFonts.inter(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: textDark,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Iconify(
+                          Ph.x_bold,
+                          size: 20,
+                          color: textGray,
+                        ),
+                        onPressed: () => Navigator.pop(modalCtx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ensure your account is using a strong password that you can easily remember.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: textGray,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Current Password Input
+                  TextField(
+                    controller: currentController,
+                    obscureText: obscureCurrent,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: buildInputDecoration(
+                      'Current Password',
+                      'Enter current password',
+                      obscureCurrent,
+                      () =>
+                          setModalState(() => obscureCurrent = !obscureCurrent),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // New Password Input
+                  TextField(
+                    controller: newController,
+                    obscureText: obscureNew,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: buildInputDecoration(
+                      'New Password',
+                      'At least 6 characters',
+                      obscureNew,
+                      () => setModalState(() => obscureNew = !obscureNew),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm New Password Input
+                  TextField(
+                    controller: confirmController,
+                    obscureText: obscureConfirm,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: buildInputDecoration(
+                      'Confirm New Password',
+                      'Re-enter new password',
+                      obscureConfirm,
+                      () =>
+                          setModalState(() => obscureConfirm = !obscureConfirm),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Update Password Primary Action Button
+                  ElevatedButton(
+                    onPressed: isSubmittingPassword
+                        ? null
+                        : () async {
+                            final current = currentController.text.trim();
+                            final newPass = newController.text.trim();
+                            final confirm = confirmController.text.trim();
+
+                            if (current.isEmpty) {
+                              AppToast.warning(
+                                context,
+                                'Please enter your current password.',
+                              );
+                              return;
+                            }
+                            if (newPass.length < 6) {
+                              AppToast.warning(
+                                context,
+                                'New password must be at least 6 characters.',
+                              );
+                              return;
+                            }
+                            if (newPass != confirm) {
+                              AppToast.error(
+                                context,
+                                'Passwords do not match!',
+                              );
+                              return;
+                            }
+
+                            setModalState(() => isSubmittingPassword = true);
+
+                            try {
+                              final res = await ApiService.post(
+                                '/auth/change-password',
+                                {
+                                  'currentPassword': current,
+                                  'newPassword': newPass,
+                                },
+                              );
+
+                              if (res.success) {
+                                if (modalCtx.mounted) Navigator.pop(modalCtx);
+                                if (context.mounted) {
+                                  AppToast.success(
+                                    context,
+                                    'Password updated successfully!',
+                                  );
+                                }
+                              } else {
+                                if (context.mounted) {
+                                  AppToast.error(
+                                    context,
+                                    res.error ??
+                                        res.message ??
+                                        'Failed to update password.',
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                AppToast.error(
+                                  context,
+                                  'Network error updating password.',
+                                );
+                              }
+                            } finally {
+                              setModalState(() => isSubmittingPassword = false);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: isSubmittingPassword
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Update Password',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ],
               ),
-              const Divider(height: 24),
-              TextField(
-                controller: currentController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: newController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: confirmController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  if (newController.text != confirmController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Passwords do not match!',
-                          style: GoogleFonts.inter(),
-                        ),
-                        backgroundColor: const Color(0xFFEF4444),
-                      ),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Password updated successfully!',
-                        style: GoogleFonts.inter(),
-                      ),
-                      backgroundColor: const Color(0xFF00A859),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B64D8),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Update Password',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w800),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  // 3. Simple Notification Settings Modal
+  // 3. Modern Notification Settings Modal
   void _showNotificationSettings() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      isScrollControlled: true,
+      builder: (modalCtx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             const primaryBlue = Color(0xFF1B64D8);
+            const textDark = Color(0xFF18181B);
             const textGray = Color(0xFF71717A);
+            const cardBg = Color(0xFFF8FAFC);
+            const borderColor = Color(0xFFE2E8F0);
 
             return Container(
               decoration: const BoxDecoration(
@@ -421,88 +786,356 @@ class _SettingsPageState extends State<SettingsPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Top Drag Handle & Header
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE4E4E7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Notification Settings',
-                        style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryBlue.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Iconify(
+                              Ph.bell_bold,
+                              size: 20,
+                              color: primaryBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Notification Settings',
+                            style: GoogleFonts.inter(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: textDark,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
+                        icon: const Iconify(
+                          Ph.x_bold,
+                          size: 20,
+                          color: textGray,
+                        ),
+                        onPressed: () => Navigator.pop(modalCtx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
-                  const Divider(height: 24),
-                  SwitchListTile.adaptive(
-                    title: Text(
-                      'Daily Practice Reminder',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Reminds you to read daily',
-                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
-                    ),
-                    value: _dailyReminder,
-                    activeTrackColor: primaryBlue.withValues(alpha: 0.5),
-                    activeThumbColor: primaryBlue,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setModalState(() => _dailyReminder = val);
-                      setState(() => _dailyReminder = val);
-                    },
-                  ),
-                  if (_dailyReminder) ...[
-                    ListTile(
-                      title: Text(
-                        'Reminder Time',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      trailing: Text(
-                        _formatTimeOfDay(_reminderTime),
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: primaryBlue,
-                        ),
-                      ),
-                      onTap: () => _selectReminderTime(context, setModalState),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  SwitchListTile.adaptive(
-                    title: Text(
-                      'Achievement Alerts',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Get notified when you unlock badges',
-                      style: GoogleFonts.inter(fontSize: 12, color: textGray),
-                    ),
-                    value: _achievementAlerts,
-                    activeTrackColor: primaryBlue.withValues(alpha: 0.5),
-                    activeThumbColor: primaryBlue,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setModalState(() => _achievementAlerts = val);
-                      setState(() => _achievementAlerts = val);
-                    },
-                  ),
                   const SizedBox(height: 16),
+
+                  // Section 1: Daily Practice & Reminders
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.alarm_bold,
+                              size: 20,
+                              color: primaryBlue,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Daily Practice Reminder',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Reminds you to read a story daily',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _dailyReminder,
+                              activeThumbColor: primaryBlue,
+                              onChanged: (val) async {
+                                setModalState(() => _dailyReminder = val);
+                                setState(() => _dailyReminder = val);
+                                await NotificationPreferencesService.setDailyReminder(
+                                  val,
+                                );
+                                if (val) {
+                                  await LocalNotificationService.scheduleDailyReminder(
+                                    hour: _reminderTime.hour,
+                                    minute: _reminderTime.minute,
+                                  );
+                                } else {
+                                  await LocalNotificationService.cancelDailyReminder();
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        if (_dailyReminder) ...[
+                          const Divider(height: 20, color: borderColor),
+                          InkWell(
+                            onTap: () =>
+                                _selectReminderTime(context, setModalState),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4.0,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Scheduled Time',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: primaryBlue.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _formatTimeOfDay(_reminderTime),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: primaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 20, color: borderColor),
+                          Row(
+                            children: [
+                              const Iconify(
+                                Ph.fire_bold,
+                                size: 18,
+                                color: Color(0xFFF97316),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Streak Risk Warning',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: textDark,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Alert at 8:00 PM if streak is in danger',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: textGray,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _streakProtectionAlert,
+                                activeThumbColor: const Color(0xFFF97316),
+                                onChanged: (val) async {
+                                  setModalState(
+                                    () => _streakProtectionAlert = val,
+                                  );
+                                  setState(() => _streakProtectionAlert = val);
+                                  await NotificationPreferencesService.setStreakProtection(
+                                    val,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Section 2: Learning & Achievement Alerts
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.trophy_bold,
+                              size: 20,
+                              color: Color(0xFFEAB308),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Achievement & Badges',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Get notified when unlocking badges',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _achievementAlerts,
+                              activeThumbColor: primaryBlue,
+                              onChanged: (val) async {
+                                setModalState(() => _achievementAlerts = val);
+                                setState(() => _achievementAlerts = val);
+                                await NotificationPreferencesService.setAchievementAlerts(
+                                  val,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 20, color: borderColor),
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.book_open_bold,
+                              size: 20,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Classroom Assignments',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Alert when teacher assigns stories',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _assignmentAlerts,
+                              activeThumbColor: primaryBlue,
+                              onChanged: (val) async {
+                                setModalState(() => _assignmentAlerts = val);
+                                setState(() => _assignmentAlerts = val);
+                                await NotificationPreferencesService.setAssignmentAlerts(
+                                  val,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Section 3: Instant Sample Test Action Button
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await LocalNotificationService.showInstantNotification(
+                        title: 'SalinTinig Reading Test',
+                        body:
+                            'Notifications are working perfectly! Keep reading to build your streak.',
+                      );
+                      if (context.mounted) {
+                        AppToast.success(
+                          context,
+                          'Sample notification sent to your device status bar!',
+                        );
+                      }
+                    },
+                    icon: const Iconify(
+                      Ph.paper_plane_tilt_bold,
+                      size: 18,
+                      color: primaryBlue,
+                    ),
+                    label: Text(
+                      'Test Sample Notification',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: primaryBlue,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: primaryBlue),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -677,68 +1310,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 6. Deactivate Account Dialog
-  void _showDeactivateAccount() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Deactivate Account?',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFFEF4444),
-            ),
-          ),
-          content: Text(
-            'This action is irreversible. You will lose all your reading records, streaks, and accumulated badges.',
-            style: GoogleFonts.inter(height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF71717A),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Account deactivation requested.',
-                      style: GoogleFonts.inter(),
-                    ),
-                    backgroundColor: const Color(0xFFEF4444),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
-              ),
-              child: Text(
-                'Deactivate',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
@@ -785,7 +1356,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         children: [
                           IconButton(
                             onPressed: () {
-                              Navigator.pop(context);
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
                             },
                             icon: const Iconify(
                               Ph.caret_left,
@@ -820,76 +1393,79 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(height: 12),
 
                             // ── Banner (Hello, {FirstName}!) ─────────────────────
-                            Container(
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [primaryBlue, Color(0xFF195ECB)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                            if (_isLoadingSession)
+                              _buildBannerSkeleton()
+                            else
+                              Container(
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  gradient: const LinearGradient(
+                                    colors: [primaryBlue, Color(0xFF195ECB)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primaryBlue.withValues(alpha: 0.2),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryBlue.withValues(alpha: 0.2),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Stack(
-                                children: [
-                                  Positioned(
-                                    right: 0,
-                                    top: -12,
-                                    bottom: -12,
-                                    width: 200,
-                                    child: Image.asset(
-                                      'assets/student page/logo_bg.webp',
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.centerRight,
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      right: 0,
+                                      top: -12,
+                                      bottom: -12,
+                                      width: 200,
+                                      child: Image.asset(
+                                        'assets/student page/logo_bg.webp',
+                                        fit: BoxFit.contain,
+                                        alignment: Alignment.centerRight,
+                                      ),
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(22.0),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Hello, $firstName!',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 22,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Colors.white,
-                                                  letterSpacing: -0.5,
+                                    Padding(
+                                      padding: const EdgeInsets.all(22.0),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Hello, $firstName!',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
+                                                    letterSpacing: -0.5,
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                gradeSection.isNotEmpty
-                                                    ? gradeSection
-                                                    : 'Student Portal',
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.8),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  gradeSection.isNotEmpty
+                                                      ? gradeSection
+                                                      : 'Student Portal',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white
+                                                        .withValues(alpha: 0.8),
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        const UserAvatar(size: 52),
-                                      ],
+                                          const UserAvatar(size: 52),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
                             const SizedBox(height: 24),
 
                             // ── Reading Preferences (DIRECTLY ON PAGE) ────────
@@ -1168,9 +1744,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // ── Audio & Microphone settings (NEW DIRECT SECTION) ────────
+                            // ── Microphone Access & Health Check (DIRECT SECTION) ────────
                             Text(
-                              'Voice & Microphone settings',
+                              'Microphone & Audio Check',
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -1195,56 +1771,93 @@ class _SettingsPageState extends State<SettingsPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // Voice assistant Volume
-                                  Text(
-                                    'Voice Assistant Volume',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Slider(
-                                    min: 0.0,
-                                    max: 1.0,
-                                    value: _voiceGuidanceVolume,
-                                    activeColor: primaryBlue,
-                                    onChanged: (val) {
-                                      setState(
-                                        () => _voiceGuidanceVolume = val,
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-
-                                  // Background Noise Reduction Switch
-                                  SwitchListTile.adaptive(
-                                    title: Text(
-                                      'Background Noise Reduction',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
+                                  // 1. Microphone Permission Status Row
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFF1B64D8,
+                                              ).withValues(alpha: 0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.mic_rounded,
+                                              color: Color(0xFF1B64D8),
+                                              size: 20,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Microphone Access',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Required for Phil-IRI reading',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 12,
+                                                  color: textGray,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    subtitle: Text(
-                                      'Filters out noisy school environment sounds',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: textGray,
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF00A859,
+                                          ).withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(
+                                              0xFF00A859,
+                                            ).withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Color(0xFF00A859),
+                                              size: 14,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'GRANTED',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF00A859),
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    value: _noiseReduction,
-                                    activeTrackColor: primaryBlue.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    activeThumbColor: primaryBlue,
-                                    contentPadding: EdgeInsets.zero,
-                                    onChanged: (val) {
-                                      setState(() => _noiseReduction = val);
-                                    },
+                                    ],
                                   ),
                                   const Divider(height: 24),
 
-                                  // Interactive Microphone test widget
+                                  // 2. Interactive Microphone test section
                                   Text(
                                     'Test Your Microphone',
                                     style: GoogleFonts.inter(
@@ -1254,116 +1867,181 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Say a few words to check if the app hears you.',
+                                    'Read the phrase below to make sure your mic is working clearly:',
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       color: textGray,
                                     ),
                                   ),
+                                  const SizedBox(height: 10),
+
+                                  // Practice sentence box
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF4F4F5),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: const Color(0xFFE4E4E7),
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    child: Text(
+                                      '"The bright sun shines over the green hills."',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF18181B),
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ),
                                   const SizedBox(height: 14),
 
+                                  // 3. Soundwave Level & Status Bar (Full width)
+                                  Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF4F4F5),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: const Color(0xFFE4E4E7),
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: _isTestingMic
+                                          ? _waveform.map((heightValue) {
+                                              return AnimatedContainer(
+                                                duration: const Duration(
+                                                  milliseconds: 100,
+                                                ),
+                                                width: 4,
+                                                height: 6 + (28 * heightValue),
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 3,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: primaryBlue,
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
+                                                ),
+                                              );
+                                            }).toList()
+                                          : [
+                                              Icon(
+                                                _micTestSuccess
+                                                    ? Icons.check_circle_rounded
+                                                    : Icons.mic_none_rounded,
+                                                color: _micTestSuccess
+                                                    ? const Color(0xFF00A859)
+                                                    : textGray,
+                                                size: 18,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _micTestSuccess
+                                                    ? 'Microphone working clearly!'
+                                                    : 'Tap Test Mic and read the phrase',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: _micTestSuccess
+                                                      ? const Color(0xFF00A859)
+                                                      : textGray,
+                                                ),
+                                              ),
+                                            ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // 4. Equal Side-by-Side Action Button Row
                                   Row(
                                     children: [
-                                      ElevatedButton(
-                                        onPressed: _isTestingMic
-                                            ? null
-                                            : _testMicrophone,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: _isTestingMic
-                                              ? Colors.grey[200]
-                                              : primaryBlue,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _isTestingMic
-                                              ? 'Listening...'
-                                              : 'Test Mic',
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
                                       Expanded(
-                                        child: Container(
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF4F4F5),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _isTestingMic
+                                              ? null
+                                              : _testMicrophone,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _isTestingMic
+                                                ? Colors.grey[300]
+                                                : primaryBlue,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
                                             ),
                                           ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
+                                          icon: Icon(
+                                            _isTestingMic
+                                                ? Icons.graphic_eq_rounded
+                                                : Icons.mic_rounded,
+                                            size: 18,
                                           ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: _isTestingMic
-                                                ? _waveform.map((heightValue) {
-                                                    return AnimatedContainer(
-                                                      duration: const Duration(
-                                                        milliseconds: 100,
-                                                      ),
-                                                      width: 4,
-                                                      height:
-                                                          6 +
-                                                          (28 * heightValue),
-                                                      margin:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: primaryBlue,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              2,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  }).toList()
-                                                : [
-                                                    Icon(
-                                                      _micTestSuccess
-                                                          ? Icons.check_circle
-                                                          : Icons.mic_none,
-                                                      color: _micTestSuccess
-                                                          ? const Color(
-                                                              0xFF00A859,
-                                                            )
-                                                          : textGray,
-                                                      size: 18,
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      _micTestSuccess
-                                                          ? 'Mic works perfectly!'
-                                                          : 'Click Test and speak!',
-                                                      style: GoogleFonts.inter(
-                                                        fontSize: 13,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: _micTestSuccess
-                                                            ? const Color(
-                                                                0xFF00A859,
-                                                              )
-                                                            : textGray,
-                                                      ),
-                                                    ),
-                                                  ],
+                                          label: Text(
+                                            _isTestingMic
+                                                ? 'Listening...'
+                                                : 'Test Mic',
+                                            style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
                                           ),
                                         ),
                                       ),
+                                      if (_micTestSuccess &&
+                                          !_isTestingMic) ...[
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: _toggleAudioReplay,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: _isPlayingReplay
+                                                  ? const Color(0xFFEF4444)
+                                                  : const Color(0xFF00A859),
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                            ),
+                                            icon: Icon(
+                                              _isPlayingReplay
+                                                  ? Icons.stop_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 18,
+                                            ),
+                                            label: Text(
+                                              _isPlayingReplay
+                                                  ? 'Stop Sample'
+                                                  : 'Play Sample',
+                                              style: GoogleFonts.inter(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ],
@@ -1517,18 +2195,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                     ),
                                     visualDensity: VisualDensity.compact,
                                   ),
-                                  const Divider(
-                                    height: 1,
-                                    indent: 56,
-                                    endIndent: 16,
-                                    color: Color(0xFFF1F1F4),
-                                  ),
-                                  _buildSettingItem(
-                                    Ph.trash,
-                                    'Deactivate my account',
-                                    _showDeactivateAccount,
-                                    isDestructive: true,
-                                  ),
                                 ],
                               ),
                             ),
@@ -1547,39 +2213,77 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ── Helper Settings Item Builder ──────────────────────────────────────────
+  // ── Helper Settings Item & Skeleton Builders ─────────────────────────────
+
+  Widget _buildBannerSkeleton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(22.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 140,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 100,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: Color(0xFFCBD5E1),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSettingItem(
     String iconSvg,
     String title,
-    VoidCallback onTap, {
-    bool isDestructive = false,
-  }) {
-    final textColor = isDestructive ? const Color(0xFFEF4444) : Colors.black87;
-    final iconColor = isDestructive
-        ? const Color(0xFFEF4444)
-        : const Color(0xFF71717A);
-
+    VoidCallback onTap,
+  ) {
     return Material(
       color: Colors.transparent,
       child: ListTile(
         onTap: onTap,
         leading: Container(
           decoration: BoxDecoration(
-            color: isDestructive
-                ? const Color(0xFFFEF2F2)
-                : const Color(0xFFF4F4F5),
+            color: const Color(0xFFF4F4F5),
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(8),
-          child: Iconify(iconSvg, color: iconColor, size: 20),
+          child: Iconify(iconSvg, color: const Color(0xFF71717A), size: 20),
         ),
         title: Text(
           title,
           style: GoogleFonts.inter(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: textColor,
+            color: Colors.black87,
           ),
         ),
         trailing: const Icon(

@@ -342,4 +342,16 @@ class LibraryService {
     if (rawTags is List) return rawTags.map((e) => e.toString()).toList();
     return [];
   }
+
+  static void clearMemoryAndDiskCache() {
+    _cachedBooks = null;
+    _cachedProgress = null;
+    _booksCachedAt = null;
+    _progressCachedAt = null;
+    progressNotifier.value = [];
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_keyCachedBooks);
+      prefs.remove(_keyCachedProgress);
+    });
+  }
 }

@@ -130,5 +130,13 @@ class AnalyticsService {
     }
     return _cachedAnalytics;
   }
+
+  static void clearMemoryAndDiskCache() {
+    _cachedAnalytics = null;
+    analyticsNotifier.value = null;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_keyCachedAnalytics);
+    });
+  }
 }
 

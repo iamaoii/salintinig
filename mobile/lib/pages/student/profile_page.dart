@@ -59,7 +59,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final streak = analytics?.currentStreak ?? 0;
     final completedStories = (cachedProgress ?? []).where((b) {
       final status = (b['status'] ?? '').toString().toLowerCase();
-      final pct = (b['progress'] as num?)?.toDouble() ?? (b['completionPercentage'] as num?)?.toDouble() ?? 0.0;
+      final rawProg = b['progress'] ?? b['completionPercentage'];
+      final pct = rawProg is num ? rawProg.toDouble() : (double.tryParse(rawProg?.toString() ?? '') ?? 0.0);
       return status == 'completed' || pct >= 1.0;
     }).length;
 
@@ -127,7 +128,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final completedStories = libraryProgress.where((b) {
         final status = (b['status'] ?? '').toString().toLowerCase();
-        final pct = (b['progress'] as num?)?.toDouble() ?? (b['completionPercentage'] as num?)?.toDouble() ?? 0.0;
+        final rawProg = b['progress'] ?? b['completionPercentage'];
+        final pct = rawProg is num ? rawProg.toDouble() : (double.tryParse(rawProg?.toString() ?? '') ?? 0.0);
         return status == 'completed' || pct >= 1.0;
       }).length;
 
@@ -298,7 +300,11 @@ class _ProfilePageState extends State<ProfilePage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           IconButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+                            },
                             icon: const Iconify(
                               Ph.caret_left,
                               size: 28,

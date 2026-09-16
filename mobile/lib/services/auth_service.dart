@@ -131,6 +131,14 @@ class UserSession {
     return rawUser!['lrn']?.toString() ?? rawUser!['id_no']?.toString() ?? '';
   }
 
+  String get schoolName {
+    if (rawUser == null) return '';
+    return rawUser!['schoolName']?.toString() ??
+        rawUser!['school_name']?.toString() ??
+        rawUser!['school']?.toString() ??
+        '';
+  }
+
   bool get mustChangePassword {
     if (rawUser == null) return false;
     return rawUser!['must_change_password'] == true || rawUser!['mustChangePassword'] == true;
