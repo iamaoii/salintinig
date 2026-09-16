@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -29,6 +31,7 @@ class _ListeningAssessmentReaderPageState
   String _assessmentLanguage = 'fil';
   dynamic _passageId;
   String? _audioUrl;
+  Uint8List? _audioBytes;
   List<dynamic>? _dynamicQuestions;
 
   bool _isPlaying = false;
@@ -211,7 +214,6 @@ class _ListeningAssessmentReaderPageState
   Future<void> _prepareNeuralAudio() async {
     if (_fullStoryText.trim().isEmpty) return;
     if (_isSynthesizingAudio) return;
-    if (_audioUrl != null && _audioUrl!.startsWith('https://res.cloudinary.com')) return;
 
     if (mounted) {
       setState(() {
@@ -226,21 +228,36 @@ class _ListeningAssessmentReaderPageState
         'passageId': _passageId,
       });
 
-      if (res.success && res.data != null && res.data['audioUrl'] != null) {
-        final rawPath = res.data['audioUrl'].toString();
+      if (res.success && res.data != null && (res.data['audioUrl'] != null || res.data['audioBase64'] != null)) {
+        final rawPath = (res.data['audioUrl'] ?? '').toString();
         final fullUrl = rawPath.startsWith('http')
             ? rawPath
-            : '${ApiConfig.rootUrl}$rawPath';
+            : (rawPath.isNotEmpty ? '${ApiConfig.rootUrl}$rawPath' : '');
         List<double> peaks = [];
         if (res.data['waveform'] is List) {
           peaks = (res.data['waveform'] as List)
               .map((v) => double.tryParse(v.toString()) ?? 0.0)
               .toList();
         }
-        debugPrint('[ListeningReader] Neural TTS ready URL: $fullUrl (RMS frames: ${peaks.length})');
+
+        Uint8List? bytes;
+        if (res.data['audioBase64'] != null) {
+          try {
+            bytes = base64Decode(res.data['audioBase64'].toString());
+          } catch (e) {
+            debugPrint('[ListeningReader] Error decoding audioBase64: $e');
+          }
+        }
+        if ((bytes == null || bytes.isEmpty) && rawPath.isNotEmpty) {
+          debugPrint('[ListeningReader] Fetching raw bytes from: $rawPath');
+          bytes = await ApiService.getRawBytes(rawPath);
+        }
+
+        debugPrint('[ListeningReader] Neural TTS ready (Bytes: ${bytes?.length ?? 0}, RMS frames: ${peaks.length})');
         if (mounted) {
           setState(() {
             _audioUrl = fullUrl;
+            _audioBytes = bytes;
             _realWaveformData = peaks;
             _isSynthesizingAudio = false;
           });
@@ -338,11 +355,18 @@ class _ListeningAssessmentReaderPageState
       return;
     }
 
-    if (_audioUrl == null || _audioUrl!.isEmpty) {
+    if ((_audioBytes == null || _audioBytes!.isEmpty) && (_audioUrl == null || _audioUrl!.isEmpty)) {
       await _prepareNeuralAudio();
     }
 
-    if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+    if (_audioBytes != null && _audioBytes!.isNotEmpty) {
+      try {
+        debugPrint('[ListeningReader] Playing audio from memory bytes (${_audioBytes!.length} bytes)');
+        await _audioPlayer?.play(BytesSource(_audioBytes!));
+      } catch (e) {
+        debugPrint('[ListeningReader] Memory bytes playback error: $e');
+      }
+    } else if (_audioUrl != null && _audioUrl!.isNotEmpty) {
       try {
         debugPrint('[ListeningReader] Playing audio URL: $_audioUrl');
         await _audioPlayer?.play(UrlSource(_audioUrl!));
@@ -366,13 +390,13 @@ class _ListeningAssessmentReaderPageState
   @override
   Widget build(BuildContext context) {
     final Color bgColor =
-        _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFFCFAF7);
+        _isDarkMode ? const Color(0xFF1A1816) : const Color(0xFFFCFAF7);
     final Color cardBg =
-        _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+        _isDarkMode ? const Color(0xFF24211E) : Colors.white;
     final Color titleColor =
-        _isDarkMode ? Colors.white : const Color(0xFF1E293B);
+        _isDarkMode ? const Color(0xFFECE8E4) : const Color(0xFF1E293B);
     final Color textColor =
-        _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        _isDarkMode ? const Color(0xFFC5C0BA) : const Color(0xFF64748B);
     const Color primaryBlue = Color(0xFF1B64D8);
 
     return Scaffold(
@@ -446,7 +470,7 @@ class _ListeningAssessmentReaderPageState
                                 ),
                                 decoration: BoxDecoration(
                                   color: _isDarkMode
-                                      ? const Color(0xFF334155)
+                                      ? const Color(0xFF2D2A26)
                                       : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -471,13 +495,13 @@ class _ListeningAssessmentReaderPageState
                                   borderRadius: BorderRadius.circular(24),
                                   border: Border.all(
                                     color: _isDarkMode
-                                        ? const Color(0xFF334155)
+                                        ? const Color(0xFF35312C)
                                         : const Color(0xFFE2E8F0),
                                   ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withValues(
-                                        alpha: _isDarkMode ? 0.2 : 0.04,
+                                        alpha: _isDarkMode ? 0.35 : 0.04,
                                       ),
                                       blurRadius: 18,
                                       offset: const Offset(0, 6),
@@ -493,7 +517,7 @@ class _ListeningAssessmentReaderPageState
                                         value: _progress,
                                         minHeight: 8,
                                         backgroundColor: _isDarkMode
-                                            ? const Color(0xFF334155)
+                                            ? const Color(0xFF35312C)
                                             : const Color(0xFFE2E8F0),
                                         valueColor:
                                             const AlwaysStoppedAnimation<Color>(
@@ -621,12 +645,12 @@ class _ListeningAssessmentReaderPageState
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: _isDarkMode
-                                      ? const Color(0xFF1E293B)
+                                      ? const Color(0xFF24211E)
                                       : const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(18),
                                   border: Border.all(
                                     color: _isDarkMode
-                                        ? const Color(0xFF334155)
+                                        ? const Color(0xFF35312C)
                                         : const Color(0xFFE2E8F0),
                                   ),
                                 ),
@@ -683,7 +707,7 @@ class _ListeningAssessmentReaderPageState
                             border: Border(
                               top: BorderSide(
                                 color: _isDarkMode
-                                    ? const Color(0xFF334155)
+                                    ? const Color(0xFF35312C)
                                     : const Color(0xFFE2E8F0),
                               ),
                             ),
@@ -743,7 +767,7 @@ class _ListeningAssessmentReaderPageState
 
     final Color activeColor = _isDarkMode ? const Color(0xFF60A5FA) : primaryBlue;
     final Color inactiveColor = _isDarkMode
-        ? const Color(0xFF334155)
+        ? const Color(0xFF35312C)
         : const Color(0xFFCBD5E1);
 
     return Container(
@@ -827,7 +851,7 @@ class _ListeningAssessmentReaderPageState
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: _isDarkMode
-              ? const Color(0xFF1E293B)
+              ? const Color(0xFF141A24)
               : const Color(0xFFE2E8F0),
         ),
         child: Stack(

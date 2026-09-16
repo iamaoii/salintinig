@@ -4,7 +4,6 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const { execFile } = require('child_process');
-const { cloudinary } = require('../config/cloudinary.js');
 
 // Ensure latest environment variables are loaded
 require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
@@ -17,11 +16,13 @@ const VOICES = {
   'en-male': 'en-PH-JamesNeural', // Philippine English male educator
 };
 
-// System temp directory for transient audio before Cloudinary upload
+// System temp directory for transient audio processing
 const TEMP_DIR = os.tmpdir();
 
 // In-memory cache for deterministic waveform peaks
 const waveformCache = new Map();
+// In-memory cache for temporary audio buffers (0 disk / cloud storage)
+const audioBufferCache = new Map();
 
 /**
  * Extracts real RMS acoustic amplitude peaks from audio file (50ms resolution)
@@ -295,37 +296,16 @@ async function synthesizeTextToAudio(text, lang = 'fil', rate = '-8%', passageId
     .update(`${voice}_${rate}_${folder}_${bookReadingText}`)
     .digest('hex');
 
-  // 1. Instant Cloudinary Cache Check
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-  });
-
-  const uploadFolder = folder || 'salintinig/tts';
-
-  try {
-    const existingResource = await cloudinary.api.resource(`${uploadFolder}/tts_${hash}`, {
-      resource_type: 'video',
-    });
-    if (existingResource && existingResource.secure_url) {
-      console.log(`⚡ [TTS Cloudinary] Instant cache hit: ${existingResource.secure_url}`);
-
-      let cachedWaveform = waveformCache.get(hash);
-      if (!cachedWaveform) {
-        // Extract waveform from Cloudinary stream if not in memory
-        cachedWaveform = await extractWaveformPeaks(existingResource.secure_url);
-        waveformCache.set(hash, cachedWaveform);
-      }
-      return {
-        audioUrl: existingResource.secure_url,
-        waveform: cachedWaveform,
-        cached: true,
-      };
-    }
-  } catch (_) {
-    // Audio not in Cloudinary yet, proceed with synthesis
+  // In-memory cache for transient audio buffers (0 disk / cloud storage)
+  if (audioBufferCache.has(hash)) {
+    console.log(`⚡ [TTS Temporary Stream] Memory cache hit: /api/tts/stream?hash=${hash}`);
+    const cachedBuf = audioBufferCache.get(hash);
+    return {
+      audioUrl: `/api/tts/stream?hash=${hash}`,
+      audioBase64: cachedBuf.toString('base64'),
+      waveform: waveformCache.get(hash) || [],
+      cached: true,
+    };
   }
 
   const tempFilePath = path.join(TEMP_DIR, `salintinig_tts_${hash}.mp3`);
@@ -383,54 +363,35 @@ async function synthesizeTextToAudio(text, lang = 'fil', rate = '-8%', passageId
   const waveformPeaks = await extractWaveformPeaks(fileToUpload);
   waveformCache.set(hash, waveformPeaks);
 
-  // 5. Upload to Cloudinary CDN
-  if (
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  ) {
-    try {
-      const uploadResult = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(
-          fileToUpload,
-          {
-            resource_type: 'video', // Audio uses video resource_type in Cloudinary
-            folder: uploadFolder,
-            public_id: `tts_${hash}`,
-            format: 'mp3',
-            overwrite: true,
-          },
-          (error, result) => {
-            if (error) return reject(error);
-            resolve(result);
-          }
-        );
-      });
-
-      const secureUrl = uploadResult.secure_url;
-      console.log(`☁️ [TTS Cloudinary] Uploaded mastered neural audio: ${secureUrl}`);
-
-      // 6. 🧹 Cleanup local temporary MP3 files immediately (0 MB local disk storage)
-      try {
-        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-        if (fs.existsSync(masteredFilePath)) fs.unlinkSync(masteredFilePath);
-      } catch (_) {}
-
-      return {
-        audioUrl: secureUrl,
-        waveform: waveformPeaks,
-        cached: false,
-      };
-    } catch (uploadError) {
-      try {
-        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-        if (fs.existsSync(masteredFilePath)) fs.unlinkSync(masteredFilePath);
-      } catch (_) {}
-      throw uploadError;
-    }
+  // 5. Store temporary audio in RAM buffer for stream endpoint (NO Cloudinary, NO disk storage)
+  let audioBuffer = null;
+  if (fs.existsSync(fileToUpload)) {
+    audioBuffer = fs.readFileSync(fileToUpload);
   }
 
-  throw new Error('Cloudinary credentials are required for permanent audio hosting.');
+  // Immediately cleanup local temporary files from disk
+  try {
+    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+    if (fs.existsSync(masteredFilePath)) fs.unlinkSync(masteredFilePath);
+  } catch (_) {}
+
+  if (audioBuffer && audioBuffer.length > 0) {
+    // Limit memory cache size to prevent unbounded memory growth
+    if (audioBufferCache.size > 50) {
+      const firstKey = audioBufferCache.keys().next().value;
+      audioBufferCache.delete(firstKey);
+    }
+    audioBufferCache.set(hash, audioBuffer);
+    console.log(`⚡ [TTS Temporary Stream] Synthesized neural story audio: /api/tts/stream?hash=${hash} (${audioBuffer.length} bytes)`);
+    return {
+      audioUrl: `/api/tts/stream?hash=${hash}`,
+      audioBase64: audioBuffer.toString('base64'),
+      waveform: waveformPeaks,
+      cached: false,
+    };
+  }
+
+  throw new Error('Failed to generate temporary TTS audio buffer.');
 }
 
 /**
@@ -464,5 +425,6 @@ module.exports = {
   synthesizeTextToAudio,
   streamSpeechDirect,
   VOICES,
+  audioBufferCache,
 };
 

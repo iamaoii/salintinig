@@ -255,10 +255,23 @@ class _SilentReadingAssessmentReaderPageState
                   child: Column(
                     children: [
                       // 1. Header with Title (Locked - No exit/back options)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 12.0,
+                      Container(
+                        padding: const EdgeInsets.only(
+                          left: 20.0,
+                          right: 20.0,
+                          top: 16.0,
+                          bottom: 20.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: bgColor,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: _isDarkMode
+                                  ? const Color(0xFF2A2825)
+                                  : const Color(0xFFF0EBE1),
+                              width: 1.0,
+                            ),
+                          ),
                         ),
                         child: SizedBox(
                           width: double.infinity,
@@ -282,7 +295,10 @@ class _SilentReadingAssessmentReaderPageState
                             Expanded(
                               child: SingleChildScrollView(
                                 physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24.0,
+                                  vertical: 24.0,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [

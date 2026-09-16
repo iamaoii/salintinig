@@ -1,5 +1,4 @@
-const { synthesizeTextToAudio, VOICES } = require('../services/ttsService.js');
-const fs = require('fs');
+const { synthesizeTextToAudio, streamSpeechDirect, VOICES, audioBufferCache } = require('../services/ttsService.js');
 
 /**
  * Controller for Neural Text-to-Speech synthesis
@@ -11,7 +10,6 @@ async function synthesize(req, res) {
     const rate = req.query.rate || (req.body && req.body.rate) || '-6%';
     const passageId = req.query.passageId || (req.body && req.body.passageId) || null;
     const folder = req.query.folder || (req.body && req.body.folder) || 'salintinig/tts';
-    const stream = req.query.stream === 'true' || (req.body && req.body.stream === true);
 
     if (!text || typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
@@ -29,19 +27,11 @@ async function synthesize(req, res) {
 
     const result = await synthesizeTextToAudio(text, language, rate, passageId, targetFolder);
 
-
-    if (stream) {
-      if (result.filePath && fs.existsSync(result.filePath)) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        return fs.createReadStream(result.filePath).pipe(res);
-      }
-    }
-
-    // Return the audio URL and real RMS acoustic waveform data
+    // Return the audio URL, base64 memory buffer, and real RMS acoustic waveform data
     return res.json({
       success: true,
       audioUrl: result.audioUrl,
+      audioBase64: result.audioBase64,
       waveform: result.waveform || [],
       cached: result.cached,
     });
@@ -50,6 +40,44 @@ async function synthesize(req, res) {
     return res.status(500).json({
       success: false,
       error: 'Failed to synthesize speech.',
+      details: error.message,
+    });
+  }
+}
+
+/**
+ * Streams temporary audio directly from in-memory cache or on-the-fly synthesis
+ */
+async function streamAudio(req, res) {
+  try {
+    const hash = req.query.hash;
+    const text = req.query.text;
+    const language = req.query.language || 'fil';
+
+    if (hash && audioBufferCache.has(hash)) {
+      const buffer = audioBufferCache.get(hash);
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.end(buffer);
+    }
+
+    if (text && typeof text === 'string' && text.trim()) {
+      const langKey = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
+      res.setHeader('Content-Type', 'audio/mpeg');
+      const audioStream = await streamSpeechDirect(text.trim(), langKey);
+      return audioStream.pipe(res);
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: 'Audio stream not found or expired.',
+    });
+  } catch (error) {
+    console.error('[ttsController] streamAudio Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to stream audio.',
       details: error.message,
     });
   }
@@ -67,5 +95,6 @@ function getVoices(req, res) {
 
 module.exports = {
   synthesize,
+  streamAudio,
   getVoices,
 };
