@@ -1,10 +1,11 @@
 import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../config/api.js';
 
 let socket = null;
 
 export function getSocket() {
   if (!socket) {
-    socket = io('http://localhost:5000', {
+    socket = io(API_BASE_URL || window.location.origin, {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,

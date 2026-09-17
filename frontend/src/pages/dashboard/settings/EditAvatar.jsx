@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowsClockwise } from '@phosphor-icons/react';
@@ -43,7 +44,7 @@ export default function EditAvatar() {
       window.dispatchEvent(new CustomEvent('userAvatarChanged', { detail: base64Image }));
       const token = getToken();
       if (token) {
-        const res = await fetch('http://localhost:5000/api/auth/profile', {
+        const res = await fetch(getApiUrl('/api/auth/profile'), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

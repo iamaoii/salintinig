@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WarningCircle } from '@phosphor-icons/react';
@@ -17,7 +18,7 @@ export default function ForgotPasswordEmail() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/forgot-password', {
+      const res = await fetch(getApiUrl('/api/auth/forgot-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

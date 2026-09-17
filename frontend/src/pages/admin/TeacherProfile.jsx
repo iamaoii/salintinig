@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -27,7 +28,7 @@ export default function TeacherProfile() {
     const fetchTeacherDetail = async () => {
       try {
         const token = getToken();
-        const res = await fetch(`http://localhost:5000/api/admin/teachers/${id}`, {
+        const res = await fetch(getApiUrl(`/api/admin/teachers/${id}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
@@ -53,7 +54,7 @@ export default function TeacherProfile() {
     const newStatus = t.status === 'Active' ? 'Disabled' : 'Active';
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/teachers/${t.id}`, {
+      const res = await fetch(getApiUrl(`/api/admin/teachers/${t.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

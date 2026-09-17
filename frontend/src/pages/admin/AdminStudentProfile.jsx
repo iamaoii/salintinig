@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
@@ -69,13 +70,13 @@ export default function AdminStudentProfile() {
       try {
         const token = getToken();
         const targetId = lrn || rawLrn;
-        let res = await fetch(`http://localhost:5000/api/admin/students/${targetId}`, {
+        let res = await fetch(getApiUrl(`/api/admin/students/${targetId}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         let data = await res.json();
         
         if (!res.ok && rawLrn && rawLrn !== targetId) {
-          res = await fetch(`http://localhost:5000/api/admin/students/${rawLrn}`, {
+          res = await fetch(getApiUrl(`/api/admin/students/${rawLrn}`), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           data = await res.json();
@@ -117,7 +118,7 @@ export default function AdminStudentProfile() {
   const handleResetPassword = async () => {
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/reset-password`, {
+      const res = await fetch(getApiUrl(`/api/admin/students/${std.lrn}/reset-password`), {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -239,7 +240,7 @@ export default function AdminStudentProfile() {
                     const newStatus = e.target.value;
                     try {
                       const token = getToken();
-                      const res = await fetch(`http://localhost:5000/api/admin/students/${std.lrn}/status`, {
+                      const res = await fetch(getApiUrl(`/api/admin/students/${std.lrn}/status`), {
                         method: 'PATCH',
                         headers: {
                           'Content-Type': 'application/json',

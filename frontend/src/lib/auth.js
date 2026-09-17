@@ -1,9 +1,11 @@
+import { getApiUrl } from '../config/api.js';
+
 const AUTH_KEY = 'salintinig_auth';
 const USER_KEY = 'salintinig_user';
 const TOKEN_KEY = 'salintinig_token';
 const LEGACY_TOKEN_KEY = 'token';
 
-const API_BASE_URL = 'http://localhost:5000/api/auth';
+const API_BASE_URL = getApiUrl('/api/auth');
 
 function getStorage(key) {
   return localStorage.getItem(key) || sessionStorage.getItem(key);

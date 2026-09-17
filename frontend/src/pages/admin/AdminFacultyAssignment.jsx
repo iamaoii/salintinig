@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -103,14 +104,14 @@ export default function AdminFacultyAssignment() {
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch Teachers
-      const tchRes = await fetch('http://localhost:5000/api/admin/teachers', { headers: authHeaders });
+      const tchRes = await fetch(getApiUrl('/api/admin/teachers'), { headers: authHeaders });
       const tchData = await tchRes.json();
       if (tchRes.ok && tchData.success) {
         setTeachers(tchData.teachers || []);
       }
 
       // 2. Fetch Sections
-      const secRes = await fetch('http://localhost:5000/api/admin/sections', { headers: authHeaders });
+      const secRes = await fetch(getApiUrl('/api/admin/sections'), { headers: authHeaders });
       const secData = await secRes.json();
       if (secRes.ok && secData.success) {
         if (secData.sections) {
@@ -122,7 +123,7 @@ export default function AdminFacultyAssignment() {
       }
 
       // 3. Fetch Faculty Assignments
-      const asgRes = await fetch('http://localhost:5000/api/admin/faculty-assignments', { headers: authHeaders });
+      const asgRes = await fetch(getApiUrl('/api/admin/faculty-assignments'), { headers: authHeaders });
       const asgData = await asgRes.json();
       const fetchedAssignments = (asgRes.ok && asgData.success && asgData.assignments) ? asgData.assignments : [];
 
@@ -136,7 +137,7 @@ export default function AdminFacultyAssignment() {
       }));
 
       // 4. Fetch School Years
-      const syRes = await fetch('http://localhost:5000/api/admin/school-years', { headers: authHeaders });
+      const syRes = await fetch(getApiUrl('/api/admin/school-years'), { headers: authHeaders });
       const syData = await syRes.json();
       if (syRes.ok && syData.success && syData.schoolYears) {
         const active = syData.schoolYears.find((s) => s.isActive);
@@ -154,7 +155,7 @@ export default function AdminFacultyAssignment() {
   const fetchStudentSectioning = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/student-sectioning', {
+      const res = await fetch(getApiUrl('/api/admin/student-sectioning'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -171,7 +172,7 @@ export default function AdminFacultyAssignment() {
     try {
       setIsBulkAssigning(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/assign-students-section', {
+      const res = await fetch(getApiUrl('/api/admin/assign-students-section'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,7 +205,7 @@ export default function AdminFacultyAssignment() {
     const nextStatus = currentStatus === 'retained' ? 'promoted' : 'retained';
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/student-promotion', {
+      const res = await fetch(getApiUrl('/api/admin/student-promotion'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -354,7 +355,7 @@ export default function AdminFacultyAssignment() {
       if (editingSectionData) {
         // Renaming section or updating adviser
         const targetId = editingSectionData.id || editingSectionData.name;
-        const res = await fetch(`http://localhost:5000/api/admin/sections/${targetId}`, {
+        const res = await fetch(getApiUrl(`/api/admin/sections/${targetId}`), {
           method: 'PUT',
           headers: authHeaders,
           body: JSON.stringify({
@@ -374,7 +375,7 @@ export default function AdminFacultyAssignment() {
         }
       } else {
         // Adding new section
-        const res = await fetch('http://localhost:5000/api/admin/sections', {
+        const res = await fetch(getApiUrl('/api/admin/sections'), {
           method: 'POST',
           headers: authHeaders,
           body: JSON.stringify({
@@ -404,7 +405,7 @@ export default function AdminFacultyAssignment() {
 
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/sections/${name}`, {
+      const res = await fetch(getApiUrl(`/api/admin/sections/${name}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -432,7 +433,7 @@ export default function AdminFacultyAssignment() {
         ? teachers.find((t) => t.name === selectedTeacherForGrade || t.id === selectedTeacherForGrade)
         : null;
 
-      const res = await fetch('http://localhost:5000/api/admin/faculty-assignments', {
+      const res = await fetch(getApiUrl('/api/admin/faculty-assignments'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

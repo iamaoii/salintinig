@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -27,7 +28,7 @@ export default function TeacherNotifications() {
       if (isInitial) setLoading(true);
       const token = getToken();
       if (!token) return;
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(getApiUrl('/api/notifications'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -57,7 +58,7 @@ export default function TeacherNotifications() {
       window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
-      const res = await fetch('http://localhost:5000/api/notifications/read-all', {
+      const res = await fetch(getApiUrl('/api/notifications/read-all'), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -76,7 +77,7 @@ export default function TeacherNotifications() {
       window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+      await fetch(getApiUrl(`/api/notifications/${id}/read`), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -93,7 +94,7 @@ export default function TeacherNotifications() {
       window.dispatchEvent(new Event('notificationsUpdated'));
       const token = getToken();
       if (!token) return;
-      const res = await fetch(`http://localhost:5000/api/notifications/${id}`, {
+      const res = await fetch(getApiUrl(`/api/notifications/${id}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

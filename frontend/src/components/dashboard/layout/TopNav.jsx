@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { House, PresentationChart, Article, FlagPennant, Bell, List, X } from '@phosphor-icons/react';
@@ -25,7 +26,7 @@ export default function TopNav() {
     try {
       const token = getToken();
       if (!token) return;
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(getApiUrl('/api/notifications'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -48,7 +49,7 @@ export default function TopNav() {
       setUnreadCount((prev) => Math.max(0, prev - 1));
       const token = getToken();
       if (!token) return;
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+      await fetch(getApiUrl(`/api/notifications/${id}/read`), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import ReadingLevelDonut from './ReadingLevelDonut.jsx';
@@ -24,7 +25,7 @@ export default function ClassProgressPanel() {
         // 1. Get teacher section name
         let targetSection = '';
         try {
-          const meRes = await fetch('http://localhost:5000/api/auth/me', {
+          const meRes = await fetch(getApiUrl('/api/auth/me'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const meData = await meRes.json();
@@ -39,7 +40,7 @@ export default function ClassProgressPanel() {
         }
 
         // 2. Fetch students in this section from teacher endpoint
-        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
+        const res = await fetch(getApiUrl('/api/teacher/class-students'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

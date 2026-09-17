@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
@@ -30,7 +31,7 @@ export default function OverviewPeople() {
 
         // 1. Fetch user info from /api/auth/me
         try {
-          const meRes = await fetch('http://localhost:5000/api/auth/me', {
+          const meRes = await fetch(getApiUrl('/api/auth/me'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const meData = await meRes.json();
@@ -48,7 +49,7 @@ export default function OverviewPeople() {
         }
 
         // 2. Fetch students from teacher endpoint
-        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
+        const res = await fetch(getApiUrl('/api/teacher/class-students'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

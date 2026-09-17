@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -50,7 +51,7 @@ export default function ActivityFormPage() {
     const fetchStudents = async () => {
       try {
         const token = getToken();
-        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
+        const res = await fetch(getApiUrl('/api/teacher/class-students'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

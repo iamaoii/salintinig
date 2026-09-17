@@ -2,7 +2,7 @@ const { Resend } = require('resend');
 
 // High-Speed Direct HTTPS CDN Logo (Guaranteed 200 image/png header for Gmail & webmail clients)
 const DEFAULT_LOGO_URL = process.env.LOGO_URL || 'https://iili.io/C4yqztp.png';
-const DEFAULT_LOGIN_URL = process.env.FRONTEND_URL || 'http://localhost:5173/login';
+const DEFAULT_LOGIN_URL = process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/login` : (process.env.FRONTEND_URL || 'http://localhost:5173/login');
 
 /**
  * Render Welcome Email HTML (Smaller Logo & Compact Spacing)

@@ -1,3 +1,4 @@
+import { getApiUrl } from '../config/api.js';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getToken } from '../lib/auth.js';
 
@@ -13,7 +14,7 @@ export function GradeLevelProvider({ children }) {
       try {
         const token = getToken();
         if (!token) return;
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(getApiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();

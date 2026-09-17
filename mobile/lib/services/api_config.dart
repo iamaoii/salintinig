@@ -6,11 +6,13 @@ class ApiConfig {
   static String? customHost;
 
   static String get baseUrl {
+    // 1. Check explicit API_BASE_URL from .env
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
       return envUrl;
     }
 
+    // 2. Check custom host or LAN IP from .env
     if (customHost != null && customHost!.isNotEmpty) {
       return 'http://$customHost/api';
     }
@@ -20,11 +22,10 @@ class ApiConfig {
       return 'http://$envHost/api';
     }
 
+    // 3. Fallbacks for local development
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     } else if (Platform.isAndroid) {
-      // ADB reverse forwards localhost:5000 directly. If customHost set, use it.
-      // Fallback order: 127.0.0.1 (ADB reverse) -> 10.0.2.2 (Emulator) -> 192.168.1.146 (LAN IP)
       return 'http://127.0.0.1:5000/api';
     } else {
       return 'http://localhost:5000/api';

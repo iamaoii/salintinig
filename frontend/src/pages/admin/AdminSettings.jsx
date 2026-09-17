@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -187,7 +188,7 @@ export default function AdminSettings() {
 
       // Sync to backend — backend uploads to Supabase Storage and returns the CDN URL
       const token = getToken();
-      await fetch('http://localhost:5000/api/admin/info', {
+      await fetch(getApiUrl('/api/admin/info'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ export default function AdminSettings() {
       });
 
       // Fetch the actual Supabase CDN URL back from the DB and sync cache
-      const infoRes = await fetch('http://localhost:5000/api/admin/info', {
+      const infoRes = await fetch(getApiUrl('/api/admin/info'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const infoData = await infoRes.json();
@@ -222,7 +223,7 @@ export default function AdminSettings() {
     try {
       setLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/info', {
+      const res = await fetch(getApiUrl('/api/admin/info'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -314,7 +315,7 @@ export default function AdminSettings() {
     try {
       setIsSaving(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/info', {
+      const res = await fetch(getApiUrl('/api/admin/info'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -367,7 +368,7 @@ export default function AdminSettings() {
     try {
       const token = getToken();
       if (token) {
-        const res = await fetch('http://localhost:5000/api/auth/change-password', {
+        const res = await fetch(getApiUrl('/api/auth/change-password'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

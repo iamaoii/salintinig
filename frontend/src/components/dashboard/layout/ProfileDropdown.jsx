@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -42,7 +43,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
       try {
         const token = getToken();
         if (!token) return;
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(getApiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -194,7 +195,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
       const fetchAdminAvatar = async () => {
         try {
           const token = getToken();
-          const res = await fetch('http://localhost:5000/api/admin/info', {
+          const res = await fetch(getApiUrl('/api/admin/info'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const data = await res.json();

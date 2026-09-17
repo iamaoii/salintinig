@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ArrowRight } from '@phosphor-icons/react';
@@ -27,7 +28,7 @@ export default function Sidebar() {
     try {
       const token = getToken();
       if (!token) return;
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(getApiUrl('/api/notifications'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();

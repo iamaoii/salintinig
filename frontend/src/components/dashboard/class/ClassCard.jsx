@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import logoBg from '../../../assets/logo/logo_bg.webp';
 import { getToken } from '../../../lib/auth.js';
@@ -22,7 +23,7 @@ export default function ClassCard() {
         let sectionName = '';
         let activeSY = '';
         try {
-          const resMe = await fetch('http://localhost:5000/api/auth/me', {
+          const resMe = await fetch(getApiUrl('/api/auth/me'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const dataMe = await resMe.json();
@@ -46,7 +47,7 @@ export default function ClassCard() {
         // 3. Fallback School Year fetch if /api/auth/me didn't provide activeSchoolYear
         if (!activeSY) {
           try {
-            const resSY = await fetch('http://localhost:5000/api/admin/school-years', {
+            const resSY = await fetch(getApiUrl('/api/admin/school-years'), {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const dataSY = await resSY.json();
@@ -65,7 +66,7 @@ export default function ClassCard() {
         // 4. Fetch Enrolled Learners Count from DB for THIS specific section
         let learnerText = '0 Enrolled Learners';
         try {
-          const resStudents = await fetch('http://localhost:5000/api/teacher/class-students', {
+          const resStudents = await fetch(getApiUrl('/api/teacher/class-students'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const dataStudents = await resStudents.json();

@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSmartNotificationPoll } from '../../hooks/useSmartNotificationPoll.js';
@@ -44,7 +45,7 @@ export default function AdminLayout() {
     try {
       const token = getToken();
       if (!token) return;
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(getApiUrl('/api/notifications'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -70,7 +71,7 @@ export default function AdminLayout() {
       setUnreadCount((prev) => Math.max(0, prev - 1));
       const token = getToken();
       if (!token) return;
-      await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+      await fetch(getApiUrl(`/api/notifications/${id}/read`), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -86,7 +87,7 @@ export default function AdminLayout() {
       setUnreadCount(0);
       const token = getToken();
       if (!token) return;
-      await fetch('http://localhost:5000/api/notifications/read-all', {
+      await fetch(getApiUrl('/api/notifications/read-all'), {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -111,7 +112,7 @@ export default function AdminLayout() {
     const fetchAdminInfo = async () => {
       try {
         const token = getToken();
-        const res = await fetch('http://localhost:5000/api/admin/info', {
+        const res = await fetch(getApiUrl('/api/admin/info'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

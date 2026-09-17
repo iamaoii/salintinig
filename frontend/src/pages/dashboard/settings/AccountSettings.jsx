@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -108,7 +109,7 @@ export default function AccountSettings() {
         const token = getToken();
         if (!token) return;
 
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(getApiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -224,7 +225,7 @@ export default function AccountSettings() {
     try {
       const token = getToken();
       if (token) {
-        const res = await fetch('http://localhost:5000/api/auth/profile', {
+        const res = await fetch(getApiUrl('/api/auth/profile'), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -269,7 +270,7 @@ export default function AccountSettings() {
       const token = getToken();
       const fn = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
       if (token) {
-        const res = await fetch('http://localhost:5000/api/auth/profile', {
+        const res = await fetch(getApiUrl('/api/auth/profile'), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -333,7 +334,7 @@ export default function AccountSettings() {
     try {
       const token = getToken();
       if (token) {
-        const res = await fetch('http://localhost:5000/api/auth/change-password', {
+        const res = await fetch(getApiUrl('/api/auth/change-password'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

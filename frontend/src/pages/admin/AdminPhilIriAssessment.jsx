@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
@@ -33,7 +34,7 @@ export default function AdminPhilIriAssessment() {
     try {
       setLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/phil-iri/assessments', {
+      const res = await fetch(getApiUrl('/api/admin/phil-iri/assessments'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -53,7 +54,7 @@ export default function AdminPhilIriAssessment() {
   const fetchStudentsFallback = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/students', {
+      const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
