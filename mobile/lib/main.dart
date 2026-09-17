@@ -35,7 +35,7 @@ void main() async {
   try {
     await Supabase.initialize(
       url: ApiConfig.supabaseUrl,
-      anonKey: ApiConfig.supabaseAnonKey,
+      publishableKey: ApiConfig.supabaseAnonKey,
     );
   } catch (e) {
     debugPrint('Supabase init notice: $e');

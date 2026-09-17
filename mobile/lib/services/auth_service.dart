@@ -373,7 +373,10 @@ class AuthService {
                 final nav = Navigator.of(dialogContext, rootNavigator: true);
                 await logout();
                 nav.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomePage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/'),
+                    builder: (_) => const HomePage(),
+                  ),
                   (route) => false,
                 );
               },

@@ -33,8 +33,6 @@ void main() {
       // Mon & Tue stay ORANGE (done), Wed is GREY (missed), Today is ORANGE (done)
       expect(tracker[0]['state'], equals('done'));   // Monday -> Orange
       expect(tracker[1]['state'], equals('done'));   // Tuesday -> Orange
-      
-      print('✅ Mon and Tue stay ORANGE (completed earlier this week) even when streak breaks!');
     });
 
     test('Scenario 2: Multiple activity completions on same day do NOT double-increment streak', () async {
@@ -50,7 +48,6 @@ void main() {
       final secondStreak = await StreakService.getStreakCount();
 
       expect(secondStreak, equals(1));
-      print('✅ Completing multiple activities on the same day does not double-increment streak!');
     });
   });
 }

@@ -38,7 +38,7 @@ class ApiResponse {
              body['message']?.toString().toLowerCase().contains('invalid or expired token') == true ||
              body['error']?.toString().toLowerCase().contains('unauthorized') == true));
 
-    if (isUnauthorized) {
+    if (isUnauthorized && ApiService.hasAuthToken) {
       ApiService.handleUnauthorized();
     }
     
@@ -73,8 +73,10 @@ class ApiService {
   static String? _authToken;
   static bool _isHandlingUnauthorized = false;
 
+  static bool get hasAuthToken => _authToken != null && _authToken!.isNotEmpty;
+
   static void handleUnauthorized() {
-    if (_isHandlingUnauthorized) return;
+    if (_isHandlingUnauthorized || !hasAuthToken) return;
     _isHandlingUnauthorized = true;
     debugPrint('[ApiService] 401 Unauthorized detected! Clearing expired token & session.');
 
@@ -84,7 +86,10 @@ class ApiService {
         final state = navigatorKey.currentState;
         if (state != null && state.mounted) {
           state.pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomePage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/'),
+              builder: (_) => const HomePage(),
+            ),
             (route) => false,
           );
         }
