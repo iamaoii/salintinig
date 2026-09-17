@@ -12,6 +12,7 @@ import 'package:salintinig/pages/teacher/teacher_reading_levels_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/notification_service.dart';
+import 'package:salintinig/services/teacher_prefetch_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 import 'dart:math' as math;
@@ -43,8 +44,13 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   @override
   void initState() {
     super.initState();
+    if (_cachedOverviewActivities != null && _cachedOverviewActivities!.isNotEmpty) {
+      _overviewActivities = _cachedOverviewActivities!;
+      _isLoadingUser = false;
+    }
     _refreshTeacherProfile();
     _setupRealtimeSubscription();
+    TeacherPrefetchService.prefetchAll();
   }
 
   Future<void> _refreshTeacherProfile() async {
@@ -1090,13 +1096,66 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         ),
         const SizedBox(height: 12),
 
-        // Activities List Cards (Limited to 3 recent items)
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: displayList.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 14),
-          itemBuilder: (context, index) {
+        // Activities List Cards (Limited to 3 recent items or Skeleton Cards)
+        if (_isLoadingUser && displayList.isEmpty)
+          Column(
+            children: List.generate(
+              2,
+              (i) => Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 140,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 90,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[150],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: displayList.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
             final act = displayList[index];
             final String title = act['title'] ?? 'Assessment';
             final String subtitle = act['subtitle'] ?? '';

@@ -1470,6 +1470,22 @@ async function getTeacherClassStudents(req, res) {
           rp.eng_oral_profile_label AS "engOralProfile",
           rp.eng_listening_profile_label AS "engListeningProfile",
           rp.eng_silent_profile_label AS "engSilentProfile",
+
+          -- Distinct metrics per classification
+          COALESCE(rp.fil_oral_accuracy_rate, 0) AS "filOralAccuracy",
+          COALESCE(rp.fil_oral_speed_wpm, 0) AS "filOralSpeed",
+          COALESCE(rp.fil_oral_comprehension_rate, 0) AS "filOralComprehension",
+
+          COALESCE(rp.fil_silent_comprehension_rate, 0) AS "filSilentComprehension",
+          COALESCE(rp.fil_listening_comprehension_rate, 0) AS "filListeningComprehension",
+
+          COALESCE(rp.eng_oral_accuracy_rate, 0) AS "engOralAccuracy",
+          COALESCE(rp.eng_oral_speed_wpm, 0) AS "engOralSpeed",
+          COALESCE(rp.eng_oral_comprehension_rate, 0) AS "engOralComprehension",
+
+          COALESCE(rp.eng_silent_comprehension_rate, 0) AS "engSilentComprehension",
+          COALESCE(rp.eng_listening_comprehension_rate, 0) AS "engListeningComprehension",
+
           COALESCE(rp.fil_oral_speed_wpm, 0) AS "readingSpeed",
           COALESCE(rp.fil_oral_accuracy_rate, 0) AS accuracy,
           COALESCE(rp.fil_oral_comprehension_rate, 0) AS comprehension,
@@ -1518,6 +1534,22 @@ async function getTeacherClassStudents(req, res) {
             rp.eng_oral_profile_label AS "engOralProfile",
             rp.eng_listening_profile_label AS "engListeningProfile",
             rp.eng_silent_profile_label AS "engSilentProfile",
+
+            -- Distinct metrics per classification
+            COALESCE(rp.fil_oral_accuracy_rate, 0) AS "filOralAccuracy",
+            COALESCE(rp.fil_oral_speed_wpm, 0) AS "filOralSpeed",
+            COALESCE(rp.fil_oral_comprehension_rate, 0) AS "filOralComprehension",
+
+            COALESCE(rp.fil_silent_comprehension_rate, 0) AS "filSilentComprehension",
+            COALESCE(rp.fil_listening_comprehension_rate, 0) AS "filListeningComprehension",
+
+            COALESCE(rp.eng_oral_accuracy_rate, 0) AS "engOralAccuracy",
+            COALESCE(rp.eng_oral_speed_wpm, 0) AS "engOralSpeed",
+            COALESCE(rp.eng_oral_comprehension_rate, 0) AS "engOralComprehension",
+
+            COALESCE(rp.eng_silent_comprehension_rate, 0) AS "engSilentComprehension",
+            COALESCE(rp.eng_listening_comprehension_rate, 0) AS "engListeningComprehension",
+
             COALESCE(rp.fil_oral_speed_wpm, 0) AS "readingSpeed",
             COALESCE(rp.fil_oral_accuracy_rate, 0) AS accuracy,
             COALESCE(rp.fil_oral_comprehension_rate, 0) AS comprehension,

@@ -7,6 +7,8 @@ import 'package:record/record.dart';
 import 'package:salintinig/services/api_config.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/student_prefetch_service.dart';
+import 'package:salintinig/services/teacher_prefetch_service.dart';
 import 'package:salintinig/services/local_notification_service.dart';
 import 'package:salintinig/pages/common/loading_page.dart';
 
@@ -50,6 +52,15 @@ void main() async {
     // 2. Request Audio Microphone Permissions right away upon app installation
     final audioRecorder = AudioRecorder();
     await audioRecorder.hasPermission();
+    // 3. Background prefetch pre-warming for instant 0-delay page loads
+    if (AuthService.currentUser != null) {
+      final role = AuthService.currentUser!.role.toLowerCase();
+      if (role == 'student') {
+        StudentPrefetchService.prefetchAll();
+      } else if (role == 'teacher') {
+        TeacherPrefetchService.prefetchAll();
+      }
+    }
   } catch (e) {
     debugPrint('Service init notice: $e');
   }
