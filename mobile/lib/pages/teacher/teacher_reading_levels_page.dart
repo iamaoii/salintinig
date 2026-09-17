@@ -859,6 +859,7 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
                 builder: (context) => TeacherStudentDetailsPage(
                   studentName: name,
                   level: levelLabel,
+                  studentData: student,
                 ),
               ),
             );
