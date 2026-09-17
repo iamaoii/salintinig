@@ -1,0 +1,2365 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:iconify_flutter/iconify_flutter.dart';
+import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
+import 'package:salintinig/widgets/student_sidebar_drawer.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
+import 'package:salintinig/widgets/user_avatar.dart';
+import 'package:salintinig/widgets/app_toast.dart';
+import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
+import 'package:salintinig/constants/ph_icons.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_assessment_quiz_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_quiz_page.dart';
+import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
+import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_quiz_page.dart';
+import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
+import 'package:salintinig/pages/student/library/library_page.dart';
+import 'package:salintinig/pages/student/library/continue_reading_page.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
+import 'package:salintinig/pages/student/profile_page.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
+import 'package:salintinig/pages/student/progress_page.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/student_prefetch_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/widgets/activity_modal_helper.dart';
+
+class StudentOverviewPage extends StatefulWidget {
+  const StudentOverviewPage({super.key});
+
+  @override
+  State<StudentOverviewPage> createState() => _StudentOverviewPageState();
+}
+
+class _StudentOverviewPageState extends State<StudentOverviewPage> {
+  // Scaffold key to control drawer programmatically
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  bool _isLoadingAssignments = true;
+  bool _isLoadingReadingProgress = true;
+
+  List<Map<String, dynamic>> _assignedList = [];
+  List<Map<String, dynamic>> _inProgressBooks = [];
+  Map<dynamic, bool> _activeDrafts = {};
+  Map<String, dynamic>? _readingProfiles;
+  String _selectedHeaderLang = 'fil'; // 'fil' or 'en'
+  Timer? _carouselTimer;
+
+  dynamic _realtimeSubscription;
+
+  static List<Map<String, dynamic>>? _cachedAssignedList;
+  static Map<String, dynamic>? _cachedReadingProfiles;
+
+  int _streakCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (_cachedAssignedList != null) {
+      _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
+      _isLoadingAssignments = false;
+    }
+    if (_cachedReadingProfiles != null) {
+      _readingProfiles = _cachedReadingProfiles;
+    }
+    if (LibraryService.cachedProgress != null && LibraryService.cachedProgress!.isNotEmpty) {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+      _isLoadingReadingProgress = false;
+    }
+
+    QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
+    LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
+    StreakService.streakNotifier.addListener(_loadStreak);
+    AnalyticsService.analyticsNotifier.addListener(_onAnalyticsChanged);
+    // Refresh user profile & fetch backend assigned Phil-IRI assessments & reading progress
+    _loadStreak();
+    _refreshUserProfile();
+    _fetchTeacherAssignment();
+    _loadReadingProgress();
+    _setupRealtimeSubscription();
+    _startCarouselTimer();
+    StudentPrefetchService.prefetchAll();
+  }
+
+  void _onAnalyticsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadStreak() async {
+    final streak = await StreakService.getStreakCount();
+    if (mounted) {
+      setState(() {
+        _streakCount = streak;
+      });
+    }
+    // Perform background sync to match Progress page logic
+    Future.microtask(() async {
+      try {
+        await StreakService.syncStreakWithBackend();
+        final updatedStreak = await StreakService.getStreakCount();
+        if (mounted && updatedStreak != _streakCount) {
+          setState(() {
+            _streakCount = updatedStreak;
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _onLibraryProgressChanged() {
+    if (!mounted) return;
+    setState(() {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.progressNotifier.value);
+      _isLoadingReadingProgress = false;
+    });
+  }
+
+  Future<void> _loadReadingProgress({bool forceRefresh = false}) async {
+    try {
+      final progress = await LibraryService.fetchReadingProgress(forceRefresh: forceRefresh);
+      if (mounted) {
+        setState(() {
+          _inProgressBooks = LibraryService.filterInProgress(progress);
+          _isLoadingReadingProgress = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingReadingProgress = false);
+      }
+    }
+  }
+
+  void _startCarouselTimer() {
+    _carouselTimer?.cancel();
+    _carouselTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+      if (mounted) {
+        setState(() {
+          _selectedHeaderLang = _selectedHeaderLang == 'fil' ? 'en' : 'fil';
+        });
+      }
+    });
+  }
+
+  Future<void> _checkLocalDrafts() async {
+    final drafts = await QuizProgressService.checkActiveDrafts(_assignedList);
+    if (mounted) {
+      setState(() {
+        _activeDrafts = drafts;
+      });
+    }
+  }
+
+  Future<void> _fetchTeacherAssignment() async {
+    try {
+      if (ApiService.authToken == null || ApiService.authToken!.isEmpty) {
+        await ApiService.initToken();
+      }
+      if (_assignedList.isEmpty) {
+        setState(() {
+          _isLoadingAssignments = true;
+        });
+      }
+      final res = await ApiService.get('/students/assessment/my-assignment');
+      debugPrint(
+        '[OverviewPhilIRI] API success=${res.success} statusCode=${res.statusCode}',
+      );
+      debugPrint('[OverviewPhilIRI] raw data=${res.data}');
+      if (res.success && res.data != null) {
+        final activitiesList = res.data['assignedActivities'];
+        final rpData = res.data['readingProfiles'];
+        if (mounted) {
+          setState(() {
+            _isLoadingAssignments = false;
+            if (rpData is Map<String, dynamic>) {
+              _readingProfiles = rpData;
+              _cachedReadingProfiles = rpData;
+            }
+            if (activitiesList != null && activitiesList is List) {
+              _assignedList = List<Map<String, dynamic>>.from(activitiesList);
+              _assignedList.sort((a, b) {
+                final isDoneA = a['isCompleted'] == true ||
+                    (a['status'] != null &&
+                        a['status'].toString().toLowerCase() == 'completed');
+                final isDoneB = b['isCompleted'] == true ||
+                    (b['status'] != null &&
+                        b['status'].toString().toLowerCase() == 'completed');
+
+                // 1. Pending / Active / In-progress assessments come before completed ones
+                if (isDoneA != isDoneB) {
+                  return isDoneA ? 1 : -1;
+                }
+
+                // 2. Purely sort by most recent assignment/creation date (Newest first)
+                final dateA = DateTime.tryParse(
+                      (a['assignedAt'] ?? a['created_at'] ?? a['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateB = DateTime.tryParse(
+                      (b['assignedAt'] ?? b['created_at'] ?? b['createdAt'] ?? '')
+                          .toString(),
+                    ) ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final dateCompare = dateB.compareTo(dateA); // Descending (most recent first)
+                if (dateCompare != 0) {
+                  return dateCompare;
+                }
+
+                // 3. If dates are identical, sort alphabetically by title
+                final titleA = (a['title'] ?? '').toString();
+                final titleB = (b['title'] ?? '').toString();
+                return titleA.compareTo(titleB);
+              });
+              _cachedAssignedList = List<Map<String, dynamic>>.from(_assignedList);
+            }
+          });
+
+          await _checkLocalDrafts();
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Overview assessment fetch notice: $e');
+    } finally {
+      if (mounted && _isLoadingAssignments) {
+        setState(() {
+          _isLoadingAssignments = false;
+        });
+      }
+    }
+  }
+
+  void _setupRealtimeSubscription() {
+    try {
+      final client = Supabase.instance.client;
+      _realtimeSubscription = client
+          .channel('public:student_overview_updates')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'student_grade_history',
+            callback: (payload) {
+              _refreshUserProfile();
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assessments',
+            callback: (payload) {
+              _refreshUserProfile();
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_assignments',
+            callback: (payload) {
+              _refreshUserProfile();
+              _fetchTeacherAssignment();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assigned_activities',
+            callback: (payload) {
+              _refreshUserProfile();
+              _fetchTeacherAssignment();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Realtime stream subscription notice: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _carouselTimer?.cancel();
+    QuizProgressService.draftChangeNotifier.removeListener(_checkLocalDrafts);
+    LibraryService.progressNotifier.removeListener(_onLibraryProgressChanged);
+    if (_realtimeSubscription != null) {
+      try {
+        Supabase.instance.client.removeChannel(_realtimeSubscription);
+      } catch (_) {}
+    }
+    super.dispose();
+  }
+
+  Future<void> _refreshUserProfile() async {
+    await ApiService.initToken();
+    final res = await AuthService.fetchMe();
+    await _fetchTeacherAssignment();
+    await _loadReadingProgress(forceRefresh: true);
+    if (res.success && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryBlue = Color(0xFF1B64D8);
+    const darkBlueBg = Color(0xFF195ECB);
+    const softCreamBg = Color(0xFFFCFAF7);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        // Close drawer if open, otherwise stay on Home (Social Media App standard)
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeDrawer();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        drawerEnableOpenDragGesture: true,
+        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
+        backgroundColor: softCreamBg,
+        drawer: StudentSidebarDrawer(
+          currentIndex: 0, // Since this is the home/overview page
+          onItemSelected: (index) {
+            if (index == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PhilIriAssessmentPage(),
+                ),
+              ).then((_) {
+                _fetchTeacherAssignment();
+              });
+            } else if (index == 2) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LibraryPage()),
+              );
+            } else if (index == 3) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+              );
+            } else if (index == 4) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProgressPage()),
+              );
+            } else if (index != 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Navigation to item $index tapped.',
+                    style: GoogleFonts.inter(),
+                  ),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            }
+          },
+        ),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity != null &&
+                details.primaryVelocity! > 200) {
+              _scaffoldKey.currentState?.openDrawer();
+            }
+          },
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isTablet = constraints.maxWidth > 600;
+
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isTablet ? 520 : double.infinity,
+                    ),
+                    child: Column(
+                      children: [
+                        // 1. Fixed Custom Header
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 12.0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Left Menu Drawer Icon
+                              IconButton(
+                                onPressed: () {
+                                  _scaffoldKey.currentState?.openDrawer();
+                                },
+                                icon: Iconify(
+                                  Ph.list,
+                                  size: 28,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              // Center Brand Identity
+                              Row(
+                                children: [
+                                  Image.asset(
+                                    'assets/logo/logo_v2.webp',
+                                    height: 32,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'SalinTinig',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              // Right Notification Bell
+                              const NotificationBellIconButton(),
+                            ],
+                          ),
+                        ),
+
+                        // 2. Scrollable Dashboard Body
+                        Expanded(
+                          child: RefreshIndicator(
+                            color: primaryBlue,
+                            backgroundColor: Colors.white,
+                            onRefresh: () async {
+                              await AuthService.fetchMe();
+                              await _fetchTeacherAssignment();
+                            },
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20.0,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // ── Hero Banner Card ──
+                                  Container(
+                                    clipBehavior: Clip.antiAlias,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: const LinearGradient(
+                                        colors: [primaryBlue, darkBlueBg],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: primaryBlue.withValues(
+                                            alpha: 0.25,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                         // Translucent watermark logo background
+                                         Positioned(
+                                           right: -6,
+                                           top: -16,
+                                           bottom: -16,
+                                           width: 270,
+                                           child: Image.asset(
+                                             'assets/student page/logo_bg2.webp',
+                                             fit: BoxFit.contain,
+                                             alignment: Alignment.centerRight,
+                                           ),
+                                         ),
+                                        // Foreground content
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 14.0),
+                                          child: Column(
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          'Hello, ${AuthService.currentUser?.nickname?.isNotEmpty == true ? AuthService.currentUser!.nickname! : (AuthService.currentUser?.firstName ?? 'Student')}!',
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 24.5,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            color: Colors.white,
+                                                            letterSpacing: -0.5,
+                                                            height: 1.15,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          AuthService
+                                                                          .currentUser
+                                                                          ?.sectionName !=
+                                                                      null &&
+                                                                  AuthService
+                                                                      .currentUser!
+                                                                      .sectionName
+                                                                      .isNotEmpty
+                                                              ? 'Grade ${AuthService.currentUser?.gradeLevel ?? ''} - ${AuthService.currentUser?.sectionName}'
+                                                              : (AuthService
+                                                                            .currentUser
+                                                                            ?.gradeLevel !=
+                                                                        null
+                                                                    ? 'Grade ${AuthService.currentUser?.gradeLevel}'
+                                                                    : ''),
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 14,
+                                                            color: Colors.white
+                                                                .withValues(
+                                                                  alpha: 0.8,
+                                                                ),
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                            height: 1.15,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  UserAvatar(
+                                                    size: 52,
+                                                    onTap: () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) =>
+                                                              const ProfilePage(),
+                                                        ),
+                                                      ).then((_) async {
+                                                        await AuthService.fetchMe();
+                                                        if (mounted) setState(() {});
+                                                        _fetchTeacherAssignment();
+                                                        if (mounted) _loadReadingProgress(forceRefresh: true);
+                                                      });
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              // ── Integrated Phil-IRI Levels Inside Header ──
+                                              _buildHeaderIntegratedProfileStrip(),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // ── Navigation Quick Cards Row ──
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _buildQuickNavCard(
+                                        'Phil-IRI',
+                                        PhIcons.examBold,
+                                        primaryBlue,
+                                      ),
+                                      _buildQuickNavCard(
+                                        'Library',
+                                        PhIcons.bookBold,
+                                        primaryBlue,
+                                      ),
+                                      _buildQuickNavCard(
+                                        'Activities',
+                                        PhIcons.flagPennantBold,
+                                        primaryBlue,
+                                      ),
+                                      _buildQuickNavCard(
+                                        'Progress',
+                                        PhIcons.hourglassBold,
+                                        primaryBlue,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 28),
+
+                                  // ── Section 1: Phil-IRI Assessments ──
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _buildSectionHeader(
+                                        'Phil - IRI Assessments',
+                                        PhIcons.examBold,
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PhilIriAssessmentPage(),
+                                            ),
+                                          ).then((_) {
+                                            _fetchTeacherAssignment();
+                                          });
+                                        },
+                                        child: Text(
+                                          'See all',
+                                          style: GoogleFonts.inter(
+                                            color: primaryBlue,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  if (_isLoadingAssignments)
+                                    Column(
+                                      children: List.generate(2, (index) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFFF1F5F9),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Container(
+                                                      height: 14,
+                                                      width: 140,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF1F5F9),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Container(
+                                                      height: 10,
+                                                      width: 100,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF8FAFC),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                width: 64,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF1F5F9),
+                                                  borderRadius: BorderRadius.circular(100),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    )
+                                  else if (_assignedList.isNotEmpty)
+                                    ..._assignedList.take(3).map((item) {
+                                      final title =
+                                          item['title'] ??
+                                          'Phil-IRI Assessment';
+                                      final type = QuizProgressService.normalizeType(item['assessmentType'] ?? item['type']);
+                                      final isDone = item['isCompleted'] == true ||
+                                          (item['status'] != null &&
+                                              item['status']
+                                                  .toString()
+                                                  .toLowerCase() ==
+                                                  'completed');
+
+                                      final rawLang =
+                                          (item['rawLanguage'] ?? 'fil')
+                                              .toString()
+                                              .toLowerCase();
+                                      final langBadge = rawLang.startsWith('en')
+                                          ? 'ENG'
+                                          : 'FIL';
+                                      final rawSet =
+                                          (item['passageSet'] ?? 'Set A')
+                                              .toString();
+                                      final setBadge =
+                                          rawSet.toLowerCase().startsWith('set')
+                                          ? rawSet
+                                          : 'Set $rawSet';
+
+                                      String icon = PhIcons.userSoundBold;
+                                      Color iconColor = primaryBlue;
+                                      Color iconBg = const Color(0xFFD0E1F9);
+
+                                      if (type == 'listening') {
+                                        icon = PhIcons.earBold;
+                                        iconColor = const Color(0xFFD97706);
+                                        iconBg = const Color(0xFFFEF3C7);
+                                      } else if (type == 'silent') {
+                                        icon = PhIcons.bookOpenBold;
+                                        iconColor = const Color(0xFF10B981);
+                                        iconBg = const Color(0xFFD1FAE5);
+                                      }
+
+                                      final passageId = QuizProgressService.extractPassageId(item);
+                                      final hasDraft = _activeDrafts['${type}_$passageId'] == true;
+
+                                      final isClosed = !isDone &&
+                                          !hasDraft &&
+                                          (item['status'] ?? 'open')
+                                              .toString()
+                                              .toLowerCase() ==
+                                          'closed';
+
+                                      final statusStr = (item['status'] ?? '').toString().toLowerCase();
+                                      final isPendingReview = type == 'oral' &&
+                                          (statusStr == 'pending_review' || statusStr == 'submitted');
+
+                                      final tagText = isPendingReview
+                                          ? 'In Review'
+                                          : (isDone
+                                              ? 'Done'
+                                              : (hasDraft ? 'In Progress' : 'Required'));
+                                      final tagBg = isPendingReview
+                                          ? const Color(0xFFFEF3C7)
+                                          : (isDone
+                                              ? const Color(0xFFD1FAE5)
+                                              : (hasDraft
+                                                  ? const Color(0xFFFEF3C7)
+                                                  : const Color(0xFFFEE2E2)));
+                                      final tagTextCol = isPendingReview
+                                          ? const Color(0xFFD97706)
+                                          : (isDone
+                                              ? const Color(0xFF059669)
+                                              : (hasDraft
+                                                  ? const Color(0xFFD97706)
+                                                  : const Color(0xFFEF4444)));
+
+                                      final buttonLabel = isPendingReview
+                                          ? 'In Review'
+                                          : (isDone
+                                              ? 'View Result'
+                                              : (hasDraft
+                                                  ? 'Continue'
+                                                  : (isClosed ? 'Closed' : 'Start')));
+                                      final buttonBgColor = isPendingReview
+                                          ? const Color(0xFFFFC000)
+                                          : (isDone
+                                              ? const Color(0xFF00A859)
+                                              : (isClosed
+                                                  ? const Color(0xFFF1F5F9)
+                                                  : primaryBlue));
+                                      final buttonTxtColor = isPendingReview
+                                          ? const Color(0xFF451A03)
+                                          : (isDone || !isClosed
+                                              ? Colors.white
+                                              : const Color(0xFF94A3B8));
+
+                                      return _buildAssessmentCard(
+                                        title: title,
+                                        tag: tagText,
+                                        tagBgColor: tagBg,
+                                        tagTextColor: tagTextCol,
+                                        buttonText: buttonLabel,
+                                        buttonColor: buttonBgColor,
+                                        buttonTextColor: buttonTxtColor,
+                                        icon: icon,
+                                        iconColor: iconColor,
+                                        iconBg: iconBg,
+                                        cardBg: isPendingReview
+                                            ? const Color(0xFFFFFBEB)
+                                            : (isDone
+                                                ? const Color(0xFFEAF5EC)
+                                                : Colors.white),
+                                        languageBadge: langBadge,
+                                        passageSetBadge: setBadge,
+                                        onPressed: () {
+                                          if (isClosed) return;
+                                          if (type == 'listening') {
+                                            if (isDone) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => ListeningResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                    questionsList: item['questions'] is List
+                                                        ? List<Map<String, dynamic>>.from(item['questions'])
+                                                        : null,
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              QuizProgressService.getQuizDraft(passageId, 'listening').then((draft) {
+                                                if (draft != null && context.mounted) {
+                                                  List<int?>? initialAnswersList;
+                                                  if (draft['selectedAnswers'] != null) {
+                                                    if (draft['selectedAnswers'] is List) {
+                                                      initialAnswersList = (draft['selectedAnswers'] as List)
+                                                          .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                          .toList();
+                                                    } else if (draft['selectedAnswers'] is Map) {
+                                                      final map = draft['selectedAnswers'] as Map;
+                                                      initialAnswersList = [];
+                                                      for (var entry in map.entries) {
+                                                        final idx = int.tryParse(entry.key.toString());
+                                                        final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                        if (idx != null) {
+                                                          while (initialAnswersList.length <= idx) {
+                                                            initialAnswersList.add(null);
+                                                          }
+                                                          initialAnswersList[idx] = val;
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) => ListeningAssessmentQuizPage(
+                                                        dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                        storyTitle: draft['storyTitle'] as String?,
+                                                        passageId: passageId,
+                                                        assessmentLanguage: draft['assessmentLanguage'] as String? ??
+                                                            item['language'] as String? ??
+                                                            item['rawLanguage'] as String?,
+                                                        readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 0,
+                                                        currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                        initialSelectedAnswers: initialAnswersList,
+                                                      ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                } else if (context.mounted) {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) =>
+                                                          ListeningAssessmentInstructionsPage(
+                                                            item: item,
+                                                            customInstructions:
+                                                                item['instructions'],
+                                                          ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          } else if (type == 'silent') {
+                                            if (isDone) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => SilentReadingResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              QuizProgressService.getQuizDraft(passageId, 'silent').then((draft) {
+                                                if (draft != null && context.mounted) {
+                                                  List<int?>? initialAnswersList;
+                                                  if (draft['selectedAnswers'] != null) {
+                                                    if (draft['selectedAnswers'] is List) {
+                                                      initialAnswersList = (draft['selectedAnswers'] as List)
+                                                          .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                          .toList();
+                                                    } else if (draft['selectedAnswers'] is Map) {
+                                                      final map = draft['selectedAnswers'] as Map;
+                                                      initialAnswersList = [];
+                                                      for (var entry in map.entries) {
+                                                        final idx = int.tryParse(entry.key.toString());
+                                                        final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                        if (idx != null) {
+                                                          while (initialAnswersList.length <= idx) {
+                                                            initialAnswersList.add(null);
+                                                          }
+                                                          initialAnswersList[idx] = val;
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) => SilentReadingAssessmentQuizPage(
+                                                        dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                        storyTitle: draft['storyTitle'] as String?,
+                                                        passageId: passageId,
+                                                        currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                        initialSelectedAnswers: initialAnswersList,
+                                                      ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                } else if (context.mounted) {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) =>
+                                                          SilentReadingAssessmentInstructionsPage(
+                                                            item: item,
+                                                            customInstructions:
+                                                                item['instructions'],
+                                                          ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          } else {
+                                            if (isPendingReview) {
+                                              AppToast.warning(
+                                                context,
+                                                'Your recording is currently being reviewed by your teacher.',
+                                              );
+                                              return;
+                                            }
+                                            if (isDone) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => OralReadingResultPage(
+                                                    passageId: passageId,
+                                                    language: item['rawLanguage'] ?? item['language'],
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              QuizProgressService.getQuizDraft(passageId, type).then((draft) {
+                                                if (draft != null && context.mounted) {
+                                                  List<int?>? initialAnswersList;
+                                                  if (draft['selectedAnswers'] != null) {
+                                                    if (draft['selectedAnswers'] is List) {
+                                                      initialAnswersList = (draft['selectedAnswers'] as List)
+                                                          .map((e) => e != null ? int.tryParse(e.toString()) : null)
+                                                          .toList();
+                                                    } else if (draft['selectedAnswers'] is Map) {
+                                                      final map = draft['selectedAnswers'] as Map;
+                                                      initialAnswersList = [];
+                                                      for (var entry in map.entries) {
+                                                        final idx = int.tryParse(entry.key.toString());
+                                                        final val = entry.value != null ? int.tryParse(entry.value.toString()) : null;
+                                                        if (idx != null) {
+                                                          while (initialAnswersList.length <= idx) {
+                                                            initialAnswersList.add(null);
+                                                          }
+                                                          initialAnswersList[idx] = val;
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) => OralReadingAssessmentQuizPage(
+                                                        dynamicQuestions: draft['dynamicQuestions'] as List?,
+                                                        recordedAudioPath: draft['recordedAudioPath'] as String?,
+                                                        readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 60,
+                                                        storyTitle: draft['storyTitle'] as String?,
+                                                        assessmentLanguage: draft['assessmentLanguage'] as String?,
+                                                        passageId: passageId,
+                                                        currentQuestionIndex: (draft['currentQuestionIndex'] as int?) ?? 0,
+                                                        initialSelectedAnswers: initialAnswersList,
+                                                      ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                } else if (context.mounted) {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      settings: const RouteSettings(name: 'AssessmentOverview'),
+                                                      builder: (context) => OralReadingAssessmentInstructionsPage(
+                                                        item: item,
+                                                        customInstructions: item['instructions'],
+                                                      ),
+                                                    ),
+                                                  ).then((_) {
+                                                    if (mounted) {
+                                                      _checkLocalDrafts();
+                                                      _fetchTeacherAssignment();
+                                                    }
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          }
+                                        },
+                                      );
+                                    })
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 24,
+                                        horizontal: 16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.03,
+                                            ),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.assignment_turned_in_outlined,
+                                            size: 36,
+                                            color: Color(0xFF9CA3AF),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'No Active Assessments',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(
+                                                      0xFF374151,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Your teacher has not assigned any Phil-IRI assessment yet.',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 11,
+                                                    color: const Color(
+                                                      0xFF6B7280,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  const SizedBox(height: 28),
+
+                                  // ── Section 2: Continue Reading ──
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _buildSectionHeader(
+                                        'Continue Reading',
+                                        PhIcons.bookOpenBold,
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const ContinueReadingPage(),
+                                            ),
+                                          );
+                                        },
+                                        child: Text(
+                                          'See all',
+                                          style: GoogleFonts.inter(
+                                            color: primaryBlue,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildContinueReadingCard(context),
+                                  const SizedBox(height: 28),
+
+                                  // ── Section 3: Activities (from Picture 2) ──
+                                  _buildSectionHeader(
+                                    'Activities',
+                                    PhIcons.puzzlePieceBold,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildActivityCard(
+                                          'Pronunciation\nChallenge',
+                                          PhIcons.userSoundBold,
+                                          const Color(0xFFD0E1F9),
+                                          primaryBlue,
+                                          activityType: 'pronunciation',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildActivityCard(
+                                          'Vocabulary\nMatching',
+                                          PhIcons.equalsBold,
+                                          const Color(0xFFFFF0C2),
+                                          const Color(0xFFF59E0B),
+                                          activityType: 'vocabulary',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildActivityCard(
+                                          'Sentence\nArrangement',
+                                          PhIcons.hammerBold,
+                                          const Color(0xFFC7ECDA),
+                                          const Color(0xFF10B981),
+                                          activityType: 'sentence',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 28),
+
+                                  // ── Section 4: Progress (from Picture 2) ──
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _buildSectionHeader(
+                                        'Progress',
+                                        PhIcons.hourglassBold,
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const ProgressPage(),
+                                            ),
+                                          );
+                                        },
+                                        child: Text(
+                                          'See all',
+                                          style: GoogleFonts.inter(
+                                            color: primaryBlue,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Stat Overview Card (Total XP, Streak, Stories)
+                                  _buildUnifiedOverviewCard(
+                                    totalXp: AnalyticsService.cachedAnalytics?.totalXp ?? 0,
+                                    streak: _streakCount,
+                                    stories: _inProgressBooks.length,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Weekly Practice Activity Bar Chart Card
+                                  _buildWeeklyBarChartCard(
+                                    AnalyticsService.cachedAnalytics?.weeklyActivity ?? [],
+                                  ),
+                                  const SizedBox(height: 32),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Helper Widgets ──
+
+  Widget _buildSectionHeader(String title, String iconSvg) {
+    return Row(
+      children: [
+        Iconify(iconSvg, color: const Color(0xFF1B64D8), size: 22),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Colors.black,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickNavCard(String label, String iconSvg, Color activeColor) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8EEF9),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Feedback.forTap(context);
+            if (label == 'Phil-IRI') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PhilIriAssessmentPage(),
+                ),
+              );
+            } else if (label == 'Library') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LibraryPage()),
+              );
+            } else if (label == 'Activities') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+              );
+            } else if (label == 'Progress') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProgressPage()),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '$label navigation tapped.',
+                    style: GoogleFonts.inter(),
+                  ),
+                  duration: const Duration(milliseconds: 500),
+                ),
+              );
+            }
+          },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Iconify(iconSvg, color: activeColor, size: 34),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF27272A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssessmentCard({
+    required String title,
+    required String tag,
+    required Color tagBgColor,
+    required Color tagTextColor,
+    required String buttonText,
+    required Color buttonColor,
+    Color buttonTextColor = Colors.white,
+    required String icon,
+    required Color iconColor,
+    required Color iconBg,
+    Color cardBg = Colors.white,
+    String? languageBadge,
+    String? passageSetBadge,
+    VoidCallback? onPressed,
+  }) {
+    final bool isFil = (languageBadge ?? 'FIL').toUpperCase() == 'FIL';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Circular Icon backing
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Iconify(icon, color: iconColor, size: 26),
+          ),
+          const SizedBox(width: 14),
+          // Assessment Title & Capsule badges
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF18181B),
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Language badge (FIL / ENG)
+                      if (languageBadge != null) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isFil
+                                ? const Color(0xFFCCFBF1)
+                                : const Color(0xFFDBEAFE),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            languageBadge,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: isFil
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF1E40AF),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      // Set badge (e.g. Set A)
+                      if (passageSetBadge != null) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            passageSetBadge,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF52525B),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      // Status Tag (Done / In Progress / Required / Optional)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: tagBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          tag,
+                          softWrap: false,
+                          overflow: TextOverflow.visible,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: tagTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Action Button in reserved minWidth container
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 104),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: buttonColor == const Color(0xFFE4E4E7)
+                    ? null
+                    : () {
+                        Feedback.forTap(context);
+                        if (onPressed != null) {
+                          onPressed();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Starting $title...')),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  foregroundColor: buttonTextColor,
+                  disabledBackgroundColor: buttonColor,
+                  disabledForegroundColor: buttonTextColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  buttonText,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContinueReadingCard(BuildContext context) {
+    const cardBg = Colors.white;
+    const tagBg = Color(0xFFEFF6FF);
+    const tagTextColor = Color(0xFF2563EB);
+    const primaryBlue = Color(0xFF1B64D8);
+
+    if (_isLoadingReadingProgress) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 110,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(height: 12, width: 80, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 10),
+                  Container(height: 18, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 6),
+                  Container(height: 14, width: 160, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 16),
+                  Container(height: 6, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                  const SizedBox(height: 10),
+                  Container(height: 38, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_inProgressBooks.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'No books in progress yet.\nHead to the Bookshelf to start reading!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFF94A3B8),
+              height: 1.5,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final book = _inProgressBooks.first;
+    final bookTitle = (book['title'] as String?) ?? '';
+    final rawLang = (book['language'] as String?) ?? 'en';
+    final description = (book['description'] as String?) ?? '';
+    final progressVal = LibraryService.parseDouble(book['progress']);
+    final langLabel = LibraryService.languageLabel(rawLang);
+    final progressPct = '${(progressVal * 100).toInt()}%';
+
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StoryPreviewPage(
+              bookTitle: bookTitle,
+              book: book,
+              initialProgress: progressVal,
+            ),
+          ),
+        ).then((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadReadingProgress(forceRefresh: true);
+          });
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Left Column: Styled Book Cover
+            SizedBox(
+              width: 110,
+              height: 160,
+              child: StyledBookCover(
+                book: book,
+                index: 0,
+                enableTap: false,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Right Column: Info & Action Controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Language Tag Row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      langLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Main Story Title
+                  Text(
+                    bookTitle,
+                    maxLines: 2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Short Synopsis
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.clip,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
+                        height: 1.35,
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Reading Progress Indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progress',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
+                        ),
+                      ),
+                      Text(
+                        progressPct,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: LinearProgressIndicator(
+                      value: progressVal,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Full-Width Continue Reading Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Feedback.forTap(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StoryPreviewPage(
+                              bookTitle: bookTitle,
+                              book: book,
+                              initialProgress: progressVal,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Continue Reading',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityCard(
+    String label,
+    String iconSvg,
+    Color iconBg,
+    Color iconColor, {
+    String? activityType,
+  }) {
+    return Container(
+      height: 156,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Feedback.forTap(context);
+            switch (activityType?.toLowerCase()) {
+              case 'pronunciation':
+                ActivityModalHelper.showPronunciationModal(context);
+                break;
+              case 'vocabulary':
+                ActivityModalHelper.showVocabularyModal(context);
+                break;
+              case 'sentence':
+                ActivityModalHelper.showSentenceModal(context);
+                break;
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8.0,
+              vertical: 12.0,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 4),
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Iconify(iconSvg, color: iconColor, size: 38),
+                ),
+                const Spacer(),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF18181B),
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  // ── Integrated Phil-IRI Reading Profile Strip inside Header (Option 2 - Exact Original Size) ──
+  Widget _buildHeaderIntegratedProfileStrip() {
+    final isFil = _selectedHeaderLang == 'fil';
+    final oralLevel = isFil
+        ? (_readingProfiles?['filOralProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engOralProfile']?.toString() ?? 'Pending');
+    final listeningLevel = isFil
+        ? (_readingProfiles?['filListeningProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engListeningProfile']?.toString() ?? 'Pending');
+    final silentLevel = isFil
+        ? (_readingProfiles?['filSilentProfile']?.toString() ?? 'Pending')
+        : (_readingProfiles?['engSilentProfile']?.toString() ?? 'Pending');
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedHeaderLang = isFil ? 'en' : 'fil';
+        });
+        _startCarouselTimer();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 7.0),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Top Micro-Header: Label + Tag + Carousel Dots ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Phil-IRI',
+                      style: GoogleFonts.inter(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Container(
+                        key: ValueKey<String>(_selectedHeaderLang),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          isFil ? 'Filipino' : 'English',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // ── Carousel Indicator Dots ──
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: isFil ? 10 : 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: !isFil ? 10 : 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: !isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+
+            // ── Modalities Row with Slide + Fade Transition ──
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.0, 0.15),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    )),
+                    child: child,
+                  ),
+                );
+              },
+              child: Row(
+                key: ValueKey<String>(_selectedHeaderLang),
+                children: [
+                  Expanded(
+                    child: _buildHeaderModalityItem('Oral', oralLevel, PhIcons.userSoundBold),
+                  ),
+                  Container(
+                    height: 22,
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  Expanded(
+                    child: _buildHeaderModalityItem('Listening', listeningLevel, PhIcons.earBold),
+                  ),
+                  Container(
+                    height: 22,
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  Expanded(
+                    child: _buildHeaderModalityItem('Silent', silentLevel, PhIcons.bookOpenBold),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderModalityItem(String type, String level, String iconSvg) {
+    Color dotColor;
+    Color levelTextColor;
+    String displayLevel;
+
+    final lvl = level.toLowerCase().trim();
+    if (lvl.contains('independ')) {
+      dotColor = const Color(0xFF34D399); // Emerald 400
+      levelTextColor = const Color(0xFFA7F3D0); // Emerald 200
+      displayLevel = 'Independent';
+    } else if (lvl.contains('instruct')) {
+      dotColor = const Color(0xFFFBBF24); // Amber 400
+      levelTextColor = const Color(0xFFFDE68A); // Amber 200
+      displayLevel = 'Instructional';
+    } else if (lvl.contains('frustrat')) {
+      dotColor = const Color(0xFFF87171); // Red 400
+      levelTextColor = const Color(0xFFFECACA); // Red 200
+      displayLevel = 'Frustration';
+    } else {
+      dotColor = Colors.white.withValues(alpha: 0.5);
+      levelTextColor = Colors.white.withValues(alpha: 0.85);
+      displayLevel = 'Pending';
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Iconify(
+              iconSvg,
+              size: 12,
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              type,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 5.5,
+              height: 5.5,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                displayLevel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: levelTextColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnifiedOverviewCard({
+    required int totalXp,
+    required int streak,
+    required int stories,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.lightningFill,
+              iconColor: const Color(0xFFF59E0B),
+              val: '$totalXp',
+              label: 'Total XP',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.fireBold,
+              iconColor: const Color(0xFFF97316),
+              val: '$streak',
+              label: 'Streak',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.booksRegular,
+              iconColor: const Color(0xFF1B64D8),
+              val: '$stories',
+              label: 'Stories',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewColumn({
+    required String iconSvg,
+    required Color iconColor,
+    required String val,
+    required String label,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Iconify(
+              iconSvg,
+              color: iconColor,
+              size: 20,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                val,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyBarChartCard(List<Map<String, dynamic>> weekly) {
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final todayIndex = StreakService.getTodayDayIndex();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weekly Practice Activity',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Mon – Sun completion history',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B64D8).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  'This Week',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1B64D8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // 7 Vertical Bars
+          SizedBox(
+            height: 110,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) {
+                Map<String, dynamic> item = {};
+                if (weekly.length > index) {
+                  item = weekly[index];
+                }
+
+                final bool isCompleted = item.isNotEmpty
+                    ? (item['completed'] == true)
+                    : false;
+                final int score = (item['score'] as num?)?.toInt() ?? 0;
+                final bool isToday = index == todayIndex;
+
+                final double barRatio = isCompleted
+                    ? (score / 100).clamp(0.25, 1.0)
+                    : 0.12;
+
+                final Color barColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFFF1F5F9);
+
+                final Color textColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFF94A3B8);
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isCompleted)
+                      Text(
+                        '${score > 0 ? score : 100}%',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+
+                    // Bar Pill
+                    Container(
+                      width: 20,
+                      height: 64 * barRatio,
+                      decoration: BoxDecoration(
+                        color: barColor,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Day Label
+                    Text(
+                      dayLabels[index],
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: isToday ? FontWeight.w900 : FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

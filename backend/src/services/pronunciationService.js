@@ -1,0 +1,406 @@
+/**
+ * SalinTinig — Pronunciation Content Service
+ *
+ * Single access layer for all pronunciation challenge DB operations.
+ * The activity and controller never query pronunciation tables directly —
+ * all reads/writes go through this service.
+ *
+ * Content pool model:
+ *   content_status = 'validated' → available to students
+ *   content_status = 'pending'   → awaiting review (hidden from students)
+ *   content_status = 'inactive'  → disabled (hidden from students)
+ *
+ * Source values:
+ *   'system'               → seeded by the SalinTinig seed scripts
+ *   'dictionary_api'       → imported via an external dictionary API
+ *   'educational_material' → imported from DepEd / Phil-IRI materials
+ *   'admin'                → manually added by an authorized admin
+ *   'imported_dataset'     → bulk-imported from an external dataset
+ */
+
+const db = require('../config/db.js');
+const badgeService = require('./badgeService.js');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTENT POOL — ITEM RETRIEVAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch a session's worth of validated pronunciation items for a student.
+ *
+ * Prioritizes words the student has NOT recently attempted.
+ * Falls back to the full validated pool if the student has practiced most of it.
+ *
+ * @param {string} language  'fil' (Filipino) or 'eng' (English)
+ * @param {number} limit     Number of items to return (default: 10)
+ * @param {string|null} studentId  Student UUID — used to deprioritize recent attempts
+ * @param {string|null} difficulty Optional difficulty tier: 'easy', 'medium', 'hard'
+ * @returns {Promise<object[]>}
+ */
+async function getSessionItems(language = 'fil', limit = 10, studentId = null, difficulty = null) {
+  const raw = (language || 'fil').toLowerCase();
+  const lang = (raw.startsWith('en')) ? 'en' : 'fil';
+  const safeLimit = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
+  const diff = difficulty && ['easy', 'medium', 'hard'].includes(difficulty.toLowerCase())
+    ? difficulty.toLowerCase()
+    : null;
+
+  let itemsList = [];
+
+  // Try to exclude recently attempted items (last 24h) for variety
+  if (studentId) {
+    const query = `
+      SELECT
+         pi.item_id AS "itemId",
+         pi.word,
+         pi.translation,
+         pi.definition,
+         pi.example_sentence AS "exampleSentence",
+         pi.syllables,
+         pi.language,
+         pi.difficulty,
+         pi.source
+       FROM vocabulary_bank pi
+       WHERE pi.language = $1
+         AND pi.is_active = true
+         AND pi.content_status = 'validated'
+         ${diff ? 'AND pi.difficulty = $4' : ''}
+         AND NOT EXISTS (
+           SELECT 1
+           FROM pronunciation_attempts pa,
+                jsonb_array_elements(pa.items_detail) elem
+           WHERE pa.student_id = $2
+             AND pa.created_at > NOW() - INTERVAL '24 hours'
+             AND elem->>'itemId' = pi.item_id::text
+         )
+       ORDER BY RANDOM()
+       LIMIT $3`;
+    const params = diff ? [lang, studentId, safeLimit, diff] : [lang, studentId, safeLimit];
+    const { rows: fresh } = await db.query(query, params);
+
+    // If we got enough fresh items, return them
+    if (fresh.length >= Math.min(safeLimit, 5)) {
+      itemsList = fresh;
+    }
+  }
+
+  // Fallback: return any validated items matching criteria
+  if (itemsList.length === 0) {
+    const fallbackQuery = `
+      SELECT
+         pi.item_id AS "itemId",
+         pi.word,
+         pi.translation,
+         pi.definition,
+         pi.example_sentence AS "exampleSentence",
+         pi.syllables,
+         pi.language,
+         pi.difficulty,
+         pi.source
+       FROM vocabulary_bank pi
+       WHERE pi.language = $1
+         AND pi.is_active = true
+         AND pi.content_status = 'validated'
+         ${diff ? 'AND pi.difficulty = $3' : ''}
+       ORDER BY RANDOM()
+       LIMIT $2`;
+    const fallbackParams = diff ? [lang, safeLimit, diff] : [lang, safeLimit];
+    const { rows } = await db.query(fallbackQuery, fallbackParams);
+    itemsList = rows;
+  }
+
+  // Second fallback: if a specific difficulty didn't have enough words, relax difficulty filter
+  if (itemsList.length === 0 && diff) {
+    const { rows } = await db.query(
+      `SELECT
+         pi.item_id AS "itemId",
+         pi.word,
+         pi.translation,
+         pi.definition,
+         pi.example_sentence AS "exampleSentence",
+         pi.syllables,
+         pi.language,
+         pi.difficulty,
+         pi.source
+       FROM vocabulary_bank pi
+       WHERE pi.language = $1
+         AND pi.is_active = true
+         AND pi.content_status = 'validated'
+       ORDER BY RANDOM()
+       LIMIT $2`,
+      [lang, safeLimit]
+    );
+    itemsList = rows;
+  }
+
+  return itemsList;
+}
+
+/**
+ * Fetch a single pronunciation item by its ID.
+ *
+ * @param {string} itemId  UUID of the pronunciation item
+ * @returns {Promise<object|null>}
+ */
+async function getItemById(itemId) {
+  const { rows } = await db.query(
+    `SELECT
+       item_id AS "itemId",
+       word, translation, definition,
+       example_sentence AS "exampleSentence",
+       syllables,
+       language, difficulty, content_status AS "contentStatus", source
+     FROM vocabulary_bank
+     WHERE item_id = $1
+     LIMIT 1`,
+    [itemId]
+  );
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTEMPTS — STUDENT PRACTICE RECORDING
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Record a student's pronunciation attempt (hybrid session or single-item) and award badges/XP.
+ *
+ * @param {object|string} param1  Student UUID (string) or session params object
+ * @returns {Promise<{attemptId: string, xpEarned: number, newBadgeUnlocked: boolean}>}
+ */
+async function logAttempt(
+  studentIdOrParams,
+  itemId = null,
+  score = 0,
+  xpEarned = 0,
+  sessionId = null,
+  isPassed = false
+) {
+  let params = {};
+  if (typeof studentIdOrParams === 'object' && studentIdOrParams !== null) {
+    params = studentIdOrParams;
+  } else {
+    params = {
+      studentId: studentIdOrParams,
+      itemId,
+      score,
+      xpEarned,
+      sessionId,
+      isPassed,
+    };
+  }
+
+  const {
+    studentId,
+    sessionId: sId = null,
+    language = 'fil',
+    difficulty = 'medium',
+    totalWords = 5,
+    mistakesCount = 0,
+    score: attemptScore = 0,
+    xpEarned: earnedXp = 0,
+    itemsDetail = [],
+    itemId: legacyItemId = null,
+    isPassed: legacyPassed = false,
+  } = params;
+
+  let attemptId = null;
+  let newBadgeUnlocked = false;
+
+  try {
+    let resolvedStudentId = studentId;
+    if (studentId) {
+      try {
+        const stdCheck = await db.query(
+          'SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1',
+          [studentId]
+        );
+        if (stdCheck.rows && stdCheck.rows.length > 0) {
+          resolvedStudentId = stdCheck.rows[0].student_id;
+        } else {
+          const fallbackStd = await db.query('SELECT student_id FROM students LIMIT 1');
+          if (fallbackStd.rows && fallbackStd.rows.length > 0) {
+            resolvedStudentId = fallbackStd.rows[0].student_id;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!resolvedStudentId) {
+      throw new Error('Valid student ID is required.');
+    }
+
+    // 1. Check for existing session attempt to prevent duplicates
+    let existingAttempt = null;
+    if (sId) {
+      const { rows } = await db.query(
+        `SELECT attempt_id, score, xp_earned, mistakes_count 
+         FROM pronunciation_attempts 
+         WHERE student_id = $1 AND session_id = $2 
+         LIMIT 1`,
+        [resolvedStudentId, sId]
+      );
+      if (rows && rows.length > 0) {
+        existingAttempt = rows[0];
+      }
+    }
+
+    const jsonItemsDetail = JSON.stringify(itemsDetail || []);
+
+    if (existingAttempt) {
+      const bestScore = Math.max(Number(existingAttempt.score) || 0, Number(attemptScore) || 0);
+      const bestXp = Math.max(Number(existingAttempt.xp_earned) || 0, Number(earnedXp) || 0);
+
+      const { rows } = await db.query(
+        `UPDATE pronunciation_attempts
+         SET score = $1,
+             xp_earned = $2,
+             mistakes_count = $3,
+             difficulty = $4,
+             language = $5,
+             items_detail = $6,
+             created_at = CURRENT_TIMESTAMP
+         WHERE attempt_id = $7
+         RETURNING attempt_id AS "attemptId"`,
+        [
+          bestScore,
+          bestXp,
+          mistakesCount,
+          difficulty,
+          language,
+          jsonItemsDetail,
+          existingAttempt.attempt_id,
+        ]
+      );
+      attemptId = rows[0]?.attemptId || existingAttempt.attempt_id;
+    } else {
+      const { rows } = await db.query(
+        `INSERT INTO pronunciation_attempts (
+           student_id, session_id, language, difficulty, mistakes_count,
+           score, xp_earned, items_detail, created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+         RETURNING attempt_id AS "attemptId"`,
+        [
+          resolvedStudentId,
+          sId,
+          language,
+          difficulty,
+          mistakesCount,
+          attemptScore,
+          earnedXp,
+          jsonItemsDetail,
+        ]
+      );
+      attemptId = rows[0]?.attemptId;
+    }
+
+    const passedItemsCount = Array.isArray(itemsDetail)
+      ? itemsDetail.filter((it) => it.isPassed || (it.accuracyScore && it.accuracyScore >= 80)).length
+      : (attemptScore >= 80 ? 3 : 0);
+
+    const newlyUnlockedBadges = await badgeService.checkActivityBadges(resolvedStudentId, 'pronunciation', {
+      score: passedItemsCount,
+    });
+    const newBadgeUnlocked = newlyUnlockedBadges.length > 0;
+
+    return {
+      attemptId,
+      xpEarned: earnedXp,
+      newBadgeUnlocked,
+      newlyUnlockedBadges,
+    };
+  } catch (err) {
+    console.warn('[pronunciationService.logAttempt] Notice:', err.message);
+    const { rows } = await db.query(
+      `INSERT INTO pronunciation_attempts (student_id, score, xp_earned)
+       VALUES ($1, $2, $3)
+       RETURNING attempt_id AS "attemptId", xp_earned AS "xpEarned"`,
+      [params.studentId || resolvedStudentId, attemptScore, earnedXp]
+    );
+    return {
+      attemptId: rows[0]?.attemptId,
+      xpEarned: rows[0]?.xpEarned || earnedXp,
+      newBadgeUnlocked: false,
+    };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTENT POOL MANAGEMENT (Admin/System use)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Insert a new pronunciation item from any content source.
+ * Enforces duplicate prevention (word + language must be unique).
+ *
+ * @param {object} item
+ * @param {string} item.word
+ * @param {string} item.translation
+ * @param {string} item.definition
+ * @param {string} [item.exampleSentence]
+ * @param {string[]} item.syllables
+ * @param {string} item.language           'tl' or 'en'
+ * @param {string} [item.source]           Content origin identifier
+ * @param {string} [item.contentStatus]    'pending' | 'validated' (default: 'pending' for external sources)
+ * @returns {Promise<object>}  The inserted row
+ */
+async function insertItem(item) {
+  const {
+    word, translation, definition, exampleSentence = null,
+    syllables, language = 'fil',
+    source = 'admin',
+    contentStatus = 'pending',
+  } = item;
+
+  const rawLang = (language || 'fil').toLowerCase();
+  const lang = (rawLang.startsWith('en')) ? 'en' : 'fil';
+
+  // Duplicate prevention
+
+  const existing = await db.query(
+    `SELECT item_id FROM vocabulary_bank WHERE LOWER(word) = LOWER($1) AND language = $2 LIMIT 1`,
+    [word, lang]
+  );
+  if (existing.rows.length > 0) {
+    throw new Error(`Duplicate: "${word}" (${lang}) already exists in the content pool.`);
+  }
+
+  const { rows } = await db.query(
+    `INSERT INTO vocabulary_bank
+       (word, translation, definition, example_sentence, syllables, language, source, content_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING item_id AS "itemId", word, language, content_status AS "contentStatus"`,
+    [word, translation, definition, exampleSentence, JSON.stringify(syllables), lang, source, contentStatus]
+  );
+  return rows[0];
+}
+
+/**
+ * Update the content_status of an item (validate, deactivate, etc.)
+ *
+ * @param {string} itemId
+ * @param {string} status  'pending' | 'validated' | 'inactive'
+ * @returns {Promise<object>}
+ */
+async function setContentStatus(itemId, status) {
+  const allowed = ['pending', 'validated', 'inactive'];
+  if (!allowed.includes(status)) throw new Error(`Invalid content_status: "${status}". Must be one of: ${allowed.join(', ')}`);
+
+  const { rows } = await db.query(
+    `UPDATE vocabulary_bank
+     SET content_status = $1, updated_at = NOW()
+     WHERE item_id = $2
+     RETURNING item_id AS "itemId", word, content_status AS "contentStatus"`,
+    [status, itemId]
+  );
+  return rows[0] || null;
+}
+
+module.exports = {
+  getSessionItems,
+  getItemById,
+  logAttempt,
+  insertItem,
+  setContentStatus,
+};
+

@@ -1,0 +1,36 @@
+{
+  "name": "salintinig-backend",
+  "version": "1.0.0",
+  "description": "SalinTinig REST API — Node.js + Express.js",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed:vocab": "node scripts/seed_vocabulary_bank.js",
+    "seed:sentences": "node scripts/seed_sentence_bank.js",
+    "seed:badges": "node scripts/seed_badges.js",
+    "seed:stories": "node scripts/seed_story_library.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.6.0",
+    "jsonwebtoken": "^9.0.3",
+    "msedge-tts": "^2.0.7",
+    "multer": "^2.2.0",
+    "pg": "^8.22.0",
+    "resend": "^6.18.1",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
