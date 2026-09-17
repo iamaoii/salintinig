@@ -10,6 +10,8 @@ import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/local_notification_service.dart';
 import 'package:salintinig/pages/common/loading_page.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -61,6 +63,7 @@ class SalinTinigApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'SalinTinig',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,

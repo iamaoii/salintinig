@@ -195,6 +195,10 @@ class AuthService {
         _currentUser = UserSession.fromJson(userData);
         await _saveSession(userData);
       }
+    } else if (response.statusCode == 401 ||
+        response.error?.toLowerCase().contains('invalid or expired token') == true) {
+      _currentUser = null;
+      await logout();
     }
     return response;
   }
