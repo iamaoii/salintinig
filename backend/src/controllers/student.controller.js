@@ -2071,8 +2071,7 @@ async function getStudentActiveAssignment(req, res) {
                 questions:  questions,
               },
             };
-          })
-        );
+          });
       } catch (queryErr) {
         console.error('[getStudentActiveAssignment] assessment query error:', queryErr.message);
       }
