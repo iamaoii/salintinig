@@ -83,7 +83,7 @@ class _LibraryPageState extends State<LibraryPage> {
       ]);
       if (mounted) {
         final List<Map<String, dynamic>> fetchedBooks = List<Map<String, dynamic>>.from(results[0]);
-        if (_books.isEmpty) fetchedBooks.shuffle();
+        fetchedBooks.shuffle();
         setState(() {
           _books = fetchedBooks;
           _inProgressBooks = LibraryService.filterInProgress(results[1]);
