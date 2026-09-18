@@ -940,6 +940,7 @@ class _ListeningAssessmentReaderPageState
     ApiService.post('/api/students/assessment/start-progress', {
       'studentId': studentId,
       'passageId': _passageId,
+      'assessmentType': 'listening',
     });
 
     List<int?>? initialAnswersList;

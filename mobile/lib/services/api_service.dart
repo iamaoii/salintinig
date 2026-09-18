@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -151,125 +152,99 @@ class ApiService {
 
   static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
     final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
+    final urls = [
       '${ApiConfig.baseUrl}$clean',
       'http://10.0.2.2:5000/api$clean',
       'http://192.168.1.146:5000/api$clean',
     ];
-
-    String lastErr = '';
-    for (final urlStr in urlsToTry) {
-      try {
-        final url = Uri.parse(urlStr);
-        final response = await http.post(
-          url,
+    return _raceRequest((url) => http.post(
+          Uri.parse(url),
           headers: _headers,
           body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 8));
-        return ApiResponse.fromResponse(response);
-      } catch (e) {
-        lastErr = e.toString();
-      }
-    }
-    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+        ).timeout(const Duration(seconds: 8)), urls);
   }
 
   static Future<ApiResponse> get(String endpoint) async {
     final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
+    final urls = [
       '${ApiConfig.baseUrl}$clean',
       'http://10.0.2.2:5000/api$clean',
       'http://192.168.1.146:5000/api$clean',
     ];
-
-    String lastErr = '';
-    for (final urlStr in urlsToTry) {
-      try {
-        final url = Uri.parse(urlStr);
-        final response = await http.get(
-          url,
+    return _raceRequest((url) => http.get(
+          Uri.parse(url),
           headers: _headers,
-        ).timeout(const Duration(seconds: 8));
-        return ApiResponse.fromResponse(response);
-      } catch (e) {
-        lastErr = e.toString();
-      }
-    }
-    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+        ).timeout(const Duration(seconds: 8)), urls);
   }
 
   static Future<ApiResponse> put(String endpoint, Map<String, dynamic> body) async {
     final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
+    final urls = [
       '${ApiConfig.baseUrl}$clean',
       'http://10.0.2.2:5000/api$clean',
       'http://192.168.1.146:5000/api$clean',
     ];
-
-    String lastErr = '';
-    for (final urlStr in urlsToTry) {
-      try {
-        final url = Uri.parse(urlStr);
-        final response = await http.put(
-          url,
+    return _raceRequest((url) => http.put(
+          Uri.parse(url),
           headers: _headers,
           body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 15));
-        return ApiResponse.fromResponse(response);
-      } catch (e) {
-        lastErr = e.toString();
-      }
-    }
-    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+        ).timeout(const Duration(seconds: 15)), urls);
   }
 
   static Future<ApiResponse> patch(String endpoint, Map<String, dynamic> body) async {
     final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
+    final urls = [
       '${ApiConfig.baseUrl}$clean',
       'http://10.0.2.2:5000/api$clean',
       'http://192.168.1.146:5000/api$clean',
     ];
-
-    String lastErr = '';
-    for (final urlStr in urlsToTry) {
-      try {
-        final url = Uri.parse(urlStr);
-        final response = await http.patch(
-          url,
+    return _raceRequest((url) => http.patch(
+          Uri.parse(url),
           headers: _headers,
           body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 10));
-        return ApiResponse.fromResponse(response);
-      } catch (e) {
-        lastErr = e.toString();
-      }
-    }
-    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+        ).timeout(const Duration(seconds: 10)), urls);
   }
 
   static Future<ApiResponse> delete(String endpoint) async {
     final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
+    final urls = [
       '${ApiConfig.baseUrl}$clean',
       'http://10.0.2.2:5000/api$clean',
       'http://192.168.1.146:5000/api$clean',
     ];
-
-    String lastErr = '';
-    for (final urlStr in urlsToTry) {
-      try {
-        final url = Uri.parse(urlStr);
-        final response = await http.delete(
-          url,
+    return _raceRequest((url) => http.delete(
+          Uri.parse(url),
           headers: _headers,
-        ).timeout(const Duration(seconds: 10));
-        return ApiResponse.fromResponse(response);
-      } catch (e) {
+        ).timeout(const Duration(seconds: 10)), urls);
+  }
+
+  /// Race all URLs in parallel — first successful HTTP response wins.
+  /// Falls back to error only if ALL URLs fail.
+  static Future<ApiResponse> _raceRequest(
+    Future<http.Response> Function(String url) buildRequest,
+    List<String> urls,
+  ) async {
+    final completer = Completer<ApiResponse>();
+    int failures = 0;
+    String lastErr = '';
+
+    for (final urlStr in urls) {
+      buildRequest(urlStr).then((response) {
+        if (!completer.isCompleted) {
+          completer.complete(ApiResponse.fromResponse(response));
+        }
+      }).catchError((e) {
         lastErr = e.toString();
-      }
+        failures++;
+        if (failures == urls.length && !completer.isCompleted) {
+          completer.complete(
+            ApiResponse.error('Network error: Unable to connect to server. ($lastErr)'),
+          );
+        }
+      });
     }
-    return ApiResponse.error('Network error: Unable to connect to server. ($lastErr)');
+
+    return completer.future;
   }
 
   static Future<ApiResponse> uploadMultipartFile(

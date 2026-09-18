@@ -580,7 +580,7 @@ class _SilentReadingAssessmentReaderPageState
     final item = widget.item;
     _passageId ??= QuizProgressService.extractPassageId(item);
 
-    final readingSecs = _readingSecondsElapsed > 0 ? _readingSecondsElapsed : 60;
+    final readingSecs = _readingSecondsElapsed > 0 ? _readingSecondsElapsed : 1;
 
     final existingDraft = await QuizProgressService.getQuizDraft(
       _passageId,
@@ -607,6 +607,7 @@ class _SilentReadingAssessmentReaderPageState
     ApiService.post('/api/students/assessment/start-progress', {
       'studentId': studentId,
       'passageId': _passageId,
+      'assessmentType': 'silent',
     });
 
     if (!mounted) return;
