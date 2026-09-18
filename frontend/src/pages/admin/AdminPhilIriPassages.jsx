@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -74,7 +75,7 @@ export default function AdminPhilIriPassages() {
     try {
       setLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/phil-iri/passages', {
+      const res = await fetch(getApiUrl('/api/admin/phil-iri/passages'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -184,7 +185,7 @@ export default function AdminPhilIriPassages() {
 
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/phil-iri/passages/${passage.id}`, {
+      const res = await fetch(getApiUrl(`/api/admin/phil-iri/passages/${passage.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +213,7 @@ export default function AdminPhilIriPassages() {
     if (!passage) return;
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/phil-iri/passages/${passage.id}`, {
+      const res = await fetch(getApiUrl(`/api/admin/phil-iri/passages/${passage.id}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -251,8 +252,8 @@ export default function AdminPhilIriPassages() {
     try {
       const token = getToken();
       const url = editingPassageId
-        ? `http://localhost:5000/api/admin/phil-iri/passages/${editingPassageId}`
-        : 'http://localhost:5000/api/admin/phil-iri/passages';
+        ? getApiUrl(`/api/admin/phil-iri/passages/${editingPassageId}`)
+        : getApiUrl('/api/admin/phil-iri/passages');
       const method = editingPassageId ? 'PUT' : 'POST';
 
       const res = await fetch(url, {

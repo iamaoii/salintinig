@@ -48,7 +48,7 @@ class _CropProfilePhotoDialogState extends State<CropProfilePhotoDialog> {
         return;
       }
 
-      final ui.Image image = await boundary.toImage(pixelRatio: 2.5);
+      final ui.Image image = await boundary.toImage(pixelRatio: 0.9);
       final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData != null) {
         final Uint8List pngBytes = byteData.buffer.asUint8List();

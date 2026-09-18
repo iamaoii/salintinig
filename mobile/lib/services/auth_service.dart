@@ -20,6 +20,10 @@ class UserSession {
     this.rawUser,
   });
 
+  String? get nickname => rawUser?['nickname'] as String?;
+  String get avatarFrame => rawUser?['avatarFrame'] as String? ?? rawUser?['avatar_frame'] as String? ?? 'None';
+  String? get profileImage => rawUser?['profileImage'] as String? ?? rawUser?['profile_image'] as String?;
+
   String get displayName {
     if (rawUser == null) return email;
     final first = rawUser!['firstName'] as String? ?? rawUser!['first_name'] as String? ?? '';
@@ -98,13 +102,19 @@ class UserSession {
 
   String get gradeLevel {
     if (rawUser == null) return '';
-    final val = rawUser!['gradeLevel']?.toString() ?? rawUser!['grade']?.toString() ?? '';
+    final val = rawUser!['gradeLevel']?.toString() ??
+        rawUser!['grade_level']?.toString() ??
+        rawUser!['grade']?.toString() ??
+        '';
     return val.replaceAll(RegExp(r'^Grade\s*', caseSensitive: false), '').trim();
   }
 
   String get sectionName {
     if (rawUser == null) return '';
-    return rawUser!['sectionName'] as String? ?? rawUser!['section'] as String? ?? '';
+    return rawUser!['sectionName']?.toString() ??
+        rawUser!['section_name']?.toString() ??
+        rawUser!['section']?.toString() ??
+        '';
   }
 
   String get schoolYear {
@@ -119,6 +129,14 @@ class UserSession {
   String get lrn {
     if (rawUser == null) return '';
     return rawUser!['lrn']?.toString() ?? rawUser!['id_no']?.toString() ?? '';
+  }
+
+  String get schoolName {
+    if (rawUser == null) return '';
+    return rawUser!['schoolName']?.toString() ??
+        rawUser!['school_name']?.toString() ??
+        rawUser!['school']?.toString() ??
+        '';
   }
 
   bool get mustChangePassword {
@@ -177,6 +195,10 @@ class AuthService {
         _currentUser = UserSession.fromJson(userData);
         await _saveSession(userData);
       }
+    } else if (response.statusCode == 401 ||
+        response.error?.toLowerCase().contains('invalid or expired token') == true) {
+      _currentUser = null;
+      await logout();
     }
     return response;
   }
@@ -265,6 +287,25 @@ class AuthService {
     });
   }
 
+  /// Update student profile details (nickname, avatarUrl, frame) in PostgreSQL database
+  static Future<ApiResponse> updateStudentProfile({
+    String? nickname,
+    String? avatarUrl,
+    String? frame,
+  }) async {
+    final res = await ApiService.post('/auth/profile', {
+      'nickname': ?nickname,
+      'avatarUrl': ?avatarUrl,
+      'frame': ?frame,
+    });
+    if (res.success && res.data != null && res.data['user'] != null) {
+      final userMap = res.data['user'] as Map<String, dynamic>;
+      _currentUser = UserSession.fromJson(userMap);
+      await _saveSession(userMap);
+    }
+    return res;
+  }
+
   static List<Map<String, dynamic>>? _cachedClassStudents;
 
   static List<Map<String, dynamic>>? get cachedClassStudents => _cachedClassStudents;
@@ -332,7 +373,10 @@ class AuthService {
                 final nav = Navigator.of(dialogContext, rootNavigator: true);
                 await logout();
                 nav.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomePage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/'),
+                    builder: (_) => const HomePage(),
+                  ),
                   (route) => false,
                 );
               },

@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 let supabase = null;
 
@@ -74,7 +74,37 @@ async function uploadImageToSupabase(fileInput, fileName = null, bucketName = 'a
   }
 }
 
+/**
+ * Delete an image from Supabase Storage by its public URL or file path
+ * @param {string} imageUrl - Public URL or relative path in storage bucket
+ * @param {string} bucketName - Supabase storage bucket (default: 'avatars')
+ * @returns {Promise<boolean>} True if deleted successfully
+ */
+async function deleteImageFromSupabase(imageUrl, bucketName = 'avatars') {
+  if (!supabase || !imageUrl || typeof imageUrl !== 'string') return false;
+  if (!imageUrl.includes('supabase') && !imageUrl.includes(`/${bucketName}/`)) return false;
+
+  try {
+    const parts = imageUrl.split(`/${bucketName}/`);
+    if (parts.length < 2) return false;
+    const filePath = parts[1].split('?')[0];
+    if (!filePath) return false;
+
+    const { error } = await supabase.storage.from(bucketName).remove([filePath]);
+    if (error) {
+      console.warn(`⚠️ Could not delete ${filePath} from Supabase Storage (${bucketName}):`, error.message);
+      return false;
+    }
+    console.log(`🗑️ Deleted custom avatar from Supabase Storage (${bucketName}):`, filePath);
+    return true;
+  } catch (err) {
+    console.warn('❌ Exception deleting image from Supabase Storage:', err.message);
+    return false;
+  }
+}
+
 module.exports = {
   supabase,
   uploadImageToSupabase,
+  deleteImageFromSupabase,
 };

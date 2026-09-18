@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -57,7 +58,7 @@ export default function StudentMasterlist({ level }) {
         setLoading(true);
         const token = getToken();
 
-        const res = await fetch('http://localhost:5000/api/teacher/class-students', {
+        const res = await fetch(getApiUrl('/api/teacher/class-students'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
@@ -83,7 +84,7 @@ export default function StudentMasterlist({ level }) {
 
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/teacher/students/${studentId}/promotion`, {
+      const res = await fetch(getApiUrl(`/api/teacher/students/${studentId}/promotion`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +114,7 @@ export default function StudentMasterlist({ level }) {
       await Promise.all(
         students.map((std) => {
           const sId = std.id || std.studentId;
-          return fetch(`http://localhost:5000/api/teacher/students/${sId}/promotion`, {
+          return fetch(getApiUrl(`/api/teacher/students/${sId}/promotion`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -136,7 +137,7 @@ export default function StudentMasterlist({ level }) {
       await Promise.all(
         students.map((std) => {
           const sId = std.id || std.studentId;
-          return fetch(`http://localhost:5000/api/teacher/students/${sId}/promotion`, {
+          return fetch(getApiUrl(`/api/teacher/students/${sId}/promotion`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',

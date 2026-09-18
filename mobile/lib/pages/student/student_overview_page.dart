@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/widgets/styled_book_cover.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
@@ -21,12 +22,18 @@ import 'package:salintinig/pages/student/assessment/silent_reading/silent_readin
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
+import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/profile_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/student_prefetch_service.dart';
 import 'package:salintinig/services/quiz_progress_service.dart';
+import 'package:salintinig/services/library_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/widgets/activity_modal_helper.dart';
 
 class StudentOverviewPage extends StatefulWidget {
   const StudentOverviewPage({super.key});
@@ -40,8 +47,10 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _isLoadingAssignments = true;
+  bool _isLoadingReadingProgress = true;
 
   List<Map<String, dynamic>> _assignedList = [];
+  List<Map<String, dynamic>> _inProgressBooks = [];
   Map<dynamic, bool> _activeDrafts = {};
   Map<String, dynamic>? _readingProfiles;
   String _selectedHeaderLang = 'fil'; // 'fil' or 'en'
@@ -49,16 +58,88 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
 
   dynamic _realtimeSubscription;
 
+  static List<Map<String, dynamic>>? _cachedAssignedList;
+  static Map<String, dynamic>? _cachedReadingProfiles;
+
+  int _streakCount = 0;
+
   @override
   void initState() {
     super.initState();
 
+    if (_cachedAssignedList != null) {
+      _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
+      _isLoadingAssignments = false;
+    }
+    if (_cachedReadingProfiles != null) {
+      _readingProfiles = _cachedReadingProfiles;
+    }
+    if (LibraryService.cachedProgress != null && LibraryService.cachedProgress!.isNotEmpty) {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+      _isLoadingReadingProgress = false;
+    }
+
     QuizProgressService.draftChangeNotifier.addListener(_checkLocalDrafts);
-    // Refresh user profile & fetch backend assigned Phil-IRI assessments
+    LibraryService.progressNotifier.addListener(_onLibraryProgressChanged);
+    StreakService.streakNotifier.addListener(_loadStreak);
+    AnalyticsService.analyticsNotifier.addListener(_onAnalyticsChanged);
+    // Refresh user profile & fetch backend assigned Phil-IRI assessments & reading progress
+    _loadStreak();
     _refreshUserProfile();
     _fetchTeacherAssignment();
+    _loadReadingProgress();
     _setupRealtimeSubscription();
     _startCarouselTimer();
+    StudentPrefetchService.prefetchAll();
+  }
+
+  void _onAnalyticsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadStreak() async {
+    final streak = await StreakService.getStreakCount();
+    if (mounted) {
+      setState(() {
+        _streakCount = streak;
+      });
+    }
+    // Perform background sync to match Progress page logic
+    Future.microtask(() async {
+      try {
+        await StreakService.syncStreakWithBackend();
+        final updatedStreak = await StreakService.getStreakCount();
+        if (mounted && updatedStreak != _streakCount) {
+          setState(() {
+            _streakCount = updatedStreak;
+          });
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _onLibraryProgressChanged() {
+    if (!mounted) return;
+    setState(() {
+      _inProgressBooks = LibraryService.filterInProgress(LibraryService.progressNotifier.value);
+      _isLoadingReadingProgress = false;
+    });
+  }
+
+  Future<void> _loadReadingProgress({bool forceRefresh = false}) async {
+    try {
+      final progress = await LibraryService.fetchReadingProgress(forceRefresh: forceRefresh);
+      if (mounted) {
+        setState(() {
+          _inProgressBooks = LibraryService.filterInProgress(progress);
+          _isLoadingReadingProgress = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingReadingProgress = false);
+      }
+    }
   }
 
   void _startCarouselTimer() {
@@ -86,6 +167,11 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       if (ApiService.authToken == null || ApiService.authToken!.isEmpty) {
         await ApiService.initToken();
       }
+      if (_assignedList.isEmpty) {
+        setState(() {
+          _isLoadingAssignments = true;
+        });
+      }
       final res = await ApiService.get('/students/assessment/my-assignment');
       debugPrint(
         '[OverviewPhilIRI] API success=${res.success} statusCode=${res.statusCode}',
@@ -99,6 +185,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             _isLoadingAssignments = false;
             if (rpData is Map<String, dynamic>) {
               _readingProfiles = rpData;
+              _cachedReadingProfiles = rpData;
             }
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
@@ -136,6 +223,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                 final titleB = (b['title'] ?? '').toString();
                 return titleA.compareTo(titleB);
               });
+              _cachedAssignedList = List<Map<String, dynamic>>.from(_assignedList);
             }
           });
 
@@ -165,6 +253,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'student_grade_history',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -173,6 +262,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'assessments',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -181,6 +271,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'user_assignments',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .onPostgresChanges(
@@ -189,6 +280,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
             table: 'assigned_activities',
             callback: (payload) {
               _refreshUserProfile();
+              _fetchTeacherAssignment();
             },
           )
           .subscribe();
@@ -201,6 +293,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   void dispose() {
     _carouselTimer?.cancel();
     QuizProgressService.draftChangeNotifier.removeListener(_checkLocalDrafts);
+    LibraryService.progressNotifier.removeListener(_onLibraryProgressChanged);
     if (_realtimeSubscription != null) {
       try {
         Supabase.instance.client.removeChannel(_realtimeSubscription);
@@ -213,6 +306,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     await ApiService.initToken();
     final res = await AuthService.fetchMe();
     await _fetchTeacherAssignment();
+    await _loadReadingProgress(forceRefresh: true);
     if (res.success && mounted) {
       setState(() {});
     }
@@ -236,6 +330,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        drawerEnableOpenDragGesture: true,
+        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
         backgroundColor: softCreamBg,
         drawer: StudentSidebarDrawer(
           currentIndex: 0, // Since this is the home/overview page
@@ -408,7 +504,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                           CrossAxisAlignment.start,
                                                       children: [
                                                         Text(
-                                                          'Hello, ${AuthService.currentUser?.firstName ?? 'Student'}!',
+                                                          'Hello, ${AuthService.currentUser?.nickname?.isNotEmpty == true ? AuthService.currentUser!.nickname! : (AuthService.currentUser?.firstName ?? 'Student')}!',
                                                           style: GoogleFonts.inter(
                                                             fontSize: 24.5,
                                                             fontWeight:
@@ -458,7 +554,12 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                           builder: (context) =>
                                                               const ProfilePage(),
                                                         ),
-                                                      );
+                                                      ).then((_) async {
+                                                        await AuthService.fetchMe();
+                                                        if (mounted) setState(() {});
+                                                        _fetchTeacherAssignment();
+                                                        if (mounted) _loadReadingProgress(forceRefresh: true);
+                                                      });
                                                     },
                                                   ),
                                                 ],
@@ -539,14 +640,64 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                   const SizedBox(height: 12),
 
                                   if (_isLoadingAssignments)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 32,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: const CircularProgressIndicator(
-                                        color: primaryBlue,
-                                      ),
+                                    Column(
+                                      children: List.generate(2, (index) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFFF1F5F9),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Container(
+                                                      height: 14,
+                                                      width: 140,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF1F5F9),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Container(
+                                                      height: 10,
+                                                      width: 100,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFF8FAFC),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                width: 64,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF1F5F9),
+                                                  borderRadius: BorderRadius.circular(100),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
                                     )
                                   else if (_assignedList.isNotEmpty)
                                     ..._assignedList.take(3).map((item) {
@@ -636,13 +787,13 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           : (isDone
                                               ? const Color(0xFF00A859)
                                               : (isClosed
-                                                  ? const Color(0xFFE4E4E7)
+                                                  ? const Color(0xFFF1F5F9)
                                                   : primaryBlue));
                                       final buttonTxtColor = isPendingReview
                                           ? const Color(0xFF451A03)
                                           : (isDone || !isClosed
                                               ? Colors.white
-                                              : const Color(0xFF9CA3AF));
+                                              : const Color(0xFF94A3B8));
 
                                       return _buildAssessmentCard(
                                         title: title,
@@ -1014,6 +1165,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.userSoundBold,
                                           const Color(0xFFD0E1F9),
                                           primaryBlue,
+                                          activityType: 'pronunciation',
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -1023,6 +1175,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.equalsBold,
                                           const Color(0xFFFFF0C2),
                                           const Color(0xFFF59E0B),
+                                          activityType: 'vocabulary',
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -1032,6 +1185,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                           PhIcons.hammerBold,
                                           const Color(0xFFC7ECDA),
                                           const Color(0xFF10B981),
+                                          activityType: 'sentence',
                                         ),
                                       ),
                                     ],
@@ -1039,86 +1193,47 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                   const SizedBox(height: 28),
 
                                   // ── Section 4: Progress (from Picture 2) ──
-                                  _buildSectionHeader(
-                                    'Progress',
-                                    PhIcons.hourglassBold,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // Stat Row
                                   Row(
                                     mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      _buildStatItem(
-                                        '5',
-                                        'Stories',
-                                        PhIcons.booksRegular,
-                                        primaryBlue,
+                                      _buildSectionHeader(
+                                        'Progress',
+                                        PhIcons.hourglassBold,
                                       ),
-                                      _buildStatItem(
-                                        '5',
-                                        'Badges',
-                                        PhIcons.shieldBold,
-                                        primaryBlue,
-                                      ),
-                                      _buildStatItem(
-                                        '5',
-                                        'Streak',
-                                        PhIcons.fireBold,
-                                        primaryBlue,
+                                      GestureDetector(
+                                        onTap: () {
+                                          Feedback.forTap(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const ProgressPage(),
+                                            ),
+                                          );
+                                        },
+                                        child: Text(
+                                          'See all',
+                                          style: GoogleFonts.inter(
+                                            color: primaryBlue,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 20),
-                                  // Accuracy Chart Card
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.05,
-                                          ),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Text(
-                                          'model accuracy',
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        // Live custom accuracy graph
-                                        SizedBox(
-                                          height: 200,
-                                          child: CustomPaint(
-                                            painter: AccuracyChartPainter(),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Accuracy Trend',
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF71717A),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  const SizedBox(height: 12),
+                                  // Stat Overview Card (Total XP, Streak, Stories)
+                                  _buildUnifiedOverviewCard(
+                                    totalXp: AnalyticsService.cachedAnalytics?.totalXp ?? 0,
+                                    streak: _streakCount,
+                                    stories: _inProgressBooks.length,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Weekly Practice Activity Bar Chart Card
+                                  _buildWeeklyBarChartCard(
+                                    AnalyticsService.cachedAnalytics?.weeklyActivity ?? [],
                                   ),
                                   const SizedBox(height: 32),
                                 ],
@@ -1415,153 +1530,280 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   }
 
   Widget _buildContinueReadingCard(BuildContext context) {
-    const cardBg = Color(
-      0xFFFEF8EC,
-    ); // Warm cream/beige tint matching reference
-    const tagBg = Color(0xFFF1F5F9); // Light blue-grey background matching picture 4
-    const tagTextColor = Color(0xFF475569); // Dark slate text matching picture 4
-    const continueBtnColor = Color(0xFFFBBF24); // Vibrant golden yellow button
+    const cardBg = Colors.white;
+    const tagBg = Color(0xFFEFF6FF);
+    const tagTextColor = Color(0xFF2563EB);
+    const primaryBlue = Color(0xFF1B64D8);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFDEEBE), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Actual book cover image asset
-          Container(
-            width: 90,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 4,
-                  offset: const Offset(1, 2),
-                ),
-              ],
+    if (_isLoadingReadingProgress) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/stories/sari_sari_summers.jpg',
-                fit: BoxFit.cover,
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 110,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(height: 12, width: 80, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 10),
+                  Container(height: 18, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 6),
+                  Container(height: 14, width: 160, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                  const SizedBox(height: 16),
+                  Container(height: 6, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                  const SizedBox(height: 10),
+                  Container(height: 38, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_inProgressBooks.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'No books in progress yet.\nHead to the Bookshelf to start reading!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: const Color(0xFF94A3B8),
+              height: 1.5,
+            ),
           ),
-          const SizedBox(width: 16),
-          // Book details & controls
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SARI - SARI SUMMERS',
-                  style: GoogleFonts.merriweather(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF18181B),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Nora helps her Lola save their sari-sari store by making mango ice candy during a hot summer in the Philippines.',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: const Color(0xFF71717A),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Progress Bar (stretching full width of column)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: const LinearProgressIndicator(
-                    value:
-                        0.25, // Fill level matches reference indicator approx
-                    backgroundColor: Color(0xFFE4E2DC),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF1B64D8),
+        ),
+      );
+    }
+
+    final book = _inProgressBooks.first;
+    final bookTitle = (book['title'] as String?) ?? '';
+    final rawLang = (book['language'] as String?) ?? 'en';
+    final description = (book['description'] as String?) ?? '';
+    final progressVal = LibraryService.parseDouble(book['progress']);
+    final langLabel = LibraryService.languageLabel(rawLang);
+    final progressPct = '${(progressVal * 100).toInt()}%';
+
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StoryPreviewPage(
+              bookTitle: bookTitle,
+              book: book,
+              initialProgress: progressVal,
+            ),
+          ),
+        ).then((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadReadingProgress(forceRefresh: true);
+          });
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Left Column: Styled Book Cover
+            SizedBox(
+              width: 110,
+              height: 160,
+              child: StyledBookCover(
+                book: book,
+                index: 0,
+                enableTap: false,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Right Column: Info & Action Controls
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Language Tag Row
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
+                      borderRadius: BorderRadius.circular(100),
                     ),
-                    minHeight: 8,
+                    child: Text(
+                      langLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tagTextColor,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Tag capsule
-                    Container(
-                      decoration: BoxDecoration(
-                        color: tagBg,
-                        borderRadius: BorderRadius.circular(20),
+                  const SizedBox(height: 6),
+
+                  // Main Story Title
+                  Text(
+                    bookTitle,
+                    maxLines: 2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Short Synopsis
+                  if (description.isNotEmpty)
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.clip,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
+                        height: 1.35,
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        'Filipino',
+                    ),
+                  const SizedBox(height: 10),
+
+                  // Reading Progress Indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progress',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: tagTextColor,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF475569),
                         ),
                       ),
+                      Text(
+                        progressPct,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: LinearProgressIndicator(
+                      value: progressVal,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                      minHeight: 6,
                     ),
-                    // Action button
-                    ElevatedButton(
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Full-Width Continue Reading Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton(
                       onPressed: () {
                         Feedback.forTap(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const LibraryPage(),
+                            builder: (context) => StoryPreviewPage(
+                              bookTitle: bookTitle,
+                              book: book,
+                              initialProgress: progressVal,
+                            ),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: continueBtnColor,
+                        backgroundColor: primaryBlue,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
                         elevation: 0,
-                      ),
-                      child: Text(
-                        'Continue',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
                         ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Continue Reading',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1570,8 +1812,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     String label,
     String iconSvg,
     Color iconBg,
-    Color iconColor,
-  ) {
+    Color iconColor, {
+    String? activityType,
+  }) {
     return Container(
       height: 156,
       decoration: BoxDecoration(
@@ -1592,11 +1835,17 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
           borderRadius: BorderRadius.circular(16),
           onTap: () {
             Feedback.forTap(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Launching ${label.replaceAll('\n', ' ')}...'),
-              ),
-            );
+            switch (activityType?.toLowerCase()) {
+              case 'pronunciation':
+                ActivityModalHelper.showPronunciationModal(context);
+                break;
+              case 'vocabulary':
+                ActivityModalHelper.showVocabularyModal(context);
+                break;
+              case 'sentence':
+                ActivityModalHelper.showSentenceModal(context);
+                break;
+            }
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -1640,45 +1889,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     );
   }
 
-  Widget _buildStatItem(
-    String count,
-    String label,
-    String iconSvg,
-    Color color,
-  ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Iconify(iconSvg, color: color, size: 32),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              count,
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: const Color(0xFF71717A),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+
 
   // ── Integrated Phil-IRI Reading Profile Strip inside Header (Option 2 - Exact Original Size) ──
   Widget _buildHeaderIntegratedProfileStrip() {
@@ -1905,239 +2116,250 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       ],
     );
   }
-}
 
-// ── Live accuracy curve vector custom painter ──
-class AccuracyChartPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintLineTrain = Paint()
-      ..color = const Color(0xFF1B64D8)
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final paintLineTest = Paint()
-      ..color = const Color(0xFFF97316)
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final paintGrid = Paint()
-      ..color = const Color(0xFFF1F1F4)
-      ..strokeWidth = 1.0;
-
-    final paintAxis = Paint()
-      ..color = const Color(0xFFD4D4D8)
-      ..strokeWidth = 1.5;
-
-    // Dimensions
-    const paddingLeft = 32.0;
-    const paddingBottom = 24.0;
-    const paddingTop = 12.0;
-    const paddingRight = 12.0;
-
-    final width = size.width - paddingLeft - paddingRight;
-    final height = size.height - paddingTop - paddingBottom;
-
-    // Draw grid intersections
-    final yGridLines = 5;
-    for (int i = 0; i <= yGridLines; i++) {
-      final y = paddingTop + height * (1 - i / yGridLines);
-      canvas.drawLine(
-        Offset(paddingLeft, y),
-        Offset(size.width - paddingRight, y),
-        paintGrid,
-      );
-    }
-
-    final xGridLines = 8;
-    for (int i = 0; i <= xGridLines; i++) {
-      final x = paddingLeft + width * (i / xGridLines);
-      canvas.drawLine(
-        Offset(x, paddingTop),
-        Offset(x, size.height - paddingBottom),
-        paintGrid,
-      );
-    }
-
-    // Outer Axis Lines
-    canvas.drawLine(
-      Offset(paddingLeft, paddingTop),
-      Offset(paddingLeft, size.height - paddingBottom),
-      paintAxis,
-    );
-    canvas.drawLine(
-      Offset(paddingLeft, size.height - paddingBottom),
-      Offset(size.width - paddingRight, size.height - paddingBottom),
-      paintAxis,
-    );
-
-    // Labels & Legends text paints
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-
-    // X Axis ticks numbers (0, 2, 4, 6, 8)
-    final tickLabels = ['0', '2', '4', '6', '8'];
-    for (int i = 0; i < tickLabels.length; i++) {
-      final label = tickLabels[i];
-      final x = paddingLeft + width * (i * 2 / xGridLines);
-
-      textPainter.text = TextSpan(
-        text: label,
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF71717A),
-        ),
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(x - textPainter.width / 2, size.height - paddingBottom + 4),
-      );
-    }
-
-    // Centered "epoch" label
-    textPainter.text = TextSpan(
-      text: 'epoch',
-      style: GoogleFonts.inter(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
+  Widget _buildUnifiedOverviewCard({
+    required int totalXp,
+    required int streak,
+    required int stories,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.lightningFill,
+              iconColor: const Color(0xFFF59E0B),
+              val: '$totalXp',
+              label: 'Total XP',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.fireBold,
+              iconColor: const Color(0xFFF97316),
+              val: '$streak',
+              label: 'Streak',
+            ),
+          ),
+          Container(
+            height: 36,
+            width: 1.0,
+            color: const Color(0xFFF1F5F9),
+          ),
+          Expanded(
+            child: _buildOverviewColumn(
+              iconSvg: PhIcons.booksRegular,
+              iconColor: const Color(0xFF1B64D8),
+              val: '$stories',
+              label: 'Stories',
+            ),
+          ),
+        ],
       ),
     );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(paddingLeft + width / 2 - textPainter.width / 2, size.height - 12),
-    );
-
-    // Live Vector curves calculation matching mockup
-    final trainPoints = [
-      Offset(paddingLeft, size.height - paddingBottom - height * 0.10),
-      Offset(
-        paddingLeft + width * 0.125,
-        size.height - paddingBottom - height * 0.40,
-      ),
-      Offset(
-        paddingLeft + width * 0.25,
-        size.height - paddingBottom - height * 0.65,
-      ),
-      Offset(
-        paddingLeft + width * 0.375,
-        size.height - paddingBottom - height * 0.78,
-      ),
-      Offset(
-        paddingLeft + width * 0.50,
-        size.height - paddingBottom - height * 0.82,
-      ),
-      Offset(
-        paddingLeft + width * 0.625,
-        size.height - paddingBottom - height * 0.83,
-      ),
-      Offset(
-        paddingLeft + width * 0.75,
-        size.height - paddingBottom - height * 0.84,
-      ),
-      Offset(
-        paddingLeft + width * 0.875,
-        size.height - paddingBottom - height * 0.85,
-      ),
-      Offset(paddingLeft + width, size.height - paddingBottom - height * 0.87),
-    ];
-
-    final testPoints = [
-      Offset(paddingLeft, size.height - paddingBottom - height * 0.46),
-      Offset(
-        paddingLeft + width * 0.125,
-        size.height - paddingBottom - height * 0.58,
-      ),
-      Offset(
-        paddingLeft + width * 0.25,
-        size.height - paddingBottom - height * 0.71,
-      ),
-      Offset(
-        paddingLeft + width * 0.375,
-        size.height - paddingBottom - height * 0.81,
-      ),
-      Offset(
-        paddingLeft + width * 0.50,
-        size.height - paddingBottom - height * 0.79,
-      ),
-      Offset(
-        paddingLeft + width * 0.625,
-        size.height - paddingBottom - height * 0.68,
-      ),
-      Offset(
-        paddingLeft + width * 0.75,
-        size.height - paddingBottom - height * 0.79,
-      ),
-      Offset(
-        paddingLeft + width * 0.875,
-        size.height - paddingBottom - height * 0.79,
-      ),
-      Offset(paddingLeft + width, size.height - paddingBottom - height * 0.83),
-    ];
-
-    // Smooth spline draw for Train
-    final pathTrain = Path()..moveTo(trainPoints[0].dx, trainPoints[0].dy);
-    for (int i = 0; i < trainPoints.length - 1; i++) {
-      final p1 = trainPoints[i];
-      final p2 = trainPoints[i + 1];
-      final controlX = p1.dx + (p2.dx - p1.dx) / 2;
-      pathTrain.cubicTo(controlX, p1.dy, controlX, p2.dy, p2.dx, p2.dy);
-    }
-    canvas.drawPath(pathTrain, paintLineTrain);
-
-    // Smooth spline draw for Test
-    final pathTest = Path()..moveTo(testPoints[0].dx, testPoints[0].dy);
-    for (int i = 0; i < testPoints.length - 1; i++) {
-      final p1 = testPoints[i];
-      final p2 = testPoints[i + 1];
-      final controlX = p1.dx + (p2.dx - p1.dx) / 2;
-      pathTest.cubicTo(controlX, p1.dy, controlX, p2.dy, p2.dx, p2.dy);
-    }
-    canvas.drawPath(pathTest, paintLineTest);
-
-    // Draw Legend frame in the top left
-    final legendX = paddingLeft + 12;
-    final legendY = paddingTop + 10;
-
-    // Train legend dot/line indicator
-    canvas.drawLine(
-      Offset(legendX, legendY + 5),
-      Offset(legendX + 15, legendY + 5),
-      paintLineTrain,
-    );
-    textPainter.text = TextSpan(
-      text: 'train',
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(legendX + 20, legendY));
-
-    // Test legend dot/line indicator
-    canvas.drawLine(
-      Offset(legendX, legendY + 17),
-      Offset(legendX + 15, legendY + 17),
-      paintLineTest,
-    );
-    textPainter.text = TextSpan(
-      text: 'test',
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        color: const Color(0xFF27272A),
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(legendX + 20, legendY + 12));
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget _buildOverviewColumn({
+    required String iconSvg,
+    required Color iconColor,
+    required String val,
+    required String label,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Iconify(
+              iconSvg,
+              color: iconColor,
+              size: 20,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                val,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyBarChartCard(List<Map<String, dynamic>> weekly) {
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final todayIndex = StreakService.getTodayDayIndex();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weekly Practice Activity',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Mon – Sun completion history',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B64D8).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  'This Week',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1B64D8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // 7 Vertical Bars
+          SizedBox(
+            height: 110,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) {
+                Map<String, dynamic> item = {};
+                if (weekly.length > index) {
+                  item = weekly[index];
+                }
+
+                final bool isCompleted = item.isNotEmpty
+                    ? (item['completed'] == true)
+                    : false;
+                final int score = (item['score'] as num?)?.toInt() ?? 0;
+                final bool isToday = index == todayIndex;
+
+                final double barRatio = isCompleted
+                    ? (score / 100).clamp(0.25, 1.0)
+                    : 0.12;
+
+                final Color barColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFFF1F5F9);
+
+                final Color textColor = isCompleted
+                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    : const Color(0xFF94A3B8);
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isCompleted)
+                      Text(
+                        '${score > 0 ? score : 100}%',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+
+                    // Bar Pill
+                    Container(
+                      width: 20,
+                      height: 64 * barRatio,
+                      decoration: BoxDecoration(
+                        color: barColor,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Day Label
+                    Text(
+                      dayLabels[index],
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: isToday ? FontWeight.w900 : FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

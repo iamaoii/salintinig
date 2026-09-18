@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:salintinig/main.dart';
+import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/services/api_config.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ApiResponse {
   final bool success;
@@ -28,6 +32,15 @@ class ApiResponse {
     }
 
     final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+    final isUnauthorized = response.statusCode == 401 ||
+        (body is Map<String, dynamic> &&
+            (body['error']?.toString().toLowerCase().contains('invalid or expired token') == true ||
+             body['message']?.toString().toLowerCase().contains('invalid or expired token') == true ||
+             body['error']?.toString().toLowerCase().contains('unauthorized') == true));
+
+    if (isUnauthorized && ApiService.hasAuthToken) {
+      ApiService.handleUnauthorized();
+    }
     
     if (body is Map<String, dynamic>) {
       return ApiResponse(
@@ -58,6 +71,37 @@ class ApiResponse {
 
 class ApiService {
   static String? _authToken;
+  static bool _isHandlingUnauthorized = false;
+
+  static bool get hasAuthToken => _authToken != null && _authToken!.isNotEmpty;
+
+  static void handleUnauthorized() {
+    if (_isHandlingUnauthorized || !hasAuthToken) return;
+    _isHandlingUnauthorized = true;
+    debugPrint('[ApiService] 401 Unauthorized detected! Clearing expired token & session.');
+
+    Future.microtask(() async {
+      try {
+        await AuthService.logout();
+        final state = navigatorKey.currentState;
+        if (state != null && state.mounted) {
+          state.pushAndRemoveUntil(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/'),
+              builder: (_) => const HomePage(),
+            ),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        debugPrint('[ApiService] Error during 401 logout redirect: $e');
+      } finally {
+        Future.delayed(const Duration(seconds: 3), () {
+          _isHandlingUnauthorized = false;
+        });
+      }
+    });
+  }
 
   static Future<void> initToken() async {
     try {

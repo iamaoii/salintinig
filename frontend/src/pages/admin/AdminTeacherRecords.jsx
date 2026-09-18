@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
@@ -158,7 +159,7 @@ export default function AdminTeacherRecords() {
     try {
       setLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/teachers', {
+      const res = await fetch(getApiUrl('/api/admin/teachers'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -175,7 +176,7 @@ export default function AdminTeacherRecords() {
   const fetchSections = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/sections', {
+      const res = await fetch(getApiUrl('/api/admin/sections'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -235,7 +236,7 @@ export default function AdminTeacherRecords() {
       const teacherName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
 
       if (editingTeacher) {
-        const res = await fetch(`http://localhost:5000/api/admin/teachers/${editingTeacher.id || editingTeacher.employeeId}`, {
+        const res = await fetch(getApiUrl(`/api/admin/teachers/${editingTeacher.id || editingTeacher.employeeId}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -253,7 +254,7 @@ export default function AdminTeacherRecords() {
           showToast(data.error || 'Failed to update teacher.');
         }
       } else {
-        const res = await fetch('http://localhost:5000/api/admin/teachers', {
+        const res = await fetch(getApiUrl('/api/admin/teachers'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -287,7 +288,7 @@ export default function AdminTeacherRecords() {
     if (!deletingTeacher) return;
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/teachers/${deletingTeacher.id || deletingTeacher.employeeId}`, {
+      const res = await fetch(getApiUrl(`/api/admin/teachers/${deletingTeacher.id || deletingTeacher.employeeId}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -435,7 +436,7 @@ export default function AdminTeacherRecords() {
       }
 
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/teachers/import-csv', {
+      const res = await fetch(getApiUrl('/api/admin/teachers/import-csv'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -37,7 +38,7 @@ export default function AdminDashboardHome() {
     try {
       setLoadingAnalytics(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/analytics/phil-iri', {
+      const res = await fetch(getApiUrl('/api/admin/analytics/phil-iri'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -55,7 +56,7 @@ export default function AdminDashboardHome() {
   const fetchRequests = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/account-requests', {
+      const res = await fetch(getApiUrl('/api/admin/account-requests'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -76,7 +77,7 @@ export default function AdminDashboardHome() {
   const fetchStats = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/stats', {
+      const res = await fetch(getApiUrl('/api/admin/stats'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -114,7 +115,7 @@ export default function AdminDashboardHome() {
     setProcessingId(id);
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/approve`, {
+      const res = await fetch(getApiUrl(`/api/admin/account-requests/${id}/approve`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,7 +141,7 @@ export default function AdminDashboardHome() {
     setProcessingId(id);
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/account-requests/${id}/reject`, {
+      const res = await fetch(getApiUrl(`/api/admin/account-requests/${id}/reject`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

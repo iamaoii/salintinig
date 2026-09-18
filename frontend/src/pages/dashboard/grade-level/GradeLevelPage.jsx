@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -70,7 +71,7 @@ export default function GradeLevelPage() {
     try {
       setLoading(true);
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/teacher/grade-level', {
+      const res = await fetch(getApiUrl('/api/teacher/grade-level'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       const resData = await res.json();
@@ -135,8 +136,8 @@ export default function GradeLevelPage() {
       const token = getToken();
       const isEdit = Boolean(editingSection);
       const url = isEdit
-        ? `http://localhost:5000/api/teacher/grade-level/sections/${editingSection.id}`
-        : 'http://localhost:5000/api/teacher/grade-level/sections';
+        ? getApiUrl(`/api/teacher/grade-level/sections/${editingSection.id}`)
+        : getApiUrl('/api/teacher/grade-level/sections');
       const method = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -168,7 +169,7 @@ export default function GradeLevelPage() {
     try {
       const token = getToken();
       const res = await fetch(
-        `http://localhost:5000/api/teacher/grade-level/sections/${deletingSection.id}`,
+        getApiUrl(`/api/teacher/grade-level/sections/${deletingSection.id}`),
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }

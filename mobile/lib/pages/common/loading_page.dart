@@ -87,13 +87,24 @@ class _LoadingPageState extends State<LoadingPage> with SingleTickerProviderStat
     if (token != null && token.isNotEmpty) {
       var user = AuthService.currentUser;
       if (user == null) {
-        await AuthService.fetchMe();
-        user = AuthService.currentUser;
+        final res = await AuthService.fetchMe();
+        if (res.statusCode == 401 ||
+            res.error?.toLowerCase().contains('invalid or expired token') == true) {
+          user = null;
+        } else {
+          user = AuthService.currentUser;
+        }
       } else {
-        AuthService.fetchMe();
+        final res = await AuthService.fetchMe();
+        if (res.statusCode == 401 ||
+            res.error?.toLowerCase().contains('invalid or expired token') == true) {
+          user = null;
+        } else {
+          user = AuthService.currentUser;
+        }
       }
 
-      if (mounted && user != null) {
+      if (mounted && user != null && ApiService.authToken != null && ApiService.authToken!.isNotEmpty) {
         Widget targetWidget;
         final role = user.role.toLowerCase();
         if (role == 'student') {
@@ -122,6 +133,8 @@ class _LoadingPageState extends State<LoadingPage> with SingleTickerProviderStat
         return;
       }
     }
+
+    if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

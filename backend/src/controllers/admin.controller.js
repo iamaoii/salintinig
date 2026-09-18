@@ -1,4 +1,5 @@
 const db = require('../config/db.js');
+const { emitNotification } = require('../config/socket.js');
 const { supabase, uploadImageToSupabase } = require('../config/supabase.js');
 
 /**
@@ -404,11 +405,11 @@ async function createStudent(req, res) {
           const userId = uRows[0].user_id;
 
           const { rows: sRows } = await db.query(
-            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+            `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex, nickname)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6, nickname = COALESCE(students.nickname, $7)
              RETURNING student_id`,
-            [userId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male']
+            [userId, cleanLrn, firstName, middleName || null, lastName, gender || 'Male', firstName]
           );
 
           if (sRows && sRows[0]) {

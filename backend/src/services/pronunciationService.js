@@ -19,6 +19,7 @@
  */
 
 const db = require('../config/db.js');
+const badgeService = require('./badgeService.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTENT POOL — ITEM RETRIEVAL
@@ -293,85 +294,20 @@ async function logAttempt(
       attemptId = rows[0]?.attemptId;
     }
 
-    // 2. Badge Check: "Sounds right!"
-    // Criteria: student completed practice words accurately
-    try {
-      const passedItemsCount = Array.isArray(itemsDetail)
-        ? itemsDetail.filter((it) => it.isPassed || (it.accuracyScore && it.accuracyScore >= 80)).length
-        : (attemptScore >= 80 ? 1 : 0);
+    const passedItemsCount = Array.isArray(itemsDetail)
+      ? itemsDetail.filter((it) => it.isPassed || (it.accuracyScore && it.accuracyScore >= 80)).length
+      : (attemptScore >= 80 ? 3 : 0);
 
-      if (passedItemsCount >= 3 || attemptScore >= 80) {
-        const srBadge = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%sounds right%' 
-              OR criteria_type = 'pronun_score' 
-           LIMIT 1`
-        );
-        if (srBadge.rows && srBadge.rows.length > 0) {
-          const srInsert = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, srBadge.rows[0].badge_id]
-          );
-          if (srInsert.rows && srInsert.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      }
-    } catch (bErr) {
-      console.warn('[pronunciationService.logAttempt] Sounds right badge notice:', bErr.message);
-    }
-
-    // 3. Badge Check: "First step"
-    // "Complete your very first practice activity."
-    try {
-      const { rows: pCount } = await db.query(
-        'SELECT COUNT(*) as count FROM pronunciation_attempts WHERE student_id = $1',
-        [resolvedStudentId]
-      );
-      const { rows: vCount } = await db.query(
-        'SELECT COUNT(*) as count FROM vocabulary_attempts WHERE student_id = $1',
-        [resolvedStudentId]
-      );
-      const { rows: sCount } = await db.query(
-        'SELECT COUNT(*) as count FROM sentence_attempts WHERE student_id = $1',
-        [resolvedStudentId]
-      );
-      const totalActivities =
-        (parseInt(pCount[0]?.count) || 0) +
-        (parseInt(vCount[0]?.count) || 0) +
-        (parseInt(sCount[0]?.count) || 0);
-
-      if (totalActivities <= 1) {
-        const fsBadge = await db.query(
-          `SELECT badge_id FROM badges 
-           WHERE LOWER(badge_name) LIKE '%first step%' 
-              OR criteria_type = 'activity_count'
-           LIMIT 1`
-        );
-        if (fsBadge.rows && fsBadge.rows.length > 0) {
-          const fsInsert = await db.query(
-            `INSERT INTO student_badges (student_id, badge_id, earned_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT DO NOTHING
-             RETURNING student_badge_id`,
-            [resolvedStudentId, fsBadge.rows[0].badge_id]
-          );
-          if (fsInsert.rows && fsInsert.rows.length > 0) {
-            newBadgeUnlocked = true;
-          }
-        }
-      }
-    } catch (fsErr) {
-      console.warn('[pronunciationService.logAttempt] First step badge notice:', fsErr.message);
-    }
+    const newlyUnlockedBadges = await badgeService.checkActivityBadges(resolvedStudentId, 'pronunciation', {
+      score: passedItemsCount,
+    });
+    const newBadgeUnlocked = newlyUnlockedBadges.length > 0;
 
     return {
       attemptId,
       xpEarned: earnedXp,
       newBadgeUnlocked,
+      newlyUnlockedBadges,
     };
   } catch (err) {
     console.warn('[pronunciationService.logAttempt] Notice:', err.message);

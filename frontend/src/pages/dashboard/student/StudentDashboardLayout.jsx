@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Icon } from '@iconify/react';
@@ -19,7 +20,7 @@ export default function StudentDashboardLayout() {
         let sec = '';
         let sy = '';
         try {
-          const meRes = await fetch('http://localhost:5000/api/auth/me', {
+          const meRes = await fetch(getApiUrl('/api/auth/me'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const meData = await meRes.json();
@@ -39,7 +40,7 @@ export default function StudentDashboardLayout() {
 
         if (!sy) {
           try {
-            const syRes = await fetch('http://localhost:5000/api/admin/school-years', {
+            const syRes = await fetch(getApiUrl('/api/admin/school-years'), {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const syData = await syRes.json();

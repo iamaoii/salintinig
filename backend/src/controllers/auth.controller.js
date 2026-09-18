@@ -1,5 +1,5 @@
 const db = require('../config/db.js');
-const { supabase, uploadImageToSupabase } = require('../config/supabase.js');
+const { supabase, uploadImageToSupabase, deleteImageFromSupabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
 const { sendPasswordResetEmail, sendTeacherAccountRequestEmail } = require('../services/emailService.js');
 
@@ -9,6 +9,8 @@ function createToken(user) {
 
   const payload = {
     id: user.id || user.user_id,
+    studentId: user.studentId || user.student_id || null,
+    lrn: user.lrn || null,
     username: user.username || user.email,
     name: user.name,
     email: user.email,
@@ -80,7 +82,7 @@ async function login(req, res) {
         // A. Match strictly by Email
         const userQuery = `
           SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, s.school_name,
-                 t.first_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image
+                 t.first_name, t.last_name, t.teacher_no, u.profile_image AS teacher_profile_image
           FROM users u
           LEFT JOIN schools s ON u.school_id = s.school_id
           LEFT JOIN teachers t ON u.user_id = t.user_id
@@ -99,7 +101,7 @@ async function login(req, res) {
         // B. Match strictly by Teacher ID (Employee ID)
         if (!matchedUser) {
           const teacherQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, t.first_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image
+            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, t.first_name, t.last_name, t.teacher_no, u.profile_image AS teacher_profile_image
             FROM teachers t
             JOIN users u ON t.user_id = u.user_id
             WHERE LOWER(t.teacher_no) = $1
@@ -120,7 +122,7 @@ async function login(req, res) {
             SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, st.first_name, st.last_name, st.lrn
             FROM students st
             JOIN users u ON st.user_id = u.user_id
-            WHERE LOWER(st.lrn) = $1 OR LOWER(u.username) = $1
+            WHERE LOWER(st.lrn) = $1 OR LOWER(u.email) = $1
             LIMIT 1;
           `;
           const { rows: studentRows } = await db.query(studentQuery, [cleanId]);
@@ -207,6 +209,8 @@ async function login(req, res) {
       let gradeLevel = null;
       let sectionName = null;
 
+      let studentDbId = null;
+
       if (matchedUser.role === 'admin') {
         displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
       } else if (matchedUser.role === 'teacher') {
@@ -218,10 +222,12 @@ async function login(req, res) {
       } else if (matchedUser.role === 'student') {
         try {
           const stRes = await db.query(
-            `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+            `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name, sch.school_name
              FROM students st
              LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
              LEFT JOIN classes c ON sgh.class_id = c.class_id
+             LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
              ORDER BY sgh.created_at DESC
              LIMIT 1`,
@@ -229,12 +235,16 @@ async function login(req, res) {
           );
           if (stRes.rows && stRes.rows.length > 0) {
             const stRow = stRes.rows[0];
+            studentDbId = stRow.student_id || null;
             firstName = stRow.first_name || firstName;
             lastName = stRow.last_name || lastName;
             lrn = stRow.lrn || lrn;
             gradeLevel = stRow.grade_level ? String(stRow.grade_level) : null;
             sectionName = stRow.section_name || null;
             displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
+            if (stRow.school_name) {
+              matchedUser.school_name = stRow.school_name;
+            }
           }
         } catch (stErr) {
           console.warn('Student detail enrichment warning:', stErr.message);
@@ -243,6 +253,7 @@ async function login(req, res) {
 
       const formattedUser = {
         id: matchedUser.user_id,
+        studentId: studentDbId,
         username: matchedUser.email,
         name: displayName,
         firstName: firstName || displayName,
@@ -253,9 +264,11 @@ async function login(req, res) {
         email: matchedUser.email,
         role: matchedUser.role,
         schoolId,
+        schoolName: matchedUser.school_name || null,
+        school_name: matchedUser.school_name || null,
         employeeId: empId,
-        profileImage: matchedUser.teacher_profile_image || matchedUser.profile_image || null,
-        profile_image: matchedUser.teacher_profile_image || matchedUser.profile_image || null,
+        profileImage: matchedUser.profile_image || null,
+        profile_image: matchedUser.profile_image || null,
         mustChangePassword: Boolean(matchedUser.must_change_password),
         defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/teacher',
         source: 'database',
@@ -317,21 +330,35 @@ async function getMe(req, res) {
             `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
             [userId]
           );
-          if (uRes.rows && uRes.rows[0] && uRes.rows[0].profile_image) {
-            dbProfileImage = uRes.rows[0].profile_image;
+          if (uRes.rows && uRes.rows[0]) {
+            dbProfileImage = uRes.rows[0].profile_image || null;
           }
         } catch (uErr) {
-          console.warn('getMe profile_image notice:', uErr.message);
+          console.warn('getMe user profile notice:', uErr.message);
         }
 
         if (user.role === 'student') {
           const stRes = await db.query(
-            `SELECT st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name
+            `SELECT 
+               st.first_name, 
+               st.middle_name, 
+               st.last_name, 
+               st.lrn, 
+               st.nickname,
+               st.avatar_frame,
+               COALESCE(c.grade_level, sgh.grade_level) AS grade_level, 
+               c.section_name,
+               sch.school_name
              FROM students st
-             LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+             LEFT JOIN (
+               SELECT DISTINCT ON (student_id) student_id, class_id, grade_level
+               FROM student_grade_history
+               ORDER BY student_id, created_at DESC
+             ) sgh ON st.student_id = sgh.student_id
              LEFT JOIN classes c ON sgh.class_id = c.class_id
+             LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
-             ORDER BY sgh.created_at DESC
              LIMIT 1`,
             [userId, user.email || '']
           );
@@ -351,6 +378,11 @@ async function getMe(req, res) {
                 lrn: stRow.lrn || user.lrn,
                 gradeLevel: stRow.grade_level ? String(stRow.grade_level) : (user.gradeLevel || '4'),
                 sectionName: stRow.section_name || user.sectionName || '',
+                schoolName: stRow.school_name || user.schoolName || user.school_name || '',
+                school_name: stRow.school_name || user.schoolName || user.school_name || '',
+                nickname: stRow.nickname || user.nickname || '',
+                avatarFrame: stRow.avatar_frame || user.avatarFrame || 'None',
+                avatar_frame: stRow.avatar_frame || user.avatar_frame || 'None',
                 profileImage: dbProfileImage || user.profileImage || user.profile_image || null,
                 profile_image: dbProfileImage || user.profileImage || user.profile_image || null,
                 activeSchoolYear,
@@ -360,7 +392,7 @@ async function getMe(req, res) {
           }
         } else if (user.role === 'teacher') {
           const tRes = await db.query(
-            `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, t.profile_image AS teacher_profile_image, c.grade_level, c.section_name,
+            `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, c.grade_level, c.section_name,
                     sch.school_name,
                     EXISTS(
                       SELECT 1 FROM faculty_in_charge fic
@@ -385,7 +417,7 @@ async function getMe(req, res) {
             const tRow = tRes.rows[0];
             const fullName = [tRow.first_name, tRow.middle_name, tRow.last_name].filter(Boolean).join(' ');
             const secLabel = tRow.section_name ? `${tRow.grade_level || 'Grade 4'} - ${tRow.section_name}` : (user.section || '');
-            const finalAvatar = tRow.teacher_profile_image || dbProfileImage || user.profileImage || user.profile_image || null;
+            const finalAvatar = dbProfileImage || user.profileImage || user.profile_image || null;
             const schoolName = tRow.school_name || dbSchoolName || user.schoolName || user.school_name || 'Mandaluyong Elementary School';
 
             let studentsCount = 0;
@@ -447,7 +479,7 @@ async function getMe(req, res) {
           },
         });
       } catch (dbErr) {
-        console.warn('getMe enrichment notice:', dbErr.message);
+        console.warn('getMe database query notice:', dbErr.message);
       }
     }
 
@@ -468,43 +500,52 @@ async function updateProfile(req, res) {
       return res.status(401).json({ success: false, error: 'Unauthorized.' });
     }
 
-    const { profileImage, avatarUrl, fullName, name, email, firstName, middleName, lastName, first_name, middle_name, last_name } = req.body;
+    const userId = user.id || user.user_id || user.userId;
+    const { profileImage, avatarUrl, nickname, frame, avatarFrame, fullName, name, email, firstName, middleName, lastName, first_name, middle_name, last_name } = req.body;
     const rawImage = profileImage || avatarUrl;
+    const activeFrame = frame || avatarFrame || null;
 
     let finalImageUrl = null;
 
     if (process.env.DATABASE_URL && userId) {
+      // Ensure table columns exist
+      try {
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT;`);
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_frame TEXT;`);
+        await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS nickname TEXT;`);
+        await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_frame TEXT;`);
+      } catch (colErr) {}
+
       if (rawImage) {
         finalImageUrl = rawImage;
         try {
-          // Delete old avatar from Supabase Storage using old URL from DB if exists
-          if (supabase) {
-            const oldUrlRes = await db.query(
-              `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
-              [userId]
-            );
-            const oldUrl = oldUrlRes.rows?.[0]?.profile_image;
-            if (oldUrl && oldUrl.includes('supabase')) {
-              const urlPath = oldUrl.split('/avatars/')[1]?.split('?')[0];
-              if (urlPath) {
-                const { error: removeError } = await supabase.storage.from('avatars').remove([urlPath]);
-                if (removeError) {
-                  console.warn('Could not delete old user avatar:', removeError.message);
-                } else {
-                  console.log('🗑️ Old user avatar deleted from Supabase Storage:', urlPath);
-                }
-              }
+          // Fetch existing profile_image from DB to check if user previously had a custom upload in Supabase Storage
+          const oldUrlRes = await db.query(
+            `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          );
+          const oldUrl = oldUrlRes.rows?.[0]?.profile_image;
+
+          if (rawImage.startsWith('data:image/')) {
+            // Case A: New Custom Base64 Upload -> Delete old custom image if present, then upload new custom image
+            if (oldUrl) {
+              await deleteImageFromSupabase(oldUrl, 'avatars');
+            }
+
+            const fileName = `avatar_${userId}_${Date.now()}.webp`;
+            const supabaseUrl = await uploadImageToSupabase(rawImage, fileName, 'avatars');
+            if (supabaseUrl) {
+              finalImageUrl = supabaseUrl;
+              console.log('✅ New custom avatar uploaded to Supabase Storage:', finalImageUrl);
+            }
+          } else {
+            // Case B: Preset Icon Selected (e.g. assets/avatars/avatar_1.png) -> Delete previous custom uploaded avatar from Supabase Storage
+            if (oldUrl) {
+              await deleteImageFromSupabase(oldUrl, 'avatars');
             }
           }
-
-          const fileName = `avatar_${userId}_${Date.now()}.webp`;
-          const supabaseUrl = await uploadImageToSupabase(rawImage, fileName, 'avatars');
-          if (supabaseUrl) {
-            finalImageUrl = supabaseUrl;
-            console.log('✅ Avatar uploaded to Supabase Storage:', finalImageUrl);
-          }
         } catch (imgErr) {
-          console.warn('Avatar Supabase upload notice:', imgErr.message);
+          console.warn('Avatar Supabase upload/cleanup notice:', imgErr.message);
         }
 
         try {
@@ -515,14 +556,27 @@ async function updateProfile(req, res) {
         } catch (uErr) {
           console.warn('DB users profile_image update notice:', uErr.message);
         }
+      }
 
+      if (nickname !== undefined) {
         try {
           await db.query(
-            `UPDATE teachers SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
-            [finalImageUrl, userId]
+            `UPDATE students SET nickname = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+            [nickname, userId]
           );
-        } catch (tErr) {
-          console.warn('DB teachers profile_image update notice:', tErr.message);
+        } catch (nickErr) {
+          console.warn('DB nickname update notice:', nickErr.message);
+        }
+      }
+
+      if (activeFrame !== undefined) {
+        try {
+          await db.query(
+            `UPDATE students SET avatar_frame = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+            [activeFrame, userId]
+          );
+        } catch (frameErr) {
+          console.warn('DB avatar_frame update notice:', frameErr.message);
         }
       }
 
@@ -570,12 +624,17 @@ async function updateProfile(req, res) {
     }
 
     const activeImage = finalImageUrl || user.profileImage || user.profile_image || null;
+    const activeNick = nickname !== undefined ? nickname : (user.nickname || null);
+    const updatedFrame = activeFrame !== undefined ? activeFrame : (user.avatarFrame || user.avatar_frame || 'None');
 
     return res.json({
       success: true,
       message: 'Profile updated successfully.',
       user: {
         ...user,
+        nickname: activeNick,
+        avatarFrame: updatedFrame,
+        avatar_frame: updatedFrame,
         profileImage: activeImage,
         profile_image: activeImage,
         name: fullName || name || user.name,
@@ -1200,7 +1259,7 @@ async function changePassword(req, res) {
             [userId || '', userEmail || '']
           );
           if (userRes.rows.length > 0 && userRes.rows[0].password_hash) {
-            const isValid = comparePassword(currentPassword.trim(), userRes.rows[0].password_hash);
+            const isValid = checkPasswordMatch(currentPassword.trim(), userRes.rows[0].password_hash);
             if (!isValid) {
               return res.status(400).json({
                 success: false,

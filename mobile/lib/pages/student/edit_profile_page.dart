@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/crop_profile_photo_dialog.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
@@ -13,12 +15,14 @@ class EditProfilePage extends StatefulWidget {
   final String currentNickname;
   final String currentAvatarUrl;
   final String currentFrame;
+  final int? userXp;
 
   const EditProfilePage({
     super.key,
     required this.currentNickname,
     required this.currentAvatarUrl,
     required this.currentFrame,
+    this.userXp,
   });
 
   @override
@@ -29,42 +33,95 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _nicknameController;
   late String _avatarUrl;
   late String _selectedFrame;
+  late int _userXp;
+  bool _isSaving = false;
 
-  // Preset avatars lists
+  Future<void> _handleSaveChanges() async {
+    if (_isSaving) return;
+
+    final nick = _nicknameController.text.trim();
+    if (nick.isEmpty) {
+      AppToast.error(context, 'Nickname cannot be empty!');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    AppToast.info(context, 'Saving profile changes...');
+
+    try {
+      final res = await AuthService.updateStudentProfile(
+        nickname: nick,
+        avatarUrl: _avatarUrl,
+        frame: _selectedFrame,
+      );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        AppToast.success(context, 'Profile updated successfully!');
+        Navigator.pop(context, {
+          'nickname': nick,
+          'avatarUrl': _avatarUrl,
+          'frame': _selectedFrame,
+        });
+      } else {
+        if (mounted) setState(() => _isSaving = false);
+        final errMsg = (res.message != null && res.message!.isNotEmpty)
+            ? res.message!
+            : 'Failed to save profile changes.';
+        AppToast.error(context, errMsg);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        AppToast.error(context, 'Error updating profile: $e');
+      }
+    }
+  }
+
+  // Preset avatars lists (Child-friendly mascot & animal avatars)
   final List<String> _presets = [
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300', // Neil Patrick Harris portrait (mockup original)
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', // Boy glasses
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', // Girl smile
-    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150', // Boy yellow shirt
-    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150', // Girl green
+    'assets/avatars/avatar_1.png',
+    'assets/avatars/avatar_2.png',
+    'assets/avatars/avatar_3.png',
+    'assets/avatars/avatar_4.png',
+    'assets/avatars/avatar_5.png',
+    'assets/avatars/avatar_6.png',
+    'assets/avatars/avatar_7.png',
+    'assets/avatars/avatar_8.png',
   ];
 
-  // Border frames details
+  // Border frames details with XP requirement thresholds
   final Map<String, dynamic> _frames = {
     'None': {
       'color': Colors.transparent,
       'width': 0.0,
       'glow': false,
+      'requiredXp': 0,
     },
     'Bronze': {
       'color': const Color(0xFFCD7F32),
       'width': 4.0,
       'glow': false,
+      'requiredXp': 2500,
     },
     'Silver': {
       'color': const Color(0xFFC0C0C0),
       'width': 4.0,
       'glow': false,
+      'requiredXp': 8000,
     },
     'Gold Star': {
-      'color': const Color(0xFFFFD700),
+      'color': const Color(0xFFF59E0B),
       'width': 4.0,
       'glow': true,
+      'requiredXp': 20000,
     },
     'Cosmic Neon': {
       'color': const Color(0xFF8B5CF6),
       'width': 4.0,
       'glow': true,
+      'requiredXp': 50000,
     },
   };
 
@@ -74,6 +131,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _nicknameController = TextEditingController(text: widget.currentNickname);
     _avatarUrl = widget.currentAvatarUrl;
     _selectedFrame = widget.currentFrame;
+    _userXp = widget.userXp ?? AnalyticsService.cachedAnalytics?.totalXp ?? 0;
+    _loadUserXp();
+  }
+
+  Future<void> _loadUserXp() async {
+    final analytics = await AnalyticsService.fetchAnalytics();
+    if (analytics != null && mounted) {
+      setState(() {
+        _userXp = analytics.totalXp;
+      });
+    }
   }
 
   @override
@@ -88,9 +156,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final picker = ImagePicker();
       final file = await picker.pickImage(
         source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 90,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 80,
       );
 
       if (file != null && mounted) {
@@ -173,14 +241,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    const softCreamBg = Color(0xFFFCFAF7);
-    const textGray = Color(0xFF71717A);
-    const primaryYellow = Color(0xFFFFBF00);
-
-    final frameData = _frames[_selectedFrame] ?? _frames['None'];
-    final frameColor = frameData['color'] as Color;
-    final frameWidth = frameData['width'] as double;
-    final hasGlow = frameData['glow'] as bool;
+    const softCreamBg = Color(0xFFF8FAFC);
+    const primaryBlue = Color(0xFF1B64D8);
 
     return Scaffold(
       backgroundColor: softCreamBg,
@@ -192,24 +254,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: isTablet ? 520 : double.infinity,
+                  maxWidth: isTablet ? 540 : double.infinity,
                 ),
                 child: Column(
                   children: [
-                    // ── Header (Custom App Bar) ───────────────────────────────
-                    Padding(
+                    // ── Modern Header App Bar ───────────────────────────────
+                    Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+                        ),
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            icon: const Iconify(
-                              Ph.caret_left,
-                              size: 28,
-                              color: Colors.black,
+                          Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            child: IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Iconify(
+                                Ph.caret_left_bold,
+                                size: 24,
+                                color: Color(0xFF1E293B),
+                              ),
+                              tooltip: 'Back',
                             ),
                           ),
                           Text(
@@ -217,241 +288,501 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             style: GoogleFonts.inter(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black,
-                              letterSpacing: -0.5,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          const SizedBox(width: 48), // Right Spacer
+                          const SizedBox(width: 48),
                         ],
                       ),
                     ),
 
-                    // ── Scrollable Edit Form ──────────────────────────────────
+                    // ── Scrollable Form Area ──────────────────────────────────
                     Expanded(
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        padding: const EdgeInsets.all(20.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: 18),
-
-                            // Avatar Circle Preview with selected frame and shadow glow
-                            Center(
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 250),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: frameColor,
-                                    width: frameWidth,
+                            // ── Card 1: Avatar Profile Photo Section ──
+                            Container(
+                              padding: const EdgeInsets.all(20.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: hasGlow
-                                          ? frameColor.withValues(alpha: 0.5)
-                                          : Colors.black.withValues(alpha: 0.1),
-                                      blurRadius: hasGlow ? 18 : 12,
-                                      spreadRadius: hasGlow ? 2 : 0,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: InitialsAvatar(
-                                  radius: 64,
-                                  name: widget.currentNickname,
-                                  imageUrl: _avatarUrl,
-                                ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Upload Button
-                            Center(
-                              child: TextButton(
-                                onPressed: _showUploadDialog,
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFF1B64D8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                ),
-                                child: Text(
-                                  'Upload new profile',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Nickname Input
-                            Text(
-                              'Nickname',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: textGray,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: _nicknameController,
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Enter nickname...',
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE4E4E7)),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE4E4E7)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF1B64D8), width: 1.5),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // Preset Avatars Grid header
-                            Text(
-                              'Select Preset Avatar',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Horizontal list of preset avatars
-                            SizedBox(
-                              height: 68,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: _presets.length,
-                                separatorBuilder: (context, index) => const SizedBox(width: 14),
-                                itemBuilder: (context, index) {
-                                  final url = _presets[index];
-                                  final isSelected = _avatarUrl == url;
-                                  return GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _avatarUrl = url;
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected ? const Color(0xFF1B64D8) : Colors.transparent,
-                                          width: 3.0,
+                              child: Column(
+                                children: [
+                                  Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      UserAvatar(
+                                        size: 108,
+                                        imageUrl: _avatarUrl,
+                                        frame: _selectedFrame,
+                                      ),
+                                      // Floating Camera Badge Button
+                                      Positioned(
+                                        right: 0,
+                                        bottom: 0,
+                                        child: Material(
+                                          color: primaryBlue,
+                                          shape: const CircleBorder(),
+                                          elevation: 3,
+                                          shadowColor: primaryBlue.withValues(alpha: 0.4),
+                                          child: InkWell(
+                                            customBorder: const CircleBorder(),
+                                            onTap: _showUploadDialog,
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(9.0),
+                                              child: Iconify(
+                                                Ph.camera_bold,
+                                                size: 18,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                       child: InitialsAvatar(
-                                         radius: 30,
-                                         name: 'Avatar',
-                                         imageUrl: url,
-                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  OutlinedButton.icon(
+                                    onPressed: _showUploadDialog,
+                                    icon: const Iconify(
+                                      Ph.upload_simple_bold,
+                                      size: 16,
+                                      color: primaryBlue,
                                     ),
-                                  );
-                                },
+                                    label: Text(
+                                      'Upload New Photo',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: primaryBlue,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFFBFDBFE), width: 1.5),
+                                      backgroundColor: const Color(0xFFEFF6FF),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(100),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ── Card 2: Nickname Input ──
+                            Container(
+                              padding: const EdgeInsets.all(20.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Iconify(
+                                        Ph.user_bold,
+                                        size: 18,
+                                        color: primaryBlue,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Nickname',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF1E293B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  TextField(
+                                    controller: _nicknameController,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF0F172A),
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter your nickname...',
+                                      hintStyle: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                      filled: true,
+                                      fillColor: const Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: const BorderSide(color: primaryBlue, width: 2),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ── Card 3: Preset Avatars ──
+                            Container(
+                              padding: const EdgeInsets.all(20.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Iconify(
+                                        Ph.user_circle_gear_bold,
+                                        size: 18,
+                                        color: primaryBlue,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Select Preset Avatar',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF1E293B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    height: 72,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: _presets.length,
+                                      separatorBuilder: (context, index) => const SizedBox(width: 14),
+                                      itemBuilder: (context, index) {
+                                        final url = _presets[index];
+                                        final isSelected = _avatarUrl == url;
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _avatarUrl = url;
+                                            });
+                                          },
+                                          child: Stack(
+                                            children: [
+                                              AnimatedContainer(
+                                                duration: const Duration(milliseconds: 200),
+                                                padding: const EdgeInsets.all(2),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: isSelected ? primaryBlue : Colors.transparent,
+                                                    width: 3.0,
+                                                  ),
+                                                  boxShadow: isSelected
+                                                      ? [
+                                                          BoxShadow(
+                                                            color: primaryBlue.withValues(alpha: 0.3),
+                                                            blurRadius: 8,
+                                                            offset: const Offset(0, 2),
+                                                          ),
+                                                        ]
+                                                      : [],
+                                                ),
+                                                child: InitialsAvatar(
+                                                  radius: 30,
+                                                  name: 'Avatar',
+                                                  imageUrl: url,
+                                                ),
+                                              ),
+                                              if (isSelected)
+                                                Positioned(
+                                                  right: 0,
+                                                  bottom: 0,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.all(2),
+                                                    decoration: const BoxDecoration(
+                                                      color: primaryBlue,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.check_rounded,
+                                                      size: 12,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ── Card 4: Unlockable Avatar Borders ──
+                            Container(
+                              padding: const EdgeInsets.all(20.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Iconify(
+                                            Ph.sparkle_bold,
+                                            size: 18,
+                                            color: Color(0xFFF59E0B),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Unlockable Avatar Borders',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF1E293B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF7ED),
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0xFFFFEDD5)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Iconify(
+                                              Ph.lightning_fill,
+                                              size: 12,
+                                              color: Color(0xFFF59E0B),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '$_userXp XP',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFFC2410C),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Column(
+                                    children: _frames.keys.map((frameName) {
+                                      final isSelected = _selectedFrame == frameName;
+                                      final fData = _frames[frameName];
+                                      final reqXp = (fData['requiredXp'] as int?) ?? 0;
+                                      final isUnlocked = _userXp >= reqXp;
+
+                                      final formattedXp = reqXp == 0
+                                          ? 'Free'
+                                          : '${reqXp.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} XP';
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 8.0),
+                                        child: Material(
+                                          color: isSelected
+                                              ? primaryBlue.withValues(alpha: 0.05)
+                                              : isUnlocked
+                                                  ? const Color(0xFFF8FAFC)
+                                                  : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(14),
+                                            onTap: () {
+                                              if (!isUnlocked) {
+                                                AppToast.error(
+                                                  context,
+                                                  'You need $formattedXp to unlock $frameName frame! (Current: $_userXp XP)',
+                                                );
+                                                return;
+                                              }
+                                              setState(() {
+                                                _selectedFrame = frameName;
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                              decoration: BoxDecoration(
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? primaryBlue
+                                                      : isUnlocked
+                                                          ? const Color(0xFFE2E8F0)
+                                                          : const Color(0xFFCBD5E1).withValues(alpha: 0.5),
+                                                  width: isSelected ? 2.0 : 1.0,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  // Color ring preview
+                                                  UserAvatar(
+                                                    size: 28,
+                                                    imageUrl: _avatarUrl,
+                                                    frame: frameName,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  // Title and XP requirement
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          frameName,
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                isSelected ? FontWeight.w800 : FontWeight.w700,
+                                                            color: isUnlocked
+                                                                ? const Color(0xFF0F172A)
+                                                                : const Color(0xFF64748B),
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          reqXp == 0
+                                                              ? 'Default Frame'
+                                                              : 'Requires $formattedXp',
+                                                          style: GoogleFonts.inter(
+                                                            fontSize: 12,
+                                                            fontWeight: FontWeight.w500,
+                                                            color: isUnlocked
+                                                                ? const Color(0xFF64748B)
+                                                                : const Color(0xFF94A3B8),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  // Lock icon or Selection indicator
+                                                  if (!isUnlocked)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 8, vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFE2E8F0),
+                                                        borderRadius: BorderRadius.circular(100),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          const Iconify(
+                                                            Ph.lock_key_fill,
+                                                            size: 13,
+                                                            color: Color(0xFF64748B),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Text(
+                                                            'Locked',
+                                                            style: GoogleFonts.inter(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w700,
+                                                              color: const Color(0xFF64748B),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    )
+                                                  else if (isSelected)
+                                                    Container(
+                                                      padding: const EdgeInsets.all(4),
+                                                      decoration: const BoxDecoration(
+                                                        color: primaryBlue,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.check_rounded,
+                                                        size: 14,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 28),
 
-                            // Avatar Frames Selector Header
-                            Text(
-                              'Unlockable Avatar Borders',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Horizontal chip list of frames
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 10,
-                              children: _frames.keys.map((frameName) {
-                                final isSelected = _selectedFrame == frameName;
-                                final fData = _frames[frameName];
-                                final fColor = fData['color'] as Color;
-
-                                return ChoiceChip(
-                                  label: Text(
-                                    frameName,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                      color: isSelected ? Colors.white : Colors.black87,
-                                    ),
-                                  ),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    if (selected) {
-                                      setState(() {
-                                        _selectedFrame = frameName;
-                                      });
-                                    }
-                                  },
-                                  selectedColor: const Color(0xFF1B64D8),
-                                  backgroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(100),
-                                    side: BorderSide(
-                                      color: isSelected
-                                          ? Colors.transparent
-                                          : fColor != Colors.transparent
-                                              ? fColor
-                                              : const Color(0xFFE4E4E7),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  elevation: isSelected ? 2 : 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 48),
-
-                            // Save changes button (Yellow, with sync/refresh icon, matching Image 1)
+                            // ── Save Changes Primary Action Button ──
                             ElevatedButton(
-                              onPressed: () {
-                                final nick = _nicknameController.text.trim();
-                                if (nick.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Nickname cannot be empty!', style: GoogleFonts.inter()),
-                                      backgroundColor: const Color(0xFFEF4444),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                Navigator.pop(context, {
-                                  'nickname': nick,
-                                  'avatarUrl': _avatarUrl,
-                                  'frame': _selectedFrame,
-                                });
-                              },
+                              onPressed: _isSaving ? null : _handleSaveChanges,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryYellow,
+                                backgroundColor: primaryBlue,
+                                disabledBackgroundColor: primaryBlue.withValues(alpha: 0.6),
                                 foregroundColor: Colors.white,
-                                elevation: 2,
-                                shadowColor: primaryYellow.withValues(alpha: 0.3),
+                                elevation: 0,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
@@ -460,20 +791,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Iconify(
-                                    Ph.arrows_counter_clockwise, // Sync/refresh icon representation
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Save changes',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
+                                  if (_isSaving) ...[
+                                    const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Saving Changes...',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    const Iconify(
+                                      Ph.floppy_disk_back_bold,
+                                      size: 20,
                                       color: Colors.white,
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Save Changes',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -492,3 +845,4 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 }
+

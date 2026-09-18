@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react';
@@ -21,7 +22,7 @@ export default function EnterNewPassword() {
   // Invalidate code session and navigate back to /forgot-password
   const handleBackToEmail = () => {
     if (email) {
-      fetch('http://localhost:5000/api/auth/invalidate-reset-session', {
+      fetch(getApiUrl('/api/auth/invalidate-reset-session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -34,7 +35,7 @@ export default function EnterNewPassword() {
   useEffect(() => {
     const handlePopState = () => {
       if (email) {
-        fetch('http://localhost:5000/api/auth/invalidate-reset-session', {
+        fetch(getApiUrl('/api/auth/invalidate-reset-session'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
@@ -55,7 +56,7 @@ export default function EnterNewPassword() {
     // Verify session code is active and valid with server
     const verifyCodeActive = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/auth/verify-reset-code', {
+        const res = await fetch(getApiUrl('/api/auth/verify-reset-code'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, code }),
@@ -90,7 +91,7 @@ export default function EnterNewPassword() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/reset-password', {
+      const res = await fetch(getApiUrl('/api/auth/reset-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code, newPassword }),

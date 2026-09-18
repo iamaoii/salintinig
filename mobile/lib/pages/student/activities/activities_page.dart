@@ -7,11 +7,12 @@ import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
-import 'package:salintinig/pages/student/library/side_quests_page.dart';
+import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/pronunciation_challenge_page.dart';
 import 'package:salintinig/pages/student/activities/vocabulary_matching_page.dart';
 import 'package:salintinig/pages/student/activities/sentence_arrangement_page.dart';
 import 'package:salintinig/models/quest_item.dart';
+import 'package:salintinig/services/badge_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/pages/student/progress_page.dart';
@@ -27,13 +28,29 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
+  void initState() {
+    super.initState();
+    BadgeService.badgeNotifier.addListener(_onBadgesUpdated);
+    BadgeService.fetchBadges();
+  }
+
+  @override
+  void dispose() {
+    BadgeService.badgeNotifier.removeListener(_onBadgesUpdated);
+    super.dispose();
+  }
+
+  void _onBadgesUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     const softCreamBg = Color(0xFFFCFAF7);
     const primaryBlue = Color(0xFF1B64D8);
 
-    final allQuests = BadgesData.allQuests;
-    final int unlockedCount = allQuests.where((q) => q.isUnlocked).length;
-    final int totalCount = allQuests.length;
+    final cached = BadgeService.cachedBadges;
+    final allQuests = cached.isNotEmpty ? cached : BadgesData.allQuests;
 
     // Prioritize in-progress quests closest to completion, then unlocked ones (top 3 preview)
     final previewQuests = List<QuestItem>.from(allQuests)
@@ -47,6 +64,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
       backgroundColor: softCreamBg,
       drawer: StudentSidebarDrawer(
         currentIndex: 3,
@@ -202,29 +221,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                           letterSpacing: -0.5,
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFE2E8F0),
-                                          borderRadius: BorderRadius.circular(100),
-                                        ),
-                                        child: Text(
-                                          '$unlockedCount / $totalCount Unlocked',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF475569),
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (context) => const SideQuestsPage()),
+                                        MaterialPageRoute(builder: (context) => const BadgesPage()),
                                       );
                                     },
                                     child: Text(
@@ -241,16 +244,73 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                               const SizedBox(height: 14),
 
                               // Vertical Stacked Quests (Top 3 active)
-                              ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: topPreviewQuests.length,
-                                separatorBuilder: (context, index) => const SizedBox(height: 10),
-                                itemBuilder: (context, index) {
-                                  final quest = topPreviewQuests[index];
-                                  return _buildModernQuestCard(quest);
-                                },
-                              ),
+                              if (cached.isEmpty)
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: 3,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    return Container(
+                                      height: 88,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      padding: const EdgeInsets.all(14.0),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 60,
+                                            height: 60,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF1F5F9),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Container(
+                                                  width: 120,
+                                                  height: 14,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFF1F5F9),
+                                                    borderRadius: BorderRadius.circular(7),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Container(
+                                                  width: double.infinity,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFF1F5F9),
+                                                    borderRadius: BorderRadius.circular(5),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                )
+                              else
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: topPreviewQuests.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    final quest = topPreviewQuests[index];
+                                    return _buildModernQuestCard(quest);
+                                  },
+                                ),
                               const SizedBox(height: 28),
                             ],
                           ),

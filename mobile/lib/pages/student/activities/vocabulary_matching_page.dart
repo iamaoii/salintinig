@@ -8,7 +8,11 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/services/activity_progress_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/widgets/badge_unlocked_modal.dart';
+import 'package:salintinig/widgets/streak_celebration_modal.dart';
 import 'package:salintinig/widgets/activity_loading_view.dart';
+import 'package:salintinig/pages/student/activities/activities_page.dart';
 
 class VocabularyMatchingPage extends StatefulWidget {
   /// Difficulty tier: 'easy', 'medium', 'hard'.
@@ -23,10 +27,14 @@ class VocabularyMatchingPage extends StatefulWidget {
   State<VocabularyMatchingPage> createState() => _VocabularyMatchingPageState();
 }
 
-class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
+class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
+    with SingleTickerProviderStateMixin {
   // ── Session State ──────────────────────────────────────────────────────────
   late String _sessionDifficulty;
   late ConfettiController _confettiController;
+  late AnimationController _mascotAnimController;
+  late Animation<double> _mascotScaleAnimation;
+  late Animation<double> _mascotFadeAnimation;
   String _sessionId = '';
   int _earnedXp = 0;
   bool _isFinished = false;
@@ -35,6 +43,14 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   int _finalAccuracy = 100;
   String _celebrationMessage = 'Awesome job!';
   String _celebrationSubtitle = 'You completed the vocabulary matching practice.';
+
+  void _navigateToActivitiesTab() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const ActivitiesPage()),
+      (route) => route.isFirst,
+    );
+  }
 
   // Words & Pairings (Left: English, Right: Filipino)
   List<String> _leftWords = [];
@@ -120,6 +136,22 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+
+    _mascotAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _mascotScaleAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: Curves.elasticOut,
+    );
+
+    _mascotFadeAnimation = CurvedAnimation(
+      parent: _mascotAnimController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
+
     _sessionDifficulty = widget.difficulty;
     _initOrResumeSession();
   }
@@ -128,6 +160,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   void dispose() {
     _sallyResetTimer?.cancel();
     _confettiController.dispose();
+    _mascotAnimController.dispose();
     super.dispose();
   }
 
@@ -438,6 +471,8 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
   }
 
   Future<void> _syncActivityCompletion() async {
+    final wasCompletedBefore = await StreakService.hasCompletedToday();
+
     final totalPairs = _leftWords.length;
     final int score = _mistakesCount == 0
         ? 100
@@ -463,30 +498,21 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         'itemsDetail': itemsDetail,
       });
 
+      // Now sync streak with backend to get authoritative updated streak
+      await StreakService.recordActivityCompletion();
+      final newStreakCount = await StreakService.getStreakCount();
+
+      if (!wasCompletedBefore && mounted) {
+        await StreakCelebrationModal.show(context, streakCount: newStreakCount);
+      }
+
       debugPrint('[VocabularyMatching] Attempt response: success=${res.success}, statusCode=${res.statusCode}, error=${res.error}, data=${res.data}');
 
-      if (res.success && res.data != null && res.data['newBadgeUnlocked'] == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.stars_rounded, color: Color(0xFFFBBF24)),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Badge Unlocked: I\'m a star! ⭐',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF0F172A),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+      if (res.success && res.data != null && res.data['newlyUnlockedBadges'] is List && mounted) {
+        final badges = res.data['newlyUnlockedBadges'] as List;
+        if (badges.isNotEmpty) {
+          await BadgeUnlockedModal.showMultiple(context, badges);
+        }
       }
     } catch (e) {
       debugPrint('[VocabularyMatching] Attempt submission error: $e');
@@ -558,6 +584,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
             _celebrationSubtitle = feedback['subtitle'] ?? 'You completed the vocabulary matching practice.';
             _isFinished = true;
           });
+          _mascotAnimController.forward(from: 0.0);
           _confettiController.play();
           // Clear active session upon full completion
           ActivityProgressService.clearProgress('vocabulary');
@@ -749,6 +776,17 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _navigateToActivitiesTab();
+      },
+      child: _buildPageContent(context),
+    );
+  }
+
+  Widget _buildPageContent(BuildContext context) {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
 
@@ -758,7 +796,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
         activityTitle: 'Vocabulary Matching',
         primaryColor: primaryBlue,
         language: 'en',
-        onClose: () => Navigator.pop(context),
+        onClose: _navigateToActivitiesTab,
       );
     }
 
@@ -842,7 +880,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                                     IconButton(
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: _navigateToActivitiesTab,
                                       icon: const Iconify(
                                         Ph.x,
                                         size: 22,
@@ -1272,15 +1310,21 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // 2. Sally Mascot Illustration (Celebration)
-                Image.asset(
-                  'assets/mascot/sally_celebration.webp',
-                  height: 165,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                    'assets/mascot/sally_sitting.webp',
-                    height: 165,
-                    fit: BoxFit.contain,
+                // 2. Sally Mascot Illustration (Celebration) with elastic bounce animation
+                ScaleTransition(
+                  scale: _mascotScaleAnimation,
+                  child: FadeTransition(
+                    opacity: _mascotFadeAnimation,
+                    child: Image.asset(
+                      'assets/mascot/sally_celebration.webp',
+                      height: 165,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                        'assets/mascot/sally_sitting.webp',
+                        height: 165,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1550,7 +1594,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage> {
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _navigateToActivitiesTab,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       foregroundColor: Colors.white,

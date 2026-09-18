@@ -329,17 +329,18 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
                                   final String? studentAvatar = (student['profileImage'] ?? student['profile_image'] ?? student['avatarUrl'] ?? student['image'])?.toString();
 
                                   return InkWell(
-                                    onTap: () {
-                                      Feedback.forTap(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => TeacherStudentDetailsPage(
-                                            studentName: name,
+                                      onTap: () {
+                                        Feedback.forTap(context);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => TeacherStudentDetailsPage(
+                                              studentName: name,
+                                              studentData: student,
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    },
+                                        );
+                                      },
                                     borderRadius: BorderRadius.circular(10),
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),

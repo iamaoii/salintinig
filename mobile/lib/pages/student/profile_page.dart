@@ -7,7 +7,12 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/student/edit_profile_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/streak_service.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/services/badge_service.dart';
+import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
+import 'package:salintinig/widgets/app_toast.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -20,25 +25,127 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _customDisplayName;
   Map<String, dynamic>? _readingProfiles;
   String _selectedPhilIriLang = 'fil';
+  bool _isLoading = true;
+
+  int _streakCount = 0;
+  int _completedStoriesCount = 0;
+  int _unlockedBadgesCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfileData();
+    _populateFromCache();
+    _loadAllProfileData();
   }
 
-  Future<void> _fetchProfileData() async {
+  void _populateFromCache() {
+    final user = AuthService.currentUser;
+    if (user != null) {
+      if (user.nickname != null && user.nickname!.isNotEmpty) {
+        _customDisplayName = user.nickname;
+      }
+      if (user.profileImage != null && user.profileImage!.isNotEmpty) {
+        _customAvatarUrl = user.profileImage;
+      }
+      if (user.avatarFrame.isNotEmpty) {
+        _selectedFrame = user.avatarFrame;
+      }
+    }
+
+    final analytics = AnalyticsService.cachedAnalytics;
+    final cachedBadges = BadgeService.cachedBadges;
+    final cachedProgress = LibraryService.cachedProgress;
+
+    final streak = analytics?.currentStreak ?? 0;
+    final completedStories = (cachedProgress ?? []).where((b) {
+      final status = (b['status'] ?? '').toString().toLowerCase();
+      final rawProg = b['progress'] ?? b['completionPercentage'];
+      final pct = rawProg is num ? rawProg.toDouble() : (double.tryParse(rawProg?.toString() ?? '') ?? 0.0);
+      return status == 'completed' || pct >= 1.0;
+    }).length;
+
+    final unlockedBadges = cachedBadges.where((b) => b.isUnlocked == true).length;
+
+    _streakCount = streak;
+    _completedStoriesCount = analytics?.completedStoriesCount ?? completedStories;
+    _unlockedBadgesCount = unlockedBadges > 0 ? unlockedBadges : (analytics?.totalBadgesCount ?? 0);
+
+    // Instant 0-delay render if user session exists in memory
+    if (user != null) {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _loadAllProfileData() async {
+    // Only set loading if we have no cached data at all
+    if (_readingProfiles == null && AuthService.currentUser == null) {
+      setState(() => _isLoading = true);
+    }
+
     try {
-      final res = await ApiService.get('/students/assessment/my-assignment');
-      if (res.success && res.data != null && res.data['readingProfiles'] != null) {
-        if (mounted) {
-          setState(() {
-            _readingProfiles = res.data['readingProfiles'] as Map<String, dynamic>?;
-          });
+      // Execute network requests in PARALLEL for maximum speed
+      final results = await Future.wait([
+        AuthService.fetchMe(),
+        ApiService.get('/students/assessment/my-assignment'),
+        StreakService.getStreakCount(),
+        AnalyticsService.fetchAnalytics(),
+        BadgeService.fetchBadges(),
+        LibraryService.fetchReadingProgress(),
+      ]);
+
+      final user = AuthService.currentUser;
+      if (user != null) {
+        if (user.nickname != null && user.nickname!.isNotEmpty) {
+          _customDisplayName = user.nickname;
+        }
+        if (user.profileImage != null && user.profileImage!.isNotEmpty) {
+          _customAvatarUrl = user.profileImage;
+        }
+        if (user.avatarFrame.isNotEmpty) {
+          _selectedFrame = user.avatarFrame;
         }
       }
+
+      final res = results[1] as ApiResponse;
+      if (res.success && res.data != null) {
+        if (res.data['readingProfiles'] != null) {
+          _readingProfiles = res.data['readingProfiles'] as Map<String, dynamic>?;
+        }
+        final apiSec = res.data['sectionName'] ?? res.data['section'];
+        if (apiSec != null && apiSec.toString().isNotEmpty) {
+          _apiSection = apiSec.toString();
+        }
+        final apiGrade = res.data['gradeLevel'] ?? res.data['grade_level'] ?? res.data['grade'];
+        if (apiGrade != null && apiGrade.toString().isNotEmpty) {
+          _apiGradeLevel = apiGrade.toString();
+        }
+      }
+
+      final streak = (results[2] as int?) ?? 0;
+      final analytics = results[3] as dynamic;
+      final badges = (results[4] as List<dynamic>?) ?? [];
+      final libraryProgress = (results[5] as List<dynamic>?) ?? [];
+
+      final completedStories = libraryProgress.where((b) {
+        final status = (b['status'] ?? '').toString().toLowerCase();
+        final rawProg = b['progress'] ?? b['completionPercentage'];
+        final pct = rawProg is num ? rawProg.toDouble() : (double.tryParse(rawProg?.toString() ?? '') ?? 0.0);
+        return status == 'completed' || pct >= 1.0;
+      }).length;
+
+      final unlockedBadges = badges.where((b) => b.isUnlocked == true).length;
+
+      if (mounted) {
+        setState(() {
+          _streakCount = analytics?.currentStreak ?? streak;
+          _completedStoriesCount = analytics?.completedStoriesCount ?? completedStories;
+          _unlockedBadgesCount = unlockedBadges > 0 ? unlockedBadges : (analytics?.totalBadgesCount ?? 0);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint('[ProfilePage] error fetching reading profiles: $e');
+      debugPrint('[ProfilePage] error loading profile data: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -47,7 +154,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null && user.displayName.isNotEmpty) {
       return user.displayName;
     }
-    return "Doechii E. Carganilla";
+    return "Student";
   }
 
   String get _displayName {
@@ -55,18 +162,33 @@ class _ProfilePageState extends State<ProfilePage> {
       return _customDisplayName!;
     }
     final user = AuthService.currentUser;
+    if (user != null && user.nickname != null && user.nickname!.isNotEmpty) {
+      return user.nickname!;
+    }
     if (user != null && user.displayName.isNotEmpty) {
       return user.displayName;
     }
-    return "Doechii Carganilla";
+    return "Student";
   }
+
+  String? _apiSection;
+  String? _apiGradeLevel;
 
   String get _gradeLevel {
     final user = AuthService.currentUser;
     if (user != null && user.gradeLevel.isNotEmpty) {
       return user.gradeLevel.startsWith('Grade') ? user.gradeLevel : 'Grade ${user.gradeLevel}';
     }
-    return "Grade 4";
+    if (_apiGradeLevel != null && _apiGradeLevel!.isNotEmpty) {
+      return _apiGradeLevel!.startsWith('Grade') ? _apiGradeLevel! : 'Grade $_apiGradeLevel';
+    }
+    final raw = user?.rawUser;
+    final fallback = raw?['gradeLevel'] ?? raw?['grade_level'] ?? raw?['grade'];
+    if (fallback != null && fallback.toString().isNotEmpty) {
+      final str = fallback.toString().trim();
+      return str.startsWith('Grade') ? str : 'Grade $str';
+    }
+    return "Unassigned";
   }
 
   String get _section {
@@ -74,7 +196,15 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null && user.sectionName.isNotEmpty) {
       return user.sectionName;
     }
-    return "Fyang";
+    if (_apiSection != null && _apiSection!.isNotEmpty) {
+      return _apiSection!;
+    }
+    final raw = user?.rawUser;
+    final fallback = raw?['sectionName'] ?? raw?['section_name'] ?? raw?['section'];
+    if (fallback != null && fallback.toString().isNotEmpty) {
+      return fallback.toString().trim();
+    }
+    return "Unassigned";
   }
 
   String get _lrn {
@@ -83,95 +213,62 @@ class _ProfilePageState extends State<ProfilePage> {
       return user.lrn;
     }
     final raw = user?.rawUser;
-    return raw?['id_no'] ?? raw?['lrn'] ?? "N/A";
+    final fallback = raw?['id_no'] ?? raw?['lrn'];
+    return fallback?.toString() ?? "N/A";
   }
 
-  String? _customParentAccessCode;
-
   String get _parentAccessCode {
-    if (_customParentAccessCode != null && _customParentAccessCode!.isNotEmpty) {
-      return _customParentAccessCode!;
-    }
     final raw = AuthService.currentUser?.rawUser;
-    return raw?['parentAccessCode'] ?? raw?['access_code'] ?? "PAC-9SA7HJ";
+    final code = raw?['parentAccessCode'] ?? raw?['access_code'] ?? raw?['parent_access_code'];
+    if (code != null && code.toString().isNotEmpty && code.toString() != 'N/A') {
+      return code.toString();
+    }
+    // Generate fallback from student LRN if database does not return custom access_code yet
+    final lrnStr = _lrn;
+    if (lrnStr.length >= 5 && lrnStr != "N/A") {
+      return "PAC-${lrnStr.substring(lrnStr.length - 5)}";
+    }
+    return "N/A";
   }
 
   String _selectedFrame = "None";
 
-  // Border frames details
-  final Map<String, dynamic> _frames = {
-    'None': {
-      'color': Colors.transparent,
-      'width': 0.0,
-      'glow': false,
-    },
-    'Bronze': {
-      'color': const Color(0xFFCD7F32),
-      'width': 4.0,
-      'glow': false,
-    },
-    'Silver': {
-      'color': const Color(0xFFC0C0C0),
-      'width': 4.0,
-      'glow': false,
-    },
-    'Gold Star': {
-      'color': const Color(0xFFFFD700),
-      'width': 4.0,
-      'glow': true,
-    },
-    'Cosmic Neon': {
-      'color': const Color(0xFF8B5CF6),
-      'width': 4.0,
-      'glow': true,
-    },
-  };
-
-  // Mock stats
-  final int _streak = 5;
-  final int _stories = 16;
-  final int _badges = 5;
-
-  // Function to generate a new parent access code
-  void _generateNewAccessCode() {
-    final chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    String part1 = '';
-    String part2 = '';
-    
-    for (int i = 0; i < 4; i++) {
-      part1 += chars[(random + i * 7) % chars.length];
-      part2 += chars[(random + i * 13 + 5) % chars.length];
-    }
-    
-    setState(() {
-      _customParentAccessCode = "$part1-$part2";
-    });
-  }
-
-  // Function to copy text to clipboard
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
+    AppToast.success(context, 'Parent access code copied to clipboard!');
   }
 
-  // Navigate to Edit Profile Page
-  Future<void> _navigateToEditProfile() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditProfilePage(
-          currentNickname: _displayName,
-          currentAvatarUrl: '',
-          currentFrame: _selectedFrame,
-        ),
-      ),
-    );
+  String? _customAvatarUrl;
+  bool _isNavigatingToEdit = false;
 
-    if (result != null && result is Map<String, dynamic>) {
-      setState(() {
-        _customDisplayName = result['nickname'] as String?;
-        _selectedFrame = result['frame'] ?? _selectedFrame;
-      });
+  Future<void> _navigateToEditProfile() async {
+    if (_isNavigatingToEdit) return;
+    _isNavigatingToEdit = true;
+
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EditProfilePage(
+            currentNickname: _displayName,
+            currentAvatarUrl: _customAvatarUrl ?? '',
+            currentFrame: _selectedFrame,
+          ),
+        ),
+      );
+
+      if (result != null && result is Map<String, dynamic> && mounted) {
+        setState(() {
+          _customDisplayName = result['nickname'] as String?;
+          if (result['avatarUrl'] != null && (result['avatarUrl'] as String).isNotEmpty) {
+            _customAvatarUrl = result['avatarUrl'] as String;
+          }
+          _selectedFrame = result['frame'] ?? _selectedFrame;
+        });
+        await _loadAllProfileData();
+      }
+    } finally {
+      _isNavigatingToEdit = false;
     }
   }
 
@@ -202,10 +299,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Left Back Arrow
                           IconButton(
                             onPressed: () {
-                              Navigator.pop(context);
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
                             },
                             icon: const Iconify(
                               Ph.caret_left,
@@ -213,7 +311,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               color: Colors.black,
                             ),
                           ),
-                          // Center Title
                           Text(
                             'My Profile',
                             style: GoogleFonts.inter(
@@ -223,7 +320,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               letterSpacing: -0.5,
                             ),
                           ),
-                          // Right Spacer to keep title centered
                           const SizedBox(width: 48),
                         ],
                       ),
@@ -234,413 +330,535 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: RefreshIndicator(
                         color: primaryBlue,
                         backgroundColor: Colors.white,
-                        onRefresh: () async {
-                          await AuthService.fetchMe();
-                          if (mounted) setState(() {});
-                        },
+                        onRefresh: _loadAllProfileData,
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                           padding: const EdgeInsets.symmetric(horizontal: 20.0),
                           child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 12),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 12),
 
-                            // Profile Avatar with Frame styling
-                            Center(
-                              child: Container(
+                              // Profile Avatar with Frame styling
+                              Center(
+                                child: UserAvatar(
+                                  size: 108,
+                                  imageUrl: _customAvatarUrl,
+                                  frame: _selectedFrame,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Display Name / Skeleton
+                              if (_isLoading)
+                                Center(
+                                  child: Container(
+                                    height: 24,
+                                    width: 180,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE2E8F0),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Center(
+                                  child: Text(
+                                    _displayName,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 6),
+
+                              // Grade & Section Subtitle / Skeleton
+                              if (_isLoading)
+                                Center(
+                                  child: Container(
+                                    height: 14,
+                                    width: 120,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Center(
+                                  child: Text(
+                                    '$_gradeLevel - $_section',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 12),
+
+                              // Edit Profile Button
+                              Center(
+                                child: InkWell(
+                                  onTap: _navigateToEditProfile,
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEAEAEA),
+                                      borderRadius: BorderRadius.circular(100),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                    child: Text(
+                                      'Edit Profile',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF555558),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // ── Blue Stats Card ───────────────────────────────────────
+                              Container(
+                                clipBehavior: Clip.antiAlias,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: _frames[_selectedFrame]?['color'] ?? Colors.transparent,
-                                    width: (_frames[_selectedFrame]?['width'] ?? 0.0) as double,
+                                  borderRadius: BorderRadius.circular(16),
+                                  gradient: const LinearGradient(
+                                    colors: [primaryBlue, darkBlueBg],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (_frames[_selectedFrame]?['glow'] ?? false) as bool
-                                          ? ((_frames[_selectedFrame]?['color'] ?? Colors.transparent) as Color).withValues(alpha: 0.5)
-                                          : Colors.black.withValues(alpha: 0.1),
-                                      blurRadius: (_frames[_selectedFrame]?['glow'] ?? false) as bool ? 18 : 12,
-                                      spreadRadius: (_frames[_selectedFrame]?['glow'] ?? false) as bool ? 2 : 0,
+                                      color: primaryBlue.withValues(alpha: 0.25),
+                                      blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
-                                child: const UserAvatar(
-                                  size: 108,
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      right: 0,
+                                      top: -12,
+                                      bottom: -12,
+                                      width: 200,
+                                      child: Image.asset(
+                                        'assets/student page/logo_bg.webp',
+                                        fit: BoxFit.contain,
+                                        alignment: Alignment.centerRight,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 22.0, horizontal: 16.0),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                        children: [
+                                          // Streak
+                                          Row(
+                                            children: [
+                                              Iconify(PhIcons.fireBold, size: 32, color: Colors.white),
+                                              const SizedBox(width: 8),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '$_streakCount',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 22,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    'Streak',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.white.withValues(alpha: 0.8),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          Container(height: 32, width: 1, color: Colors.white.withValues(alpha: 0.2)),
+
+                                          // Stories
+                                          Row(
+                                            children: [
+                                              Iconify(PhIcons.booksRegular, size: 32, color: Colors.white),
+                                              const SizedBox(width: 8),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '$_completedStoriesCount',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 22,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    'Stories',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.white.withValues(alpha: 0.8),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          Container(height: 32, width: 1, color: Colors.white.withValues(alpha: 0.2)),
+
+                                          // Badges
+                                          Row(
+                                            children: [
+                                              Iconify(Ph.medal, size: 32, color: Colors.white),
+                                              const SizedBox(width: 8),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '$_unlockedBadgesCount',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 22,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    'Badges',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.white.withValues(alpha: 0.8),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 28),
 
-                            // Display Name
-                            Center(
-                              child: Text(
-                                _displayName,
-                                style: GoogleFonts.inter(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.black,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-
-                            // Grade & Section Subtitle
-                            Center(
-                              child: Text(
-                                '$_gradeLevel - $_section',
-                                style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: textGray,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Edit Profile Button
-                            Center(
-                              child: InkWell(
-                                onTap: _navigateToEditProfile,
-                                borderRadius: BorderRadius.circular(100),
-                                child: Container(
+                              // ── Basic Information Section ─────────────────────────────
+                              _buildSectionHeader('Basic Information', Ph.user),
+                              const SizedBox(height: 12),
+                              if (_isLoading)
+                                _buildSkeletonInfoCard()
+                              else
+                                Container(
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFEAEAEA),
-                                    borderRadius: BorderRadius.circular(100),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                  child: Text(
-                                    'Edit Profile',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF555558),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // ── Blue Stats Card ───────────────────────────────────────
-                            Container(
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [primaryBlue, darkBlueBg],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: primaryBlue.withValues(alpha: 0.25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Stack(
-                                children: [
-                                  // Translucent background watermark design
-                                  Positioned(
-                                    right: 0,
-                                    top: -12,
-                                    bottom: -12,
-                                    width: 200,
-                                    child: Image.asset(
-                                      'assets/student page/logo_bg.webp',
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.centerRight,
-                                    ),
-                                  ),
-                                  // Stats Content
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 22.0, horizontal: 16.0),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                      children: [
-                                        // Streak Item
-                                        Row(
-                                          children: [
-                                            Iconify(
-                                              PhIcons.fireBold,
-                                              size: 32,
-                                              color: Colors.white,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '$_streak',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Streak',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white.withValues(alpha: 0.8),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-
-                                        // Divider line
-                                        Container(
-                                          height: 32,
-                                          width: 1,
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                        ),
-
-                                        // Stories Item
-                                        Row(
-                                          children: [
-                                            Iconify(
-                                              PhIcons.booksRegular,
-                                              size: 32,
-                                              color: Colors.white,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '$_stories',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Stories',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white.withValues(alpha: 0.8),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-
-                                        // Divider line
-                                        Container(
-                                          height: 32,
-                                          width: 1,
-                                          color: Colors.white.withValues(alpha: 0.2),
-                                        ),
-
-                                        // Badges Item
-                                        Row(
-                                          children: [
-                                            Iconify(
-                                              Ph.medal,
-                                              size: 32,
-                                              color: Colors.white,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '$_badges',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Badges',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white.withValues(alpha: 0.8),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // ── Basic Information Section ─────────────────────────────
-                            _buildSectionHeader('Basic Information', Ph.user),
-                            const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.all(20.0),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _buildInfoBlock('Full name', _fullName),
-                                      ),
-                                      Expanded(
-                                        child: _buildInfoBlock('Grade Level', _gradeLevel),
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.03),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 18),
-                                  Row(
+                                  padding: const EdgeInsets.all(20.0),
+                                  child: Column(
                                     children: [
-                                      Expanded(
-                                        child: _buildInfoBlock('LRN', _lrn),
-                                      ),
-                                      Expanded(
-                                        child: _buildInfoBlock('Section', _section),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // ── Phil-IRI Reading Profiles Section ───────────────────────
-                            _buildSectionHeader('Phil-IRI Reading Profiles', Ph.book_open),
-                            const SizedBox(height: 12),
-                            _buildPhilIriModalityProfilesCard(),
-                            const SizedBox(height: 28),
-
-                            // ── Parent Access Section ──────────────────────────────────
-                            _buildSectionHeader('Parent Access', Ph.keyhole),
-                            const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.all(20.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Parent Access Code',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: textGray,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
                                       Row(
                                         children: [
+                                          Expanded(child: _buildInfoBlock('Full name', _fullName)),
+                                          Expanded(child: _buildInfoBlock('Grade Level', _gradeLevel)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 18),
+                                      Row(
+                                        children: [
+                                          Expanded(child: _buildInfoBlock('LRN', _lrn)),
+                                          Expanded(child: _buildInfoBlock('Section', _section)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              const SizedBox(height: 28),
+
+                              // ── Phil-IRI Reading Profiles Section ───────────────────────
+                              _buildSectionHeader('Phil-IRI Reading Profiles', Ph.book_open),
+                              const SizedBox(height: 12),
+                              if (_isLoading)
+                                _buildSkeletonPhilIriCard()
+                              else
+                                _buildPhilIriModalityProfilesCard(),
+                              const SizedBox(height: 28),
+
+                              // ── Parent Access Section ──────────────────────────────────
+                              _buildSectionHeader('Parent Access', Ph.keyhole),
+                              const SizedBox(height: 12),
+                              if (_isLoading)
+                                _buildSkeletonParentCard()
+                              else
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.03),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.all(20.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            _parentAccessCode,
+                                            'Parent Access Code',
                                             style: GoogleFonts.inter(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          IconButton(
-                                            onPressed: () => _copyToClipboard(_parentAccessCode),
-                                            icon: const Iconify(
-                                              Ph.copy,
-                                              size: 20,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
                                               color: textGray,
                                             ),
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                _parentAccessCode,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              IconButton(
+                                                onPressed: () => _copyToClipboard(_parentAccessCode),
+                                                icon: const Iconify(
+                                                  Ph.copy,
+                                                  size: 20,
+                                                  color: textGray,
+                                                ),
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
                                     ],
                                   ),
-                                  ElevatedButton(
-                                    onPressed: _generateNewAccessCode,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryBlue,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(100),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    child: Text(
-                                      'New Code',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
+                                ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                child: Text(
+                                  'Note: Parent must enter the student\'s LRN and access code to view progress.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: textGray,
+                                    height: 1.4,
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: Text(
-                                'Note: Parent must enter the student\'s LRN and access code to view progress.',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: textGray,
-                                  height: 1.4,
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // ── Account Settings Section ───────────────────────────────
-                            const SizedBox.shrink(),
-                            const SizedBox(height: 32),
-                          ],
+                              const SizedBox(height: 32),
+                            ],
+                          ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Skeleton UI Cards ──────────────────────────────────────────────────────
+
+  Widget _buildSkeletonInfoCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildSkeletonBlock()),
+              Expanded(child: _buildSkeletonBlock()),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(child: _buildSkeletonBlock()),
+              Expanded(child: _buildSkeletonBlock()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonBlock() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 10,
+          width: 70,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 14,
+          width: 120,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonPhilIriCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Container(
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...List.generate(3, (index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 12,
+                          width: 110,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 10,
+                          width: 150,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 70,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(100),
                     ),
                   ),
                 ],
               ),
-            ),
-          );
-        },
+            );
+          }),
+        ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildSkeletonParentCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 10,
+                width: 110,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 18,
+                width: 130,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Helper UI builders ──────────────────────────────────────────────────────
@@ -744,7 +962,6 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Language Toggle Switch (Simplified without flags) ──
           Container(
             height: 38,
             padding: const EdgeInsets.all(3),
@@ -964,3 +1181,4 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 }
+

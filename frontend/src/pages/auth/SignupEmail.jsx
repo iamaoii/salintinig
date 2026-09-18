@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { WarningCircle } from '@phosphor-icons/react';
@@ -23,7 +24,7 @@ export default function SignupEmail() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/contact-admin', {
+      const res = await fetch(getApiUrl('/api/auth/contact-admin'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

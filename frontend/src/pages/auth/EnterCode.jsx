@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
@@ -19,7 +20,7 @@ export default function EnterCode() {
   // Invalidate code session and navigate back to /forgot-password
   const handleBackToEmail = () => {
     if (email) {
-      fetch('http://localhost:5000/api/auth/invalidate-reset-session', {
+      fetch(getApiUrl('/api/auth/invalidate-reset-session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -32,7 +33,7 @@ export default function EnterCode() {
   useEffect(() => {
     const handlePopState = () => {
       if (email) {
-        fetch('http://localhost:5000/api/auth/invalidate-reset-session', {
+        fetch(getApiUrl('/api/auth/invalidate-reset-session'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
@@ -53,7 +54,7 @@ export default function EnterCode() {
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/auth/reset-status?email=${encodeURIComponent(email)}`);
+        const res = await fetch(getApiUrl(`/api/auth/reset-status?email=${encodeURIComponent(email)}`));
         const data = await res.json();
         if (res.ok && data.success) {
           if (data.active) {
@@ -93,7 +94,7 @@ export default function EnterCode() {
     setIsVerifying(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/verify-reset-code', {
+      const res = await fetch(getApiUrl('/api/auth/verify-reset-code'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code }),
@@ -126,7 +127,7 @@ export default function EnterCode() {
     setInfoMessage('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/forgot-password', {
+      const res = await fetch(getApiUrl('/api/auth/forgot-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

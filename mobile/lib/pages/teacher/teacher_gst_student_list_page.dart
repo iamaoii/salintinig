@@ -310,6 +310,7 @@ class _TeacherGstStudentListPageState extends State<TeacherGstStudentListPage> {
                                         builder: (context) => TeacherStudentDetailsPage(
                                           studentName: name,
                                           lrn: lrn,
+                                          studentData: student,
                                         ),
                                       ),
                                     );

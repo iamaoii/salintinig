@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
@@ -60,7 +61,7 @@ export default function StudentProfile() {
       try {
         setLoading(true);
         const token = getToken();
-        const res = await fetch(`http://localhost:5000/api/teacher/students/${lrn}`, {
+        const res = await fetch(getApiUrl(`/api/teacher/students/${lrn}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

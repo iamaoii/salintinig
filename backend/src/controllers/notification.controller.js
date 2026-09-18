@@ -1,4 +1,5 @@
 const db = require('../config/db.js');
+const { emitNotification } = require('../config/socket.js');
 
 /**
  * Fetch notifications for authenticated user (Admin or Teacher)
@@ -191,6 +192,8 @@ const markAsRead = async (req, res) => {
       [id, userId, schoolId]
     );
 
+    emitNotification(userId);
+
     return res.status(200).json({
       success: true,
       message: 'Notification marked as read.',
@@ -216,6 +219,8 @@ const markAllAsRead = async (req, res) => {
        WHERE (user_id = $1 OR school_id = $2 OR school_id IS NULL) AND is_read = FALSE`,
       [userId, schoolId]
     );
+
+    emitNotification(userId);
 
     return res.status(200).json({
       success: true,

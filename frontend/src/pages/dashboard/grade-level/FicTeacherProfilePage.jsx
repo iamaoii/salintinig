@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -25,7 +26,7 @@ export default function FicTeacherProfilePage() {
       try {
         setLoading(true);
         const token = getToken();
-        const res = await fetch(`http://localhost:5000/api/teacher/faculty/${id}`, {
+        const res = await fetch(getApiUrl(`/api/teacher/faculty/${id}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

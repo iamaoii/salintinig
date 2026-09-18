@@ -126,11 +126,12 @@ router.get('/grade-level', async (req, res) => {
          s.first_name AS "firstName",
          s.last_name AS "lastName",
          s.sex AS gender,
-         s.profile_image AS "profileImage",
+         u.profile_image AS "profileImage",
          c.section_name AS "sectionName",
          c.class_id AS "classId",
          COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending') AS "readingLevel"
        FROM students s
+       JOIN users u ON s.user_id = u.user_id
        JOIN student_grade_history sgh ON sgh.student_id = s.student_id
        JOIN classes c ON sgh.class_id = c.class_id
        JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true

@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../config/api.js';
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
@@ -103,7 +104,7 @@ export default function AdminStudentRecords() {
   const fetchStudents = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/students', {
+      const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -120,7 +121,7 @@ export default function AdminStudentRecords() {
   const fetchSections = async () => {
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/sections', {
+      const res = await fetch(getApiUrl('/api/admin/sections'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -177,7 +178,7 @@ export default function AdminStudentRecords() {
     try {
       setIsCheckingLrn(true);
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/students/check/${lrnVal}`, {
+      const res = await fetch(getApiUrl(`/api/admin/students/check/${lrnVal}`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
@@ -197,7 +198,7 @@ export default function AdminStudentRecords() {
     if (!existingStudentFound) return;
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/students/transfer-in', {
+      const res = await fetch(getApiUrl('/api/admin/students/transfer-in'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -240,7 +241,7 @@ export default function AdminStudentRecords() {
       const studentName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
 
       if (editingStudent) {
-        const res = await fetch(`http://localhost:5000/api/admin/students/${editingStudent.lrn || editingStudent.id}`, {
+        const res = await fetch(getApiUrl(`/api/admin/students/${editingStudent.lrn || editingStudent.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -257,7 +258,7 @@ export default function AdminStudentRecords() {
           showToast(data.error || 'Failed to update student.');
         }
       } else {
-        const res = await fetch('http://localhost:5000/api/admin/students', {
+        const res = await fetch(getApiUrl('/api/admin/students'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -290,7 +291,7 @@ export default function AdminStudentRecords() {
 
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}/status`, {
+      const res = await fetch(getApiUrl(`/api/admin/students/${targetLrn}/status`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -314,7 +315,7 @@ export default function AdminStudentRecords() {
     const targetLrn = deletingStudent.lrn || deletingStudent.id;
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/admin/students/${targetLrn}`, {
+      const res = await fetch(getApiUrl(`/api/admin/students/${targetLrn}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -469,7 +470,7 @@ export default function AdminStudentRecords() {
       }
 
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/admin/students/import-csv', {
+      const res = await fetch(getApiUrl('/api/admin/students/import-csv'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

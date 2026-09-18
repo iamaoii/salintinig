@@ -11,7 +11,9 @@ class LocalNotificationService {
   static Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
 
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -32,9 +34,10 @@ class LocalNotificationService {
     );
 
     // Request permissions on Android 13+ (API level 33+)
-    final androidImplementation =
-        _notificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
     }
@@ -93,7 +96,8 @@ class LocalNotificationService {
     const androidDetails = AndroidNotificationDetails(
       'salintinig_daily_reminder',
       'SalinTinig Daily Reminders',
-      channelDescription: 'Daily practice and evaluation reminders for SalinTinig',
+      channelDescription:
+          'Daily practice and evaluation reminders for SalinTinig',
       importance: Importance.high,
       priority: Priority.high,
       color: Color(0xFFD34426),
