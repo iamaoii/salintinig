@@ -240,7 +240,7 @@ export default function StudentMasterlist({ level }) {
                   <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.lrn}</td>
                   <td className={`px-4 py-3.5 ${COL}`}>
                     <div className="flex items-center gap-3">
-                      <Avatar name={student.name} size={30} />
+                      <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
                       <span className="font-semibold text-ink">{student.name}</span>
                     </div>
                   </td>
@@ -338,7 +338,7 @@ export default function StudentMasterlist({ level }) {
                       className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl border border-ink/10 bg-white shadow-2xs hover:border-ink/20 transition-all gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <Avatar name={std.name} size={36} />
+                        <Avatar name={std.name} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={36} />
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-xs font-bold text-ink">{std.name}</p>

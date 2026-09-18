@@ -69,7 +69,7 @@ export default function PhilIriForm3List({ formKey, label }) {
                   <td className="px-4 py-3 text-ink/70 font-mono font-medium">{student.lrn}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <Avatar name={student.name} size={28} />
+                      <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={28} />
                       <span className="font-semibold text-ink">{student.name}</span>
                     </div>
                   </td>

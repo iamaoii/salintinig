@@ -4,8 +4,48 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'dart:ui' as ui;
 
+import 'package:salintinig/pages/common/loading_page.dart';
+import 'package:salintinig/pages/parent/parent_overview_page.dart';
+import 'package:salintinig/pages/student/student_overview_page.dart';
+import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
+import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+
 class PasswordChangedSuccessPage extends StatelessWidget {
   const PasswordChangedSuccessPage({super.key});
+
+  void _handleContinue(BuildContext context) {
+    Feedback.forTap(context);
+
+    final user = AuthService.currentUser;
+    final hasToken = ApiService.authToken != null && ApiService.authToken!.isNotEmpty;
+
+    if (user != null && hasToken) {
+      Widget targetWidget;
+      final role = user.role.toLowerCase();
+      if (role == 'student') {
+        targetWidget = const StudentOverviewPage();
+      } else if (role == 'parent') {
+        targetWidget = const ParentOverviewPage();
+      } else {
+        targetWidget = const TeacherOverviewPage();
+      }
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => targetWidget),
+        (route) => false,
+      );
+    } else {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoadingPage()),
+          (route) => false,
+        );
+      }
+    }
+  }
 
   Widget _buildMascotWithShadow(
     String assetPath, {
@@ -86,10 +126,7 @@ class PasswordChangedSuccessPage extends StatelessWidget {
                         children: [
                           // Back Arrow Button (pop all back to LoginPage)
                           IconButton(
-                            onPressed: () {
-                              Feedback.forTap(context);
-                              Navigator.popUntil(context, (route) => route.isFirst);
-                            },
+                            onPressed: () => _handleContinue(context),
                             icon: Iconify(
                               Ph.arrow_u_up_left,
                               size: 32,
@@ -172,10 +209,7 @@ class PasswordChangedSuccessPage extends StatelessWidget {
                                     const SizedBox(height: 40),
                                     // Continue Button
                                     ElevatedButton(
-                                      onPressed: () {
-                                        Feedback.forTap(context);
-                                        Navigator.popUntil(context, (route) => route.isFirst);
-                                      },
+                                      onPressed: () => _handleContinue(context),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white,
                                         foregroundColor: primaryBlue,

@@ -82,6 +82,8 @@ async function getStudents(req, res) {
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
             CASE 
               WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
               WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
@@ -174,6 +176,8 @@ async function getStudentByLrn(req, res) {
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
             CASE 
               WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
               WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'

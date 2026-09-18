@@ -117,7 +117,7 @@ export default function StudentProfile() {
         <>
           <div className="mt-4 flex flex-wrap items-start justify-between gap-4 py-2">
         <div className="flex items-center gap-5">
-          <Avatar name={student.name} size={96} className="text-2xl" />
+          <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={96} className="text-2xl" />
           <div className="flex flex-col gap-2.5">
             <div className="flex flex-wrap items-center gap-3">
               <div>

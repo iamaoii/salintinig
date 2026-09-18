@@ -161,7 +161,7 @@ export default function OverviewPeople() {
                     <td className="px-4 py-3.5 font-medium text-ink/90">{student.lrn}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
-                        <Avatar name={student.name} size={30} />
+                        <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
                         <span className="font-semibold text-ink">{student.name}</span>
                       </div>
                     </td>

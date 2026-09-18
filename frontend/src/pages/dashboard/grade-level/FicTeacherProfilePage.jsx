@@ -83,7 +83,7 @@ export default function FicTeacherProfilePage() {
           {/* Main Teacher Profile Header Card */}
           <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-5">
-              <Avatar name={teacher.name} size={80} className="text-2xl font-bold shadow-xs" />
+              <Avatar name={teacher.name} src={teacher.profileImage || teacher.profile_image || teacher.avatarUrl || teacher.avatar} size={80} className="text-2xl font-bold shadow-xs" />
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-2xl font-bold text-ink">{teacher.name}</h1>
@@ -184,7 +184,7 @@ export default function FicTeacherProfilePage() {
                           onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
                           className="border border-ink/10 p-2.5 font-semibold text-brand-blue hover:underline cursor-pointer flex items-center gap-2.5"
                         >
-                          <Avatar name={st.name} size={28} />
+                          <Avatar name={st.name} src={st.profileImage || st.profile_image || st.avatarUrl || st.avatar} size={28} />
                           <span>{st.name}</span>
                         </td>
                         <td className="border border-ink/10 p-2.5 font-mono text-ink/70">{st.lrn}</td>

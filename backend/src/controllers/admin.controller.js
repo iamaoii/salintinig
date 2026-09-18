@@ -326,6 +326,8 @@ async function getStudents(req, res) {
             COALESCE(c.section_name, 'Unassigned') AS section,
             COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
             COALESCE(u.email, '') AS "personalEmail",
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
             CASE WHEN u.status = 'disabled' THEN 'Disabled' ELSE 'Account Created' END AS status,
             COALESCE(sp.access_code, CONCAT('PAC-', RIGHT(s.lrn, 5))) AS "parentAccessCode"
           FROM students s
