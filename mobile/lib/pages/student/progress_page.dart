@@ -27,6 +27,7 @@ import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
 import 'package:salintinig/services/badge_service.dart';
 import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
@@ -40,10 +41,6 @@ class ProgressPage extends StatefulWidget {
 class _ProgressPageState extends State<ProgressPage>
     with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  bool _isListeningDone = false;
-  bool _isOralReadingDone = false;
-  bool _isOralReadingPendingReview = false;
-  bool _isSilentReadingDone = false;
   String _selectedPhilIriLang = 'fil'; // 'fil' or 'en'
   String _selectedPhilIriPeriod = 'pre'; // 'pre' or 'post'
   int _streakCount = 0;
@@ -107,22 +104,16 @@ class _ProgressPageState extends State<ProgressPage>
   }
 
   void _applyAttemptsStatus(Map<String, dynamic> attempts) {
-    if (attempts['listening'] == true || PhilIriAssessmentPage.isListeningDone) {
-      _isListeningDone = true;
+    if (attempts['listening'] == true) {
       PhilIriAssessmentPage.isListeningDone = true;
     }
-    if (attempts['oral'] == true || attempts['oral_status'] == 'completed' || PhilIriAssessmentPage.isOralReadingDone) {
-      _isOralReadingDone = true;
-      _isOralReadingPendingReview = false;
+    if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
       PhilIriAssessmentPage.isOralReadingDone = true;
       PhilIriAssessmentPage.isOralReadingPendingReview = false;
-    } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted' || PhilIriAssessmentPage.isOralReadingPendingReview) {
-      _isOralReadingDone = false;
-      _isOralReadingPendingReview = true;
+    } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
       PhilIriAssessmentPage.isOralReadingPendingReview = true;
     }
-    if (attempts['silent'] == true || PhilIriAssessmentPage.isSilentReadingDone) {
-      _isSilentReadingDone = true;
+    if (attempts['silent'] == true) {
       PhilIriAssessmentPage.isSilentReadingDone = true;
     }
   }
@@ -130,10 +121,6 @@ class _ProgressPageState extends State<ProgressPage>
   @override
   void initState() {
     super.initState();
-    _isListeningDone = PhilIriAssessmentPage.isListeningDone;
-    _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
-    _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
-    _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
 
     if (_cachedProgressAssignedActivities == null) {
       _loadAssignedCacheFromDisk();
@@ -1005,15 +992,30 @@ class _ProgressPageState extends State<ProgressPage>
     final listeningItem = _getAssignedItem('listening');
     final silentItem = _getAssignedItem('silent');
 
-    final isOralClosed = oralItem != null &&
-        !_isOralReadingDone &&
-        (oralItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
-    final isListeningClosed = listeningItem != null &&
-        !_isListeningDone &&
-        (listeningItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
-    final isSilentClosed = silentItem != null &&
-        !_isSilentReadingDone &&
-        (silentItem['status'] ?? 'open').toString().toLowerCase() == 'closed';
+    final oralStatus = (oralItem?['status'] ?? '').toString().toLowerCase();
+    final bool isOralDone = oralItem != null &&
+        (oralItem['isCompleted'] == true || oralStatus == 'completed');
+    final bool isOralPendingReview = oralItem != null &&
+        !isOralDone &&
+        (oralStatus == 'pending_review' || oralStatus == 'submitted');
+    final bool isOralClosed = oralItem != null &&
+        !isOralDone &&
+        !isOralPendingReview &&
+        oralStatus == 'closed';
+
+    final listeningStatus = (listeningItem?['status'] ?? '').toString().toLowerCase();
+    final bool isListeningDone = listeningItem != null &&
+        (listeningItem['isCompleted'] == true || listeningStatus == 'completed');
+    final bool isListeningClosed = listeningItem != null &&
+        !isListeningDone &&
+        listeningStatus == 'closed';
+
+    final silentStatus = (silentItem?['status'] ?? '').toString().toLowerCase();
+    final bool isSilentDone = silentItem != null &&
+        (silentItem['isCompleted'] == true || silentStatus == 'completed');
+    final bool isSilentClosed = silentItem != null &&
+        !isSilentDone &&
+        silentStatus == 'closed';
 
     return Container(
       decoration: BoxDecoration(
@@ -1056,8 +1058,8 @@ class _ProgressPageState extends State<ProgressPage>
           _buildMergedAssessmentItemRow(
             title: 'Oral Reading Assessment',
             subTitle: 'Word Reading & Comprehension',
-            isDone: _isOralReadingDone,
-            isPendingReview: _isOralReadingPendingReview,
+            isDone: isOralDone,
+            isPendingReview: isOralPendingReview,
             isClosed: isOralClosed,
             isNotAvailable: oralItem == null,
             iconSvg: PhIcons.userSoundBold,
@@ -1073,24 +1075,26 @@ class _ProgressPageState extends State<ProgressPage>
                   ),
                 ),
               ).then((_) {
-                setState(() {
-                  _isOralReadingDone = PhilIriAssessmentPage.isOralReadingDone;
-                  _isOralReadingPendingReview = PhilIriAssessmentPage.isOralReadingPendingReview;
-                });
+                _fetchLiveProgressData();
               });
             },
             onViewResult: () {
-              if (_isOralReadingPendingReview) {
+              if (isOralPendingReview) {
                 AppToast.warning(
                   context,
                   'Your recording is currently being reviewed by your teacher.',
                 );
                 return;
               }
+              final passageId = oralItem != null ? QuizProgressService.extractPassageId(oralItem) : null;
+              final lang = oralItem?['rawLanguage'] ?? oralItem?['language'];
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const OralReadingResultPage(),
+                  builder: (context) => OralReadingResultPage(
+                    passageId: passageId,
+                    language: lang,
+                  ),
                 ),
               );
             },
@@ -1100,7 +1104,7 @@ class _ProgressPageState extends State<ProgressPage>
           _buildMergedAssessmentItemRow(
             title: 'Listening Assessment',
             subTitle: 'Listening Comprehension Score',
-            isDone: _isListeningDone,
+            isDone: isListeningDone,
             isClosed: isListeningClosed,
             isNotAvailable: listeningItem == null,
             iconSvg: PhIcons.earBold,
@@ -1116,19 +1120,19 @@ class _ProgressPageState extends State<ProgressPage>
                   ),
                 ),
               ).then((completed) {
-                if (completed == true) {
-                  setState(() {
-                    _isListeningDone = true;
-                    PhilIriAssessmentPage.isListeningDone = true;
-                  });
-                }
+                _fetchLiveProgressData();
               });
             },
             onViewResult: () {
+              final passageId = listeningItem != null ? QuizProgressService.extractPassageId(listeningItem) : null;
+              final lang = listeningItem?['rawLanguage'] ?? listeningItem?['language'];
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ListeningResultPage(),
+                  builder: (context) => ListeningResultPage(
+                    passageId: passageId,
+                    language: lang,
+                  ),
                 ),
               );
             },
@@ -1138,7 +1142,7 @@ class _ProgressPageState extends State<ProgressPage>
           _buildMergedAssessmentItemRow(
             title: 'Silent Reading Assessment',
             subTitle: 'Silent Comprehension & Speed',
-            isDone: _isSilentReadingDone,
+            isDone: isSilentDone,
             isClosed: isSilentClosed,
             isNotAvailable: silentItem == null,
             iconSvg: PhIcons.bookOpenBold,
@@ -1154,16 +1158,19 @@ class _ProgressPageState extends State<ProgressPage>
                   ),
                 ),
               ).then((_) {
-                setState(() {
-                  _isSilentReadingDone = PhilIriAssessmentPage.isSilentReadingDone;
-                });
+                _fetchLiveProgressData();
               });
             },
             onViewResult: () {
+              final passageId = silentItem != null ? QuizProgressService.extractPassageId(silentItem) : null;
+              final lang = silentItem?['rawLanguage'] ?? silentItem?['language'];
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SilentReadingResultPage(),
+                  builder: (context) => SilentReadingResultPage(
+                    passageId: passageId,
+                    language: lang,
+                  ),
                 ),
               );
             },
