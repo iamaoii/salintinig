@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
-import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
 import 'package:salintinig/widgets/badge_unlocked_modal.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
+import 'package:salintinig/services/analytics_service.dart';
+import 'package:salintinig/services/student_prefetch_service.dart';
+
+import 'package:salintinig/pages/student/student_overview_page.dart';
 
 class PracticeCongratulationsPage extends StatefulWidget {
   final String bookTitle;
@@ -122,6 +125,8 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
         if (user?.userId != null && user!.userId.isNotEmpty) 'studentId': user.userId,
       });
       LibraryService.invalidateAll();
+      await AnalyticsService.fetchAnalytics(forceRefresh: true);
+      StudentPrefetchService.prefetchAll();
 
       // Now sync streak with backend to get authoritative updated streak
       await StreakService.recordActivityCompletion();
@@ -155,7 +160,7 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
     Feedback.forTap(context);
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const LibraryPage()),
+      MaterialPageRoute(builder: (context) => const StudentOverviewPage()),
       (route) => false,
     );
   }

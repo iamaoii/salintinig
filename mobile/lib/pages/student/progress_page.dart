@@ -1876,7 +1876,7 @@ class _ProgressPageState extends State<ProgressPage>
         }
         final totalXp = data?.totalXp ?? (BadgeService.cachedBadges.length * 15 + _streakCount * 10);
         final streak = data?.currentStreak ?? _streakCount;
-        final stories = data?.completedStoriesCount ?? _inProgressBooks.length;
+        final stories = data?.completedStoriesCount ?? 0;
         final weekly = data?.weeklyActivity ?? [];
         final skills = data?.skills ?? {};
         final smartTip = data?.smartTip ??

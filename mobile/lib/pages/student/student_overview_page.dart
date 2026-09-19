@@ -1228,7 +1228,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                   _buildUnifiedOverviewCard(
                                     totalXp: AnalyticsService.cachedAnalytics?.totalXp ?? 0,
                                     streak: _streakCount,
-                                    stories: _inProgressBooks.length,
+                                    stories: AnalyticsService.cachedAnalytics?.completedStoriesCount ?? 0,
                                   ),
                                   const SizedBox(height: 16),
                                   // Weekly Practice Activity Bar Chart Card
