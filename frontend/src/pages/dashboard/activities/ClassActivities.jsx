@@ -8,6 +8,7 @@ import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { getApiUrl } from '../../../config/api.js';
 
 import { practiceActivities } from '../../../data/classActivities.js';
 
@@ -90,7 +91,7 @@ export default function ClassActivities() {
   const fetchPhilIriActivities = () => {
     const token = getToken();
     setIsLoading(true);
-    fetch('/api/teacher/assessments/phil-iri-activities', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/assessments/phil-iri-activities'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.activities) {
@@ -110,7 +111,7 @@ export default function ClassActivities() {
 
     try {
       const token = getToken();
-      const res = await fetch('/api/teacher/assessments/toggle-status', {
+      const res = await fetch(getApiUrl('/api/teacher/assessments/toggle-status'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
