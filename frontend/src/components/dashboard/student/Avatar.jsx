@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const COLORS = ['#165fd5', '#d53f24', '#0f9d58', '#c2790a', '#7c3aed', '#0891b2'];
 
 function colorFor(name) {
@@ -12,13 +14,20 @@ function initialsFor(name) {
 }
 
 export default function Avatar({ name = '', src, size = 32, className = '', color }) {
-  if (src) {
+  const [imgError, setImgError] = useState(false);
+
+  if (src && !imgError) {
+    let imgSrc = src;
+    if (imgSrc.startsWith('assets/')) {
+      imgSrc = '/' + imgSrc;
+    }
     return (
       <img
-        src={src}
+        src={imgSrc}
         alt={name}
         className={`shrink-0 rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}
+        onError={() => setImgError(true)}
       />
     );
   }

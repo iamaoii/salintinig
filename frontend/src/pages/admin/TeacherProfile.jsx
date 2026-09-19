@@ -112,7 +112,7 @@ export default function TeacherProfile() {
         ) : (
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <Avatar name={t.name} size={88} className="text-2xl font-bold shrink-0" />
+              <Avatar name={t.name} src={t.profileImage || t.profile_image || t.avatarUrl || t.avatar} size={88} className="text-2xl font-bold shrink-0" />
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-bold text-ink">{t.name}</h1>

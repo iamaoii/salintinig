@@ -850,7 +850,7 @@ class _OralReadingAssessmentReaderPageState
 
     final readingSecs = _readingSecondsElapsed > 0
         ? _readingSecondsElapsed
-        : 60;
+        : 1;
 
     final existingDraft = await QuizProgressService.getQuizDraft(
       _passageId,
@@ -878,6 +878,7 @@ class _OralReadingAssessmentReaderPageState
     ApiService.post('/api/students/assessment/start-progress', {
       'studentId': studentId,
       'passageId': _passageId,
+      'assessmentType': 'oral',
     });
 
     if (!mounted) return;

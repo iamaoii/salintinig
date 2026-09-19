@@ -91,7 +91,7 @@ export default function EditAvatar() {
         {previewUrl ? (
           <img src={previewUrl} alt="New avatar preview" className="size-[240px] rounded-full object-cover shadow-lg border-4 border-white" />
         ) : (
-          <Avatar name={currentUser?.name || 'Teacher'} size={240} className="text-7xl shadow-lg border-4 border-white" />
+          <Avatar name={currentUser?.name || 'Teacher'} src={previewUrl || currentUser?.profileImage || currentUser?.profile_image} size={240} className="text-7xl shadow-lg border-4 border-white" />
         )}
 
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />

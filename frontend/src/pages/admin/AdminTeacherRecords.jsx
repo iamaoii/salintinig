@@ -772,7 +772,7 @@ export default function AdminTeacherRecords() {
           <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-4 border-b border-ink/10">
               <div className="flex items-center gap-3">
-                <Avatar name={viewingTeacher.name} size={48} className="text-sm font-bold" />
+                <Avatar name={viewingTeacher.name} src={viewingTeacher.profileImage || viewingTeacher.profile_image || viewingTeacher.avatarUrl || viewingTeacher.avatar} size={48} className="text-sm font-bold" />
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-ink">{viewingTeacher.name}</h3>

@@ -48,8 +48,9 @@ ImageProvider? _getImageProvider(String? urlStr) {
     }
   } else if (clean.startsWith('http://') || clean.startsWith('https://')) {
     return NetworkImage(clean);
-  } else if (clean.startsWith('assets/')) {
-    return AssetImage(clean);
+  } else if (clean.startsWith('assets/') || clean.startsWith('/assets/')) {
+    final assetPath = clean.startsWith('/') ? clean.substring(1) : clean;
+    return AssetImage(assetPath);
   }
   return null;
 }

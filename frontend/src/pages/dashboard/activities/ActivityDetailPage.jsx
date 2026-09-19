@@ -345,7 +345,7 @@ export default function ActivityDetailPage() {
                         <tr key={std.assessmentId || std.studentId} className="hover:bg-cream/30 transition-colors">
                           <td className="py-2.5 px-3 font-bold text-ink">
                             <div className="flex items-center gap-2.5">
-                              <Avatar name={std.studentName} size={28} />
+                              <Avatar name={std.studentName} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={28} />
                               <span>{std.studentName}</span>
                             </div>
                           </td>

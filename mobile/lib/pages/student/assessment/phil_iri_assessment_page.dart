@@ -454,7 +454,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                   dynamicQuestions: draft['dynamicQuestions'] as List?,
                   recordedAudioPath: draft['recordedAudioPath'] as String?,
                   readingTimeSeconds:
-                      (draft['readingTimeSeconds'] as int?) ?? 60,
+                      (draft['readingTimeSeconds'] as int?) ?? 0,
                   storyTitle: draft['storyTitle'] as String?,
                   assessmentLanguage: draft['assessmentLanguage'] as String?,
                   passageId: passageId,
