@@ -645,6 +645,21 @@ function renderPasswordResetEmailHtml({ fullName, toEmail, resetCode, logoUrl = 
 }
 
 /**
+ * Helper to determine sender email based on environment mode:
+ * - Development (NODE_ENV !== 'production'): Uses 'SalinTinig <onboarding@resend.dev>'
+ *   (Resend restricts this to sending only to your registered account email).
+ * - Production (NODE_ENV === 'production'): Uses process.env.RESEND_FROM_EMAIL || 'SalinTinig <noreply@salintinig.org>'
+ *   (Allows sending emails to any recipient worldwide).
+ */
+function getFromEmail() {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!isProd) {
+    return 'SalinTinig <onboarding@resend.dev>';
+  }
+  return process.env.RESEND_FROM_EMAIL || 'SalinTinig <noreply@salintinig.org>';
+}
+
+/**
  * Send welcome email with temporary password
  */
 async function sendWelcomeEmailWithTempPassword({ toEmail, fullName, role = 'User', tempPassword }) {
@@ -661,13 +676,13 @@ async function sendWelcomeEmailWithTempPassword({ toEmail, fullName, role = 'Use
     const html = renderWelcomeEmailHtml({ fullName, role, toEmail, tempPassword });
 
     await resend.emails.send({
-      from: 'SalinTinig <onboarding@resend.dev>',
+      from: getFromEmail(),
       to: [toEmail],
       subject: `Welcome to SalinTinig — Your Account Credentials`,
       html,
     });
 
-    console.log(`✅ Welcome email sent to ${toEmail}`);
+    console.log(`✅ Welcome email sent to ${toEmail} [${process.env.NODE_ENV || 'development'}]`);
     return true;
   } catch (err) {
     console.warn(`⚠️ Failed to send welcome email to ${toEmail}:`, err.message);
@@ -698,13 +713,13 @@ async function sendTeacherAccountRequestEmail({ adminEmail, computedFullName, cl
     });
 
     await resend.emails.send({
-      from: 'SalinTinig <onboarding@resend.dev>',
+      from: getFromEmail(),
       to: [adminEmail],
       subject: `New Teacher Activation Request from ${computedFullName}`,
       html,
     });
 
-    console.log(`✅ Teacher account request email sent to admin (${adminEmail})`);
+    console.log(`✅ Teacher account request email sent to admin (${adminEmail}) [${process.env.NODE_ENV || 'development'}]`);
     return true;
   } catch (err) {
     console.warn(`⚠️ Failed to send teacher request email to ${adminEmail}:`, err.message);
@@ -729,13 +744,13 @@ async function sendPasswordResetEmail({ toEmail, fullName, resetCode }) {
     const html = renderPasswordResetEmailHtml({ fullName, toEmail, resetCode });
 
     await resend.emails.send({
-      from: 'SalinTinig <onboarding@resend.dev>',
+      from: getFromEmail(),
       to: [toEmail],
       subject: `${resetCode} is your SalinTinig Password Reset Code`,
       html,
     });
 
-    console.log(`✅ Password reset email sent to ${toEmail}`);
+    console.log(`✅ Password reset email sent to ${toEmail} [${process.env.NODE_ENV || 'development'}]`);
     return true;
   } catch (err) {
     console.warn(`⚠️ Failed to send password reset email to ${toEmail}:`, err.message);
