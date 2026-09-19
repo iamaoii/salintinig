@@ -1,69 +1,51 @@
 const jwt = require('jsonwebtoken');
-const { supabase } = require('../config/supabase.js');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'salintinig-secret-key-2024';
 
 /**
- * Middleware to verify JWT / Bearer auth token with dev/demo resilience
+ * Middleware: verifyToken
+ * Verifies the Bearer JWT token in the Authorization header.
+ * Attaches decoded user data to req.user.
  */
-async function verifyToken(req, res, next) {
+function verifyToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Access denied. No token provided.' });
+  }
+
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Access denied. No token provided.' });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    // 1. Attempt standard JWT verification
-    const secret = process.env.JWT_SECRET || 'salintinig_super_secret_jwt_key_2026';
-    try {
-      const decoded = jwt.verify(token, secret);
-      if (decoded) {
-        req.user = decoded;
-        return next();
-      }
-    } catch (jwtErr) {}
-
-    // 2. Attempt Base64 token parser fallback
-    try {
-      const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
-      if (decoded && (decoded.username || decoded.email)) {
-        req.user = decoded;
-        return next();
-      }
-    } catch (bErr) {}
-
-    return res.status(401).json({ success: false, error: 'Invalid or expired token.' });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Authentication verification failed.',
-    });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(403).json({ success: false, error: 'Invalid or expired token.' });
   }
 }
 
+// Alias for backward compatibility
+const authenticateToken = verifyToken;
+
 /**
- * Middleware to restrict route access to specific role(s)
+ * Middleware: requireRole
+ * Checks that req.user.role exactly matches the required role(s).
+ * Accepts a string or array of allowed roles.
  */
-function requireRole(...allowedRoles) {
+function requireRole(roles) {
+  const allowed = Array.isArray(roles) ? roles : [roles];
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized.' });
+      return res.status(401).json({ success: false, error: 'Not authenticated.' });
     }
-
-    if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
-      // Auto-grant for admin role in dev mode
-      if (req.user.role === 'admin') return next();
+    if (!allowed.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        error: `Forbidden. Requires one of the following roles: ${allowedRoles.join(', ')}`,
+        error: `Access denied. Required role: ${allowed.join(' or ')}.`,
       });
     }
-
     next();
   };
 }
 
-module.exports = {
-  verifyToken,
-  requireRole,
-};
+module.exports = { verifyToken, authenticateToken, requireRole };

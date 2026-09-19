@@ -10,8 +10,22 @@ export default function ProtectedRoute({ children, allowedRole }) {
 
   const role = getUserRole();
 
-  // Web portal is restricted exclusively to Admin and Teacher roles
-  if (role === 'student' || (role !== 'admin' && role !== 'teacher')) {
+  // Block student role from web portal entirely
+  if (role === 'student') {
+    return <Navigate to="/login" replace />;
+  }
+
+  // super_admin can access any protected route
+  if (role === 'super_admin') {
+    if (allowedRole && allowedRole !== 'super_admin') {
+      // super_admin trying to access teacher or admin-specific routes — redirect to their dashboard
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
+    return children;
+  }
+
+  // Block unknown roles (not admin, teacher, or super_admin)
+  if (role !== 'admin' && role !== 'teacher') {
     return <Navigate to="/login" replace />;
   }
 

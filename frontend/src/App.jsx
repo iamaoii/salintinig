@@ -54,10 +54,22 @@ import AdminRecordsLayout from './pages/admin/AdminRecordsLayout.jsx';
 import AdminSectionsLayout from './pages/admin/AdminSectionsLayout.jsx';
 import AdminPhilIriLayout from './pages/admin/AdminPhilIriLayout.jsx';
 
+import SuperAdminLayout from './pages/super-admin/SuperAdminLayout.jsx';
+import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard.jsx';
+import SuperAdminSchools from './pages/super-admin/SuperAdminSchools.jsx';
+import SuperAdminAddSchool from './pages/super-admin/SuperAdminAddSchool.jsx';
+import SuperAdminSchoolDetail from './pages/super-admin/SuperAdminSchoolDetail.jsx';
+import SuperAdminPhilIriLayout from './pages/super-admin/SuperAdminPhilIriLayout.jsx';
+import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
+import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
+import SuperAdminAnalytics from './pages/super-admin/SuperAdminAnalytics.jsx';
+
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
   const role = getUserRole();
-  return <Navigate to={role === 'admin' ? '/admin/dashboard' : '/teacher'} replace />;
+  if (role === 'super_admin') return <Navigate to="/super-admin/dashboard" replace />;
+  if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  return <Navigate to="/teacher" replace />;
 }
 
 export default function App() {
@@ -124,6 +136,36 @@ export default function App() {
         <Route path="activities" element={<Navigate to="/admin/phil-iri/assessment" replace />} />
         <Route path="settings" element={<Navigate to="/admin/account" replace />} />
         <Route path="profile" element={<Navigate to="/admin/account" replace />} />
+      </Route>
+
+      {/* ── Super Admin ───────────────────────────────────────────────────── */}
+      <Route
+        path="/super-admin"
+        element={
+          <ProtectedRoute allowedRole="super_admin">
+            <SuperAdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
+        <Route path="dashboard" element={<SuperAdminDashboard />} />
+
+        {/* Schools */}
+        <Route path="schools" element={<SuperAdminSchools />} />
+        <Route path="schools/add" element={<SuperAdminAddSchool />} />
+        <Route path="schools/:id" element={<SuperAdminSchoolDetail />} />
+
+        {/* Phil-IRI */}
+        <Route path="phil-iri" element={<SuperAdminPhilIriLayout />}>
+          <Route index element={<Navigate to="passages" replace />} />
+          <Route path="passages" element={<SuperAdminPassages />} />
+        </Route>
+
+        {/* Stories */}
+        <Route path="stories" element={<SuperAdminStories />} />
+
+        {/* Analytics */}
+        <Route path="analytics" element={<SuperAdminAnalytics />} />
       </Route>
 
       <Route

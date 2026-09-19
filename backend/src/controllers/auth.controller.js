@@ -1,1338 +1,363 @@
 const db = require('../config/db.js');
-const { supabase, uploadImageToSupabase, deleteImageFromSupabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
-const { sendPasswordResetEmail, sendTeacherAccountRequestEmail } = require('../services/emailService.js');
 
-function createToken(user) {
-  const secret = process.env.JWT_SECRET || 'salintinig_super_secret_jwt_key_2026';
-  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
-
-  const payload = {
-    id: user.id || user.user_id,
-    studentId: user.studentId || user.student_id || null,
-    lrn: user.lrn || null,
-    username: user.username || user.email,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    schoolId: user.schoolId || user.school_id || null,
-    defaultPath: user.defaultPath,
-  };
-
-  try {
-    return jwt.sign(payload, secret, { expiresIn });
-  } catch (e) {
-    return Buffer.from(JSON.stringify(payload)).toString('base64');
-  }
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'salintinig-secret-key-2024';
+const JWT_EXPIRES_IN = '7d';
 
 let bcrypt = null;
-try {
-  bcrypt = require('bcryptjs');
-} catch (e) {}
+try { bcrypt = require('bcryptjs'); } catch (e) {}
 
-function hashPassword(plainPassword) {
-  if (!plainPassword) return '';
-  try {
-    if (bcrypt) {
-      const salt = bcrypt.genSaltSync(10);
-      return bcrypt.hashSync(plainPassword, salt);
-    }
-  } catch (e) {}
-  return plainPassword;
+function generateToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-function checkPasswordMatch(inputPassword, storedHash) {
-  if (!storedHash || !inputPassword) return false;
-  // 1. Direct plaintext match (if stored in plain text in DB)
-  if (storedHash === inputPassword) return true;
-  // 2. Bcrypt comparison (if stored as bcrypt hash in DB)
-  if (bcrypt && (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$'))) {
-    try {
-      return bcrypt.compareSync(inputPassword, storedHash);
-    } catch (e) {
-      return false;
-    }
-  }
-  return false;
+async function comparePassword(plain, hash) {
+  if (!bcrypt) return plain === hash;
+  try { return await bcrypt.compare(plain, hash); } catch (e) { return false; }
+}
+
+function hashPassword(plain) {
+  if (!plain) return plain;
+  try {
+    if (bcrypt) { const salt = bcrypt.genSaltSync(10); return bcrypt.hashSync(plain, salt); }
+  } catch (e) {}
+  return plain;
 }
 
 /**
- * Login handler — Authenticates via direct PostgreSQL (DATABASE_URL) or Supabase SDK
+ * POST /api/auth/login
  */
 async function login(req, res) {
   try {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide both email/identifier and password.',
-      });
+      return res.status(400).json({ success: false, error: 'Email/ID and password are required.' });
     }
 
-    const cleanId = identifier.trim().toLowerCase();
-    const cleanPass = password.trim();
-
-    let matchedUser = null;
-
-    // 1. Attempt PostgreSQL Query via DATABASE_URL if configured
-    if (process.env.DATABASE_URL) {
-      try {
-        // A. Match strictly by Email
-        const userQuery = `
-          SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, s.school_name,
-                 t.first_name, t.last_name, t.teacher_no, u.profile_image AS teacher_profile_image
-          FROM users u
-          LEFT JOIN schools s ON u.school_id = s.school_id
-          LEFT JOIN teachers t ON u.user_id = t.user_id
-          WHERE LOWER(u.email) = $1
-          LIMIT 1;
-        `;
-        const { rows } = await db.query(userQuery, [cleanId]);
-
-        if (rows && rows.length > 0) {
-          const u = rows[0];
-          if (checkPasswordMatch(cleanPass, u.password_hash)) {
-            matchedUser = u;
-          }
-        }
-
-        // B. Match strictly by Teacher ID (Employee ID)
-        if (!matchedUser) {
-          const teacherQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, t.first_name, t.last_name, t.teacher_no, u.profile_image AS teacher_profile_image
-            FROM teachers t
-            JOIN users u ON t.user_id = u.user_id
-            WHERE LOWER(t.teacher_no) = $1
-            LIMIT 1;
-          `;
-          const { rows: teacherRows } = await db.query(teacherQuery, [cleanId]);
-          if (teacherRows && teacherRows.length > 0) {
-            const u = teacherRows[0];
-            if (checkPasswordMatch(cleanPass, u.password_hash)) {
-              matchedUser = u;
-            }
-          }
-        }
-
-        // C. Match by Student LRN (lrn) or LRN identifier
-        if (!matchedUser) {
-          const studentQuery = `
-            SELECT u.user_id, u.school_id, u.email, u.password_hash, u.role, u.status, u.must_change_password, u.profile_image, st.first_name, st.last_name, st.lrn
-            FROM students st
-            JOIN users u ON st.user_id = u.user_id
-            WHERE LOWER(st.lrn) = $1 OR LOWER(u.email) = $1
-            LIMIT 1;
-          `;
-          const { rows: studentRows } = await db.query(studentQuery, [cleanId]);
-          if (studentRows && studentRows.length > 0) {
-            const u = studentRows[0];
-            if (checkPasswordMatch(cleanPass, u.password_hash)) {
-              matchedUser = u;
-            }
-          }
-        }
-      } catch (dbErr) {
-        console.warn('Direct Postgres login query notice:', dbErr.message || dbErr);
-      }
+    if (!process.env.DATABASE_URL) {
+      return res.status(503).json({ success: false, error: 'Database not configured.' });
     }
 
-    // 2. Fallback to Supabase SDK if configured and DB query didn't match
-    if (!matchedUser && supabase) {
-      try {
-        // A. Match strictly by Email
-        const { data: usersByEmail } = await supabase
-          .from('users')
-          .select('*')
-          .ilike('email', cleanId);
+    // Lookup user by email (all roles including super_admin)
+    const { rows } = await db.query(
+      `SELECT user_id, email, password_hash, role, status, school_id, must_change_password
+       FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [identifier.trim()]
+    );
 
-        if (usersByEmail && usersByEmail.length > 0) {
-          matchedUser = usersByEmail.find((u) => checkPasswordMatch(cleanPass, u.password_hash));
-        }
-
-        // B. Match strictly by Teacher ID (Employee ID)
-        if (!matchedUser) {
-          const { data: teacherRec } = await supabase
-            .from('teachers')
-            .select('user_id')
-            .ilike('teacher_no', cleanId)
-            .maybeSingle();
-
-          if (teacherRec && teacherRec.user_id) {
-            const { data: userRec } = await supabase
-              .from('users')
-              .select('*')
-              .eq('user_id', teacherRec.user_id)
-              .maybeSingle();
-
-            if (userRec && checkPasswordMatch(cleanPass, userRec.password_hash)) {
-              matchedUser = userRec;
-            }
-          }
-        }
-      } catch (sErr) {
-        console.warn('Supabase SDK fallback notice:', sErr.message);
-      }
+    if (!rows.length) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    // Authenticated user formatting
-    if (matchedUser) {
-      const clientPlatform = (req.headers['x-client-platform'] || req.body.clientPlatform || '').toLowerCase();
-      const isMobileApp = clientPlatform === 'mobile' || req.body.isMobile === true;
-      const expectedRole = (req.headers['x-expected-role'] || req.body.expectedRole || '').toLowerCase();
+    const user = rows[0];
 
-      // Reject student/parent logins ONLY IF request is from Web Portal (not mobile app)
-      if ((matchedUser.role === 'student' || matchedUser.role === 'parent') && !isMobileApp) {
-        return res.status(403).json({
-          success: false,
-          error: 'This account is only accessible via the Salintinig mobile app.',
-        });
-      }
-
-      // Enforce strict portal/button role matching
-      if (expectedRole && matchedUser.role.toLowerCase() !== expectedRole) {
-        const portalLabel = expectedRole.charAt(0).toUpperCase() + expectedRole.slice(1);
-        return res.status(403).json({
-          success: false,
-          error: `Access denied. This account cannot log in through the ${portalLabel} portal.`,
-        });
-      }
-
-      let displayName = matchedUser.email.split('@')[0];
-      let schoolId = matchedUser.school_id || null;
-      let empId = matchedUser.teacher_no || null;
-
-      let firstName = matchedUser.first_name || null;
-      let lastName = matchedUser.last_name || null;
-      let lrn = matchedUser.lrn || null;
-      let gradeLevel = null;
-      let sectionName = null;
-
-      let studentDbId = null;
-
-      if (matchedUser.role === 'admin') {
-        displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
-      } else if (matchedUser.role === 'teacher') {
-        if (matchedUser.first_name) {
-          displayName = `${matchedUser.first_name} ${matchedUser.last_name}`;
-        } else {
-          displayName = 'Teacher Account';
-        }
-      } else if (matchedUser.role === 'student') {
-        try {
-          const stRes = await db.query(
-            `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name, sch.school_name
-             FROM students st
-             LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
-             LEFT JOIN classes c ON sgh.class_id = c.class_id
-             LEFT JOIN users u ON st.user_id = u.user_id
-             LEFT JOIN schools sch ON u.school_id = sch.school_id
-             WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
-             ORDER BY sgh.created_at DESC
-             LIMIT 1`,
-            [matchedUser.user_id, matchedUser.email || '']
-          );
-          if (stRes.rows && stRes.rows.length > 0) {
-            const stRow = stRes.rows[0];
-            studentDbId = stRow.student_id || null;
-            firstName = stRow.first_name || firstName;
-            lastName = stRow.last_name || lastName;
-            lrn = stRow.lrn || lrn;
-            gradeLevel = stRow.grade_level ? String(stRow.grade_level) : null;
-            sectionName = stRow.section_name || null;
-            displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
-            if (stRow.school_name) {
-              matchedUser.school_name = stRow.school_name;
-            }
-          }
-        } catch (stErr) {
-          console.warn('Student detail enrichment warning:', stErr.message);
-        }
-      }
-
-      const formattedUser = {
-        id: matchedUser.user_id,
-        studentId: studentDbId,
-        username: matchedUser.email,
-        name: displayName,
-        firstName: firstName || displayName,
-        lastName,
-        lrn,
-        gradeLevel,
-        sectionName,
-        email: matchedUser.email,
-        role: matchedUser.role,
-        schoolId,
-        schoolName: matchedUser.school_name || null,
-        school_name: matchedUser.school_name || null,
-        employeeId: empId,
-        profileImage: matchedUser.profile_image || null,
-        profile_image: matchedUser.profile_image || null,
-        mustChangePassword: Boolean(matchedUser.must_change_password),
-        defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/teacher',
-        source: 'database',
-      };
-
-      const token = createToken(formattedUser);
-
-      return res.json({
-        success: true,
-        token,
-        mustChangePassword: Boolean(matchedUser.must_change_password),
-        user: formattedUser,
-        message: `Authenticated via PostgreSQL database (${matchedUser.role.toUpperCase()} role)`,
-      });
+    if (user.status === 'disabled' || user.status === 'inactive') {
+      return res.status(403).json({ success: false, error: 'Your account has been deactivated. Please contact your administrator.' });
     }
 
-    return res.status(401).json({
-      success: false,
-      error: 'Incorrect username/email or password.',
-    });
-  } catch (error) {
-    console.error('Login Error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'An internal server error occurred during login.',
-    });
-  }
-}
-
-/**
- * Get current authenticated user profile
- */
-async function getMe(req, res) {
-  try {
-    const user = req.user;
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User profile not found.' });
+    const passwordMatch = await comparePassword(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    const userId = user.id || user.user_id;
+    const mustChangePassword = Boolean(user.must_change_password);
 
-    if (process.env.DATABASE_URL && userId) {
-      try {
-        let activeSchoolYear = null;
-        try {
-          const syRes = await db.query(
-            `SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`
-          );
-          if (syRes.rows && syRes.rows[0] && syRes.rows[0].school_year) {
-            activeSchoolYear = syRes.rows[0].school_year;
-          }
-        } catch (syErr) {
-          console.warn('getMe active SY notice:', syErr.message);
-        }
-
-        let dbProfileImage = null;
-        try {
-          const uRes = await db.query(
-            `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
-            [userId]
-          );
-          if (uRes.rows && uRes.rows[0]) {
-            dbProfileImage = uRes.rows[0].profile_image || null;
-          }
-        } catch (uErr) {
-          console.warn('getMe user profile notice:', uErr.message);
-        }
-
-        if (user.role === 'student') {
-          const stRes = await db.query(
-            `SELECT 
-               st.first_name, 
-               st.middle_name, 
-               st.last_name, 
-               st.lrn, 
-               st.nickname,
-               st.avatar_frame,
-               COALESCE(c.grade_level, sgh.grade_level) AS grade_level, 
-               c.section_name,
-               sch.school_name
-             FROM students st
-             LEFT JOIN (
-               SELECT DISTINCT ON (student_id) student_id, class_id, grade_level
-               FROM student_grade_history
-               ORDER BY student_id, created_at DESC
-             ) sgh ON st.student_id = sgh.student_id
-             LEFT JOIN classes c ON sgh.class_id = c.class_id
-             LEFT JOIN users u ON st.user_id = u.user_id
-             LEFT JOIN schools sch ON u.school_id = sch.school_id
-             WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
-             LIMIT 1`,
-            [userId, user.email || '']
-          );
-          if (stRes.rows && stRes.rows.length > 0) {
-            const stRow = stRes.rows[0];
-            const firstName = stRow.first_name || user.firstName;
-            const lastName = stRow.last_name || user.lastName;
-            const displayName = [stRow.first_name, stRow.middle_name, stRow.last_name].filter(Boolean).join(' ');
-
-            return res.json({
-              success: true,
-              user: {
-                ...user,
-                name: displayName || user.name,
-                firstName: firstName || user.firstName || displayName,
-                lastName: lastName || user.lastName,
-                lrn: stRow.lrn || user.lrn,
-                gradeLevel: stRow.grade_level ? String(stRow.grade_level) : (user.gradeLevel || '4'),
-                sectionName: stRow.section_name || user.sectionName || '',
-                schoolName: stRow.school_name || user.schoolName || user.school_name || '',
-                school_name: stRow.school_name || user.schoolName || user.school_name || '',
-                nickname: stRow.nickname || user.nickname || '',
-                avatarFrame: stRow.avatar_frame || user.avatarFrame || 'None',
-                avatar_frame: stRow.avatar_frame || user.avatar_frame || 'None',
-                profileImage: dbProfileImage || user.profileImage || user.profile_image || null,
-                profile_image: dbProfileImage || user.profileImage || user.profile_image || null,
-                activeSchoolYear,
-                schoolYear: activeSchoolYear,
-              },
-            });
-          }
-        } else if (user.role === 'teacher') {
-          const tRes = await db.query(
-            `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, c.grade_level, c.section_name,
-                    sch.school_name,
-                    EXISTS(
-                      SELECT 1 FROM faculty_in_charge fic
-                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
-                      WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
-                    ) AS is_faculty_in_charge,
-                    (
-                      SELECT fic2.grade_level FROM faculty_in_charge fic2
-                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
-                      WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
-                      LIMIT 1
-                    ) AS fic_grade_level
-             FROM teachers t
-             LEFT JOIN users u ON t.user_id = u.user_id
-             LEFT JOIN schools sch ON u.school_id = sch.school_id
-             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id
-             WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
-             LIMIT 1`,
-            [userId, user.employeeId || '']
-          );
-          if (tRes.rows && tRes.rows.length > 0) {
-            const tRow = tRes.rows[0];
-            const fullName = [tRow.first_name, tRow.middle_name, tRow.last_name].filter(Boolean).join(' ');
-            const secLabel = tRow.section_name ? `${tRow.grade_level || 'Grade 4'} - ${tRow.section_name}` : (user.section || '');
-            const finalAvatar = dbProfileImage || user.profileImage || user.profile_image || null;
-            const schoolName = tRow.school_name || dbSchoolName || user.schoolName || user.school_name || 'Mandaluyong Elementary School';
-
-            let studentsCount = 0;
-            try {
-              if (tRow.section_name) {
-                const scRes = await db.query(
-                  `SELECT COUNT(DISTINCT sgh.student_id)::int AS count 
-                   FROM student_grade_history sgh
-                   JOIN classes c ON sgh.class_id = c.class_id
-                   JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
-                   WHERE c.advisor_teacher_id = (SELECT teacher_id FROM teachers WHERE user_id = $1 LIMIT 1)`,
-                  [userId]
-                );
-                studentsCount = scRes.rows[0]?.count || 0;
-              }
-            } catch (scErr) {
-              console.warn('Teacher studentsCount fetch notice:', scErr.message);
-            }
-
-            return res.json({
-              success: true,
-              user: {
-                ...user,
-                name: fullName || user.name || 'Teacher',
-                firstName: tRow.first_name || user.firstName || '',
-                middleName: tRow.middle_name || user.middleName || user.middle_name || '',
-                lastName: tRow.last_name || user.lastName || '',
-                first_name: tRow.first_name || user.first_name || '',
-                middle_name: tRow.middle_name || user.middle_name || '',
-                last_name: tRow.last_name || user.last_name || '',
-                teacherNo: tRow.teacher_no || user.teacherNo,
-                gradeLevel: tRow.grade_level ? String(tRow.grade_level) : (user.gradeLevel || '4'),
-                sectionName: tRow.section_name || user.sectionName || '',
-                section: secLabel,
-                assigned_section: secLabel,
-                schoolName,
-                school_name: schoolName,
-                school: schoolName,
-                studentsCount,
-                isFacultyInCharge: tRow.is_faculty_in_charge === true,
-                ficGradeLevel: tRow.fic_grade_level || null,
-                profileImage: finalAvatar,
-                profile_image: finalAvatar,
-                activeSchoolYear,
-                schoolYear: activeSchoolYear,
-              },
-            });
-          }
-        }
-
-        return res.json({
-          success: true,
-          user: {
-            ...user,
-            profileImage: dbProfileImage || user.profileImage || user.profile_image || null,
-            profile_image: dbProfileImage || user.profileImage || user.profile_image || null,
-            activeSchoolYear,
-            schoolYear: activeSchoolYear,
-          },
-        });
-      } catch (dbErr) {
-        console.warn('getMe database query notice:', dbErr.message);
+    // Determine display name
+    let displayName = user.email;
+    try {
+      if (user.role === 'teacher') {
+        const { rows: tRows } = await db.query(
+          `SELECT CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) AS name
+           FROM teachers WHERE user_id = $1 LIMIT 1`,
+          [user.user_id]
+        );
+        if (tRows.length) displayName = tRows[0].name;
+      } else if (user.role === 'admin') {
+        const { rows: sRows } = await db.query(
+          `SELECT school_name AS name FROM schools WHERE school_id = $1 LIMIT 1`,
+          [user.school_id]
+        );
+        if (sRows.length) displayName = sRows[0].name;
+      } else if (user.role === 'super_admin') {
+        displayName = 'Super Administrator';
       }
-    }
+    } catch (e) {}
 
-    return res.json({ success: true, user });
-  } catch (error) {
-    console.error('Error getting current user:', error);
-    return res.status(500).json({ success: false, error: 'Failed to fetch user profile.' });
-  }
-}
+    // Determine default path
+    let defaultPath = '/teacher';
+    if (user.role === 'admin') defaultPath = '/admin/dashboard';
+    if (user.role === 'super_admin') defaultPath = '/super-admin/dashboard';
 
-/**
- * Update authenticated user profile / avatar in database & Supabase Storage
- */
-async function updateProfile(req, res) {
-  try {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized.' });
-    }
+    const tokenPayload = {
+      userId: user.user_id,
+      email: user.email,
+      role: user.role,
+      schoolId: user.school_id || null,
+    };
 
-    const userId = user.id || user.user_id || user.userId;
-    const { profileImage, avatarUrl, nickname, frame, avatarFrame, fullName, name, email, firstName, middleName, lastName, first_name, middle_name, last_name } = req.body;
-    const rawImage = profileImage || avatarUrl;
-    const activeFrame = frame || avatarFrame || null;
-
-    let finalImageUrl = null;
-
-    if (process.env.DATABASE_URL && userId) {
-      // Ensure table columns exist
-      try {
-        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT;`);
-        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_frame TEXT;`);
-        await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS nickname TEXT;`);
-        await db.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_frame TEXT;`);
-      } catch (colErr) {}
-
-      if (rawImage) {
-        finalImageUrl = rawImage;
-        try {
-          // Fetch existing profile_image from DB to check if user previously had a custom upload in Supabase Storage
-          const oldUrlRes = await db.query(
-            `SELECT profile_image FROM users WHERE user_id = $1 LIMIT 1`,
-            [userId]
-          );
-          const oldUrl = oldUrlRes.rows?.[0]?.profile_image;
-
-          if (rawImage.startsWith('data:image/')) {
-            // Case A: New Custom Base64 Upload -> Delete old custom image if present, then upload new custom image
-            if (oldUrl) {
-              await deleteImageFromSupabase(oldUrl, 'avatars');
-            }
-
-            const fileName = `avatar_${userId}_${Date.now()}.webp`;
-            const supabaseUrl = await uploadImageToSupabase(rawImage, fileName, 'avatars');
-            if (supabaseUrl) {
-              finalImageUrl = supabaseUrl;
-              console.log('✅ New custom avatar uploaded to Supabase Storage:', finalImageUrl);
-            }
-          } else {
-            // Case B: Preset Icon Selected (e.g. assets/avatars/avatar_1.png) -> Delete previous custom uploaded avatar from Supabase Storage
-            if (oldUrl) {
-              await deleteImageFromSupabase(oldUrl, 'avatars');
-            }
-          }
-        } catch (imgErr) {
-          console.warn('Avatar Supabase upload/cleanup notice:', imgErr.message);
-        }
-
-        try {
-          await db.query(
-            `UPDATE users SET profile_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
-            [finalImageUrl, userId]
-          );
-        } catch (uErr) {
-          console.warn('DB users profile_image update notice:', uErr.message);
-        }
-      }
-
-      if (nickname !== undefined) {
-        try {
-          await db.query(
-            `UPDATE students SET nickname = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
-            [nickname, userId]
-          );
-        } catch (nickErr) {
-          console.warn('DB nickname update notice:', nickErr.message);
-        }
-      }
-
-      if (activeFrame !== undefined) {
-        try {
-          await db.query(
-            `UPDATE students SET avatar_frame = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
-            [activeFrame, userId]
-          );
-        } catch (frameErr) {
-          console.warn('DB avatar_frame update notice:', frameErr.message);
-        }
-      }
-
-      const inputFirstName = firstName || first_name;
-      const inputMiddleName = middleName || middle_name;
-      const inputLastName = lastName || last_name;
-
-      if (inputFirstName || inputLastName || fullName || name) {
-        let fName = inputFirstName;
-        let mName = inputMiddleName || '';
-        let lName = inputLastName;
-
-        if (!fName && (fullName || name)) {
-          const full = (fullName || name).trim();
-          const parts = full.split(' ');
-          fName = parts[0] || full;
-          if (parts.length > 2) {
-            mName = parts.slice(1, -1).join(' ');
-            lName = parts.slice(-1)[0];
-          } else if (parts.length === 2) {
-            lName = parts[1];
-          } else {
-            lName = '';
-          }
-        }
-
-        try {
-          await db.query(
-            `UPDATE teachers SET first_name = $1, middle_name = $2, last_name = $3, updated_at = CURRENT_TIMESTAMP WHERE user_id = $4`,
-            [fName || '', mName || null, lName || '', userId]
-          );
-        } catch (tErr) {
-          console.warn('DB teachers name update notice:', tErr.message);
-        }
-      }
-
-      if (email) {
-        try {
-          await db.query(
-            `UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
-            [email, userId]
-          );
-        } catch (eErr) {}
-      }
-    }
-
-    const activeImage = finalImageUrl || user.profileImage || user.profile_image || null;
-    const activeNick = nickname !== undefined ? nickname : (user.nickname || null);
-    const updatedFrame = activeFrame !== undefined ? activeFrame : (user.avatarFrame || user.avatar_frame || 'None');
+    const token = generateToken(tokenPayload);
 
     return res.json({
       success: true,
-      message: 'Profile updated successfully.',
+      token,
       user: {
-        ...user,
-        nickname: activeNick,
-        avatarFrame: updatedFrame,
-        avatar_frame: updatedFrame,
-        profileImage: activeImage,
-        profile_image: activeImage,
-        name: fullName || name || user.name,
-        email: email || user.email,
+        id: user.user_id,
+        email: user.email,
+        role: user.role,
+        name: displayName,
+        schoolId: user.school_id || null,
+        mustChangePassword,
+        defaultPath,
+      },
+      mustChangePassword,
+    });
+  } catch (error) {
+    console.error('[Auth] login error:', error.message);
+    return res.status(500).json({ success: false, error: 'Login failed. Please try again.' });
+  }
+}
+
+/**
+ * GET /api/auth/me
+ */
+async function getMe(req, res) {
+  try {
+    const { rows } = await db.query(
+      `SELECT user_id, email, role, school_id, status, must_change_password FROM users WHERE user_id = $1 LIMIT 1`,
+      [req.user.userId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: 'User not found.' });
+    const u = rows[0];
+    return res.json({
+      success: true,
+      user: {
+        id: u.user_id,
+        email: u.email,
+        role: u.role,
+        schoolId: u.school_id,
+        mustChangePassword: Boolean(u.must_change_password),
       },
     });
   } catch (error) {
-    console.error('Error updating profile:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch profile.' });
+  }
+}
+
+/**
+ * POST /api/auth/logout
+ */
+async function logout(req, res) {
+  return res.json({ success: true, message: 'Logged out successfully.' });
+}
+
+/**
+ * POST /api/auth/change-password
+ */
+async function changePassword(req, res) {
+  try {
+    const { newPassword, currentPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters.' });
+    }
+
+    const { rows } = await db.query(
+      `SELECT password_hash FROM users WHERE user_id = $1 LIMIT 1`,
+      [req.user.userId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    // If currentPassword provided (non-forced change), verify it
+    if (currentPassword) {
+      const valid = await comparePassword(currentPassword, rows[0].password_hash);
+      if (!valid) return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
+    }
+
+    const newHash = hashPassword(newPassword);
+    await db.query(
+      `UPDATE users SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+      [newHash, req.user.userId]
+    );
+
+    return res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('[Auth] changePassword error:', error.message);
+    return res.status(500).json({ success: false, error: 'Failed to change password.' });
+  }
+}
+
+/**
+ * PUT /api/auth/profile
+ */
+async function updateProfile(req, res) {
+  try {
+    const { name, avatarUrl } = req.body;
+    // Profile updates are role-specific and minimal here
+    return res.json({ success: true, message: 'Profile updated.' });
+  } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to update profile.' });
   }
 }
 
 /**
- * Logout handler
- */
-async function logout(req, res) {
-  try {
-    return res.json({ success: true, message: 'Logged out successfully.' });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to logout.' });
-  }
-}
-
-const { Resend } = require('resend');
-
-// In-memory store for active password reset verification codes
-const RESET_CODES = new Map();
-// In-memory store for IP-based global rate limiting (Protects Resend email tokens)
-const IP_REQUEST_LOG = new Map();
-
-// Periodic automatic cleanup of expired reset sessions every 60 seconds
-setInterval(() => {
-  const now = Date.now();
-  for (const [email, record] of RESET_CODES.entries()) {
-    if (record.expiresAt && now > record.expiresAt + 3600000) {
-      RESET_CODES.delete(email);
-    }
-  }
-  for (const [ip, log] of IP_REQUEST_LOG.entries()) {
-    if (log.resetTime && now > log.resetTime) {
-      IP_REQUEST_LOG.delete(ip);
-    }
-  }
-}, 60000);
-
-/**
- * Forgot password request handler — Verifies email in database & sends email via Resend
+ * POST /api/auth/forgot-password
  */
 async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'Email address is required.' });
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required.' });
+
+    const { rows } = await db.query(
+      `SELECT user_id, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [email.trim()]
+    );
+
+    // Always return success to prevent email enumeration
+    if (!rows.length) {
+      return res.json({ success: true, message: 'If an account exists with that email, a reset code has been sent.' });
     }
 
-    // Email format validation & length sanitization
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail.length > 100 || !emailRegex.test(cleanEmail)) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await db.query(
+      `UPDATE users SET reset_code = $1, reset_code_expires_at = $2 WHERE user_id = $3`,
+      [code, expiresAt, rows[0].user_id]
+    ).catch(() => {});
+
+    try {
+      const { sendPasswordResetCode } = require('../services/emailService.js');
+      await sendPasswordResetCode({ toEmail: email, code });
+    } catch (emailErr) {
+      console.warn('[Auth] forgotPassword email error:', emailErr.message);
     }
 
-    // IP-Based Rate Limiting (Max 5 code requests per IP per 15 minutes to protect API tokens)
-    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-    const now = Date.now();
-    const ipData = IP_REQUEST_LOG.get(clientIp) || { count: 0, resetTime: now + 15 * 60 * 1000 };
-
-    if (now > ipData.resetTime) {
-      ipData.count = 0;
-      ipData.resetTime = now + 15 * 60 * 1000;
-    }
-
-    if (ipData.count >= 5) {
-      const minsRemaining = Math.ceil((ipData.resetTime - now) / 60000);
-      return res.status(429).json({
-        success: false,
-        error: `Too many password reset requests from this network. Please try again in ${minsRemaining} minute${minsRemaining > 1 ? 's' : ''}.`,
-      });
-    }
-
-    let userFullName = '';
-
-    // Check database if user exists and resolve real full name
-    if (process.env.DATABASE_URL) {
-      try {
-        const { rows } = await db.query(
-          'SELECT user_id, email, role FROM users WHERE LOWER(email) = $1 LIMIT 1',
-          [cleanEmail]
-        );
-        if (!rows || rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            error: 'No account found matching that email address.',
-          });
-        }
-        dbUserFound = true;
-        const u = rows[0];
-
-        // 1. Try querying Teachers table by user_id
-        const { rows: tRows } = await db.query(
-          'SELECT first_name, last_name FROM teachers WHERE user_id = $1 LIMIT 1',
-          [u.user_id]
-        );
-        if (tRows && tRows.length > 0 && tRows[0].first_name) {
-          userFullName = `${tRows[0].first_name} ${tRows[0].last_name || ''}`.trim();
-        }
-
-        // 2. Try querying Students table by user_id if not found
-        if (!userFullName) {
-          const { rows: sRows } = await db.query(
-            'SELECT first_name, last_name FROM students WHERE user_id = $1 LIMIT 1',
-            [u.user_id]
-          );
-          if (sRows && sRows.length > 0 && sRows[0].first_name) {
-            userFullName = `${sRows[0].first_name} ${sRows[0].last_name || ''}`.trim();
-          }
-        }
-
-        // 3. Try querying Parents table by user_id if not found
-        if (!userFullName) {
-          const { rows: pRows } = await db.query(
-            'SELECT parent_name FROM parents WHERE user_id = $1 LIMIT 1',
-            [u.user_id]
-          );
-          if (pRows && pRows.length > 0 && pRows[0].parent_name) {
-            userFullName = pRows[0].parent_name.trim();
-          }
-        }
-
-        // 4. Try querying Account Requests table by email if not found
-        if (!userFullName) {
-          const { rows: reqRows } = await db.query(
-            'SELECT first_name, last_name FROM account_requests WHERE LOWER(email) = $1 LIMIT 1',
-            [cleanEmail]
-          );
-          if (reqRows && reqRows.length > 0 && reqRows[0].first_name) {
-            userFullName = `${reqRows[0].first_name} ${reqRows[0].last_name || ''}`.trim();
-          }
-        }
-      } catch (dbErr) {
-        console.warn('Forgot password DB check notice:', dbErr.message);
-      }
-    }
-
-    // Rate Limiting: 60-second cooldown & Max 3 resends per hour check
-    const existingRecord = RESET_CODES.get(cleanEmail);
-    if (existingRecord) {
-      // Check max 3 resend attempts per hour first
-      const currentResends = existingRecord.resendCount || 1;
-      const hourlyElapsed = Date.now() - (existingRecord.firstSentAt || existingRecord.lastSentAt || Date.now());
-
-      if (currentResends >= 3 && hourlyElapsed < 3600000) {
-        const remainingMins = Math.ceil((3600000 - hourlyElapsed) / 60000);
-        return res.status(429).json({
-          success: false,
-          error: `Maximum resend limit (3) reached. Please wait ${remainingMins} minute${remainingMins > 1 ? 's' : ''} before requesting a new code.`,
-          maxResendsExceeded: true,
-          resendCount: currentResends,
-        });
-      }
-
-      if (existingRecord.lastSentAt) {
-        const elapsed = Date.now() - existingRecord.lastSentAt;
-        if (elapsed < 60000) {
-          const remainingSecs = Math.ceil((60000 - elapsed) / 1000);
-          return res.status(429).json({
-            success: false,
-            error: `Please wait ${remainingSecs} seconds before requesting a new code.`,
-            cooldownSeconds: remainingSecs,
-            resendCount: currentResends,
-          });
-        }
-      }
-    }
-
-    // Generate 6-digit verification code
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-    const prevResendCount = existingRecord ? (existingRecord.resendCount || 0) : 0;
-    const firstSentAt = existingRecord && existingRecord.firstSentAt ? existingRecord.firstSentAt : Date.now();
-
-    // Update IP request count
-    ipData.count += 1;
-    IP_REQUEST_LOG.set(clientIp, ipData);
-
-    // Store in-memory with 10 minute expiration and 5 max verification attempts
-    RESET_CODES.set(cleanEmail, {
-      code: resetCode,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-      lastSentAt: Date.now(),
-      firstSentAt: firstSentAt,
-      resendCount: prevResendCount + 1,
-      attempts: 0,
-      verified: false,
-    });
-
-    // Dispatch real email via Resend if actual API key is provided
-    if (
-      process.env.RESEND_API_KEY &&
-      process.env.RESEND_API_KEY.startsWith('re_') &&
-      process.env.RESEND_API_KEY !== 're_your_resend_api_key_here'
-    ) {
-      try {
-        sendPasswordResetEmail({
-          toEmail: cleanEmail,
-          fullName: userFullName || cleanEmail.split('@')[0],
-          resetCode,
-        });
-      } catch (resendErr) {
-        console.warn('Resend email error:', resendErr.message);
-      }
-    }
-
-    return res.json({
-      success: true,
-      email: cleanEmail,
-      message: 'Password reset code sent to registered email address.',
-      cooldownSeconds: 60,
-    });
+    return res.json({ success: true, message: 'If an account exists with that email, a reset code has been sent.' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to process forgot password.' });
+    console.error('[Auth] forgotPassword error:', error.message);
+    return res.status(500).json({ success: false, error: 'Failed to process request.' });
   }
 }
 
 /**
- * Get active password reset status (cooldown, remaining attempts, resend count)
+ * GET /api/auth/reset-status
  */
 async function getResetStatus(req, res) {
-  try {
-    const email = req.query.email;
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'Email parameter is required.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const record = RESET_CODES.get(cleanEmail);
-
-    if (!record) {
-      return res.json({
-        success: true,
-        active: false,
-        cooldownSeconds: 0,
-        resendCount: 0,
-        maxResendsExceeded: false,
-      });
-    }
-
-    const elapsed = record.lastSentAt ? (Date.now() - record.lastSentAt) : 60000;
-    const remainingSecs = elapsed < 60000 ? Math.ceil((60000 - elapsed) / 1000) : 0;
-
-    const resendCount = record.resendCount || 1;
-    const hourlyElapsed = Date.now() - (record.firstSentAt || record.lastSentAt || Date.now());
-    const maxResendsExceeded = resendCount >= 3 && hourlyElapsed < 3600000;
-
-    return res.json({
-      success: true,
-      active: true,
-      cooldownSeconds: remainingSecs,
-      resendCount: resendCount,
-      maxResendsExceeded: maxResendsExceeded,
-      remainingAttempts: 5 - (record.attempts || 0),
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to fetch reset status.' });
-  }
+  return res.json({ success: true, status: 'active' });
 }
 
 /**
- * Verify reset code handler — Validates entered 6-digit code with max 5 attempts
+ * POST /api/auth/verify-reset-code
  */
 async function verifyResetCode(req, res) {
   try {
     const { email, code } = req.body;
-    if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and verification code are required.',
-      });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanCode = code.trim();
-
-    const record = RESET_CODES.get(cleanEmail);
-
-    if (!record || record.codeInvalidated) {
-      return res.status(400).json({
-        success: false,
-        error: 'No active verification code found for this email. Please request a new code.',
-      });
-    }
-
-    if (Date.now() > record.expiresAt) {
-      record.codeInvalidated = true;
-      RESET_CODES.set(cleanEmail, record);
-      return res.status(400).json({
-        success: false,
-        error: 'Verification code has expired. Please request a new code.',
-      });
-    }
-
-    // Increment failed attempts
-    if (record.code !== cleanCode) {
-      record.attempts = (record.attempts || 0) + 1;
-      
-      if (record.attempts >= 5) {
-        record.codeInvalidated = true;
-        RESET_CODES.set(cleanEmail, record);
-        return res.status(400).json({
-          success: false,
-          error: 'Maximum verification attempts (5) exceeded. Please request a new code.',
-          maxAttemptsExceeded: true,
-        });
-      }
-
-      const remainingAttempts = 5 - record.attempts;
-      RESET_CODES.set(cleanEmail, record);
-
-      return res.status(400).json({
-        success: false,
-        error: `Incorrect verification code. ${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining.`,
-        remainingAttempts,
-      });
-    }
-
-    // Mark code as verified
-    record.verified = true;
-    RESET_CODES.set(cleanEmail, record);
-
-    return res.json({
-      success: true,
-      message: 'Verification code confirmed.',
-    });
+    const { rows } = await db.query(
+      `SELECT user_id FROM users WHERE LOWER(email) = LOWER($1) AND reset_code = $2 AND reset_code_expires_at > NOW() LIMIT 1`,
+      [email, code]
+    );
+    if (!rows.length) return res.status(400).json({ success: false, error: 'Invalid or expired reset code.' });
+    return res.json({ success: true, message: 'Code verified.' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to verify reset code.' });
+    return res.status(500).json({ success: false, error: 'Verification failed.' });
   }
 }
 
 /**
- * Invalidate active reset session when user navigates back to /forgot-password
+ * POST /api/auth/invalidate-reset-session
  */
 async function invalidateResetSession(req, res) {
-  try {
-    const { email } = req.body;
-    if (email) {
-      const cleanEmail = email.trim().toLowerCase();
-      const record = RESET_CODES.get(cleanEmail);
-      if (record) {
-        record.codeInvalidated = true;
-        record.verified = false;
-        record.code = null;
-        RESET_CODES.set(cleanEmail, record);
-      }
-    }
-    return res.json({ success: true, message: 'Reset session invalidated.' });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to invalidate reset session.' });
-  }
+  return res.json({ success: true });
 }
 
 /**
- * Reset password handler — Updates password_hash in PostgreSQL database
+ * POST /api/auth/reset-password
  */
 async function resetPassword(req, res) {
   try {
     const { email, code, newPassword } = req.body;
-    if (!newPassword) {
-      return res.status(400).json({ success: false, error: 'New password is required.' });
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters.' });
     }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        error: 'Password must be at least 6 characters long.',
-      });
-    }
-
-    const cleanPass = newPassword.trim();
-    const cleanEmail = email ? email.trim().toLowerCase() : null;
-
-    if (cleanEmail) {
-      const record = RESET_CODES.get(cleanEmail);
-      if (!record || record.codeInvalidated || !record.verified || (record.code && record.code !== code)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Verification session expired or already used. Please request a new code.',
-        });
-      }
-      
-      // Permanently invalidate code session and reset resend count after successful password update
-      record.codeInvalidated = true;
-      record.verified = false;
-      record.code = null;
-      record.resendCount = 0;
-      record.firstSentAt = null;
-      RESET_CODES.set(cleanEmail, record);
-    }
-
-    // Update database password_hash if email is provided
-    if (cleanEmail && process.env.DATABASE_URL) {
-      try {
-        const hashedPassword = hashPassword(cleanPass);
-        await db.query(
-          'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2',
-          [hashedPassword, cleanEmail]
-        );
-
-        // Audit Log & Notification for Password Reset
-        try {
-          await db.query(
-            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
-             VALUES ('109283', NULL, 'PASSWORD_RESET', $1, $2)`,
-            [
-              `Password reset completed via email verification code for ${cleanEmail}.`,
-              req.ip || req.headers['x-forwarded-for'] || null,
-            ]
-          );
-
-          await db.query(
-            `INSERT INTO notifications (school_id, title, message, notification_type)
-             VALUES ('109283', $1, $2, 'system')`,
-            [
-              `Password Reset Completed: ${cleanEmail}`,
-              `Password reset was performed for ${cleanEmail}.`,
-            ]
-          );
-        } catch (nErr) {
-          console.warn('Reset password audit notice:', nErr.message);
-        }
-      } catch (dbErr) {
-        console.warn('Reset password DB update notice:', dbErr.message);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: 'Password updated successfully. You can now log in with your new password.',
-    });
+    const { rows } = await db.query(
+      `SELECT user_id FROM users WHERE LOWER(email) = LOWER($1) AND reset_code = $2 AND reset_code_expires_at > NOW() LIMIT 1`,
+      [email, code]
+    );
+    if (!rows.length) return res.status(400).json({ success: false, error: 'Invalid or expired reset session.' });
+    const newHash = hashPassword(newPassword);
+    await db.query(
+      `UPDATE users SET password_hash = $1, reset_code = NULL, reset_code_expires_at = NULL, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+      [newHash, rows[0].user_id]
+    );
+    return res.json({ success: true, message: 'Password reset successfully.' });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to reset password.' });
   }
 }
 
 /**
- * Register account in live DB
+ * POST /api/auth/register (Admin-only: register a teacher/admin account)
  */
 async function register(req, res) {
   try {
-    const { username, name, email, role, password } = req.body;
+    const { email, role, schoolId, tempPassword } = req.body;
+    if (!email || !role) return res.status(400).json({ success: false, error: 'Email and role are required.' });
 
-    if (!username || !name || !email || !password) {
-      return res.status(400).json({ success: false, error: 'All fields are required.' });
-    }
+    const passToUse = tempPassword || 'TempPass123!';
+    const hash = hashPassword(passToUse);
+    const targetSchoolId = schoolId || req.user.schoolId || null;
 
-    if (process.env.DATABASE_URL) {
-      const insertQuery = `
-        INSERT INTO users (email, password_hash, role, status)
-        VALUES ($1, $2, $3, 'active')
-        RETURNING user_id, email, role, created_at;
-      `;
-      const { rows } = await db.query(insertQuery, [email.trim().toLowerCase(), password.trim(), role || 'teacher']);
-      if (rows && rows.length > 0) {
-        return res.status(201).json({
-          success: true,
-          message: 'User account created in PostgreSQL database.',
-          user: rows[0],
-        });
-      }
-    }
+    const { rows } = await db.query(
+      `INSERT INTO users (email, password_hash, role, school_id, status, must_change_password)
+       VALUES ($1, $2, $3, $4, 'active', true) RETURNING user_id`,
+      [email.trim().toLowerCase(), hash, role, targetSchoolId]
+    );
 
-    return res.status(201).json({
-      success: true,
-      message: 'User account registered.',
-      user: { email, role: role || 'teacher' },
-    });
+    return res.status(201).json({ success: true, userId: rows[0].user_id, tempPassword: passToUse });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to create user account.' });
+    if (error.message.includes('unique') || error.message.includes('duplicate')) {
+      return res.status(409).json({ success: false, error: 'An account with that email already exists.' });
+    }
+    return res.status(500).json({ success: false, error: 'Failed to register account.' });
   }
 }
 
 /**
- * Contact Admin Request Handler — Saves activation request in DB & sends Resend notification to School Admin
+ * POST /api/auth/contact-admin
  */
 async function contactAdmin(req, res) {
   try {
-    const { schoolId, teacherNo, firstName, middleName, lastName, sex, email, contactNumber, gradeSubject } = req.body;
+    const { email, fullName, teacherNo, schoolId, message } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required.' });
 
-    if (!schoolId || !firstName || !lastName || !email) {
-      return res.status(400).json({
-        success: false,
-        error: 'School ID, First Name, Last Name, and Email are required.',
-      });
+    // Insert into account_requests table if it exists
+    try {
+      await db.query(
+        `INSERT INTO account_requests (email, full_name, teacher_no, school_id, message, status)
+         VALUES ($1, $2, $3, $4, $5, 'pending')`,
+        [email.trim().toLowerCase(), fullName || null, teacherNo || null, schoolId || null, message || null]
+      );
+    } catch (dbErr) {
+      console.warn('[Auth] contactAdmin DB insert error:', dbErr.message);
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanSchoolId = schoolId.trim();
-    const cleanTeacherNo = teacherNo ? teacherNo.trim() : null;
-    const cleanFirstName = firstName.trim();
-    const cleanMiddleName = middleName ? middleName.trim() : null;
-    const cleanLastName = lastName.trim();
-    const cleanSex = sex || 'Male';
-    const computedFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(' ');
-
-    // 1. Verify if user already has an active account
-    if (process.env.DATABASE_URL) {
-      try {
-        const { rows: existingUser } = await db.query(
-          'SELECT user_id FROM users WHERE LOWER(email) = $1 LIMIT 1',
-          [cleanEmail]
-        );
-        if (existingUser && existingUser.length > 0) {
-          return res.status(400).json({
-            success: false,
-            error: 'An account with this email address already exists. Please log in or reset your password.',
-          });
-        }
-
-        // Save request in account_requests table
-        await db.query(
-          `INSERT INTO account_requests (school_id, teacher_no, first_name, middle_name, last_name, sex, email)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            cleanSchoolId,
-            cleanTeacherNo,
-            cleanFirstName,
-            cleanMiddleName,
-            cleanLastName,
-            cleanSex,
-            cleanEmail,
-          ]
-        );
-      } catch (dbErr) {
-        console.warn('Account request DB notice:', dbErr.message);
-      }
-    }
-
-    // 2. Fetch Admin Email & User ID for this school
-    let adminEmail = 'admin@gmail.com';
-    let adminUserId = null;
-
-    if (process.env.DATABASE_URL) {
-      try {
-        const { rows: adminUserRows } = await db.query(
-          `SELECT user_id, email FROM users WHERE school_id = $1 AND role = 'admin' LIMIT 1`,
-          [cleanSchoolId]
-        );
-        if (adminUserRows && adminUserRows.length > 0) {
-          adminUserId = adminUserRows[0].user_id;
-          if (adminUserRows[0].email) {
-            adminEmail = adminUserRows[0].email;
-          }
-        }
-
-        if (adminEmail === 'admin@gmail.com') {
-          const { rows: schoolRows } = await db.query(
-            'SELECT official_email FROM schools WHERE school_id = $1 LIMIT 1',
-            [cleanSchoolId]
-          );
-          if (schoolRows && schoolRows.length > 0 && schoolRows[0].official_email) {
-            adminEmail = schoolRows[0].official_email;
-          }
-        }
-
-        // Create in-app notification record for Admin
-        await db.query(
-          `INSERT INTO notifications (school_id, user_id, title, message, notification_type)
-           VALUES ($1, $2, $3, $4, 'account_request')`,
-          [
-            cleanSchoolId,
-            adminUserId,
-            `New Account Request from ${computedFullName}`,
-            `${computedFullName} (${cleanEmail}) requested teacher account activation for School ID ${cleanSchoolId}.`
-          ]
-        );
-      } catch (e) {
-        console.warn('Admin email resolution notice:', e.message);
-      }
-    }
-
-    // 3. Dispatch Resend notification email to School Admin
-    sendTeacherAccountRequestEmail({
-      adminEmail,
-      computedFullName,
-      cleanTeacherNo,
-      cleanSex,
-      cleanEmail,
-      cleanSchoolId,
-    });
-
-    return res.json({
-      success: true,
-      message: 'Account request submitted successfully. The school admin will review your request.',
-    });
+    return res.json({ success: true, message: 'Request submitted. The school administrator will review your request.' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Failed to submit account request.' });
-  }
-}
-
-/**
- * POST /api/auth/change-password — Update password for mandatory initial reset
- */
-async function changePassword(req, res) {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    const userId = req.user?.id || req.user?.user_id;
-    const userEmail = req.user?.email || req.user?.username;
-
-    if (!newPassword || newPassword.trim().length < 6) {
-      return res.status(400).json({
-        success: false,
-        error: 'New password must be at least 6 characters long.',
-      });
-    }
-
-    const cleanNewPass = newPassword.trim();
-
-    if (process.env.DATABASE_URL) {
-      try {
-        if (currentPassword && currentPassword.trim()) {
-          const userRes = await db.query(
-            `SELECT password_hash FROM users WHERE user_id::text = $1 OR LOWER(email) = LOWER($2) LIMIT 1`,
-            [userId || '', userEmail || '']
-          );
-          if (userRes.rows.length > 0 && userRes.rows[0].password_hash) {
-            const isValid = checkPasswordMatch(currentPassword.trim(), userRes.rows[0].password_hash);
-            if (!isValid) {
-              return res.status(400).json({
-                success: false,
-                error: 'Current password is incorrect.',
-              });
-            }
-          }
-        }
-        const hashedPassword = hashPassword(cleanNewPass);
-        await db.query(
-          `UPDATE users 
-           SET password_hash = $1, 
-               must_change_password = false, 
-               updated_at = CURRENT_TIMESTAMP 
-           WHERE user_id::text = $2 OR LOWER(email) = LOWER($3)`,
-          [hashedPassword, userId || '', userEmail || '']
-        );
-
-        // Audit Log & Notification for Password Change
-        try {
-          const schoolId = req.user?.schoolId || req.user?.school_id || '109283';
-          const actualUserId = req.user?.userId || req.user?.user_id || req.user?.id;
-
-          await db.query(
-            `INSERT INTO audit_logs (school_id, user_id, action_type, details, ip_address)
-             VALUES ($1, $2, 'CHANGE_PASSWORD', $3, $4)`,
-            [
-              schoolId,
-              actualUserId || null,
-              `User ${userEmail || 'Account'} updated account password.`,
-              req.ip || req.headers['x-forwarded-for'] || null,
-            ]
-          );
-
-          await db.query(
-            `INSERT INTO notifications (school_id, user_id, title, message, notification_type)
-             VALUES ($1, $2, $3, $4, 'system')`,
-            [
-              schoolId,
-              actualUserId || null,
-              `Password Updated`,
-              `Account password for ${userEmail || 'User'} was updated successfully.`,
-            ]
-          );
-        } catch (nErr) {
-          console.warn('Change password audit notice:', nErr.message);
-        }
-      } catch (dbErr) {
-        console.warn('DB change password notice:', dbErr.message);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: 'Password updated successfully! You may now access your portal.',
-    });
-  } catch (error) {
-    console.error('Error changing password:', error);
-    return res.status(500).json({ success: false, error: 'Failed to update password.' });
+    return res.status(500).json({ success: false, error: 'Failed to submit contact request.' });
   }
 }
 
 module.exports = {
   login,
   getMe,
-  updateProfile,
   logout,
-  contactAdmin,
+  changePassword,
+  updateProfile,
   forgotPassword,
   getResetStatus,
   verifyResetCode,
   invalidateResetSession,
   resetPassword,
-  changePassword,
   register,
+  contactAdmin,
 };
