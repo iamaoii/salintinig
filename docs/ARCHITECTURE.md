@@ -70,7 +70,49 @@ When a student performs an **Oral Reading Assessment**:
 
 ---
 
-## 🗄️ 3. Core Database Entities
+## 🤖 3. Micro-RAG Remediation Pipeline (`practiceRemediationService.js`)
+
+When a student answers a quiz question incorrectly during **Practice Reader Stories**:
+
+```
++-----------------------------------------------------------------------+
+|  1. QUERY RECEIPT: Incorrect Student Answer Detected                  |
+|     (Question Text + Student's Wrong Option Index + Story Material ID) |
++-----------------------------------|-----------------------------------+
+                                    |
+                                    v
++-----------------------------------------------------------------------+
+|  2. RETRIEVAL STEP (Micro-RAG Chunking)                               |
+|     Extracts ~70-90 words (2-3 most relevant sentences) from the      |
+|     story text using keyword overlap scoring.                          |
++-----------------------------------|-----------------------------------+
+                                    |
+                                    v
++-----------------------------------------------------------------------+
+|  3. CACHE CHECK (In-Memory LRU Cache)                                 |
+|     Checks if identical (materialId + question + wrongOption) exists. |
+|     If CACHE HIT -> Returns cached remediation instantly (0 Tokens).   |
++-----------------------------------|-----------------------------------+
+                                    | (If Cache Miss)
+                                    v
++-----------------------------------------------------------------------+
+|  4. AUGMENTED GENERATION STEP                                         |
+|     Passes the extracted snippet + question to Groq Llama 3 with      |
+|     abbreviated compact JSON prompts (~180-220 tokens/request).       |
+|     Generates: Hint, Remedial Follow-up Question, Options & Answer.   |
++-----------------------------------|-----------------------------------+
+                                    |
+                                    v
++-----------------------------------------------------------------------+
+|  5. SAFE FALLBACK                                                     |
+|     If GROQ API is unavailable/throttled, automatically falls back   |
+|     to pre-stored story explanations.                                 |
++-----------------------------------------------------------------------+
+```
+
+---
+
+## 🗄️ 4. Core Database Entities
 
 | Entity / Table | Description |
 | :--- | :--- |

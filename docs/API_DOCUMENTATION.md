@@ -44,6 +44,7 @@ Base URL (Local Dev): `http://localhost:5000/api`
 | `POST` | `/assessment/submit-oral` | Submit oral reading audio recording for Groq Whisper v3 AI transcription & miscue analysis |
 | `POST` | `/assessment/submit-listening` | Submit listening comprehension quiz answers |
 | `POST` | `/assessment/submit-silent` | Submit silent reading speed & comprehension test |
+| `POST` | `/practice-story/remediations` | **Micro-RAG AI Remediation**: Generates adaptive hints & follow-up questions for incorrect practice quiz answers |
 | `GET` | `/progress` | Get student streaks, earned badges, reading WPM history, and stats |
 | `GET` | `/vocabulary` | Get practice reader vocabulary words & quizzes |
 

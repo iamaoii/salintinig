@@ -41,11 +41,12 @@
 
 ---
 
-### 🤖 4. AI & Speech-to-Text (STT) Engine
+### 🤖 4. AI Engine & Micro-RAG Framework
 | Component | Model / Engine | Purpose |
 | :--- | :--- | :--- |
-| **AI Model** | **Groq Whisper Large v3** | State-of-the-art automatic speech recognition (ASR) for high-speed, accurate oral reading transcription |
-| **SDK / API** | Groq SDK (`@groq/groq-sdk`) | Sub-second audio transcription API for miscue analysis |
+| **Automatic Speech Recognition (ASR)** | **Groq Whisper Large v3** | Sub-second, accurate oral reading transcription & miscue scoring |
+| **Micro-RAG Remediation Engine** | **Groq Llama 3 / Micro-RAG Pipeline** | Context-aware retrieval-augmented generation for adaptive practice story quizzes, hint extraction, and remedial feedback |
+| **In-Memory LRU Cache** | In-Memory LRU Cache | High-speed zero-token caching for repeated RAG remediation queries |
 
 ---
 
