@@ -140,8 +140,12 @@ export default function AccountSettings() {
             setActiveSY(clean);
           }
 
-          if (u.profileImage || u.profile_image) {
-            setAvatarUrl(u.profileImage || u.profile_image);
+          const img = u.profileImage || u.profile_image || null;
+          setAvatarUrl(img);
+          if (img) {
+            localStorage.setItem('teacherAvatarCache', img);
+          } else {
+            localStorage.removeItem('teacherAvatarCache');
           }
         }
       } catch (err) {

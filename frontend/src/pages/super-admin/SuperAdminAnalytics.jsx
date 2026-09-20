@@ -43,15 +43,6 @@ export default function SuperAdminAnalytics() {
     fetchAnalytics();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <SpinnerGap size={32} className="animate-spin text-brand-red" />
-        <span className="text-xs font-semibold text-ink/50">Compiling system analytics...</span>
-      </div>
-    );
-  }
-
   const schoolBreakdown = analytics?.schoolBreakdown || [];
   const readingLevelBreakdown = analytics?.readingLevelBreakdown || [];
   const languageBreakdown = analytics?.languageBreakdown || [];
@@ -75,6 +66,95 @@ export default function SuperAdminAnalytics() {
             Platform-level reading performance distributions, language materials, and institutional activity.
           </p>
         </div>
+
+        {loading ? (
+          <div className="space-y-6 animate-pulse">
+            {/* Top 2 Metric Cards Skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+                  <div className="h-5 w-48 rounded bg-ink/10" />
+                  <div className="h-4 w-20 rounded bg-ink/5" />
+                </div>
+                <div className="space-y-4 pt-1">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 w-24 rounded bg-ink/10" />
+                        <div className="h-3 w-16 rounded bg-ink/5" />
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-ink/10" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+                  <div className="h-5 w-52 rounded bg-ink/10" />
+                  <div className="h-4 w-24 rounded bg-ink/5" />
+                </div>
+                <div className="space-y-4 pt-1">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="h-3 w-20 rounded bg-ink/10" />
+                        <div className="h-3 w-28 rounded bg-ink/5" />
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-ink/10" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Activity Grid Skeleton */}
+            <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-sm space-y-4">
+              <div className="h-5 w-64 rounded bg-ink/10 border-b border-ink/10 pb-3" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="rounded-xl border border-ink/10 bg-white p-4 text-center space-y-2">
+                    <div className="h-3 w-12 rounded bg-ink/10 mx-auto" />
+                    <div className="h-6 w-10 rounded bg-ink/10 mx-auto" />
+                    <div className="h-2.5 w-16 rounded bg-ink/5 mx-auto" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Breakdown Skeleton */}
+            <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-sm space-y-4">
+              <div className="h-5 w-56 rounded bg-ink/10 border-b border-ink/10 pb-3" />
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-ink/10 bg-ink/[0.02]">
+                      <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">School Name</th>
+                      <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Division</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Students</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Teachers</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">School Admins</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Assessments Taken</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {[1, 2, 3, 4, 5].map((idx) => (
+                      <tr key={idx}>
+                        <td className="p-3"><div className="h-4 w-36 rounded bg-ink/10" /></td>
+                        <td className="p-3"><div className="h-4 w-24 rounded bg-ink/5" /></td>
+                        <td className="p-3 text-right"><div className="h-4 w-10 rounded bg-ink/10 ml-auto" /></td>
+                        <td className="p-3 text-right"><div className="h-4 w-10 rounded bg-ink/10 ml-auto" /></td>
+                        <td className="p-3 text-right"><div className="h-4 w-10 rounded bg-ink/10 ml-auto" /></td>
+                        <td className="p-3 text-right"><div className="h-4 w-12 rounded bg-ink/10 ml-auto" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
 
         {/* Top 2 Metric Cards: Reading Level Profile & Language Material Distribution */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -213,10 +293,10 @@ export default function SuperAdminAnalytics() {
                   <tr className="border-b border-ink/10 bg-ink/[0.02]">
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">School Name</th>
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Division</th>
-                    <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">Active Students</th>
-                    <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">Active Teachers</th>
-                    <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">School Admins</th>
-                    <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">Assessments Taken</th>
+                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Students</th>
+                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Teachers</th>
+                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">School Admins</th>
+                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Assessments Taken</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink/10">
@@ -227,10 +307,10 @@ export default function SuperAdminAnalytics() {
                         <p className="text-[10px] font-mono text-ink/40">ID: {row.school_id}</p>
                       </td>
                       <td className="p-3 text-ink/70">{row.division || '—'}</td>
-                      <td className="p-3 text-center font-bold text-ink">{row.student_count ?? 0}</td>
-                      <td className="p-3 text-center font-bold text-ink">{row.teacher_count ?? 0}</td>
-                      <td className="p-3 text-center font-bold text-ink">{row.admin_count ?? 0}</td>
-                      <td className="p-3 text-center font-bold text-brand-blue">{row.assessment_count ?? 0}</td>
+                      <td className="p-3 text-right font-bold text-ink">{row.student_count ?? 0}</td>
+                      <td className="p-3 text-right font-bold text-ink">{row.teacher_count ?? 0}</td>
+                      <td className="p-3 text-right font-bold text-ink">{row.admin_count ?? 0}</td>
+                      <td className="p-3 text-right font-bold text-brand-blue">{row.assessment_count ?? 0}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -238,6 +318,8 @@ export default function SuperAdminAnalytics() {
             </div>
           )}
         </div>
+      </>
+    )}
       </div>
     </>
   );

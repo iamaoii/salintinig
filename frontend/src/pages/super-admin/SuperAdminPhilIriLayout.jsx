@@ -8,14 +8,14 @@ const TABS = [
 export default function SuperAdminPhilIriLayout() {
   return (
     <div className="w-full">
-      <div className="flex items-center gap-3">
-        <BookOpen size={30} weight="regular" className="text-brand-red shrink-0" />
-        <div>
+      <div>
+        <div className="flex items-center gap-2">
+          <BookOpen size={24} weight="regular" className="text-brand-red shrink-0" />
           <h1 className="text-2xl font-bold text-ink">Phil-IRI System Content</h1>
-          <p className="mt-0.5 text-xs text-ink/60">
-            System-wide repository of official DepEd Phil-IRI graded reading passages and assessment materials.
-          </p>
         </div>
+        <p className="mt-0.5 text-xs text-ink/60">
+          System-wide repository of official DepEd Phil-IRI graded reading passages and assessment materials.
+        </p>
       </div>
 
       <div className="mt-5 flex items-center gap-4 border-b border-ink/10 sm:gap-6">

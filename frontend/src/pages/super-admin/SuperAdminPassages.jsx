@@ -90,6 +90,20 @@ export default function SuperAdminPassages() {
     fetchPassages();
   }, []);
 
+  useEffect(() => {
+    if (isAddEditOpen || Boolean(previewPassage)) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [isAddEditOpen, previewPassage]);
+
   const handleArchiveToggle = async (passage) => {
     try {
       const token = getToken();
@@ -282,7 +296,7 @@ export default function SuperAdminPassages() {
           <button
             type="button"
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-red px-5 py-2.5 text-xs font-bold text-cream shadow-xs hover:bg-brand-red/90 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
           >
             <Plus size={16} weight="bold" />
             <span>Add Passage</span>
@@ -384,9 +398,27 @@ export default function SuperAdminPassages() {
 
         {/* Passages Display */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <SpinnerGap size={32} className="animate-spin text-brand-red" />
-            <span className="text-xs font-semibold text-ink/50">Loading passage bank...</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((idx) => (
+              <div key={idx} className="animate-pulse rounded-2xl border border-ink/10 bg-cream p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <div className="h-5 w-12 rounded bg-ink/10" />
+                    <div className="h-5 w-16 rounded bg-ink/10" />
+                  </div>
+                  <div className="h-5 w-20 rounded-full bg-ink/10" />
+                </div>
+                <div className="h-5 w-3/4 rounded bg-ink/10" />
+                <div className="space-y-1.5 pt-1">
+                  <div className="h-3 w-full rounded bg-ink/5" />
+                  <div className="h-3 w-5/6 rounded bg-ink/5" />
+                </div>
+                <div className="pt-3 border-t border-ink/10 flex justify-between">
+                  <div className="h-4 w-24 rounded bg-ink/5" />
+                  <div className="h-4 w-16 rounded bg-ink/5" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredPassages.length === 0 ? (
           <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_2px_8px_rgba(26,24,22,0.06)]">
@@ -406,7 +438,7 @@ export default function SuperAdminPassages() {
               return (
                 <div
                   key={passage.id}
-                  className={`rounded-2xl border p-5 transition-all flex flex-col justify-between ${
+                  className={`group rounded-2xl border p-5 transition-all flex flex-col justify-between ${
                     isArchived
                       ? 'border-ink/10 bg-ink/[0.02] opacity-75'
                       : 'border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] hover:border-ink/20'
@@ -450,7 +482,7 @@ export default function SuperAdminPassages() {
                       <span>{qCount} Questions</span>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={() => setPreviewPassage(passage)}
@@ -497,7 +529,7 @@ export default function SuperAdminPassages() {
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Language</th>
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Set</th>
                     <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">Questions</th>
-                    <th className="p-3 text-center font-bold text-ink/60 uppercase text-[11px]">Status</th>
+                    <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Status</th>
                     <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Actions</th>
                   </tr>
                 </thead>
@@ -505,7 +537,7 @@ export default function SuperAdminPassages() {
                   {paginatedPassages.map((passage) => {
                     const isArchived = (passage.status || '').toLowerCase() === 'archived';
                     return (
-                      <tr key={passage.id} className="hover:bg-ink/[0.02] transition-colors">
+                      <tr key={passage.id} className="group hover:bg-ink/[0.02] transition-colors">
                         <td className="p-3 font-bold text-ink text-xs">{passage.title}</td>
                         <td className="p-3 font-semibold text-brand-blue">{passage.grade}</td>
                         <td className="p-3 text-ink/70">{passage.language}</td>
@@ -517,7 +549,7 @@ export default function SuperAdminPassages() {
                         <td className="p-3 text-center font-semibold text-ink/60">
                           {passage.questions?.length || 0} Qs
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="p-3 text-left">
                           <span
                             className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
                               isArchived
@@ -529,7 +561,7 @@ export default function SuperAdminPassages() {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
                               onClick={() => setPreviewPassage(passage)}
@@ -597,9 +629,9 @@ export default function SuperAdminPassages() {
         )}
       </div>
 
-      {/* Add / Edit Passage Modal */}
+      {/* Add / Edit Modal */}
       {isAddEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-ink/10 p-5">
@@ -873,7 +905,7 @@ export default function SuperAdminPassages() {
 
       {/* Preview Modal */}
       {previewPassage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-ink/10 p-5">
               <div>

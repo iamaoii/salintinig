@@ -49,6 +49,18 @@ export default function SuperAdminSchools() {
   const [toast, setToast] = useState(null);
   const PAGE_SIZE = 10;
 
+  // Add School Modal state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    schoolId: '',
+    schoolName: '',
+    division: '',
+    region: '',
+    officialEmail: '',
+    principalName: '',
+  });
+  const [addingSchool, setAddingSchool] = useState(false);
+
   // Edit School Modal state
   const [editingSchool, setEditingSchool] = useState(null);
   const [editFormData, setEditFormData] = useState({
@@ -85,6 +97,73 @@ export default function SuperAdminSchools() {
   useEffect(() => {
     fetchSchools();
   }, []);
+
+  useEffect(() => {
+    if (editingSchool || isAddOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [editingSchool, isAddOpen]);
+
+  const handleCreateSchool = async (e) => {
+    e.preventDefault();
+    if (!addFormData.schoolId.trim() || !addFormData.schoolName.trim()) {
+      setToast({ message: 'School ID and School Name are required.', type: 'error' });
+      return;
+    }
+
+    try {
+      setAddingSchool(true);
+      const token = getToken();
+      const payload = {
+        schoolId: addFormData.schoolId.trim(),
+        schoolName: addFormData.schoolName.trim(),
+        division: addFormData.division.trim() || null,
+        region: addFormData.region.trim() || null,
+        officialEmail: addFormData.officialEmail.trim() || null,
+        principalName: addFormData.principalName.trim() || null,
+        adminEmail: addFormData.officialEmail.trim() || null,
+      };
+
+      const res = await fetch(getApiUrl('/api/super-admin/schools'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: `School registered! Administrator credentials sent to ${addFormData.officialEmail || 'official email'}.`, type: 'success' });
+        setIsAddOpen(false);
+        setAddFormData({
+          schoolId: '',
+          schoolName: '',
+          division: '',
+          region: '',
+          officialEmail: '',
+          principalName: '',
+        });
+        fetchSchools();
+      } else {
+        setToast({ message: data.error || 'Failed to create school.', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error adding school:', err);
+      setToast({ message: 'Network error creating school.', type: 'error' });
+    } finally {
+      setAddingSchool(false);
+    }
+  };
 
   const handleToggleStatus = async (schoolId, currentStatus, e) => {
     e.stopPropagation();
@@ -199,8 +278,8 @@ export default function SuperAdminSchools() {
 
           <button
             type="button"
-            onClick={() => navigate('/super-admin/schools/add')}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-red px-5 py-2.5 text-xs font-bold text-cream shadow-xs hover:bg-brand-red/90 transition-colors cursor-pointer shrink-0"
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
           >
             <Plus size={16} weight="bold" />
             <span>Add School</span>
@@ -219,7 +298,7 @@ export default function SuperAdminSchools() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-2 text-xs text-ink outline-none focus:border-brand-red"
+              className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-2 text-xs text-ink outline-none focus:border-brand-blue"
             />
           </div>
 
@@ -235,7 +314,7 @@ export default function SuperAdminSchools() {
                 }}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors cursor-pointer ${
                   statusFilter === status
-                    ? 'bg-brand-red text-cream shadow-xs'
+                    ? 'bg-brand-blue text-cream shadow-xs'
                     : 'bg-ink/[0.04] text-ink/70 hover:bg-ink/10'
                 }`}
               >
@@ -245,34 +324,54 @@ export default function SuperAdminSchools() {
           </div>
         </div>
 
-        {/* Schools Table */}
-        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_2px_8px_rgba(26,24,22,0.06)]">
+        {/* Schools Table Container */}
+        <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] border-collapse text-sm">
+            <table className="w-full min-w-[850px] text-sm table-fixed">
               <thead>
-                <tr className="text-xs text-ink/70">
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left">School Code & Name</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left">Division & Region</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left">School Admin</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-center">Students</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-center">Teachers</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-center">Status</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-3 text-right">Actions</th>
+                <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                  <th className="w-[28%] px-5 py-3 text-left font-bold text-ink/50">School Code & Name</th>
+                  <th className="w-[20%] px-4 py-3 text-left font-bold text-ink/50">Division & Region</th>
+                  <th className="w-[22%] px-4 py-3 text-left font-bold text-ink/50">School Admin</th>
+                  <th className="w-[9%] px-4 py-3 text-right font-bold text-ink/50">Students</th>
+                  <th className="w-[9%] px-4 py-3 text-right font-bold text-ink/50">Teachers</th>
+                  <th className="w-[11%] px-4 py-3 text-left font-bold text-ink/50">Status</th>
+                  <th className="w-[80px] pr-5 py-3 text-right font-bold text-ink/50"></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-ink/10">
                 {loading ? (
-                  <tr>
-                    <td colSpan={7} className="border border-ink/10 p-12 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <SpinnerGap size={28} className="animate-spin text-brand-red" />
-                        <span className="text-xs font-semibold">Loading schools...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  [1, 2, 3, 4, 5].map((idx) => (
+                    <tr key={idx} className="animate-pulse">
+                      <td className="px-5 py-3.5">
+                        <div className="h-4 w-40 rounded bg-ink/10 mb-1" />
+                        <div className="h-3 w-20 rounded bg-ink/5" />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="h-4 w-28 rounded bg-ink/10 mb-1" />
+                        <div className="h-3 w-16 rounded bg-ink/5" />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="h-4 w-32 rounded bg-ink/10 mb-1" />
+                        <div className="h-3 w-24 rounded bg-ink/5" />
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="h-5 w-16 rounded-full bg-ink/10" />
+                      </td>
+                      <td className="w-[80px] pr-5 py-3.5 text-right">
+                        <div className="h-6 w-12 rounded bg-ink/10 ml-auto" />
+                      </td>
+                    </tr>
+                  ))
                 ) : paginatedSchools.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="border border-ink/10 p-12 text-center">
+                    <td colSpan={7} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <Buildings size={40} className="text-ink/30" />
                         <p className="text-sm font-bold text-ink">No schools found</p>
@@ -289,60 +388,59 @@ export default function SuperAdminSchools() {
                     <tr
                       key={school.school_id}
                       onClick={() => navigate(`/super-admin/schools/${school.school_id}`)}
-                      className="border border-ink/10 hover:bg-ink/[0.02] transition-colors cursor-pointer"
+                      className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
                     >
-                      <td className="border border-ink/10 p-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red font-bold text-xs">
-                            <Buildings size={18} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-ink text-xs leading-tight">{school.school_name}</p>
-                            <p className="text-[11px] font-mono text-ink/50 mt-0.5">Code: {school.school_id}</p>
-                          </div>
+                      <td className="px-5 py-3 overflow-hidden">
+                        <div className="min-w-0">
+                          <p className="font-bold text-ink text-xs leading-tight truncate" title={school.school_name}>
+                            {school.school_name}
+                          </p>
+                          <p className="text-[11px] font-mono text-ink/50 mt-0.5 truncate" title={`Code: ${school.school_id}`}>
+                            Code: {school.school_id}
+                          </p>
                         </div>
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-xs text-ink/70">
-                        <p className="font-medium text-ink leading-tight">{school.division || '—'}</p>
-                        <p className="text-[11px] text-ink/50 mt-0.5">{school.region || '—'}</p>
+                      <td className="px-4 py-3 text-xs text-ink/70 overflow-hidden">
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink leading-tight truncate" title={school.division || '—'}>
+                            {school.division || '—'}
+                          </p>
+                          <p className="text-[11px] text-ink/50 mt-0.5 truncate" title={school.region || '—'}>
+                            {school.region || '—'}
+                          </p>
+                        </div>
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-xs text-ink/70">
+                      <td className="px-4 py-3 text-xs text-ink/70 overflow-hidden">
                         {school.admin_email ? (
-                          <div>
-                            <p className="font-semibold text-ink leading-tight">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-ink leading-tight truncate" title={school.admin_name || 'Admin'}>
                               {school.admin_name || 'Admin'}
                             </p>
-                            <p className="text-[11px] text-ink/50 mt-0.5">{school.admin_email}</p>
+                            <p className="text-[11px] text-ink/50 mt-0.5 truncate font-mono" title={school.admin_email}>
+                              {school.admin_email}
+                            </p>
                           </div>
                         ) : (
                           <span className="text-ink/40 italic">No admin assigned</span>
                         )}
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-center text-xs font-semibold text-ink">
+                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
                         {school.student_count ?? 0}
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-center text-xs font-semibold text-ink">
+                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
                         {school.teacher_count ?? 0}
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-center">
+                      <td className="px-4 py-3 text-left">
                         <StatusBadge status={school.status} />
                       </td>
 
-                      <td className="border border-ink/10 p-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/super-admin/schools/${school.school_id}`)}
-                            className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
-                            title="View School Details"
-                          >
-                            <Eye size={16} />
-                          </button>
+                      <td className="w-[80px] pr-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={(e) => openEditModal(school, e)}
@@ -372,34 +470,37 @@ export default function SuperAdminSchools() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between border-t border-ink/10 pt-4 text-xs text-ink/60">
+          {/* Table Footer / Pagination */}
+          {filteredSchools.length > 0 && (
+            <div className="px-5 py-3 flex items-center justify-between border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
               <span>
-                Showing {(currentPage - 1) * PAGE_SIZE + 1} to{' '}
-                {Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of {filteredSchools.length} schools
+                {totalPages > 1
+                  ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of ${filteredSchools.length} schools`
+                  : `Showing ${filteredSchools.length} of ${filteredSchools.length} schools`}
               </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                  className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <CaretLeft size={16} />
-                </button>
-                <span className="px-2 font-bold text-ink">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                  className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                >
-                  <CaretRight size={16} />
-                </button>
-              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <CaretLeft size={16} />
+                  </button>
+                  <span className="px-2 font-bold text-ink">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <CaretRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -407,8 +508,8 @@ export default function SuperAdminSchools() {
 
       {/* Edit School Modal */}
       {editingSchool && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between border-b border-ink/10 pb-3">
               <div>
                 <h3 className="text-base font-bold text-ink">Edit School Details</h3>
@@ -499,9 +600,135 @@ export default function SuperAdminSchools() {
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 disabled:opacity-50 cursor-pointer"
+                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-brand-blue/90 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Add School Modal */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-ink">Register New School</h3>
+                <p className="text-xs text-ink/50 mt-0.5">Create school profile and provision official admin login account.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddOpen(false)}
+                className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSchool} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">
+                    School ID / Code <span className="text-brand-red">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 109283"
+                    value={addFormData.schoolId}
+                    onChange={(e) => setAddFormData({ ...addFormData, schoolId: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">
+                    School Name <span className="text-brand-red">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Mandaluyong Elementary"
+                    value={addFormData.schoolName}
+                    onChange={(e) => setAddFormData({ ...addFormData, schoolName: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">Division</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Division of Mandaluyong"
+                    value={addFormData.division}
+                    onChange={(e) => setAddFormData({ ...addFormData, division: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">Region</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. NCR"
+                    value={addFormData.region}
+                    onChange={(e) => setAddFormData({ ...addFormData, region: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1">
+                  Official Email (Admin Login) <span className="text-brand-red">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. 109283@deped.gov.ph"
+                  value={addFormData.officialEmail}
+                  onChange={(e) => setAddFormData({ ...addFormData, officialEmail: e.target.value })}
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                />
+                <p className="text-[11px] text-ink/40 mt-1">
+                  This email will receive the initial temporary login credentials.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1">Principal / School Head</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dr. Maria Santos"
+                  value={addFormData.principalName}
+                  onChange={(e) => setAddFormData({ ...addFormData, principalName: e.target.value })}
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink/10">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOpen(false)}
+                  className="rounded-full border border-ink/10 px-4 py-2 text-xs font-semibold text-ink/70 hover:bg-ink/5 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingSchool}
+                  className="inline-flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {addingSchool ? (
+                    <>
+                      <SpinnerGap size={14} className="animate-spin" />
+                      <span>Registering...</span>
+                    </>
+                  ) : (
+                    <span>Register School</span>
+                  )}
                 </button>
               </div>
             </form>

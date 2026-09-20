@@ -57,12 +57,12 @@ import AdminPhilIriLayout from './pages/admin/AdminPhilIriLayout.jsx';
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout.jsx';
 import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard.jsx';
 import SuperAdminSchools from './pages/super-admin/SuperAdminSchools.jsx';
-import SuperAdminAddSchool from './pages/super-admin/SuperAdminAddSchool.jsx';
 import SuperAdminSchoolDetail from './pages/super-admin/SuperAdminSchoolDetail.jsx';
 import SuperAdminPhilIriLayout from './pages/super-admin/SuperAdminPhilIriLayout.jsx';
 import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
 import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
 import SuperAdminAnalytics from './pages/super-admin/SuperAdminAnalytics.jsx';
+import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
 
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -150,7 +150,7 @@ export default function App() {
 
         {/* Schools Management */}
         <Route path="schools" element={<SuperAdminSchools />} />
-        <Route path="schools/add" element={<SuperAdminAddSchool />} />
+        <Route path="schools/add" element={<Navigate to="/super-admin/schools" replace />} />
         <Route path="schools/:id" element={<SuperAdminSchoolDetail />} />
 
         {/* Phil-IRI Passages */}
@@ -167,8 +167,10 @@ export default function App() {
 
         {/* Account & Notifications */}
         <Route path="notifications" element={<AdminNotifications />} />
-        <Route path="account" element={<AdminSettings />} />
-        <Route path="account/:tab" element={<AdminSettings />} />
+        <Route path="account" element={<SuperAdminSettings />} />
+        <Route path="account/:tab" element={<SuperAdminSettings />} />
+        <Route path="settings" element={<Navigate to="/super-admin/account" replace />} />
+        <Route path="profile" element={<Navigate to="/super-admin/account" replace />} />
       </Route>
 
       <Route

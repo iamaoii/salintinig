@@ -14,17 +14,34 @@ import { getToken } from '../../lib/auth.js';
 
 function StatCard({ icon: Icon, title, subtitle, value, iconBgClass, iconColorClass, linkTo, loading }) {
   const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div className="animate-pulse rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_2px_8px_rgba(26,24,22,0.06)] flex flex-col justify-between h-[138px]">
+        <div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="h-8 w-14 rounded-md bg-ink/10" />
+            <div className="size-8 rounded-xl bg-ink/10" />
+          </div>
+          <div className="mt-3 space-y-1.5">
+            <div className="h-4 w-24 rounded bg-ink/10" />
+            <div className="h-3 w-32 rounded bg-ink/5" />
+          </div>
+        </div>
+        <div className="mt-4 pt-2 border-t border-ink/5 flex items-center justify-end">
+          <div className="h-3.5 w-14 rounded bg-ink/10" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_2px_8px_rgba(26,24,22,0.06)] flex flex-col justify-between hover:shadow-md transition-all">
       <div>
         <div className="flex items-start justify-between gap-2">
-          {loading ? (
-            <div className="h-8 w-14 animate-pulse rounded-md bg-ink/10" />
-          ) : (
-            <span className="text-2xl sm:text-3xl font-extrabold text-ink leading-none">
-              {value ?? 0}
-            </span>
-          )}
+          <span className="text-2xl sm:text-3xl font-extrabold text-ink leading-none">
+            {value ?? 0}
+          </span>
           <div className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${iconBgClass} ${iconColorClass}`}>
             <Icon size={17} weight="bold" />
           </div>
@@ -52,12 +69,16 @@ function StatCard({ icon: Icon, title, subtitle, value, iconBgClass, iconColorCl
 
 function StatusBadge({ status }) {
   const s = (status || 'active').toLowerCase();
-  const cls =
-    s === 'active'
-      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-      : 'bg-ink/5 text-ink/50 border border-ink/10';
+  const isActive = s === 'active';
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+        isActive
+          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+          : 'bg-ink/5 text-ink/50 border border-ink/10'
+      }`}
+    >
+      <span className={`size-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-ink/40'}`} />
       {s}
     </span>
   );
@@ -170,9 +191,46 @@ export default function SuperAdminDashboard() {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <SpinnerGap size={32} className="animate-spin text-brand-red" />
-            <span className="text-xs text-ink/50 font-semibold">Loading school data...</span>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-sm table-fixed">
+              <thead>
+                <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                  <th className="w-[30%] px-5 py-3 text-left font-bold text-ink/50">School Code & Name</th>
+                  <th className="w-[22%] px-4 py-3 text-left font-bold text-ink/50">Division & Region</th>
+                  <th className="w-[24%] px-4 py-3 text-left font-bold text-ink/50">School Admin</th>
+                  <th className="w-[10%] px-4 py-3 text-right font-bold text-ink/50">Students</th>
+                  <th className="w-[10%] px-4 py-3 text-right font-bold text-ink/50">Teachers</th>
+                  <th className="w-[14%] px-5 py-3 text-left font-bold text-ink/50">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink/10">
+                {[1, 2, 3, 4, 5].map((idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="px-5 py-3.5">
+                      <div className="h-4 w-40 rounded bg-ink/10 mb-1" />
+                      <div className="h-3 w-20 rounded bg-ink/5" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-28 rounded bg-ink/10 mb-1" />
+                      <div className="h-3 w-16 rounded bg-ink/5" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-32 rounded bg-ink/10 mb-1" />
+                      <div className="h-3 w-24 rounded bg-ink/5" />
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="h-5 w-16 rounded-full bg-ink/10" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : schoolsOverview.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -188,41 +246,80 @@ export default function SuperAdminDashboard() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-ink/5 bg-ink/[0.02]">
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-ink/40">School</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-ink/40">Division</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-ink/40">Admin</th>
-                  <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40">Students</th>
-                  <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40">Teachers</th>
-                  <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-ink/40">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink/5">
-                {schoolsOverview.map((school) => (
-                  <tr
-                    key={school.school_id}
-                    onClick={() => navigate(`/super-admin/schools/${school.school_id}`)}
-                    className="hover:bg-ink/[0.02] transition-colors cursor-pointer"
-                  >
-                    <td className="px-6 py-3.5">
-                      <p className="font-semibold text-ink text-xs">{school.school_name}</p>
-                      <p className="text-[10px] text-ink/40 mt-0.5">ID: {school.school_id}</p>
-                    </td>
-                    <td className="px-4 py-3.5 text-xs text-ink/60">{school.division || '—'}</td>
-                    <td className="px-4 py-3.5 text-xs text-ink/60">{school.admin_email || '—'}</td>
-                    <td className="px-4 py-3.5 text-center text-xs font-semibold text-ink">{school.student_count ?? 0}</td>
-                    <td className="px-4 py-3.5 text-center text-xs font-semibold text-ink">{school.teacher_count ?? 0}</td>
-                    <td className="px-4 py-3.5 text-center">
-                      <StatusBadge status={school.status} />
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] text-sm table-fixed">
+                <thead>
+                  <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                    <th className="w-[30%] px-5 py-3 text-left font-bold text-ink/50">School Code & Name</th>
+                    <th className="w-[22%] px-4 py-3 text-left font-bold text-ink/50">Division & Region</th>
+                    <th className="w-[24%] px-4 py-3 text-left font-bold text-ink/50">School Admin</th>
+                    <th className="w-[10%] px-4 py-3 text-right font-bold text-ink/50">Students</th>
+                    <th className="w-[10%] px-4 py-3 text-right font-bold text-ink/50">Teachers</th>
+                    <th className="w-[14%] px-5 py-3 text-left font-bold text-ink/50">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-ink/10">
+                  {schoolsOverview.map((school) => (
+                    <tr
+                      key={school.school_id}
+                      onClick={() => navigate(`/super-admin/schools/${school.school_id}`)}
+                      className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3 overflow-hidden">
+                        <div className="min-w-0">
+                          <p className="font-bold text-ink text-xs leading-tight truncate" title={school.school_name}>
+                            {school.school_name}
+                          </p>
+                          <p className="text-[11px] font-mono text-ink/50 mt-0.5 truncate" title={`Code: ${school.school_id}`}>
+                            Code: {school.school_id}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 text-xs text-ink/70 overflow-hidden">
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink leading-tight truncate" title={school.division || '—'}>
+                            {school.division || '—'}
+                          </p>
+                          <p className="text-[11px] text-ink/50 mt-0.5 truncate" title={school.region || '—'}>
+                            {school.region || '—'}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 text-xs text-ink/70 overflow-hidden">
+                        {school.admin_email ? (
+                          <div className="min-w-0">
+                            <p className="font-semibold text-ink leading-tight truncate" title={school.admin_name || 'Admin'}>
+                              {school.admin_name || 'Admin'}
+                            </p>
+                            <p className="text-[11px] text-ink/50 mt-0.5 truncate font-mono" title={school.admin_email}>
+                              {school.admin_email}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-ink/40 italic">No admin assigned</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
+                        {school.student_count ?? 0}
+                      </td>
+
+                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
+                        {school.teacher_count ?? 0}
+                      </td>
+
+                      <td className="px-5 py-3 text-left">
+                        <StatusBadge status={school.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

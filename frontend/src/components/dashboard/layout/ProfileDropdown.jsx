@@ -33,7 +33,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     if (user?.name) return user.name;
     if (user?.displayName && user.displayName !== 'Teacher Account') return user.displayName;
     if (user?.firstName) return `${user.firstName} ${user.lastName || ''}`.trim();
-    return currentRole === 'admin' ? 'Antoinette Jadaone' : 'Teacher';
+    return currentRole === 'super_admin' ? 'Super Admin' : currentRole === 'admin' ? 'Antoinette Jadaone' : 'Teacher';
   });
 
   const [profileEmail, setProfileEmail] = useState(() => user?.email || '');
@@ -61,13 +61,22 @@ export default function ProfileDropdown({ customName, role: propRole }) {
             setIsFic(freshUser.isFacultyInCharge === true);
             setFicGradeLevel(freshUser.ficGradeLevel || null);
           }
-          if (freshUser.profileImage || freshUser.profile_image) {
-            const img = freshUser.profileImage || freshUser.profile_image;
-            setAvatarUrl(img);
-            localStorage.setItem('teacherAvatarCache', img);
+          const img = freshUser.profileImage || freshUser.profile_image || null;
+          setAvatarUrl(img);
+          const cacheKey = (currentRole === 'super_admin' || currentRole === 'admin') ? 'adminAvatarCache' : 'teacherAvatarCache';
+          if (img) {
+            localStorage.setItem(cacheKey, img);
+          } else {
+            localStorage.removeItem(cacheKey);
           }
           const existingUser = getUser() || {};
-          const updatedUser = { ...existingUser, ...freshUser, name: freshName || existingUser.name };
+          const updatedUser = {
+            ...existingUser,
+            ...freshUser,
+            name: freshName || existingUser.name,
+            profileImage: img,
+            profile_image: img,
+          };
           localStorage.setItem('salintinig_user', JSON.stringify(updatedUser));
         }
       } catch (e) {
@@ -80,8 +89,8 @@ export default function ProfileDropdown({ customName, role: propRole }) {
   const name = customName || profileName;
   const email = profileEmail || user?.email || '';
 
-  const profilePath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
-  const settingsPath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
+  const profilePath = currentRole === 'super_admin' ? '/super-admin/account' : currentRole === 'admin' ? '/admin/account' : '/teacher/account';
+  const settingsPath = currentRole === 'super_admin' ? '/super-admin/account' : currentRole === 'admin' ? '/admin/account' : '/teacher/account';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -215,7 +224,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     const handleAvatarUpdate = (e) => {
       if (e?.detail) {
         setAvatarUrl(e.detail);
-        if (currentRole === 'admin') {
+        if (currentRole === 'super_admin' || currentRole === 'admin') {
           localStorage.setItem('adminAvatarCache', e.detail);
         } else {
           localStorage.setItem('teacherAvatarCache', e.detail);

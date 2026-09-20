@@ -50,21 +50,29 @@ async function getDashboardStats(req, res) {
       db.query(`SELECT COUNT(*)::int AS count FROM phil_iri_passages`).catch(() => ({ rows: [{ count: 0 }] })),
     ]);
 
-    // School overview: each school with admin name, student/teacher count
+    // School overview: each school with admin email, student/teacher count
     const schoolsOverview = await db.query(`
       SELECT
         s.school_id,
         s.school_name,
         s.division,
-        s.status,
-        COALESCE(u.email, '—') AS admin_email,
+        s.region,
+        COALESCE(s.status, 'active') AS status,
         (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'student' AND status = 'active') AS student_count,
-        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count
+        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count,
+        (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1) AS admin_email,
+        (SELECT COALESCE(
+          (SELECT CONCAT(t.first_name, ' ', t.last_name) FROM teachers t JOIN users u ON t.user_id = u.user_id WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' AND TRIM(t.first_name) != '' AND TRIM(t.first_name) != 'Admin' LIMIT 1),
+          (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1),
+          'School Admin'
+        )) AS admin_name
       FROM schools s
-      LEFT JOIN users u ON u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active'
       ORDER BY s.school_name ASC
       LIMIT 10
-    `).catch(() => ({ rows: [] }));
+    `).catch((err) => {
+      console.error('schoolsOverview error:', err.message);
+      return { rows: [] };
+    });
 
     return res.json({
       success: true,
@@ -125,7 +133,11 @@ async function getSchools(req, res) {
         (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'student' AND status = 'active') AS student_count,
         (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count,
         (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1) AS admin_email,
-        (SELECT CONCAT(t.first_name, ' ', t.last_name) FROM teachers t JOIN users u ON t.user_id = u.user_id WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1) AS admin_name
+        (SELECT COALESCE(
+          (SELECT CONCAT(t.first_name, ' ', t.last_name) FROM teachers t JOIN users u ON t.user_id = u.user_id WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' AND TRIM(t.first_name) != '' AND TRIM(t.first_name) != 'Admin' LIMIT 1),
+          (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1),
+          'School Admin'
+        )) AS admin_name
       FROM schools s
       ${where}
       ORDER BY s.school_name ASC
@@ -144,26 +156,39 @@ async function getSchools(req, res) {
 async function getSchoolById(req, res) {
   try {
     const { id } = req.params;
-    const { rows } = await db.query(`
-      SELECT
-        s.school_id,
-        s.school_name,
-        s.division,
-        s.region,
-        s.official_email,
-        s.principal_name,
-        COALESCE(s.status, 'active') AS status,
-        s.created_at,
-        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'student' AND status = 'active') AS student_count,
-        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count,
-        (SELECT COUNT(*)::int FROM classes WHERE school_id = s.school_id) AS section_count
-      FROM schools s
-      WHERE s.school_id = $1
-    `, [id]);
 
-    if (!rows.length) return res.status(404).json({ success: false, error: 'School not found.' });
+    const [schoolRes, studentsRes, teachersRes, adminsRes, assessmentsRes] = await Promise.all([
+      db.query(`
+        SELECT
+          s.school_id,
+          s.school_name,
+          s.division,
+          s.region,
+          s.official_email,
+          s.principal_name,
+          COALESCE(s.status, 'active') AS status,
+          s.created_at
+        FROM schools s
+        WHERE s.school_id = $1
+      `, [id]),
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE school_id = $1 AND role = 'student' AND status = 'active'`, [id]).catch(() => ({ rows: [{ count: 0 }] })),
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE school_id = $1 AND role = 'teacher' AND status = 'active'`, [id]).catch(() => ({ rows: [{ count: 0 }] })),
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE school_id = $1 AND role = 'admin' AND status = 'active'`, [id]).catch(() => ({ rows: [{ count: 0 }] })),
+      db.query(`SELECT COUNT(*)::int AS count FROM assessments a JOIN users u ON a.student_id = u.user_id WHERE u.school_id = $1`, [id]).catch(() => ({ rows: [{ count: 0 }] })),
+    ]);
 
-    return res.json({ success: true, school: rows[0] });
+    if (!schoolRes.rows.length) return res.status(404).json({ success: false, error: 'School not found.' });
+
+    return res.json({
+      success: true,
+      school: schoolRes.rows[0],
+      stats: {
+        studentCount: studentsRes.rows[0]?.count || 0,
+        teacherCount: teachersRes.rows[0]?.count || 0,
+        adminCount: adminsRes.rows[0]?.count || 0,
+        assessmentCount: assessmentsRes.rows[0]?.count || 0,
+      },
+    });
   } catch (err) {
     console.error('getSchoolById error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to fetch school.' });
@@ -172,61 +197,99 @@ async function getSchoolById(req, res) {
 
 /**
  * POST /api/super-admin/schools
- * Creates school + admin user in one transaction.
+ * Creates school + admin user in users table only.
  */
 async function createSchool(req, res) {
   const client = await db.pool.connect().catch(async () => {
-    // Fallback for non-pool db config
     return null;
   });
 
   try {
     const {
-      school_id, school_name, division, region, official_email, principal_name,
-      admin_first_name, admin_last_name, admin_email, admin_password,
+      school_id, schoolId,
+      school_name, schoolName,
+      division,
+      region,
+      official_email, officialEmail,
+      principal_name, principalName,
+      admin_email, adminEmail,
+      admin_password, tempPassword,
     } = req.body;
 
-    if (!school_id || !school_name) {
+    const targetSchoolId = (schoolId || school_id || '').trim();
+    const targetSchoolName = (schoolName || school_name || '').trim();
+    const targetDivision = (division || '').trim() || null;
+    const targetRegion = (region || '').trim() || null;
+    const targetOfficialEmail = (officialEmail || official_email || '').trim() || null;
+    const targetPrincipalName = (principalName || principal_name || '').trim() || null;
+
+    const targetAdminEmail = (adminEmail || admin_email || officialEmail || official_email || '').trim() || null;
+
+    if (!targetSchoolId || !targetSchoolName) {
       return res.status(400).json({ success: false, error: 'School ID and name are required.' });
     }
 
-    const tempPassword = admin_password || generateTempPassword();
-    const hashed = hashPassword(tempPassword);
+    const generatedPass = tempPassword || admin_password || generateTempPassword();
+    const hashed = hashPassword(generatedPass);
 
     // Insert school
-    await db.query(`
+    const schoolRes = await db.query(`
       INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'active')
-      ON CONFLICT (school_id) DO NOTHING
-    `, [school_id, school_name, division || null, region || null, official_email || null, principal_name || null]);
+      ON CONFLICT (school_id) DO UPDATE SET
+        school_name = EXCLUDED.school_name,
+        division = EXCLUDED.division,
+        region = EXCLUDED.region,
+        official_email = EXCLUDED.official_email,
+        principal_name = EXCLUDED.principal_name,
+        status = 'active'
+      RETURNING school_id, school_name, division, region, official_email, principal_name, status
+    `, [targetSchoolId, targetSchoolName, targetDivision, targetRegion, targetOfficialEmail, targetPrincipalName]);
 
     let createdAdmin = null;
-    if (admin_email) {
-      // Create admin user linked to the school
-      const userRes = await db.query(`
+    if (targetAdminEmail) {
+      // Create admin user linked strictly to users table (no teacher table insertion)
+      await db.query(`
         INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
         VALUES ($1, $2, $3, 'admin', 'active', true)
-        ON CONFLICT (email) DO NOTHING
-        RETURNING user_id
-      `, [school_id, admin_email, hashed]);
+        ON CONFLICT (email) DO UPDATE SET
+          school_id = EXCLUDED.school_id,
+          role = 'admin',
+          status = 'active'
+      `, [targetSchoolId, targetAdminEmail, hashed]);
 
-      if (userRes.rows.length > 0 && (admin_first_name || admin_last_name)) {
-        const userId = userRes.rows[0].user_id;
-        const empNo = `ADM-${school_id}-${Date.now().toString().slice(-4)}`;
-        await db.query(`
-          INSERT INTO teachers (user_id, teacher_no, first_name, last_name, sex)
-          VALUES ($1, $2, $3, $4, 'Female')
-          ON CONFLICT DO NOTHING
-        `, [userId, empNo, admin_first_name || '', admin_last_name || '']);
+      createdAdmin = { email: targetAdminEmail };
 
-        createdAdmin = { email: admin_email, tempPassword };
+      // Send temporary password via Resend email service
+      try {
+        const { sendWelcomeEmailWithTempPassword } = require('../services/emailService.js');
+        await sendWelcomeEmailWithTempPassword({
+          toEmail: targetAdminEmail,
+          fullName: targetPrincipalName || targetSchoolName || 'School Administrator',
+          role: 'School Administrator',
+          tempPassword: generatedPass,
+        });
+      } catch (emailErr) {
+        console.warn('Failed to send welcome email to admin:', emailErr.message);
       }
     }
 
+    const createdSchool = schoolRes.rows[0] || {
+      school_id: targetSchoolId,
+      school_name: targetSchoolName,
+      division: targetDivision,
+      region: targetRegion,
+      official_email: targetOfficialEmail,
+      principal_name: targetPrincipalName,
+      status: 'active',
+    };
+
     return res.status(201).json({
       success: true,
-      message: `School "${school_name}" created successfully.`,
-      schoolId: school_id,
+      message: `School "${targetSchoolName}" registered successfully.`,
+      school: createdSchool,
+      schoolId: targetSchoolId,
+      tempPassword: generatedPass,
       admin: createdAdmin,
     });
   } catch (err) {
@@ -243,7 +306,18 @@ async function createSchool(req, res) {
 async function updateSchool(req, res) {
   try {
     const { id } = req.params;
-    const { school_name, division, region, official_email, principal_name } = req.body;
+    const body = req.body || {};
+
+    const school_name = body.school_name || body.schoolName;
+    const division = body.division;
+    const region = body.region;
+    const official_email = body.official_email || body.officialEmail;
+    const principal_name = body.principal_name || body.principalName;
+    const status = body.status;
+
+    await db.query(`
+      ALTER TABLE schools ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
+    `).catch(() => {});
 
     await db.query(`
       UPDATE schools
@@ -251,9 +325,18 @@ async function updateSchool(req, res) {
           division = COALESCE($2, division),
           region = COALESCE($3, region),
           official_email = COALESCE($4, official_email),
-          principal_name = COALESCE($5, principal_name)
-      WHERE school_id = $6
-    `, [school_name, division, region, official_email, principal_name, id]);
+          principal_name = COALESCE($5, principal_name),
+          status = COALESCE($6, status)
+      WHERE school_id = $7
+    `, [
+      school_name !== undefined ? school_name : null,
+      division !== undefined ? division : null,
+      region !== undefined ? region : null,
+      official_email !== undefined ? official_email : null,
+      principal_name !== undefined ? principal_name : null,
+      status !== undefined ? status : null,
+      id,
+    ]);
 
     return res.json({ success: true, message: 'School updated successfully.' });
   } catch (err) {
@@ -321,11 +404,12 @@ async function getSchoolAdmins(req, res) {
 async function createSchoolAdmin(req, res) {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, password } = req.body;
+    const body = req.body || {};
+    const email = (body.email || '').trim();
 
     if (!email) return res.status(400).json({ success: false, error: 'Email is required.' });
 
-    const tempPassword = password || generateTempPassword();
+    const tempPassword = generateTempPassword();
     const hashed = hashPassword(tempPassword);
 
     const userRes = await db.query(`
@@ -339,20 +423,27 @@ async function createSchoolAdmin(req, res) {
       return res.status(409).json({ success: false, error: 'An account with this email already exists.' });
     }
 
-    const userId = userRes.rows[0].user_id;
-    if (first_name || last_name) {
-      const empNo = `ADM-${id}-${Date.now().toString().slice(-4)}`;
-      await db.query(`
-        INSERT INTO teachers (user_id, teacher_no, first_name, last_name, sex)
-        VALUES ($1, $2, $3, $4, 'Female')
-        ON CONFLICT DO NOTHING
-      `, [userId, empNo, first_name || '', last_name || '']);
+    // Fetch school name for email greeting
+    const schoolRes = await db.query(`SELECT school_name, principal_name FROM schools WHERE school_id = $1`, [id]).catch(() => ({ rows: [] }));
+    const schoolObj = schoolRes.rows[0] || {};
+
+    // Send temporary password via Resend
+    try {
+      const { sendWelcomeEmailWithTempPassword } = require('../services/emailService.js');
+      await sendWelcomeEmailWithTempPassword({
+        toEmail: email,
+        fullName: schoolObj.principal_name || schoolObj.school_name || 'School Administrator',
+        role: 'School Administrator',
+        tempPassword,
+      });
+    } catch (emailErr) {
+      console.warn('Failed to send admin welcome email:', emailErr.message);
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Admin account created.',
-      tempPassword,
+      message: 'Admin account created and credentials emailed.',
+      email,
     });
   } catch (err) {
     console.error('createSchoolAdmin error:', err.message);
@@ -380,16 +471,34 @@ async function toggleAdminStatus(req, res) {
  */
 async function resetAdminPassword(req, res) {
   try {
-    const { adminId } = req.params;
+    const { id, adminId } = req.params;
     const tempPassword = generateTempPassword();
     const hashed = hashPassword(tempPassword);
 
-    await db.query(`
+    const userRes = await db.query(`
       UPDATE users SET password_hash = $1, must_change_password = true
       WHERE user_id = $2 AND role = 'admin'
+      RETURNING email
     `, [hashed, adminId]);
 
-    return res.json({ success: true, message: 'Password reset.', tempPassword });
+    const targetEmail = userRes.rows[0]?.email;
+    if (targetEmail) {
+      const schoolRes = await db.query(`SELECT school_name, principal_name FROM schools WHERE school_id = $1`, [id]).catch(() => ({ rows: [] }));
+      const schoolObj = schoolRes.rows[0] || {};
+      try {
+        const { sendWelcomeEmailWithTempPassword } = require('../services/emailService.js');
+        await sendWelcomeEmailWithTempPassword({
+          toEmail: targetEmail,
+          fullName: schoolObj.principal_name || schoolObj.school_name || 'School Administrator',
+          role: 'School Administrator',
+          tempPassword,
+        });
+      } catch (emailErr) {
+        console.warn('Failed to send reset password email:', emailErr.message);
+      }
+    }
+
+    return res.json({ success: true, message: 'Password reset and emailed successfully.' });
   } catch (err) {
     console.error('resetAdminPassword error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to reset password.' });
