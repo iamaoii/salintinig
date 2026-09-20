@@ -1038,19 +1038,7 @@ export default function AdminPhilIriPassages() {
             </div>
 
             {/* FIXED BOTTOM FOOTER BAR */}
-            <div className="p-4 px-6 border-t border-ink/10 bg-cream flex items-center justify-between shrink-0">
-              {modalTab === 'details' ? (
-                <div></div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setModalTab('details')}
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-cream px-6 py-2 text-xs font-bold text-ink/70 hover:bg-ink/10 cursor-pointer transition-colors"
-                >
-                  <ArrowLeft size={16} weight="bold" />
-                  <span>Back to Details</span>
-                </button>
-              )}
+            <div className="p-4 px-6 border-t border-ink/10 bg-cream flex items-center justify-end shrink-0">
 
               {modalTab === 'details' ? (
                 <button

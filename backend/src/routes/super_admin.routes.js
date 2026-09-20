@@ -34,6 +34,7 @@ router.post('/schools/:id/admins/:adminId/reset-password', sa.resetAdminPassword
 router.get('/phil-iri/passages', sa.getPassages);
 router.post('/phil-iri/passages', sa.createPassage);
 router.put('/phil-iri/passages/:id', sa.updatePassage);
+router.patch('/phil-iri/passages/:id/set', sa.updatePassageSet);
 router.patch('/phil-iri/passages/:id/archive', sa.archivePassage);
 
 // Stories / Reading Materials

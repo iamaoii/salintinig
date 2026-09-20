@@ -21,6 +21,9 @@ import {
   Trash,
   Check,
   SpinnerGap,
+  SlidersHorizontal,
+  WarningCircle,
+  ArrowLeft,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
@@ -30,7 +33,35 @@ const SET_COLORS = {
   'Set B': 'bg-amber-100/90 text-amber-950 border border-amber-200/80',
   'Set C': 'bg-rose-100/90 text-rose-900 border border-rose-200/80',
   'Set D': 'bg-orange-100/90 text-orange-950 border border-orange-200/80',
+  'Unassigned': 'bg-slate-100 text-slate-700 border border-slate-200',
 };
+
+const SET_CONFIGS = [
+  {
+    setKey: 'Set A',
+    label: 'Set A',
+    badgeBg: 'bg-purple-100/90 text-purple-900 border-purple-200',
+    accentBorder: 'border-ink/10 hover:border-ink/20',
+  },
+  {
+    setKey: 'Set B',
+    label: 'Set B',
+    badgeBg: 'bg-amber-100/90 text-amber-950 border-amber-200',
+    accentBorder: 'border-ink/10 hover:border-ink/20',
+  },
+  {
+    setKey: 'Set C',
+    label: 'Set C',
+    badgeBg: 'bg-rose-100/90 text-rose-900 border-rose-200',
+    accentBorder: 'border-ink/10 hover:border-ink/20',
+  },
+  {
+    setKey: 'Set D',
+    label: 'Set D',
+    badgeBg: 'bg-orange-100/90 text-orange-950 border-orange-200',
+    accentBorder: 'border-ink/10 hover:border-ink/20',
+  },
+];
 
 export default function SuperAdminPassages() {
   const [passages, setPassages] = useState([]);
@@ -55,11 +86,21 @@ export default function SuperAdminPassages() {
   const [modalTab, setModalTab] = useState('details'); // 'details' | 'questions'
   const [savingPassage, setSavingPassage] = useState(false);
 
+  // Set Assignment Modal
+  const [isSetsModalOpen, setIsSetsModalOpen] = useState(false);
+  const [setsGrade, setSetsGrade] = useState('Grade 4');
+  const [setsLanguage, setSetsLanguage] = useState('Filipino');
+  const [updatingSetKey, setUpdatingSetKey] = useState(null);
+
+  // In-Modal View Switcher (null = 4 slot overview, 'Set A'..'Set D' = picker view inside SAME modal)
+  const [pickerSlotKey, setPickerSlotKey] = useState(null);
+  const [pickerSearchQuery, setPickerSearchQuery] = useState('');
+
   const [formData, setFormData] = useState({
     title: '',
     grade: 'Grade 4',
     language: 'Filipino',
-    set: 'Set A',
+    set: 'Unassigned',
     status: 'Published',
     text: '',
     questions: [],
@@ -91,7 +132,7 @@ export default function SuperAdminPassages() {
   }, []);
 
   useEffect(() => {
-    if (isAddEditOpen || Boolean(previewPassage)) {
+    if (isAddEditOpen || Boolean(previewPassage) || isSetsModalOpen) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
     } else {
@@ -102,7 +143,7 @@ export default function SuperAdminPassages() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isAddEditOpen, previewPassage]);
+  }, [isAddEditOpen, previewPassage, isSetsModalOpen]);
 
   const handleArchiveToggle = async (passage) => {
     try {
@@ -129,7 +170,7 @@ export default function SuperAdminPassages() {
       title: '',
       grade: 'Grade 4',
       language: 'Filipino',
-      set: 'Set A',
+      set: 'Unassigned',
       status: 'Published',
       text: '',
       questions: [],
@@ -144,7 +185,7 @@ export default function SuperAdminPassages() {
       title: passage.title || '',
       grade: passage.grade || 'Grade 4',
       language: passage.language || 'Filipino',
-      set: passage.set || 'Set A',
+      set: passage.set || 'Unassigned',
       status: passage.status || 'Published',
       text: passage.text || '',
       questions: passage.questions ? JSON.parse(JSON.stringify(passage.questions)) : [],
@@ -159,7 +200,6 @@ export default function SuperAdminPassages() {
       id: Date.now(),
       question_number: (formData.questions?.length || 0) + 1,
       question: '',
-      type: 'Literal',
       options: ['', '', '', ''],
       correctAnswer: 0,
     };
@@ -208,9 +248,9 @@ export default function SuperAdminPassages() {
       const payload = {
         title: formData.title.trim(),
         gradeLevel: formData.grade,
-        passageSet: formData.set,
+        passageSet: formData.set || 'Unassigned',
         language: formData.language,
-        status: formData.status,
+        status: formData.status || 'Published',
         contentText: formData.text.trim(),
         wordCount: wordsCount,
         questions: formData.questions || [],
@@ -233,7 +273,7 @@ export default function SuperAdminPassages() {
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({
-          message: editingPassageId ? 'Passage updated successfully.' : 'Passage created successfully.',
+          message: editingPassageId ? 'Passage updated successfully.' : 'Passage saved to General Bank.',
           type: 'success',
         });
         setIsAddEditOpen(false);
@@ -248,7 +288,84 @@ export default function SuperAdminPassages() {
     }
   };
 
-  // Filtered Passages
+  // Bank passages filtered for active sets modal (Grades 4-6 only)
+  const modalBankPassages = useMemo(() => {
+    return passages.filter((p) => {
+      const matchGrade = p.grade === setsGrade;
+      const matchLang = (p.language || '').toLowerCase() === setsLanguage.toLowerCase();
+      const isPublished = (p.status || '').toLowerCase() === 'published' || (p.status || '').toLowerCase() === 'active';
+      return matchGrade && matchLang && isPublished;
+    });
+  }, [passages, setsGrade, setsLanguage]);
+
+  // Filtered passages for Visual Story Picker search inside modal
+  const pickerFilteredPassages = useMemo(() => {
+    if (!pickerSearchQuery.trim()) return modalBankPassages;
+    const q = pickerSearchQuery.toLowerCase().trim();
+    return modalBankPassages.filter((p) => p.title?.toLowerCase().includes(q) || p.text?.toLowerCase().includes(q));
+  }, [modalBankPassages, pickerSearchQuery]);
+
+  const getAssignedPassageForSet = (setKey) => {
+    return modalBankPassages.find((p) => p.set === setKey);
+  };
+
+  const handleAssignSetSlot = async (setKey, passageId) => {
+    try {
+      setUpdatingSetKey(setKey);
+      const token = getToken();
+
+      if (!passageId) {
+        const currentAssigned = getAssignedPassageForSet(setKey);
+        if (!currentAssigned) return;
+
+        const res = await fetch(getApiUrl(`/api/super-admin/phil-iri/passages/${currentAssigned.id}/set`), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ set: 'Unassigned' }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setToast({ message: `${setKey} slot unassigned.`, type: 'success' });
+          fetchPassages();
+        } else {
+          setToast({ message: data.error || 'Failed to update slot.', type: 'error' });
+        }
+        return;
+      }
+
+      const res = await fetch(getApiUrl(`/api/super-admin/phil-iri/passages/${passageId}/set`), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          set: setKey,
+          grade: setsGrade,
+          language: setsLanguage,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: `Passage assigned to ${setKey} for ${setsGrade} (${setsLanguage}).`, type: 'success' });
+        setPickerSlotKey(null); // Return smoothly to 4-slot overview inside same modal
+        fetchPassages();
+      } else {
+        setToast({ message: data.error || 'Failed to update assignment.', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Network error updating set slot.', type: 'error' });
+    } finally {
+      setUpdatingSetKey(null);
+    }
+  };
+
+  // Filtered Passages list in main page
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
       const q = searchQuery.toLowerCase().trim();
@@ -285,22 +402,36 @@ export default function SuperAdminPassages() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Article size={24} className="text-brand-red shrink-0" />
-              <h2 className="text-xl font-bold text-ink">Phil-IRI Passages</h2>
+              <Article size={24} className="text-brand-blue shrink-0" />
+              <h2 className="text-xl font-bold text-ink">Phil-IRI Passage Bank</h2>
             </div>
             <p className="mt-0.5 text-xs text-ink/60">
-              Create, edit, and archive DepEd Phil-IRI reading passages and questions.
+              Manage system reading passages and assign Set A–D slots for Grades 4–6 Phil-IRI assessments.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
-          >
-            <Plus size={16} weight="bold" />
-            <span>Add Passage</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setPickerSlotKey(null);
+                setIsSetsModalOpen(true);
+              }}
+              className="flex items-center gap-2 rounded-full border border-ink/20 bg-cream px-4 py-2 text-xs font-bold text-ink shadow-sm hover:bg-ink/5 transition-colors cursor-pointer shrink-0"
+            >
+              <SlidersHorizontal size={16} weight="bold" className="text-brand-blue" />
+              <span>Assign Sets</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer shrink-0"
+            >
+              <Plus size={16} weight="bold" />
+              <span>Add Passage</span>
+            </button>
+          </div>
         </div>
 
         {/* Toolbar & Filters */}
@@ -317,7 +448,7 @@ export default function SuperAdminPassages() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-red"
+                className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
               />
             </div>
 
@@ -329,12 +460,26 @@ export default function SuperAdminPassages() {
               </div>
 
               <select
+                value={selectedGrade}
+                onChange={(e) => {
+                  setSelectedGrade(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
+              >
+                <option value="All">All Grades (4-6)</option>
+                <option value="Grade 4">Grade 4</option>
+                <option value="Grade 5">Grade 5</option>
+                <option value="Grade 6">Grade 6</option>
+              </select>
+
+              <select
                 value={selectedLanguage}
                 onChange={(e) => {
                   setSelectedLanguage(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Languages</option>
                 <option value="Filipino">Filipino</option>
@@ -347,9 +492,10 @@ export default function SuperAdminPassages() {
                   setSelectedSet(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Sets</option>
+                <option value="Unassigned">Unassigned (Bank)</option>
                 <option value="Set A">Set A</option>
                 <option value="Set B">Set B</option>
                 <option value="Set C">Set C</option>
@@ -362,7 +508,7 @@ export default function SuperAdminPassages() {
                   setSelectedStatus(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Statuses</option>
                 <option value="Published">Published / Active</option>
@@ -449,7 +595,7 @@ export default function SuperAdminPassages() {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5 text-ink'}`}>
-                          {passage.set || 'Set A'}
+                          {passage.set || 'Unassigned'}
                         </span>
                         <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
                           {passage.grade || 'Grade 4'}
@@ -543,7 +689,7 @@ export default function SuperAdminPassages() {
                         <td className="p-3 text-ink/70">{passage.language}</td>
                         <td className="p-3">
                           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5'}`}>
-                            {passage.set}
+                            {passage.set || 'Unassigned'}
                           </span>
                         </td>
                         <td className="p-3 text-center font-semibold text-ink/60">
@@ -629,7 +775,7 @@ export default function SuperAdminPassages() {
         )}
       </div>
 
-      {/* Add / Edit Modal */}
+      {/* Simplified Add / Edit Modal */}
       {isAddEditOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden">
@@ -639,7 +785,7 @@ export default function SuperAdminPassages() {
                 <h3 className="text-base font-bold text-ink">
                   {editingPassageId ? 'Edit Phil-IRI Passage' : 'Create New Phil-IRI Passage'}
                 </h3>
-                <p className="text-xs text-ink/50 mt-0.5">Manage passage content and reading comprehension questions.</p>
+                <p className="text-xs text-ink/50 mt-0.5">Manage passage text content and comprehension questions.</p>
               </div>
               <button
                 type="button"
@@ -657,18 +803,18 @@ export default function SuperAdminPassages() {
                 onClick={() => setModalTab('details')}
                 className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   modalTab === 'details'
-                    ? 'border-brand-red text-brand-red'
+                    ? 'border-brand-blue text-brand-blue'
                     : 'border-transparent text-ink/60 hover:text-ink'
                 }`}
               >
-                1. Passage Details & Content
+                1. Passage Content & Details
               </button>
               <button
                 type="button"
                 onClick={() => setModalTab('questions')}
                 className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   modalTab === 'questions'
-                    ? 'border-brand-red text-brand-red'
+                    ? 'border-brand-blue text-brand-blue'
                     : 'border-transparent text-ink/60 hover:text-ink'
                 }`}
               >
@@ -688,37 +834,21 @@ export default function SuperAdminPassages() {
                       placeholder="e.g. Ang Matalinong Pagong"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
+                      className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-semibold text-ink mb-1">Grade Level</label>
                       <select
                         value={formData.grade}
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
-                        <option value="Grade 2">Grade 2</option>
-                        <option value="Grade 3">Grade 3</option>
                         <option value="Grade 4">Grade 4</option>
                         <option value="Grade 5">Grade 5</option>
                         <option value="Grade 6">Grade 6</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-ink mb-1">Passage Set</label>
-                      <select
-                        value={formData.set}
-                        onChange={(e) => setFormData({ ...formData, set: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
-                      >
-                        <option value="Set A">Set A</option>
-                        <option value="Set B">Set B</option>
-                        <option value="Set C">Set C</option>
-                        <option value="Set D">Set D</option>
                       </select>
                     </div>
 
@@ -727,30 +857,17 @@ export default function SuperAdminPassages() {
                       <select
                         value={formData.language}
                         onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Filipino">Filipino</option>
                         <option value="English">English</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-ink mb-1">Status</label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
-                      >
-                        <option value="Published">Published / Active</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Archived">Archived</option>
                       </select>
                     </div>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-ink">Passage Content Text</label>
+                      <label className="block font-semibold text-ink">Passage Reading Text</label>
                       <span className="text-[11px] text-ink/50">
                         {formData.text.trim().split(/\s+/).filter(Boolean).length} words
                       </span>
@@ -761,21 +878,21 @@ export default function SuperAdminPassages() {
                       placeholder="Type or paste the full passage reading text here..."
                       value={formData.text}
                       onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                      className="w-full rounded-xl border border-ink/20 bg-cream p-3 text-xs text-ink outline-none focus:border-brand-red leading-relaxed font-sans"
+                      className="w-full rounded-xl border border-ink/20 bg-cream p-3 text-xs text-ink outline-none focus:border-brand-blue leading-relaxed font-sans"
                     />
                   </div>
                 </>
               ) : (
-                /* Questions Builder Tab */
+                /* Simplified Questions Builder Tab */
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-ink/60">
-                      Add multiple choice comprehension questions for this passage.
+                      Add multiple-choice comprehension questions for this passage.
                     </p>
                     <button
                       type="button"
                       onClick={handleAddQuestion}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-brand-red/90 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
                     >
                       <Plus size={14} weight="bold" />
                       <span>Add Question</span>
@@ -793,25 +910,14 @@ export default function SuperAdminPassages() {
                       <div key={q.id || qIdx} className="rounded-xl border border-ink/10 bg-ink/[0.02] p-4 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-ink">Question {qIdx + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={q.type || 'Literal'}
-                              onChange={(e) => handleQuestionChange(qIdx, 'type', e.target.value)}
-                              className="rounded-lg border border-ink/20 bg-cream px-2 py-1 text-[11px] text-ink font-medium"
-                            >
-                              <option value="Literal">Literal</option>
-                              <option value="Inferential">Inferential</option>
-                              <option value="Critical">Critical</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveQuestion(qIdx)}
-                              className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
-                              title="Delete Question"
-                            >
-                              <Trash size={15} />
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuestion(qIdx)}
+                            className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
+                            title="Delete Question"
+                          >
+                            <Trash size={15} />
+                          </button>
                         </div>
 
                         <input
@@ -819,12 +925,12 @@ export default function SuperAdminPassages() {
                           placeholder="Enter question text..."
                           value={q.question || ''}
                           onChange={(e) => handleQuestionChange(qIdx, 'question', e.target.value)}
-                          className="w-full rounded-lg border border-ink/20 bg-cream px-3 py-1.5 text-xs text-ink outline-none focus:border-brand-red"
+                          className="w-full rounded-lg border border-ink/20 bg-cream px-3 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
                         />
 
                         <div className="space-y-1.5 pt-1">
                           <span className="text-[10px] font-bold uppercase text-ink/50">
-                            Answer Choices (Click radio to set correct answer):
+                            Answer Choices (Click radio to select correct answer):
                           </span>
                           {(q.options || ['', '', '', '']).map((opt, optIdx) => (
                             <div key={optIdx} className="flex items-center gap-2">
@@ -833,14 +939,14 @@ export default function SuperAdminPassages() {
                                 name={`correct-${qIdx}`}
                                 checked={Number(q.correctAnswer) === optIdx}
                                 onChange={() => handleQuestionChange(qIdx, 'correctAnswer', optIdx)}
-                                className="accent-brand-red cursor-pointer"
+                                className="accent-brand-blue cursor-pointer"
                               />
                               <input
                                 type="text"
                                 placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
                                 value={opt}
                                 onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
-                                className="w-full rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs text-ink outline-none focus:border-brand-red"
+                                className="w-full rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs text-ink outline-none focus:border-brand-blue"
                               />
                             </div>
                           ))}
@@ -853,27 +959,7 @@ export default function SuperAdminPassages() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t border-ink/10 p-4 bg-ink/[0.02]">
-              <div className="text-[11px] text-ink/50">
-                {modalTab === 'details' ? (
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('questions')}
-                    className="font-semibold text-brand-blue hover:underline cursor-pointer"
-                  >
-                    Next: Comprehension Questions →
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('details')}
-                    className="font-semibold text-ink/60 hover:underline cursor-pointer"
-                  >
-                    ← Back to Details
-                  </button>
-                )}
-              </div>
-
+            <div className="flex items-center justify-end border-t border-ink/10 p-4 bg-ink/[0.02]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -886,7 +972,7 @@ export default function SuperAdminPassages() {
                   type="button"
                   onClick={handleSavePassage}
                   disabled={savingPassage}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                 >
                   {savingPassage ? (
                     <>
@@ -903,15 +989,332 @@ export default function SuperAdminPassages() {
         </div>
       )}
 
+      {/* Single Assign Sets Modal (In-Modal View Switching: No Nested Double Modals!) */}
+      {isSetsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-ink/10 p-5">
+              <div>
+                {pickerSlotKey ? (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPickerSlotKey(null)}
+                      className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-cream text-ink/70 hover:bg-ink/5 hover:text-ink cursor-pointer transition-colors"
+                      title="Back to Set Slots"
+                    >
+                      <ArrowLeft size={16} weight="bold" />
+                    </button>
+                    <div>
+                      <h3 className="text-base font-bold text-ink">
+                        Select Story for {pickerSlotKey} ({setsGrade} - {setsLanguage})
+                      </h3>
+                      <p className="text-xs text-ink/50">
+                        Click any story card below to assign it to {pickerSlotKey}.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal size={20} className="text-brand-blue" />
+                      <h3 className="text-base font-bold text-ink">Phil-IRI Set Slot Assignments</h3>
+                    </div>
+                    <p className="text-xs text-ink/50 mt-0.5">
+                      Select which passages from the general bank populate Set A, B, C, and D for Grades 4, 5, and 6.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerSlotKey(null);
+                  setIsSetsModalOpen(false);
+                }}
+                className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter / Search Bar inside Single Modal */}
+            {!pickerSlotKey ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 px-5 py-3 bg-ink/[0.02]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-ink/60 mr-1">Grade Level:</span>
+                  {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setSetsGrade(g)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
+                        setsGrade === g
+                          ? 'bg-brand-blue text-cream shadow-sm'
+                          : 'bg-cream border border-ink/20 text-ink/70 hover:text-ink'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-ink/60 mr-1">Language:</span>
+                  {['Filipino', 'English'].map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setSetsLanguage(lang)}
+                      className={`px-3.5 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
+                        setsLanguage === lang
+                          ? 'bg-brand-blue text-cream shadow-sm'
+                          : 'bg-cream border border-ink/20 text-ink/70 hover:text-ink'
+                      }`}
+                    >
+                      {lang}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 py-3 border-b border-ink/10 bg-cream">
+                <div className="relative">
+                  <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
+                  <input
+                    type="text"
+                    placeholder={`Search ${setsGrade} ${setsLanguage} bank stories...`}
+                    value={pickerSearchQuery}
+                    onChange={(e) => setPickerSearchQuery(e.target.value)}
+                    className="w-full rounded-full border border-ink/20 bg-cream pl-9 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Modal Body View 1: 4 Slots Overview (When pickerSlotKey is null) */}
+            {!pickerSlotKey ? (
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {SET_CONFIGS.map((config) => {
+                    const assignedPassage = getAssignedPassageForSet(config.setKey);
+                    const isSaving = updatingSetKey === config.setKey;
+
+                    return (
+                      <div
+                        key={config.setKey}
+                        className={`rounded-2xl border bg-cream p-4 flex flex-col justify-between transition-all ${config.accentBorder}`}
+                      >
+                        <div>
+                          {/* Slot Header */}
+                          <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-ink/10">
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-lg px-2.5 py-0.5 text-xs font-bold border ${config.badgeBg}`}>
+                                {config.setKey}
+                              </span>
+                            </div>
+
+                            {assignedPassage ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                                <CheckCircle size={12} weight="fill" />
+                                <span>Assigned</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
+                                <WarningCircle size={12} weight="fill" />
+                                <span>Slot Empty</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Assigned Passage Card or Empty State */}
+                          {assignedPassage ? (
+                            <div className="rounded-xl border border-ink/10 bg-ink/[0.02] p-3.5 space-y-2 mb-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-xs font-bold text-ink line-clamp-1">{assignedPassage.title}</h4>
+                                  <p className="text-xs text-ink/70 line-clamp-2 mt-1 leading-relaxed font-sans italic">
+                                    "{assignedPassage.text}"
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[10px] text-ink/50 mt-1.5">
+                                    <span>{assignedPassage.words || 0} words</span>
+                                    <span>•</span>
+                                    <span>{assignedPassage.questions?.length || 0} questions</span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewPassage(assignedPassage)}
+                                  className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/10 hover:text-ink cursor-pointer shrink-0"
+                                  title="Preview Passage"
+                                >
+                                  <Eye size={15} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-ink/20 bg-ink/[0.01] p-5 text-center text-ink/50 mb-3 space-y-2">
+                              <Article size={26} className="mx-auto text-ink/20" />
+                              <div>
+                                <p className="text-xs font-bold text-ink/70">No passage assigned to {config.setKey}</p>
+                                <p className="text-[11px] text-ink/40 mt-0.5">
+                                  Click below to browse and pick a story from the bank.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Story Selection Launcher / Unassign Action */}
+                        <div className="pt-2 border-t border-ink/10 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => {
+                              setPickerSearchQuery('');
+                              setPickerSlotKey(config.setKey);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <BookOpen size={14} weight="bold" />
+                            <span>{assignedPassage ? 'Change Story' : 'Select Story from Bank'}</span>
+                          </button>
+
+                          {assignedPassage && (
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => handleAssignSetSlot(config.setKey, '')}
+                              className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                              title="Unassign Slot"
+                            >
+                              <Trash size={14} />
+                              <span>Unassign</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* Modal Body View 2: Story Picker Cards Grid (Inside SAME Single Modal) */
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {pickerFilteredPassages.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-ink/20 p-8 text-center text-ink/40">
+                    <Article size={32} className="mx-auto text-ink/20 mb-1" />
+                    <p className="font-bold text-ink">No bank stories available</p>
+                    <p className="text-xs mt-0.5">
+                      No published passages found for {setsGrade} ({setsLanguage}). Add a passage first in the Passage Bank.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {pickerFilteredPassages.map((passage) => {
+                      const isAssignedToOther = passage.set && passage.set !== 'Unassigned' && passage.set !== pickerSlotKey;
+                      const isCurrentSlot = passage.set === pickerSlotKey;
+
+                      return (
+                        <div
+                          key={passage.id}
+                          className={`rounded-xl border p-4 transition-all flex flex-col justify-between ${
+                            isCurrentSlot
+                              ? 'border-brand-blue bg-blue-50/50 shadow-sm'
+                              : 'border-ink/10 bg-cream hover:border-ink/30 shadow-[0px_2px_6px_rgba(26,24,22,0.04)]'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1.5">
+                              <span className="font-bold text-xs text-ink line-clamp-1">{passage.title}</span>
+                              {isCurrentSlot ? (
+                                <span className="rounded-md bg-brand-blue text-cream px-2 py-0.5 text-[9px] font-bold shrink-0">
+                                  Current
+                                </span>
+                              ) : isAssignedToOther ? (
+                                <span className="rounded-md bg-amber-100 text-amber-900 px-2 py-0.5 text-[9px] font-bold shrink-0">
+                                  In {passage.set}
+                                </span>
+                              ) : (
+                                <span className="rounded-md bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[9px] font-bold shrink-0">
+                                  Bank
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-xs text-ink/70 line-clamp-2 leading-relaxed font-sans mb-2 italic">
+                              "{passage.text}"
+                            </p>
+
+                            <div className="flex items-center gap-2 text-[10px] text-ink/50">
+                              <span>{passage.words || 0} words</span>
+                              <span>•</span>
+                              <span>{passage.questions?.length || 0} questions</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2 border-t border-ink/10 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPassage(passage)}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink/60 hover:text-ink cursor-pointer"
+                            >
+                              <Eye size={14} />
+                              <span>Preview</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={updatingSetKey === pickerSlotKey}
+                              onClick={() => handleAssignSetSlot(pickerSlotKey, passage.id)}
+                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                                isCurrentSlot
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  : 'bg-brand-blue text-cream hover:bg-blue-700'
+                              }`}
+                            >
+                              <Check size={13} weight="bold" />
+                              <span>{isCurrentSlot ? 'Assigned' : `Select for ${pickerSlotKey}`}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-ink/10 p-4 bg-ink/[0.02]">
+              <span className="text-xs text-ink/50">
+                Changes take effect immediately for active Phil-IRI assessments.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerSlotKey(null);
+                  setIsSetsModalOpen(false);
+                }}
+                className="rounded-full bg-brand-blue px-6 py-2 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
+              >
+                Done / Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {previewPassage && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-ink/10 p-5">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[previewPassage.set] || 'bg-ink/5'}`}>
-                    {previewPassage.set}
+                    {previewPassage.set || 'Unassigned'}
                   </span>
                   <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
                     {previewPassage.grade}
@@ -947,7 +1350,7 @@ export default function SuperAdminPassages() {
                   {previewPassage.questions.map((q, idx) => (
                     <div key={idx} className="rounded-xl border border-ink/10 bg-ink/[0.02] p-3 space-y-1.5">
                       <p className="font-semibold text-ink">
-                        {idx + 1}. {q.question} <span className="text-[10px] text-ink/40 font-normal">({q.type || 'Literal'})</span>
+                        {idx + 1}. {q.question}
                       </p>
                       {q.options && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-3 pt-1">
@@ -975,7 +1378,7 @@ export default function SuperAdminPassages() {
               <button
                 type="button"
                 onClick={() => setPreviewPassage(null)}
-                className="rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 cursor-pointer"
+                className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
               >
                 Close Preview
               </button>
