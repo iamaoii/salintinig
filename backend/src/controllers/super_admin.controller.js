@@ -40,13 +40,14 @@ async function getDashboardStats(req, res) {
       return res.json({ success: true, stats: {} });
     }
 
-    const [schoolsRes, studentsRes, teachersRes, adminsRes, assessmentsRes, storiesRes] = await Promise.all([
+    const [schoolsRes, studentsRes, teachersRes, adminsRes, assessmentsRes, storiesRes, passagesRes] = await Promise.all([
       db.query(`SELECT COUNT(*)::int AS count FROM schools`).catch(() => ({ rows: [{ count: 0 }] })),
       db.query(`SELECT COUNT(*)::int AS count FROM users WHERE role = 'student' AND status = 'active'`).catch(() => ({ rows: [{ count: 0 }] })),
       db.query(`SELECT COUNT(*)::int AS count FROM users WHERE role = 'teacher' AND status = 'active'`).catch(() => ({ rows: [{ count: 0 }] })),
       db.query(`SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin' AND status = 'active'`).catch(() => ({ rows: [{ count: 0 }] })),
       db.query(`SELECT COUNT(*)::int AS count FROM assessments`).catch(() => ({ rows: [{ count: 0 }] })),
       db.query(`SELECT COUNT(*)::int AS count FROM reading_materials WHERE status = 'active'`).catch(() => ({ rows: [{ count: 0 }] })),
+      db.query(`SELECT COUNT(*)::int AS count FROM phil_iri_passages`).catch(() => ({ rows: [{ count: 0 }] })),
     ]);
 
     // School overview: each school with admin name, student/teacher count
@@ -74,6 +75,7 @@ async function getDashboardStats(req, res) {
         totalAdmins: adminsRes.rows[0]?.count || 0,
         totalAssessments: assessmentsRes.rows[0]?.count || 0,
         totalStories: storiesRes.rows[0]?.count || 0,
+        totalPassages: passagesRes.rows[0]?.count || 0,
       },
       schoolsOverview: schoolsOverview.rows,
     });

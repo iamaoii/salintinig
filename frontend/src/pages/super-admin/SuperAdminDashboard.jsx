@@ -5,7 +5,6 @@ import {
   Buildings,
   Student,
   ChalkboardTeacher,
-  Users,
   BookOpen,
   BookBookmark,
   ArrowRight,
@@ -13,19 +12,39 @@ import {
 } from '@phosphor-icons/react';
 import { getToken } from '../../lib/auth.js';
 
-function StatCard({ icon: Icon, label, value, color = 'text-brand-red', loading }) {
+function StatCard({ icon: Icon, title, subtitle, value, iconBgClass, iconColorClass, linkTo, loading }) {
+  const navigate = useNavigate();
   return (
-    <div className="rounded-2xl border border-ink/5 bg-cream p-5 shadow-[0px_2px_8px_rgba(26,24,22,0.06)] flex items-center gap-4">
-      <div className={`flex size-11 shrink-0 items-center justify-center rounded-xl bg-ink/[0.04] ${color}`}>
-        <Icon size={22} weight="regular" />
+    <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_2px_8px_rgba(26,24,22,0.06)] flex flex-col justify-between hover:shadow-md transition-all">
+      <div>
+        <div className="flex items-start justify-between gap-2">
+          {loading ? (
+            <div className="h-8 w-14 animate-pulse rounded-md bg-ink/10" />
+          ) : (
+            <span className="text-2xl sm:text-3xl font-extrabold text-ink leading-none">
+              {value ?? 0}
+            </span>
+          )}
+          <div className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${iconBgClass} ${iconColorClass}`}>
+            <Icon size={17} weight="bold" />
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <p className="text-xs font-bold text-ink leading-tight">{title}</p>
+          <p className="text-[11px] text-ink/40 mt-0.5 font-normal">{subtitle}</p>
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-ink/50 uppercase tracking-wide truncate">{label}</p>
-        {loading ? (
-          <div className="h-7 w-16 mt-0.5 animate-pulse rounded-md bg-ink/10" />
-        ) : (
-          <p className="text-2xl font-bold text-ink leading-tight">{value ?? '—'}</p>
-        )}
+
+      <div className="mt-4 pt-2 border-t border-ink/5 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => navigate(linkTo)}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-blue hover:text-brand-blue/80 hover:underline cursor-pointer"
+        >
+          <span>Manage</span>
+          <ArrowRight size={12} weight="bold" />
+        </button>
       </div>
     </div>
   );
@@ -72,12 +91,51 @@ export default function SuperAdminDashboard() {
   }, []);
 
   const STAT_CARDS = [
-    { icon: Buildings, label: 'Total Schools', value: stats?.totalSchools, color: 'text-brand-red' },
-    { icon: Student, label: 'Total Students', value: stats?.totalStudents, color: 'text-brand-blue' },
-    { icon: ChalkboardTeacher, label: 'Total Teachers', value: stats?.totalTeachers, color: 'text-emerald-600' },
-    { icon: Users, label: 'School Admins', value: stats?.totalAdmins, color: 'text-purple-600' },
-    { icon: BookOpen, label: 'Assessments', value: stats?.totalAssessments, color: 'text-amber-600' },
-    { icon: BookBookmark, label: 'Active Stories', value: stats?.totalStories, color: 'text-rose-500' },
+    {
+      icon: Buildings,
+      title: 'Total Schools',
+      subtitle: 'Registered Institutions',
+      value: stats?.totalSchools,
+      iconBgClass: 'bg-purple-100',
+      iconColorClass: 'text-purple-600',
+      linkTo: '/super-admin/schools',
+    },
+    {
+      icon: Student,
+      title: 'Total Students',
+      subtitle: 'Across all schools',
+      value: stats?.totalStudents,
+      iconBgClass: 'bg-blue-100',
+      iconColorClass: 'text-blue-600',
+      linkTo: '/super-admin/schools',
+    },
+    {
+      icon: ChalkboardTeacher,
+      title: 'Total Teachers',
+      subtitle: 'Across all schools',
+      value: stats?.totalTeachers,
+      iconBgClass: 'bg-rose-100',
+      iconColorClass: 'text-rose-600',
+      linkTo: '/super-admin/schools',
+    },
+    {
+      icon: BookOpen,
+      title: 'Phil-IRI Passages',
+      subtitle: 'Published passages',
+      value: stats?.totalPassages ?? stats?.totalAssessments,
+      iconBgClass: 'bg-emerald-100',
+      iconColorClass: 'text-emerald-600',
+      linkTo: '/super-admin/phil-iri/passages',
+    },
+    {
+      icon: BookBookmark,
+      title: 'Reading Materials',
+      subtitle: 'Active stories',
+      value: stats?.totalStories,
+      iconBgClass: 'bg-amber-100',
+      iconColorClass: 'text-amber-600',
+      linkTo: '/super-admin/stories',
+    },
   ];
 
   return (
@@ -88,10 +146,10 @@ export default function SuperAdminDashboard() {
         <p className="mt-0.5 text-sm text-ink/50">Platform-wide overview of all schools and activity.</p>
       </div>
 
-      {/* Stat Cards Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-3">
+      {/* Stat Cards Grid (5 Column Layout matching 2nd image) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {STAT_CARDS.map((card) => (
-          <StatCard key={card.label} {...card} loading={loading} />
+          <StatCard key={card.title} {...card} loading={loading} />
         ))}
       </div>
 
