@@ -376,18 +376,14 @@ export default function AdminPhilIriPassages() {
               <h2 className="text-xl font-bold text-ink">Phil-IRI Content Management</h2>
             </div>
             <p className="mt-0.5 text-xs text-ink/60">
-              Manage official DepEd Phil-IRI reading passages and comprehension questions.
+              Browse, search, and view official DepEd Phil-IRI reading passages and questions. (Managed by Super Admin)
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-brand-blue/90 transition-colors cursor-pointer shrink-0"
-          >
-            <Plus size={16} weight="bold" />
-            <span>Add Passage</span>
-          </button>
+          <div className="flex items-center gap-1.5 rounded-full bg-ink/5 border border-ink/10 px-3.5 py-1.5 text-xs font-semibold text-ink/60 shrink-0">
+            <BookOpen size={15} />
+            <span>Read-Only View</span>
+          </div>
         </div>
 
         {/* ── Filters & Search Toolbar (Matching Wireframe) ── */}
@@ -580,78 +576,19 @@ export default function AdminPhilIriPassages() {
                       Questions: {questionCount}
                     </span>
 
-                    <div className="flex items-center gap-1.5 relative">
-                      {/* Preview Button */}
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           setPreviewPassage(passage);
                           setIsPreviewOpen(true);
                         }}
-                        className="inline-flex items-center gap-1 rounded-full bg-brand-blue/10 px-2.5 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
                         title="Preview Passage"
                       >
-                        <Eye size={13} weight="bold" />
-                        <span>Preview</span>
+                        <Eye size={14} weight="bold" />
+                        <span>Preview Passage</span>
                       </button>
-
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(passage)}
-                        className="inline-flex items-center gap-1 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/70 hover:bg-ink/10 hover:text-ink transition-colors cursor-pointer"
-                        title="Edit Passage"
-                      >
-                        <Pencil size={13} weight="bold" />
-                        <span>Edit</span>
-                      </button>
-
-                      {/* 3-Dot More Actions Menu */}
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(openMenuId === passage.id ? null : passage.id);
-                          }}
-                          className="rounded-full p-1 text-ink/50 hover:bg-ink/10 hover:text-ink transition-colors cursor-pointer"
-                          title="More Options"
-                        >
-                          <DotsThreeVertical size={16} weight="bold" />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {openMenuId === passage.id && (
-                          <div
-                            className="absolute right-0 bottom-full mb-1 z-30 w-36 rounded-xl border border-ink/10 bg-white p-1.5 shadow-lg space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                handleArchive(passage);
-                              }}
-                              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer text-left"
-                            >
-                              <Archive size={14} weight="bold" />
-                              <span>{passage.status === 'Archived' ? 'Restore' : 'Archive'}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                setDeletingPassage(passage);
-                              }}
-                              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-red hover:bg-brand-red/10 transition-colors cursor-pointer text-left"
-                            >
-                              <Trash size={14} weight="bold" />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -700,43 +637,17 @@ export default function AdminPhilIriPassages() {
                         </td>
                         <td className="px-4 py-3 font-semibold text-ink/60">{qCount} Qs</td>
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPreviewPassage(passage);
-                                setIsPreviewOpen(true);
-                              }}
-                              className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
-                              title="Preview Passage"
-                            >
-                              Preview
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(passage)}
-                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
-                              title="Edit Passage"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleArchive(passage)}
-                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
-                              title={passage.status === 'Archived' ? 'Restore Passage' : 'Archive Passage'}
-                            >
-                              <Archive size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeletingPassage(passage)}
-                              className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
-                              title="Delete Passage"
-                            >
-                              <Trash size={16} />
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewPassage(passage);
+                              setIsPreviewOpen(true);
+                            }}
+                            className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
+                            title="Preview Passage"
+                          >
+                            Preview
+                          </button>
                         </td>
                       </tr>
                     );
