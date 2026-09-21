@@ -1366,6 +1366,7 @@ async function getPhilIriPassages(req, res) {
     const { rows } = await db.query(
       `SELECT passage_id, title, grade_level, passage_set, language, status, content_text, word_count 
        FROM phil_iri_passages 
+       WHERE LOWER(COALESCE(passage_set, '')) NOT IN ('unassigned', '')
        ORDER BY passage_set ASC, title ASC`
     );
     return res.json({ success: true, count: rows.length, passages: rows });

@@ -524,7 +524,6 @@ async function getPassages(req, res) {
         passage_set AS set,
         language,
         COALESCE(status, 'active') AS status,
-        COALESCE(prev_status, 'published') AS prev_status,
         content_text AS text,
         word_count AS words,
         created_at
@@ -572,7 +571,6 @@ async function getPassages(req, res) {
           set: m.set || 'Unassigned',
           language: langDisplay,
           status: m.status,
-          prevStatus: m.prev_status,
           words,
           text: m.text,
           questions,
@@ -592,21 +590,24 @@ async function getPassages(req, res) {
  */
 async function createPassage(req, res) {
   try {
-    const { title, grade, set, language, status, text, questions } = req.body;
-    if (!title || !text) {
+    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const finalTitle = title ? title.trim() : '';
+    const finalText = (text || contentText || '').trim();
+    if (!finalTitle || !finalText) {
       return res.status(400).json({ success: false, error: 'Title and content text are required.' });
     }
 
+    const finalGrade = grade || gradeLevel || 'Grade 4';
+    const finalSet = set || passageSet || 'Unassigned';
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'active').toLowerCase();
-    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-    const setVal = set || 'Unassigned';
+    const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     const { rows } = await db.query(`
-      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, prev_status, content_text, word_count)
-      VALUES ($1, $2, $3, $4, $5, $5, $6, $7)
+      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, content_text, word_count)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING passage_id AS id
-    `, [title, grade || 'Grade 4', setVal, langCode, statusVal, text, wordCount]);
+    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount]);
 
     const passageId = rows[0].id;
 
@@ -644,20 +645,25 @@ async function createPassage(req, res) {
 async function updatePassage(req, res) {
   try {
     const { id } = req.params;
-    const { title, grade, set, language, status, prevStatus, text, questions } = req.body;
+    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const finalTitle = title ? title.trim() : '';
+    const finalText = (text || contentText || '').trim();
+    if (!finalTitle || !finalText) {
+      return res.status(400).json({ success: false, error: 'Title and content text are required.' });
+    }
 
+    const finalGrade = grade || gradeLevel || 'Grade 4';
+    const finalSet = set || passageSet || 'Unassigned';
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'active').toLowerCase();
-    const prevStatusVal = (prevStatus || 'published').toLowerCase();
-    const wordCount = (text || '').trim().split(/\s+/).filter(Boolean).length;
-    const setVal = set || 'Unassigned';
+    const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     await db.query(`
       UPDATE phil_iri_passages
-      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5, prev_status = $6,
-          content_text = $7, word_count = $8, updated_at = CURRENT_TIMESTAMP
-      WHERE passage_id = $9
-    `, [title, grade, setVal, langCode, statusVal, prevStatusVal, text, wordCount, id]);
+      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5,
+          content_text = $6, word_count = $7, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $8
+    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount, id]);
 
     if (Array.isArray(questions)) {
       await db.query(`DELETE FROM phil_iri_questions WHERE passage_id = $1`, [id]);
@@ -728,18 +734,23 @@ async function updatePassageSet(req, res) {
 async function archivePassage(req, res) {
   try {
     const { id } = req.params;
-    const { status } = req.body; // 'active' or 'archived'
-    const newStatus = status || 'archived';
+    const { status } = req.body || {}; // 'published' / 'active' or 'archived'
+    let newStatus = status;
 
-    // Save prev_status before archiving
-    const prev = await db.query(`SELECT status FROM phil_iri_passages WHERE passage_id = $1`, [id]);
-    const prevStatus = prev.rows[0]?.status || 'active';
+    if (!newStatus) {
+      // Toggle status if not explicitly provided
+      const currentRes = await db.query(`SELECT status FROM phil_iri_passages WHERE passage_id = $1`, [id]);
+      const curr = (currentRes.rows[0]?.status || 'published').toLowerCase();
+      newStatus = curr === 'archived' ? 'published' : 'archived';
+    } else {
+      newStatus = newStatus.toLowerCase();
+    }
 
     await db.query(`
       UPDATE phil_iri_passages
-      SET status = $1, prev_status = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE passage_id = $3
-    `, [newStatus, prevStatus !== newStatus ? prevStatus : 'active', id]);
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $2
+    `, [newStatus, id]);
 
     return res.json({ success: true, message: `Passage status set to ${newStatus}.` });
   } catch (err) {

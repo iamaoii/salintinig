@@ -402,11 +402,11 @@ export default function SuperAdminPassages() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Article size={24} className="text-brand-blue shrink-0" />
-              <h2 className="text-xl font-bold text-ink">Phil-IRI Passage Bank</h2>
+              <BookOpen size={24} weight="bold" className="text-brand-red shrink-0" />
+              <h1 className="text-2xl font-bold text-ink">Phil-IRI Passage Bank</h1>
             </div>
             <p className="mt-0.5 text-xs text-ink/60">
-              Manage system reading passages and assign Set A–D slots for Grades 4–6 Phil-IRI assessments.
+              System-wide repository of official DepEd Phil-IRI graded reading passages and Set A–D slot assignments for Grades 4–6.
             </p>
           </div>
 
@@ -467,7 +467,9 @@ export default function SuperAdminPassages() {
                 }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
-                <option value="All">All Grades (4-6)</option>
+                <option value="All">All Grades (2-6)</option>
+                <option value="Grade 2">Grade 2</option>
+                <option value="Grade 3">Grade 3</option>
                 <option value="Grade 4">Grade 4</option>
                 <option value="Grade 5">Grade 5</option>
                 <option value="Grade 6">Grade 6</option>
@@ -752,23 +754,40 @@ export default function SuperAdminPassages() {
               Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
               {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-                className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 cursor-pointer"
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
               >
-                <CaretLeft size={16} />
+                <CaretLeft size={14} /> Previous
               </button>
-              <span className="px-2 font-bold text-ink">{currentPage} / {totalPages}</span>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={() => setCurrentPage(pg)}
+                    className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      currentPage === pg
+                        ? 'bg-brand-blue text-white shadow-xs'
+                        : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+              </div>
+
               <button
                 type="button"
                 disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-                className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 cursor-pointer"
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
               >
-                <CaretRight size={16} />
+                Next <CaretRight size={14} />
               </button>
             </div>
           </div>
@@ -827,7 +846,9 @@ export default function SuperAdminPassages() {
               {modalTab === 'details' ? (
                 <>
                   <div>
-                    <label className="block font-semibold text-ink mb-1">Passage Title</label>
+                    <label className="block font-semibold text-ink mb-1">
+                      Passage Title <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
                       required
@@ -840,12 +861,16 @@ export default function SuperAdminPassages() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-semibold text-ink mb-1">Grade Level</label>
+                      <label className="block font-semibold text-ink mb-1">
+                        Grade Level <span className="text-rose-500">*</span>
+                      </label>
                       <select
                         value={formData.grade}
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                         className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
+                        <option value="Grade 2">Grade 2</option>
+                        <option value="Grade 3">Grade 3</option>
                         <option value="Grade 4">Grade 4</option>
                         <option value="Grade 5">Grade 5</option>
                         <option value="Grade 6">Grade 6</option>
@@ -853,7 +878,9 @@ export default function SuperAdminPassages() {
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-ink mb-1">Language</label>
+                      <label className="block font-semibold text-ink mb-1">
+                        Language <span className="text-rose-500">*</span>
+                      </label>
                       <select
                         value={formData.language}
                         onChange={(e) => setFormData({ ...formData, language: e.target.value })}
@@ -867,7 +894,9 @@ export default function SuperAdminPassages() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-ink">Passage Reading Text</label>
+                      <label className="block font-semibold text-ink">
+                        Passage Reading Text <span className="text-rose-500">*</span>
+                      </label>
                       <span className="text-[11px] text-ink/50">
                         {formData.text.trim().split(/\s+/).filter(Boolean).length} words
                       </span>

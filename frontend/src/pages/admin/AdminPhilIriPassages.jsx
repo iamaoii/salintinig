@@ -475,7 +475,7 @@ export default function AdminPhilIriPassages() {
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-ink/50 mr-1">Grade Level:</span>
-              {['All', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+              {['All', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
                 <button
                   key={g}
                   type="button"

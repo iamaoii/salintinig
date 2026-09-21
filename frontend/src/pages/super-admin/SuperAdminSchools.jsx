@@ -479,25 +479,40 @@ export default function SuperAdminSchools() {
                   : `Showing ${filteredSchools.length} of ${filteredSchools.length} schools`}
               </span>
               {totalPages > 1 && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => p - 1)}
-                    className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                   >
-                    <CaretLeft size={16} />
+                    <CaretLeft size={14} /> Previous
                   </button>
-                  <span className="px-2 font-bold text-ink">
-                    {currentPage} / {totalPages}
-                  </span>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() => setCurrentPage(pg)}
+                        className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === pg
+                            ? 'bg-brand-blue text-white shadow-xs'
+                            : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     type="button"
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                    className="flex size-8 items-center justify-center rounded-lg border border-ink/10 bg-cream text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                   >
-                    <CaretRight size={16} />
+                    Next <CaretRight size={14} />
                   </button>
                 </div>
               )}

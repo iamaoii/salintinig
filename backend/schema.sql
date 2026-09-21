@@ -175,7 +175,6 @@ CREATE TABLE IF NOT EXISTS phil_iri_passages (
     passage_set VARCHAR(50) NOT NULL DEFAULT 'Set A',
     language VARCHAR(20) DEFAULT 'fil',
     status VARCHAR(50) DEFAULT 'published',
-    prev_status VARCHAR(50) DEFAULT 'published',
     content_text TEXT NOT NULL,
     word_count INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
