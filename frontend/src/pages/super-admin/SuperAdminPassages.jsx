@@ -89,6 +89,7 @@ export default function SuperAdminPassages() {
   // Set Assignment Modal
   const [isSetsModalOpen, setIsSetsModalOpen] = useState(false);
   const [setsGrade, setSetsGrade] = useState('Grade 4');
+  const [setsStage, setSetsStage] = useState('Pre-Test');
   const [setsLanguage, setSetsLanguage] = useState('Filipino');
   const [updatingSetKey, setUpdatingSetKey] = useState(null);
 
@@ -168,9 +169,10 @@ export default function SuperAdminPassages() {
     setEditingPassageId(null);
     setFormData({
       title: '',
-      grade: 'Grade 4',
+      grade: 'Grade 1',
       language: 'Filipino',
       set: 'Unassigned',
+      stage: 'Unassigned',
       status: 'Published',
       text: '',
       questions: [],
@@ -183,9 +185,10 @@ export default function SuperAdminPassages() {
     setEditingPassageId(passage.id);
     setFormData({
       title: passage.title || '',
-      grade: passage.grade || 'Grade 4',
+      grade: passage.grade || 'Grade 1',
       language: passage.language || 'Filipino',
       set: passage.set || 'Unassigned',
+      stage: passage.stage || 'Pre-Test',
       status: passage.status || 'Published',
       text: passage.text || '',
       questions: passage.questions ? JSON.parse(JSON.stringify(passage.questions)) : [],
@@ -288,7 +291,7 @@ export default function SuperAdminPassages() {
     }
   };
 
-  // Bank passages filtered for active sets modal (Grades 4-6 only)
+  // Bank passages filtered for active sets modal (Grades 1-6)
   const modalBankPassages = useMemo(() => {
     return passages.filter((p) => {
       const matchGrade = p.grade === setsGrade;
@@ -306,7 +309,7 @@ export default function SuperAdminPassages() {
   }, [modalBankPassages, pickerSearchQuery]);
 
   const getAssignedPassageForSet = (setKey) => {
-    return modalBankPassages.find((p) => p.set === setKey);
+    return modalBankPassages.find((p) => p.set === setKey && (p.stage || 'Pre-Test') === setsStage);
   };
 
   const handleAssignSetSlot = async (setKey, passageId) => {
@@ -324,7 +327,7 @@ export default function SuperAdminPassages() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ set: 'Unassigned' }),
+          body: JSON.stringify({ set: 'Unassigned', stage: setsStage }),
         });
 
         const data = await res.json();
@@ -345,6 +348,7 @@ export default function SuperAdminPassages() {
         },
         body: JSON.stringify({
           set: setKey,
+          stage: setsStage,
           grade: setsGrade,
           language: setsLanguage,
         }),
@@ -352,7 +356,7 @@ export default function SuperAdminPassages() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setToast({ message: `Passage assigned to ${setKey} for ${setsGrade} (${setsLanguage}).`, type: 'success' });
+        setToast({ message: `Passage assigned to ${setKey} (${setsStage}) for ${setsGrade} (${setsLanguage}).`, type: 'success' });
         setPickerSlotKey(null); // Return smoothly to 4-slot overview inside same modal
         fetchPassages();
       } else {
@@ -467,7 +471,8 @@ export default function SuperAdminPassages() {
                 }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
-                <option value="All">All Grades (2-6)</option>
+                <option value="All">All Grades</option>
+                <option value="Grade 1">Grade 1</option>
                 <option value="Grade 2">Grade 2</option>
                 <option value="Grade 3">Grade 3</option>
                 <option value="Grade 4">Grade 4</option>
@@ -869,6 +874,7 @@ export default function SuperAdminPassages() {
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                         className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
+                        <option value="Grade 1">Grade 1</option>
                         <option value="Grade 2">Grade 2</option>
                         <option value="Grade 3">Grade 3</option>
                         <option value="Grade 4">Grade 4</option>
@@ -1068,43 +1074,60 @@ export default function SuperAdminPassages() {
               </button>
             </div>
 
-            {/* Filter / Search Bar inside Single Modal */}
+            {/* Filter Bar inside Assign Sets Modal */}
             {!pickerSlotKey ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 px-5 py-3 bg-ink/[0.02]">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink/60 mr-1">Grade Level:</span>
-                  {['Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 px-5 py-3.5 bg-ink/[0.015]">
+                {/* Left: Test Period Segmented Tab Pills */}
+                <div className="flex items-center gap-1.5 bg-ink/5 p-1 rounded-xl">
+                  {['Pre-Test', 'Post-Test'].map((stg) => (
                     <button
-                      key={g}
+                      key={stg}
                       type="button"
-                      onClick={() => setSetsGrade(g)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
-                        setsGrade === g
-                          ? 'bg-brand-blue text-cream shadow-sm'
-                          : 'bg-cream border border-ink/20 text-ink/70 hover:text-ink'
+                      onClick={() => setSetsStage(stg)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        setsStage === stg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'text-ink/70 hover:text-ink hover:bg-white/40'
                       }`}
                     >
-                      {g}
+                      {stg}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink/60 mr-1">Language:</span>
-                  {['Filipino', 'English'].map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                      onClick={() => setSetsLanguage(lang)}
-                      className={`px-3.5 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
-                        setsLanguage === lang
-                          ? 'bg-brand-blue text-cream shadow-sm'
-                          : 'bg-cream border border-ink/20 text-ink/70 hover:text-ink'
-                      }`}
+                {/* Right: Grade Level Dropdown & Language Toggle */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-ink/60">Grade Level:</span>
+                    <select
+                      value={setsGrade}
+                      onChange={(e) => setSetsGrade(e.target.value)}
+                      className="rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer focus:border-brand-blue shadow-2xs"
                     >
-                      {lang}
-                    </button>
-                  ))}
+                      {['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="h-4 w-[1px] bg-ink/10 hidden sm:block" />
+
+                  <div className="flex items-center gap-1 bg-ink/5 p-1 rounded-xl">
+                    {['Filipino', 'English'].map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => setSetsLanguage(lang)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          setsLanguage === lang
+                            ? 'bg-white text-brand-blue shadow-2xs'
+                            : 'text-ink/60 hover:text-ink'
+                        }`}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

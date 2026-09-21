@@ -522,6 +522,7 @@ async function getPassages(req, res) {
         title,
         grade_level AS grade,
         passage_set AS set,
+        COALESCE(stage, 'Unassigned') AS stage,
         language,
         COALESCE(status, 'active') AS status,
         content_text AS text,
@@ -569,6 +570,7 @@ async function getPassages(req, res) {
           title: m.title,
           grade: m.grade || 'Grade 4',
           set: m.set || 'Unassigned',
+          stage: m.stage || 'Unassigned',
           language: langDisplay,
           status: m.status,
           words,
@@ -590,7 +592,7 @@ async function getPassages(req, res) {
  */
 async function createPassage(req, res) {
   try {
-    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const { title, grade, gradeLevel, set, passageSet, stage, language, status, text, contentText, questions } = req.body;
     const finalTitle = title ? title.trim() : '';
     const finalText = (text || contentText || '').trim();
     if (!finalTitle || !finalText) {
@@ -599,15 +601,16 @@ async function createPassage(req, res) {
 
     const finalGrade = grade || gradeLevel || 'Grade 4';
     const finalSet = set || passageSet || 'Unassigned';
+    const finalStage = stage || (finalSet === 'Unassigned' ? 'Unassigned' : 'Pre-Test');
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'active').toLowerCase();
     const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     const { rows } = await db.query(`
-      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, content_text, word_count)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO phil_iri_passages (title, grade_level, passage_set, stage, language, status, content_text, word_count)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING passage_id AS id
-    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount]);
+    `, [finalTitle, finalGrade, finalSet, finalStage, langCode, statusVal, finalText, wordCount]);
 
     const passageId = rows[0].id;
 
@@ -645,7 +648,7 @@ async function createPassage(req, res) {
 async function updatePassage(req, res) {
   try {
     const { id } = req.params;
-    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const { title, grade, gradeLevel, set, passageSet, stage, language, status, text, contentText, questions } = req.body;
     const finalTitle = title ? title.trim() : '';
     const finalText = (text || contentText || '').trim();
     if (!finalTitle || !finalText) {
@@ -654,16 +657,17 @@ async function updatePassage(req, res) {
 
     const finalGrade = grade || gradeLevel || 'Grade 4';
     const finalSet = set || passageSet || 'Unassigned';
+    const finalStage = stage || (finalSet === 'Unassigned' ? 'Unassigned' : 'Pre-Test');
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'active').toLowerCase();
     const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     await db.query(`
       UPDATE phil_iri_passages
-      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5,
-          content_text = $6, word_count = $7, updated_at = CURRENT_TIMESTAMP
-      WHERE passage_id = $8
-    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount, id]);
+      SET title = $1, grade_level = $2, passage_set = $3, stage = $4, language = $5, status = $6,
+          content_text = $7, word_count = $8, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $9
+    `, [finalTitle, finalGrade, finalSet, finalStage, langCode, statusVal, finalText, wordCount, id]);
 
     if (Array.isArray(questions)) {
       await db.query(`DELETE FROM phil_iri_questions WHERE passage_id = $1`, [id]);
@@ -700,28 +704,29 @@ async function updatePassage(req, res) {
 async function updatePassageSet(req, res) {
   try {
     const { id } = req.params;
-    const { set, grade, language } = req.body;
+    const { set, stage, grade, language } = req.body;
     const setVal = set || 'Unassigned';
+    const stageVal = setVal === 'Unassigned' ? 'Unassigned' : (stage || 'Pre-Test');
 
-    // If setVal is Set A, Set B, Set C, or Set D, and grade/language are provided,
-    // unassign any existing passage in that same grade, language, and set slot
+    // If setVal is Set A, Set B, Set C, or Set D, and grade/language/stage are provided,
+    // unassign any existing passage in that same grade, language, stage, and set slot
     if (['Set A', 'Set B', 'Set C', 'Set D'].includes(setVal) && grade && language) {
       const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
       await db.query(`
         UPDATE phil_iri_passages
-        SET passage_set = 'Unassigned', updated_at = CURRENT_TIMESTAMP
+        SET passage_set = 'Unassigned', stage = 'Unassigned', updated_at = CURRENT_TIMESTAMP
         WHERE grade_level = $1 AND (language = $2 OR (language = 'fil' AND $2 = 'Filipino') OR (language = 'en' AND $2 = 'English'))
-          AND passage_set = $3 AND passage_id != $4
-      `, [grade, langCode, setVal, id]);
+          AND stage = $3 AND passage_set = $4 AND passage_id != $5
+      `, [grade, langCode, stageVal, setVal, id]);
     }
 
     await db.query(`
       UPDATE phil_iri_passages
-      SET passage_set = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE passage_id = $2
-    `, [setVal, id]);
+      SET passage_set = $1, stage = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $3
+    `, [setVal, stageVal, id]);
 
-    return res.json({ success: true, message: `Passage assigned to ${setVal}.` });
+    return res.json({ success: true, message: `Passage assigned to ${setVal} (${stageVal}).` });
   } catch (err) {
     console.error('SA updatePassageSet error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to update passage set.' });

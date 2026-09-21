@@ -113,7 +113,7 @@ export default function PhilIriPassageBank() {
     return filteredPassages.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredPassages, currentPage]);
 
-  const gradeOptions = ['all', 'Grade 4', 'Grade 5', 'Grade 6'];
+  const gradeOptions = ['all', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
 
   return (
     <div className="w-full">
