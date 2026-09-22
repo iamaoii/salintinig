@@ -43,31 +43,45 @@ export default function DashboardLayout() {
       const headers = { Authorization: `Bearer ${token}` };
 
       try {
-        if (!cacheService.get('teacher_assessments')) {
-          fetch(getApiUrl('/api/assessments'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.assessments) && cacheService.set('teacher_assessments', d.assessments));
-        }
-        if (!cacheService.get('teacher_passages')) {
-          fetch(getApiUrl('/api/passages'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('teacher_passages', d.passages));
-        }
-        if (!cacheService.get('teacher_phil_iri_activities')) {
-          fetch(getApiUrl('/api/teacher/assessments/phil-iri-activities'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.activities) && cacheService.set('teacher_phil_iri_activities', d.activities));
-        }
-        if (!cacheService.get('teacher_overview_students')) {
-          fetch(getApiUrl('/api/teacher/class-students'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.students) && cacheService.set('teacher_overview_students', d.students));
-        }
-        if (!cacheService.get('teacher_sidebar_notifications')) {
-          fetch(getApiUrl('/api/notifications'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.notifications) && cacheService.set('teacher_sidebar_notifications', d.notifications));
-        }
+        Promise.allSettled([
+          !cacheService.get('teacher_class_students') &&
+            fetch(getApiUrl('/api/teacher/class-students'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.students)) {
+                  cacheService.set('teacher_class_students', d.students);
+                  cacheService.set('teacher_overview_students', d.students);
+                }
+              }),
+
+          !cacheService.get('teacher_phil_iri_activities') &&
+            fetch(getApiUrl('/api/teacher/assessments/phil-iri-activities'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.activities)) {
+                  cacheService.set('teacher_phil_iri_activities', d.activities);
+                }
+              }),
+
+          !cacheService.get('teacher_phil_iri_passages') &&
+            fetch(getApiUrl('/api/teacher/assessments/passages'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.passages)) {
+                  cacheService.set('teacher_phil_iri_passages', d.passages);
+                  cacheService.set('teacher_passages', d.passages);
+                }
+              }),
+
+          !cacheService.get('teacher_sidebar_notifications') &&
+            fetch(getApiUrl('/api/notifications'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.notifications)) {
+                  cacheService.set('teacher_sidebar_notifications', d.notifications);
+                }
+              }),
+        ]);
       } catch (err) {
         // Silently ignore prefetch errors
       }

@@ -12,8 +12,6 @@ import { getApiUrl } from '../../../config/api.js';
 import { cacheService } from '../../../services/cacheService.js';
 import { ActivityRowSkeleton } from '../../../components/common/Skeleton.jsx';
 
-import { practiceActivities } from '../../../data/classActivities.js';
-
 function consolidateActivities(rawList) {
   if (!Array.isArray(rawList)) return [];
   const map = new Map();
@@ -48,9 +46,6 @@ function consolidateActivities(rawList) {
 
 export default function ClassActivities() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const isPractice = location.pathname.includes('/practice');
-  const activeTabKey = isPractice ? 'practice' : 'phil-iri';
 
   const [selectedId, setSelectedId] = useState(null);
   const [students, setStudents] = useState([]);
@@ -69,8 +64,7 @@ export default function ClassActivities() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 6;
 
-  const rawActivities = activeTabKey === 'practice' ? practiceActivities : philIriActivitiesList;
-  const currentActivities = consolidateActivities(rawActivities);
+  const currentActivities = consolidateActivities(philIriActivitiesList);
 
   const filteredActivities = currentActivities.filter((act) => {
     const matchesSearch = !searchQuery || act.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -226,65 +220,42 @@ export default function ClassActivities() {
 
   return (
     <div className="flex min-h-[calc(100vh-140px)] flex-col">
-      <div className="flex items-center gap-3">
-        <FlagPennant size={28} className="text-brand-red" />
-        <h1 className="text-3xl font-bold text-ink">Activities</h1>
+      <div className="border-b border-ink/10 pb-4">
+        <div className="flex items-center gap-3">
+          <FlagPennant size={28} className="text-brand-red" />
+          <h1 className="text-3xl font-bold text-ink">Phil-IRI Assessments</h1>
+        </div>
       </div>
 
-      {/* Tabs with dedicated routes */}
-      <div className="mt-4 flex items-center justify-between border-b border-ink/10">
-        <div className="flex items-center gap-4">
-          <NavLink
-            to="/teacher/class-activities/phil-iri"
-            className={({ isActive }) =>
-              `border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'border-brand-red text-brand-red'
-                  : 'border-transparent text-ink hover:bg-ink/5'
-              }`
-            }
-          >
-            Phil-IRI Assessments
-          </NavLink>
-          <NavLink
-            to="/teacher/class-activities/practice"
-            className={({ isActive }) =>
-              `border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'border-brand-red text-brand-red'
-                  : 'border-transparent text-ink hover:bg-ink/5'
-              }`
-            }
-          >
-            Practice Mode
-          </NavLink>
-        </div>
+      <div className="mt-6 flex flex-1 flex-col gap-8 xl:flex-row">
+        <div className="relative min-w-0 flex-1">
+          {/* Action Toolbar */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  if (pendingReviews.length > 0) setShowPendingListModal(true);
+                }}
+                disabled={pendingReviews.length === 0}
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+                  pendingReviews.length > 0
+                    ? 'border-brand-red/30 bg-white text-brand-red shadow-2xs hover:bg-brand-red/5 cursor-pointer'
+                    : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-75'
+                }`}
+              >
+                <Microphone size={16} weight="bold" />
+                <span>Review Oral Assessments ({pendingReviews.length})</span>
+              </button>
 
-        <div className="mb-1 flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (pendingReviews.length > 0) setShowPendingListModal(true);
-            }}
-            disabled={pendingReviews.length === 0}
-            className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
-              pendingReviews.length > 0
-                ? 'border-brand-red/30 bg-white text-brand-red shadow-2xs hover:bg-brand-red/5 cursor-pointer'
-                : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-75'
-            }`}
-          >
-            <Microphone size={16} weight="bold" />
-            <span>Review Oral Assessments ({pendingReviews.length})</span>
-          </button>
+              <Link
+                to="/teacher/phil-iri-passages"
+                className="flex items-center gap-2 rounded-xl border border-brand-red/30 bg-white px-3.5 py-2 text-xs font-bold text-brand-red shadow-2xs hover:bg-brand-red/5 transition-all cursor-pointer"
+              >
+                <BookOpen size={16} weight="bold" />
+                <span>Phil-IRI Passage Bank</span>
+              </Link>
+            </div>
 
-          <Link
-            to="/teacher/phil-iri-passages"
-            className="flex items-center gap-2 rounded-xl border border-brand-red/30 bg-white px-3.5 py-2 text-xs font-bold text-brand-red shadow-2xs hover:bg-brand-red/5 transition-all cursor-pointer"
-          >
-            <BookOpen size={16} weight="bold" />
-            <span>Phil-IRI Passage Bank</span>
-          </Link>
-
-          {activeTabKey === 'phil-iri' ? (
             <Link
               to="/teacher/class-activities/phil-iri/assign"
               className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
@@ -292,20 +263,7 @@ export default function ClassActivities() {
               <Plus size={16} weight="bold" />
               <span>Assign Phil-IRI Sets</span>
             </Link>
-          ) : (
-            <Link
-              to="/teacher/class-activities/practice/create"
-              className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
-            >
-              <Plus size={16} weight="bold" />
-              <span>Add Practice Activity</span>
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6 flex flex-1 flex-col gap-8 xl:flex-row">
-        <div className="relative min-w-0 flex-1">
+          </div>
           {/* Search & Filter Bar */}
           {currentActivities.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

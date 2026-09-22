@@ -13,9 +13,9 @@ const PAGE_SIZE = 10;
 export default function OverviewPeople() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const cachedStudents = cacheService.get('teacher_overview_students');
+  const cachedStudents = cacheService.get('teacher_overview_students') || cacheService.get('teacher_class_students');
   const [students, setStudents] = useState(() => cachedStudents || []);
-  const [loading, setLoading] = useState(!cachedStudents);
+  const [loading, setLoading] = useState(!cachedStudents || cachedStudents.length === 0);
   const [teacherInfo, setTeacherInfo] = useState(() => {
     const u = getUser();
     return {
@@ -27,8 +27,9 @@ export default function OverviewPeople() {
 
   useEffect(() => {
     const fetchOverviewData = async () => {
-      const cached = cacheService.get('teacher_overview_students');
-      if (cached) {
+      const cached = cacheService.get('teacher_overview_students') || cacheService.get('teacher_class_students');
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setStudents(cached);
         setLoading(false);
       }
       try {
@@ -69,6 +70,7 @@ export default function OverviewPeople() {
           });
           setStudents(filteredStudents);
           cacheService.set('teacher_overview_students', filteredStudents);
+          cacheService.set('teacher_class_students', filteredStudents);
         }
       } catch (err) {
         console.warn('Could not fetch students for overview:', err);
