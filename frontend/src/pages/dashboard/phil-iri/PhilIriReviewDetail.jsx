@@ -644,7 +644,7 @@ export function PhilIriReviewPage() {
         }
 
         // 2. Fallback to pending reviews if single fetch is not matched
-        const pendingRes = await fetch('/api/teacher/assessments/pending-reviews', {
+        const pendingRes = await fetch(getApiUrl('/api/teacher/assessments/pending-reviews'), {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

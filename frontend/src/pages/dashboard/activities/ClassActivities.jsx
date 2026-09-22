@@ -154,7 +154,7 @@ export default function ClassActivities() {
 
     try {
       const token = getToken();
-      const res = await fetch(`/api/teacher/assessments/${targetId}`, {
+      const res = await fetch(getApiUrl(`/api/teacher/assessments/${targetId}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -175,7 +175,7 @@ export default function ClassActivities() {
 
   useEffect(() => {
     const token = getToken();
-    fetch('/api/teacher/assessments/passages', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/assessments/passages'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.passages) setPassages(data.passages);
@@ -183,7 +183,7 @@ export default function ClassActivities() {
       .catch(() => {});
 
     // Fetch enrolled section students for teacher
-    fetch('/api/teacher/class-students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/class-students'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.students) && data.students.length > 0) {
@@ -192,7 +192,7 @@ export default function ClassActivities() {
       })
       .catch(() => {});
 
-    fetch('/api/teacher/assessments/pending-reviews', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/assessments/pending-reviews'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.pendingReviews) setPendingReviews(data.pendingReviews);
