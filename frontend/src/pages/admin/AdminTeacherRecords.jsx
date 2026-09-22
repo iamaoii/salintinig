@@ -18,6 +18,8 @@ import {
   ChalkboardTeacher,
   Prohibit,
   UserSwitch,
+  CaretLeft,
+  CaretRight,
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
@@ -582,47 +584,37 @@ export default function AdminTeacherRecords() {
         </div>
       </div>
 
-      {/* Main Teacher Table matching Phil-IRI table styling */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+      {/* Main Teacher Table matching Super Admin table styling */}
+      <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[850px] text-sm">
             <thead>
-              <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Emp ID</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Teacher Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">DepEd Email</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Assigned Class</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Role</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
+              <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                <th className="px-4 py-3 text-right font-bold text-ink/50">Emp ID</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Teacher Name</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">DepEd Email</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Assigned Class</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Role</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50 min-w-[130px] whitespace-nowrap">Account Status</th>
+                <th className="pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/10">
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="border border-ink/10 p-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="size-7 shrink-0 rounded-full bg-ink/10" />
-                        <div className="h-3.5 w-32 rounded bg-ink/10" />
-                      </div>
-                    </td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-4 w-16 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="size-7 rounded bg-ink/10" />
-                        <div className="size-7 rounded bg-ink/10" />
-                      </div>
-                    </td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-20 rounded bg-ink/10 ml-auto" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-32 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-5 w-16 rounded-full bg-ink/10" /></td>
+                    <td className="pr-5 py-3.5 text-right"><div className="h-6 w-16 rounded bg-ink/10 ml-auto" /></td>
                   </tr>
                 ))
               ) : filteredTeachers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="border border-ink/10 p-10 text-center">
+                  <td colSpan={7} className="p-10 text-center">
                     <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                       <ChalkboardTeacher size={40} className="text-ink/30" />
                       <h4 className="text-sm font-bold text-ink">
@@ -638,23 +630,23 @@ export default function AdminTeacherRecords() {
                 </tr>
               ) : (
                 paginatedTeachers.map((tch) => (
-                  <tr key={tch.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{tch.employeeId}</td>
+                  <tr key={tch.id} className="group hover:bg-ink/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-right font-mono text-xs text-ink/80">{tch.employeeId}</td>
                     <td
-                      className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer"
+                      className="px-4 py-3 font-semibold text-brand-blue hover:underline cursor-pointer"
                       onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
                     >
                       {tch.name}
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{tch.email}</td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">
+                    <td className="px-4 py-3 text-ink/70 text-xs">{tch.email}</td>
+                    <td className="px-4 py-3 text-ink/70 text-xs">
                       {(!tch.gradeAssigned || tch.gradeAssigned === 'Unassigned' || tch.sectionAssigned === 'Unassigned') ? (
                         'Unassigned'
                       ) : (
                         <span><strong className="font-semibold text-ink">{tch.gradeAssigned}</strong> - {tch.sectionAssigned}</span>
                       )}
                     </td>
-                    <td className="border border-ink/10 p-2 text-xs">
+                    <td className="px-4 py-3 text-xs">
                       {tch.isFacultyInCharge ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[11px] font-bold text-brand-blue border border-brand-blue/20">
                           <ChalkboardTeacher size={13} weight="bold" />
@@ -671,7 +663,7 @@ export default function AdminTeacherRecords() {
                         </span>
                       )}
                     </td>
-                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
+                    <td className="px-4 py-3 min-w-[130px] whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -698,7 +690,7 @@ export default function AdminTeacherRecords() {
                         </span>
                       </div>
                     </td>
-                    <td className="border border-ink/10 p-2 text-right">
+                    <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -755,42 +747,54 @@ export default function AdminTeacherRecords() {
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/5 pt-4 text-xs text-ink/50">
-          <span>Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredTeachers.length)}–{Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of {filteredTeachers.length} teacher records</span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                  page === currentPage
-                    ? 'bg-brand-blue text-white'
-                    : 'hover:bg-ink/5 text-ink/70'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ›
-            </button>
+        {/* Table Footer / Pagination */}
+        {filteredTeachers.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+            <span>
+              {totalPages > 1
+                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of ${filteredTeachers.length} teacher records`
+                : `Showing ${filteredTeachers.length} of ${filteredTeachers.length} teacher records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* View Teacher Profile Modal */}

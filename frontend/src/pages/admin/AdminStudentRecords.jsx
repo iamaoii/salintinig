@@ -21,6 +21,8 @@ import {
   Prohibit,
   UserSwitch,
   CaretDown,
+  CaretLeft,
+  CaretRight,
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
@@ -649,49 +651,39 @@ export default function AdminStudentRecords() {
         </div>
       </div>
 
-      {/* Main Student Table matching Phil-IRI table styling */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+      {/* Main Student Table matching Super Admin table styling */}
+      <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[850px] text-sm">
             <thead>
-              <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">LRN</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Student Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Grade & Section</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Parent Access Code</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Email Address</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
+              <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                <th className="px-4 py-3 text-right font-bold text-ink/50">LRN</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Student Name</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Grade & Section</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Gender</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Parent Access Code</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50">Email Address</th>
+                <th className="px-4 py-3 text-left font-bold text-ink/50 min-w-[130px] whitespace-nowrap">Account Status</th>
+                <th className="pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/10">
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="border border-ink/10 p-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="size-7 shrink-0 rounded-full bg-ink/10" />
-                        <div className="h-3.5 w-32 rounded bg-ink/10" />
-                      </div>
-                    </td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5"><div className="h-4 w-16 rounded bg-ink/10" /></td>
-                    <td className="border border-ink/10 p-2.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="size-7 rounded bg-ink/10" />
-                        <div className="size-7 rounded bg-ink/10" />
-                      </div>
-                    </td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-24 rounded bg-ink/10 ml-auto" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-32 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="px-4 py-3.5"><div className="h-5 w-16 rounded-full bg-ink/10" /></td>
+                    <td className="pr-5 py-3.5 text-right"><div className="h-6 w-16 rounded bg-ink/10 ml-auto" /></td>
                   </tr>
                 ))
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="border border-ink/10 p-10 text-center">
+                  <td colSpan={8} className="p-10 text-center">
                     <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                       <Student size={40} className="text-ink/30" />
                       <h4 className="text-sm font-bold text-ink">
@@ -707,14 +699,14 @@ export default function AdminStudentRecords() {
                 </tr>
               ) : (
                 paginatedStudents.map((std) => (
-                  <tr key={std.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{std.lrn}</td>
-                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}>{std.name}</td>
-                    <td className="border border-ink/10 p-2 text-ink/80">
+                  <tr key={std.id} className="group hover:bg-ink/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-right font-mono text-xs text-ink/80">{std.lrn}</td>
+                    <td className="px-4 py-3 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}>{std.name}</td>
+                    <td className="px-4 py-3 text-ink/80">
                       <span className="font-semibold">{std.grade}</span> - {std.section}
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.gender}</td>
-                    <td className="border border-ink/10 p-2">
+                    <td className="px-4 py-3 text-ink/70 text-xs">{std.gender}</td>
+                    <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-xs font-bold border transition-colors ${
                           std.status === 'Active'
@@ -727,8 +719,8 @@ export default function AdminStudentRecords() {
                         <span>{std.parentAccessCode || `PAC-${std.lrn.slice(-5)}`}</span>
                       </span>
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.personalEmail}</td>
-                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
+                    <td className="px-4 py-3 text-ink/70 text-xs">{std.personalEmail}</td>
+                    <td className="px-4 py-3 min-w-[130px] whitespace-nowrap">
                       <div className="relative inline-flex items-center">
                         <span
                           className={`absolute left-3 size-2 rounded-full pointer-events-none z-10 ${
@@ -748,7 +740,7 @@ export default function AdminStudentRecords() {
                         </div>
                       </div>
                     </td>
-                    <td className="border border-ink/10 p-2 text-right">
+                    <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -794,42 +786,54 @@ export default function AdminStudentRecords() {
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/5 pt-4 text-xs text-ink/50">
-          <span>Showing {filteredStudents.length === 0 ? 0 : Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredStudents.length)}–{Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of {filteredStudents.length} student records</span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                  page === currentPage
-                    ? 'bg-brand-blue text-white'
-                    : 'hover:bg-ink/5 text-ink/70'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ›
-            </button>
+        {/* Table Footer / Pagination */}
+        {filteredStudents.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+            <span>
+              {totalPages > 1
+                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`
+                : `Showing ${filteredStudents.length} of ${filteredStudents.length} student records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Add / Edit Student Modal */}
