@@ -34,3 +34,12 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Hide native browser password reveal & clear icons (Edge, IE, Chrome) */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
