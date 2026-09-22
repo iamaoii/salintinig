@@ -167,23 +167,23 @@ export default function FicTeacherProfilePage() {
                     <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">LRN</th>
                     <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Gender</th>
                     <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Phil-IRI Reading Status</th>
-                    <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!teacher.students || teacher.students.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
+                      <td colSpan={4} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
                         This teacher is not currently assigned as adviser to an active section or section has no enrolled students.
                       </td>
                     </tr>
                   ) : (
                     teacher.students.map((st) => (
-                      <tr key={st.id || st.lrn} className="hover:bg-ink/[0.02] transition-colors text-xs">
-                        <td
-                          onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
-                          className="border border-ink/10 p-2.5 font-semibold text-brand-blue hover:underline cursor-pointer flex items-center gap-2.5"
-                        >
+                      <tr
+                        key={st.id || st.lrn}
+                        onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
+                        className="group hover:bg-ink/[0.02] transition-colors text-xs cursor-pointer"
+                      >
+                        <td className="border border-ink/10 p-2.5 font-bold text-ink group-hover:text-brand-blue transition-colors flex items-center gap-2.5">
                           <Avatar name={st.name} src={st.profileImage || st.profile_image || st.avatarUrl || st.avatar} size={28} />
                           <span>{st.name}</span>
                         </td>
@@ -197,15 +197,6 @@ export default function FicTeacherProfilePage() {
                           >
                             {st.level || 'Pending Evaluation'}
                           </span>
-                        </td>
-                        <td className="border border-ink/10 p-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
-                            className="inline-flex items-center rounded-full bg-brand-blue/10 px-3.5 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
-                          >
-                            View Profile
-                          </button>
                         </td>
                       </tr>
                     ))

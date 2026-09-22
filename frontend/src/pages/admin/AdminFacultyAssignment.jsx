@@ -11,10 +11,14 @@ import {
   ChalkboardTeacher,
   UserSwitch,
   Calendar,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 export default function AdminFacultyAssignment() {
   const location = useLocation();
@@ -99,50 +103,78 @@ export default function AdminFacultyAssignment() {
 
   const fetchAssignmentData = async () => {
     try {
-      setLoading(true);
+      // Check dual-layer cache first for 0ms initial render
+      const cachedTch = cacheService.get('admin_teachers');
+      const cachedSec = cacheService.get('admin_sections');
+      const cachedAsg = cacheService.get('admin_faculty_assignments');
+      const cachedSy = cacheService.get('admin_school_years');
+
+      if (cachedTch && cachedSec && cachedAsg) {
+        setTeachers(cachedTch);
+        setSections(cachedSec.sections || {});
+        setDbSectionsList(cachedSec.allSections || []);
+        setAssignments(cachedAsg);
+        if (cachedSy) setActiveSchoolYear(cachedSy);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-      // 1. Fetch Teachers
-      const tchRes = await fetch(getApiUrl('/api/admin/teachers'), { headers: authHeaders });
-      const tchData = await tchRes.json();
-      if (tchRes.ok && tchData.success) {
-        setTeachers(tchData.teachers || []);
-      }
+      // Concurrent parallel fetch (4 requests triggered simultaneously)
+      const [tchRes, secRes, asgRes, syRes] = await Promise.all([
+        fetch(getApiUrl('/api/admin/teachers'), { headers: authHeaders }).catch(() => null),
+        fetch(getApiUrl('/api/admin/sections'), { headers: authHeaders }).catch(() => null),
+        fetch(getApiUrl('/api/admin/faculty-assignments'), { headers: authHeaders }).catch(() => null),
+        fetch(getApiUrl('/api/admin/school-years'), { headers: authHeaders }).catch(() => null),
+      ]);
 
-      // 2. Fetch Sections
-      const secRes = await fetch(getApiUrl('/api/admin/sections'), { headers: authHeaders });
-      const secData = await secRes.json();
-      if (secRes.ok && secData.success) {
-        if (secData.sections) {
-          setSections(secData.sections);
-        }
-        if (secData.allSections) {
-          setDbSectionsList(secData.allSections);
+      if (tchRes?.ok) {
+        const tchData = await tchRes.json();
+        if (tchData.success) {
+          setTeachers(tchData.teachers || []);
+          cacheService.set('admin_teachers', tchData.teachers || []);
         }
       }
 
-      // 3. Fetch Faculty Assignments
-      const asgRes = await fetch(getApiUrl('/api/admin/faculty-assignments'), { headers: authHeaders });
-      const asgData = await asgRes.json();
-      const fetchedAssignments = (asgRes.ok && asgData.success && asgData.assignments) ? asgData.assignments : [];
+      let newSections = {};
+      let newDbSectionsList = [];
+      if (secRes?.ok) {
+        const secData = await secRes.json();
+        if (secData.success) {
+          if (secData.sections) newSections = secData.sections;
+          if (secData.allSections) newDbSectionsList = secData.allSections;
+          setSections(newSections);
+          setDbSectionsList(newDbSectionsList);
+          cacheService.set('admin_sections', { sections: newSections, allSections: newDbSectionsList });
+        }
+      }
 
-      setAssignments([
-        { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
-        { id: '2', gradeLevel: 'Grade 5', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
-        { id: '3', gradeLevel: 'Grade 6', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
-      ].map((g) => {
-        const found = fetchedAssignments.find((a) => a.gradeLevel === g.gradeLevel);
-        return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
-      }));
+      if (asgRes?.ok) {
+        const asgData = await asgRes.json();
+        const fetchedAssignments = (asgData.success && asgData.assignments) ? asgData.assignments : [];
+        const formattedAsg = [
+          { id: '1', gradeLevel: 'Grade 4', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+          { id: '2', gradeLevel: 'Grade 5', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+          { id: '3', gradeLevel: 'Grade 6', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
+        ].map((g) => {
+          const found = fetchedAssignments.find((a) => a.gradeLevel === g.gradeLevel);
+          return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
+        });
+        setAssignments(formattedAsg);
+        cacheService.set('admin_faculty_assignments', formattedAsg);
+      }
 
-      // 4. Fetch School Years
-      const syRes = await fetch(getApiUrl('/api/admin/school-years'), { headers: authHeaders });
-      const syData = await syRes.json();
-      if (syRes.ok && syData.success && syData.schoolYears) {
-        const active = syData.schoolYears.find((s) => s.isActive);
-        if (active) {
-          setActiveSchoolYear(active.schoolYear);
+      if (syRes?.ok) {
+        const syData = await syRes.json();
+        if (syData.success && syData.schoolYears) {
+          const active = syData.schoolYears.find((s) => s.isActive);
+          if (active) {
+            setActiveSchoolYear(active.schoolYear);
+            cacheService.set('admin_school_years', active.schoolYear);
+          }
         }
       }
     } catch (err) {
@@ -152,8 +184,12 @@ export default function AdminFacultyAssignment() {
     }
   };
 
-  const fetchStudentSectioning = async () => {
+  const fetchStudentSectioning = async (skipCache = false) => {
     try {
+      const cached = cacheService.get('admin_student_sectioning');
+      if (cached && !skipCache) {
+        setSectioningStudents(cached);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/student-sectioning'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -161,6 +197,7 @@ export default function AdminFacultyAssignment() {
       const data = await res.json();
       if (res.ok && data.success) {
         setSectioningStudents(data.students || []);
+        cacheService.set('admin_student_sectioning', data.students || []);
       }
     } catch (err) {
       console.warn('Failed to fetch student sectioning:', err);
@@ -189,7 +226,8 @@ export default function AdminFacultyAssignment() {
         showToast(data.message || 'Students assigned to section.');
         setSelectedStudentIds([]);
         setTargetAssignSection('');
-        fetchStudentSectioning();
+        cacheService.invalidate('admin_student_sectioning');
+        fetchStudentSectioning(true);
         fetchAssignmentData();
       } else {
         showToast(data.error || 'Failed to assign students.');
@@ -290,8 +328,8 @@ export default function AdminFacultyAssignment() {
         return {
           ...item,
           id: item.id || `${item.gradeLevel}-${item.sectionName}`,
-          facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : 'Unassigned',
-          adviser: item.adviser || 'Unassigned Adviser',
+          facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : '—',
+          adviser: item.adviser && String(item.adviser).trim() !== '' && String(item.adviser).trim() !== 'Unassigned Adviser' ? String(item.adviser).trim() : '—',
           studentsCount: Number(item.studentsCount || 0),
           independentCount: Number(item.independentCount || 0),
           instructionalCount: Number(item.instructionalCount || 0),
@@ -312,8 +350,8 @@ export default function AdminFacultyAssignment() {
           id: `${gradeLevel}-${sectionName}`,
           gradeLevel,
           sectionName,
-          facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : 'Unassigned',
-          adviser: adviser ? adviser.name : 'Unassigned Adviser',
+          facultyInCharge: gradeAssignment ? gradeAssignment.facultyInCharge : '—',
+          adviser: adviser ? adviser.name : '—',
           studentsCount: 0,
           independentCount: 0,
           instructionalCount: 0,
@@ -323,6 +361,15 @@ export default function AdminFacultyAssignment() {
     });
     return list;
   }, [dbSectionsList, sections, assignments, teachers]);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedGradeTab, searchQuery]);
 
   // Filtered list based on tabs and search
   const filteredSections = useMemo(() => {
@@ -337,6 +384,13 @@ export default function AdminFacultyAssignment() {
       return matchesGrade && matchesSearch;
     });
   }, [allSectionsList, selectedGradeTab, searchQuery]);
+
+  const totalPages = Math.ceil(filteredSections.length / PAGE_SIZE) || 1;
+
+  const paginatedSections = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredSections.slice(start, start + PAGE_SIZE);
+  }, [filteredSections, currentPage]);
 
   // Handlers
   const handleSaveSection = async (e) => {
@@ -646,80 +700,94 @@ export default function AdminFacultyAssignment() {
                 </tr>
               </thead>
               <tbody>
-                {sectioningStudents
-                  .filter((s) =>
-                    (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
-                    (sectioningStatusFilter === 'All' ||
-                      (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
-                      (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
-                  )
-                  .map((std) => (
-                    <tr key={std.studentId} className="hover:bg-ink/[0.02] border-b border-ink/10 text-xs">
-                      <td className="border border-ink/10 p-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedStudentIds.includes(std.studentId)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedStudentIds([...selectedStudentIds, std.studentId]);
-                            } else {
-                              setSelectedStudentIds(selectedStudentIds.filter((id) => id !== std.studentId));
-                            }
-                          }}
-                          className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
-                        />
-                      </td>
-                      <td className="border border-ink/10 p-3 font-mono font-semibold text-ink/80">{std.lrn}</td>
-                      <td className="border border-ink/10 p-3 font-bold text-ink">{std.name}</td>
-                      <td className="border border-ink/10 p-3 font-semibold text-ink/80">{std.gradeLevel}</td>
-                      <td className="border border-ink/10 p-3">
-                        <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            std.sectionName === 'Unassigned'
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          }`}
-                        >
-                          {std.sectionName}
-                        </span>
-                      </td>
-                      <td className="border border-ink/10 p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePromotion(std.studentId, std.promotionStatus)}
-                          className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                            std.promotionStatus === 'retained'
-                              ? 'bg-brand-red/10 text-brand-red border-brand-red/30 hover:bg-brand-red/20'
-                              : 'bg-brand-blue/10 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/20'
-                          }`}
-                          title="Click to toggle Promoted vs Retained status"
-                        >
-                          {std.promotionStatus === 'retained' ? 'Retained' : 'Promoted'}
-                        </button>
-                      </td>
-                      <td className="border border-ink/10 p-3 text-right">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setTargetAssignSection(e.target.value);
-                              setSelectedStudentIds([std.studentId]);
-                            }
-                          }}
-                          className="rounded-lg border border-ink/20 bg-white px-2 py-1 text-[11px] font-semibold text-ink outline-none focus:border-brand-blue cursor-pointer"
-                        >
-                          <option value="">Assign Section...</option>
-                          {(allSectionsList || [])
-                            .filter((sec) => sec.gradeLevel === std.gradeLevel)
-                            .map((sec) => (
-                              <option key={sec.id} value={sec.sectionName}>
-                                {sec.sectionName}
-                              </option>
-                            ))}
-                        </select>
-                      </td>
+                {loading ? (
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse border-b border-ink/10 text-xs">
+                      <td className="border border-ink/10 p-3 text-center"><div className="size-4 rounded bg-ink/10 mx-auto" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-32 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-4 w-20 rounded-full bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-4 w-16 rounded-lg bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3 text-right"><div className="h-6 w-28 rounded-lg bg-ink/10 ml-auto" /></td>
                     </tr>
-                  ))}
+                  ))
+                ) : (
+                  sectioningStudents
+                    .filter((s) =>
+                      (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
+                      (sectioningStatusFilter === 'All' ||
+                        (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
+                        (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
+                    )
+                    .map((std) => (
+                      <tr key={std.studentId} className="hover:bg-ink/[0.02] border-b border-ink/10 text-xs">
+                        <td className="border border-ink/10 p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.includes(std.studentId)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStudentIds([...selectedStudentIds, std.studentId]);
+                              } else {
+                                setSelectedStudentIds(selectedStudentIds.filter((id) => id !== std.studentId));
+                              }
+                            }}
+                            className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                          />
+                        </td>
+                        <td className="border border-ink/10 p-3 font-mono font-semibold text-ink/80">{std.lrn}</td>
+                        <td className="border border-ink/10 p-3 font-bold text-ink">{std.name}</td>
+                        <td className="border border-ink/10 p-3 font-semibold text-ink/80">{std.gradeLevel}</td>
+                        <td className="border border-ink/10 p-3">
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                              std.sectionName === 'Unassigned'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            }`}
+                          >
+                            {std.sectionName}
+                          </span>
+                        </td>
+                        <td className="border border-ink/10 p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePromotion(std.studentId, std.promotionStatus)}
+                            className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                              std.promotionStatus === 'retained'
+                                ? 'bg-brand-red/10 text-brand-red border-brand-red/30 hover:bg-brand-red/20'
+                                : 'bg-brand-blue/10 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/20'
+                            }`}
+                            title="Click to toggle Promoted vs Retained status"
+                          >
+                            {std.promotionStatus === 'retained' ? 'Retained' : 'Promoted'}
+                          </button>
+                        </td>
+                        <td className="border border-ink/10 p-3 text-right">
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setTargetAssignSection(e.target.value);
+                                setSelectedStudentIds([std.studentId]);
+                              }
+                            }}
+                            className="rounded-lg border border-ink/20 bg-white px-2 py-1 text-[11px] font-semibold text-ink outline-none focus:border-brand-blue cursor-pointer"
+                          >
+                            <option value="">Assign Section...</option>
+                            {(allSectionsList || [])
+                              .filter((sec) => sec.gradeLevel === std.gradeLevel)
+                              .map((sec) => (
+                                <option key={sec.id} value={sec.sectionName}>
+                                  {sec.sectionName}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))
+                )}
               </tbody>
             </table>
           </div>
@@ -729,42 +797,61 @@ export default function AdminFacultyAssignment() {
         <div className="space-y-6">
         {/* Grade Level Faculty-in-Charge Bar */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {assignments.map((item) => (
-            <div
-              key={item.gradeLevel}
-              className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
-                  <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
-                  <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                    {sections[item.gradeLevel]?.length || 0} Sections
-                  </span>
-                </div>
-
-                <div className="mt-3 space-y-1">
-                  <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
-                  {loading ? (
-                    <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10 my-0.5" />
-                  ) : (
-                    <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAssigningFacultyGrade(item.gradeLevel);
-                  setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
-                }}
-                className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+          {loading && assignments.every((a) => a.facultyInCharge === 'Unassigned') ? (
+            [1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between animate-pulse"
               >
-                <UserSwitch size={14} />
-                <span>Change Faculty-in-Charge</span>
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                    <div className="h-4 w-16 rounded bg-ink/10" />
+                    <div className="h-4 w-16 rounded-full bg-ink/10" />
+                  </div>
+
+                  <div className="mt-3 space-y-1.5">
+                    <div className="h-3 w-24 rounded bg-ink/10" />
+                    <div className="h-4 w-36 rounded bg-ink/10" />
+                  </div>
+                </div>
+
+                <div className="mt-4 h-8 w-full rounded-xl bg-ink/10" />
+              </div>
+            ))
+          ) : (
+            assignments.map((item) => (
+              <div
+                key={item.gradeLevel}
+                className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                    <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
+                    <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                      {sections[item.gradeLevel]?.length || 0} Sections
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-1">
+                    <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
+                    <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningFacultyGrade(item.gradeLevel);
+                    setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
+                  }}
+                  className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+                >
+                  <UserSwitch size={14} />
+                  <span>Change Faculty-in-Charge</span>
+                </button>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Class Sections Table & Controls */}
@@ -813,31 +900,38 @@ export default function AdminFacultyAssignment() {
         </div>
 
         {/* Master Section Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[10%]">Grade Level</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[14%]">Section Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[20%]">Class Adviser</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[14%]">Enrolled Students</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-left w-[32%] whitespace-nowrap">Reading Level Profile</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-3 text-right w-[10%]">Actions</th>
+              <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs font-bold text-ink/50">
+                <th className="px-5 py-3.5 w-[12%]">Grade Level</th>
+                <th className="px-5 py-3.5 w-[16%]">Section Name</th>
+                <th className="px-5 py-3.5 w-[22%]">Class Adviser</th>
+                <th className="px-5 py-3.5 w-[15%]">Enrolled Students</th>
+                <th className="px-5 py-3.5 w-[25%] whitespace-nowrap">Reading Level Profile</th>
+                <th className="px-5 py-3.5 text-right w-[10%]">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/10 text-xs text-ink">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading class sections...</span>
-                    </div>
-                  </td>
-                </tr>
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-5 py-4"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                    <td className="px-5 py-4"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="px-5 py-4"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="px-5 py-4"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-48 rounded bg-ink/10" /></td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <div className="size-7 rounded bg-ink/10" />
+                        <div className="size-7 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : filteredSections.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="border border-ink/10 p-10 text-center">
+                  <td colSpan={6} className="px-5 py-10 text-center">
                     <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                       <ChalkboardTeacher size={40} className="text-ink/30" />
                       <h4 className="text-sm font-bold text-ink">
@@ -852,14 +946,18 @@ export default function AdminFacultyAssignment() {
                   </td>
                 </tr>
               ) : (
-                filteredSections.map((sec) => (
-                  <tr key={sec.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-3 font-bold text-xs text-ink">{sec.gradeLevel}</td>
-                    <td className="border border-ink/10 p-3 font-semibold text-xs text-ink/90">{sec.sectionName}</td>
-                    <td className="border border-ink/10 p-3 text-xs text-ink/80">{sec.adviser}</td>
-                    <td className="border border-ink/10 p-3 text-xs text-ink/70">{sec.studentsCount || 0} Students</td>
-                    <td className="border border-ink/10 p-3 text-xs whitespace-nowrap">
-                      <div className="flex items-center gap-2.5 whitespace-nowrap">
+                paginatedSections.map((sec) => (
+                  <tr key={sec.id} className="group hover:bg-ink/[0.02] transition-colors cursor-pointer">
+                    <td className="px-5 py-4 font-bold text-ink">{sec.gradeLevel}</td>
+                    <td className="px-5 py-4 font-bold text-ink group-hover:text-brand-blue transition-colors">{sec.sectionName}</td>
+                    <td className="px-5 py-4 text-ink/80">
+                      {sec.adviser && String(sec.adviser).trim() !== '' && String(sec.adviser).trim() !== 'Unassigned Adviser'
+                        ? String(sec.adviser).trim()
+                        : '—'}
+                    </td>
+                    <td className="px-5 py-4 text-ink/70">{sec.studentsCount || 0} Students</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                           <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
                           <span>{sec.independentCount || 0} Independent</span>
@@ -874,8 +972,8 @@ export default function AdminFacultyAssignment() {
                         </span>
                       </div>
                     </td>
-                    <td className="border border-ink/10 p-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                         <button
                           type="button"
                           onClick={() => {
@@ -905,9 +1003,54 @@ export default function AdminFacultyAssignment() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-ink/50 pt-2">
-          <span>Showing {filteredSections.length} section records</span>
-        </div>
+        {/* Table Footer / Pagination */}
+        {filteredSections.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+            <span>
+              {totalPages > 1
+                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSections.length)} of ${filteredSections.length} section records`
+                : `Showing ${filteredSections.length} of ${filteredSections.length} section records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       </div>
       )}

@@ -27,18 +27,21 @@ import { getToken, getUser, logout } from '../../../lib/auth.js';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import AvatarCropModal from '../../../components/common/AvatarCropModal.jsx';
+import AboutAppModal from '../../../components/common/AboutAppModal.jsx';
+import { cacheService } from '../../../services/cacheService.js';
 
 export default function AccountSettings() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const currentUser = getUser();
 
-  const [loading, setLoading] = useState(true);
+  const cachedForm = cacheService.get('teacher_profile_settings');
+  const [loading, setLoading] = useState(!currentUser && !cachedForm);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Avatar states
-  const [avatarUrl, setAvatarUrl] = useState(() => currentUser?.profileImage || currentUser?.profile_image || null);
+  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('teacherAvatarCache') || currentUser?.profileImage || currentUser?.profile_image || null);
   const [cropSrc, setCropSrc] = useState(null);
 
   // Modal states
@@ -105,7 +108,10 @@ export default function AccountSettings() {
   useEffect(() => {
     async function fetchTeacherProfile() {
       try {
-        setLoading(true);
+        const cached = cacheService.get('teacher_profile_settings');
+        if (cached) {
+          setLoading(false);
+        }
         const token = getToken();
         if (!token) return;
 
@@ -124,7 +130,7 @@ export default function AccountSettings() {
           const classText = hasAssignedSec ? rawSec : 'Unassigned Section';
           const desigText = u.isFacultyInCharge ? 'Faculty-in-Charge' : hasAssignedSec ? 'Class Adviser' : 'Unassigned Teacher';
 
-          setForm({
+          const updatedForm = {
             firstName: fName,
             middleName: mName,
             lastName: lName,
@@ -133,15 +139,22 @@ export default function AccountSettings() {
             assignedClass: classText,
             designation: desigText,
             email: u.email || '',
-          });
+          };
+
+          setForm(updatedForm);
+          cacheService.set('teacher_profile_settings', updatedForm);
 
           if (u.activeSchoolYear || u.schoolYear) {
             const clean = String(u.activeSchoolYear || u.schoolYear).replace(/^S\.?Y\.?\s*/i, '');
             setActiveSY(clean);
           }
 
-          if (u.profileImage || u.profile_image) {
-            setAvatarUrl(u.profileImage || u.profile_image);
+          const img = u.profileImage || u.profile_image || null;
+          setAvatarUrl(img);
+          if (img) {
+            localStorage.setItem('teacherAvatarCache', img);
+          } else {
+            localStorage.removeItem('teacherAvatarCache');
           }
         }
       } catch (err) {
@@ -790,32 +803,7 @@ export default function AccountSettings() {
       )}
 
       {/* About Application Modal */}
-      {isAboutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
-              <h3 className="text-base font-bold text-ink">About SalinTinig</h3>
-              <button type="button" onClick={() => setIsAboutModalOpen(false)} className="text-ink/40 hover:text-ink cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3 text-xs text-ink">
-              <p><strong className="font-semibold">App Version:</strong> SalinTinig v1.0.0 (Production Release)</p>
-              <p><strong className="font-semibold">Department:</strong> Department of Education (DepEd)</p>
-              <p><strong className="font-semibold">Purpose:</strong> Automated Phil-IRI oral & silent reading assessment management platform.</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsAboutModalOpen(false)}
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-semibold text-cream hover:bg-blue-700 cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AboutAppModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
 
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (

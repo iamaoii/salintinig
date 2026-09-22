@@ -51,8 +51,6 @@ function requireRole(...allowedRoles) {
     }
 
     if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
-      // Auto-grant for admin role in dev mode
-      if (req.user.role === 'admin') return next();
       return res.status(403).json({
         success: false,
         error: `Forbidden. Requires one of the following roles: ${allowedRoles.join(', ')}`,

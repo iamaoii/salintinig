@@ -1,24 +1,26 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ArrowsClockwise, Check, X, UserCheck, CaretDown } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { encodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
+import { StudentTableSkeleton } from '../../../components/common/Skeleton.jsx';
+
 
 const TABS = [
   { to: '/teacher/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
   { to: '/teacher/student-dashboard/independent', label: 'Independent', level: 'Independent', activeColor: '#00a652' },
   { to: '/teacher/student-dashboard/instructional', label: 'Instructional', level: 'Instructional', activeColor: '#ffc300' },
   { to: '/teacher/student-dashboard/frustrational', label: 'Frustrational', level: 'Frustrational', activeColor: '#d53f24' },
-  { to: '/teacher/student-dashboard/pending', label: 'Pending Evaluation', level: 'Pending', activeColor: '#8b5cf6' },
+  { to: '/teacher/student-dashboard/pending', label: 'Pending Evaluation', level: 'Pending', activeColor: '#64748b' },
 ];
 
-const COL = 'border-r border-ink/10 last:border-r-0';
-
 export default function StudentMasterlist({ level }) {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
@@ -55,7 +57,13 @@ export default function StudentMasterlist({ level }) {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        setLoading(true);
+        const cached = cacheService.get('teacher_class_students');
+        if (cached) {
+          setStudents(cached);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
         const token = getToken();
 
         const res = await fetch(getApiUrl('/api/teacher/class-students'), {
@@ -64,6 +72,7 @@ export default function StudentMasterlist({ level }) {
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
           setStudents(data.students);
+          cacheService.set('teacher_class_students', data.students);
         } else {
           setStudents([]);
         }
@@ -207,59 +216,65 @@ export default function StudentMasterlist({ level }) {
           ))}
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-ink/10 bg-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.08)]">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <div className="mt-4 overflow-hidden rounded-xl border border-ink/10 bg-white shadow-xs">
+          <table className="w-full min-w-[700px] border-collapse text-sm">
             <thead>
-              <tr
-                className="border-b border-ink/10 text-left text-xs font-bold uppercase tracking-wider text-ink/80"
-                style={{ backgroundColor: `${headerColor}12` }}
-              >
-                <th className={`w-12 px-4 py-3.5 font-bold ${COL}`}>#</th>
-                <th className={`px-4 py-3.5 font-bold ${COL}`}>LRN</th>
-                <th className={`px-4 py-3.5 font-bold ${COL}`}>Name</th>
-                <th className={`px-4 py-3.5 font-bold ${COL}`}>Gender</th>
-                <th className={`px-4 py-3.5 font-bold ${COL}`}>Section</th>
-                <th className="w-24 px-2 py-3.5 text-center font-bold" />
+              <tr className="border-b border-ink/10 bg-[#eef2f6] text-left text-xs font-bold uppercase tracking-wider text-ink/70">
+                <th className="w-12 px-4 py-3.5">#</th>
+                <th className="px-4 py-3.5">LRN</th>
+                <th className="px-4 py-3.5">Name</th>
+                <th className="px-4 py-3.5">Gender</th>
+                <th className="px-4 py-3.5">Reading Level</th>
+                <th className="px-4 py-3.5">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 animate-spin rounded-full border-2 border-brand-red border-t-transparent" />
-                      <span className="text-xs font-semibold text-ink/50">Loading section masterlist...</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
+            <tbody className="divide-y divide-ink/5">
+              {loading && <StudentTableSkeleton rows={6} />}
 
-              {!loading && filtered.map((student, i) => (
-                <tr key={student.lrn} className="border-b border-ink/10 transition-colors hover:bg-ink/[0.02] last:border-b-0">
-                  <td className={`px-4 py-3.5 font-semibold text-ink/80 ${COL}`}>{i + 1}</td>
-                  <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.lrn}</td>
-                  <td className={`px-4 py-3.5 ${COL}`}>
-                    <div className="flex items-center gap-3">
-                      <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
-                      <span className="font-semibold text-ink">{student.name}</span>
-                    </div>
-                  </td>
-                  <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.gender}</td>
-                  <td className={`px-4 py-3.5 font-medium text-ink/90 ${COL}`}>{student.section || student.sectionName || 'Assigned'}</td>
-                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                    <Link
-                      to={`/teacher/student-dashboard/students/${encodeSecureToken('st', student.lrn)}`}
-                      className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-brand-blue/10 px-3.5 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
-                    >
-                      View Profile
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {!loading && filtered.map((student, i) => {
+                const rawLvl = (student.level || student.readingLevel || student.reading_level || student.current_profile_label || student.gstResult || '').toLowerCase();
+                let levelBadge = <span className="text-ink/40 font-bold px-2">—</span>;
+                if (rawLvl.includes('independ')) {
+                  levelBadge = <span className="inline-flex items-center rounded-full bg-emerald-100/90 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 border border-emerald-200/80">Independent</span>;
+                } else if (rawLvl.includes('instruct')) {
+                  levelBadge = <span className="inline-flex items-center rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-semibold text-amber-900 border border-amber-200/80">Instructional</span>;
+                } else if (rawLvl.includes('frustrat') || rawLvl.includes('non-reader') || rawLvl.includes('non reader')) {
+                  levelBadge = <span className="inline-flex items-center rounded-full bg-rose-100/90 px-2.5 py-0.5 text-xs font-semibold text-rose-900 border border-rose-200/80">Frustration</span>;
+                }
+
+                const isCompleted = rawLvl.includes('independ') || rawLvl.includes('instruct') || rawLvl.includes('frustrat') || student.status === 'Completed' || student.status === 'completed';
+                const statusBadge = isCompleted ? (
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200/60">Completed</span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 border border-slate-200/80">Pending Evaluation</span>
+                );
+
+                return (
+                  <tr
+                    key={student.lrn}
+                    onClick={() => navigate(`/teacher/student-dashboard/students/${encodeSecureToken('st', student.lrn)}`)}
+                    className="group transition-colors hover:bg-ink/[0.015] cursor-pointer"
+                  >
+                    <td className="px-4 py-3.5 text-xs font-semibold text-ink/70">{i + 1}</td>
+                    <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.lrn}</td>
+                    <td className="px-4 py-3.5 text-xs">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
+                        <span className="font-semibold text-ink group-hover:text-brand-blue transition-colors">
+                          {student.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.gender || 'N/A'}</td>
+                    <td className="px-4 py-3.5 text-xs">{levelBadge}</td>
+                    <td className="px-4 py-3.5 text-xs">{statusBadge}</td>
+                  </tr>
+                );
+              })}
 
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center font-medium text-ink/50">
+                  <td colSpan={6} className="px-4 py-10 text-center text-xs font-medium text-ink/50">
                     {students.length === 0
                       ? 'No enrolled students found in this section.'
                       : 'No students found at this reading level.'}

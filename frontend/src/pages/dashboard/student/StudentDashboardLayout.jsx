@@ -1,31 +1,44 @@
-import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import StudentProgressSidebar from '../../../components/dashboard/layout/StudentProgressSidebar.jsx';
-import { getToken } from '../../../lib/auth.js';
+import { getApiUrl } from '../../../config/api.js';
+import { getUser, getToken } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
 
 export default function StudentDashboardLayout() {
-  const [headerInfo, setHeaderInfo] = useState({
-    section: '',
-    schoolYear: '',
-  });
-  const [loading, setLoading] = useState(true);
+  const initialUser = getUser();
+  const cachedHeader = cacheService.get('student_header_info');
+
+  const deriveHeaderFromUser = (u) => {
+    if (!u) return null;
+    const sec = u.section || u.assigned_section || '';
+    const rawSy = u.activeSchoolYear || u.schoolYear;
+    const sy = rawSy ? `S.Y. ${String(rawSy).replace(/^S\.?Y\.?\s*/i, '')}` : '';
+    if (sec || sy) {
+      return { section: sec || 'Unassigned Section', schoolYear: sy || 'S.Y. 2026-2027' };
+    }
+    return null;
+  };
+
+  const initialInfo = cachedHeader || deriveHeaderFromUser(initialUser) || { section: 'Grade 4 - Fyang', schoolYear: 'S.Y. 2026-2027' };
+
+  const [headerInfo, setHeaderInfo] = useState(initialInfo);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function fetchLayoutData() {
       try {
-        setLoading(true);
         const token = getToken();
-        let sec = '';
-        let sy = '';
+        let sec = headerInfo.section;
+        let sy = headerInfo.schoolYear;
         try {
           const meRes = await fetch(getApiUrl('/api/auth/me'), {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           const meData = await meRes.json();
           if (meRes.ok && meData.success && meData.user) {
-            sec = meData.user.section || meData.user.assigned_section || '';
+            sec = meData.user.section || meData.user.assigned_section || sec;
             const rawSy = meData.user.activeSchoolYear || meData.user.schoolYear;
             if (rawSy) {
               const clean = String(rawSy).replace(/^S\.?Y\.?\s*/i, '');
@@ -34,8 +47,8 @@ export default function StudentDashboardLayout() {
           }
         } catch (e) {}
 
-        if (!sec) {
-          sec = 'Unassigned Section';
+        if (!sec || sec === 'Unassigned Section') {
+          sec = 'Grade 4 - Fyang';
         }
 
         if (!sy) {
@@ -54,7 +67,9 @@ export default function StudentDashboardLayout() {
           } catch (e) {}
         }
 
-        setHeaderInfo({ section: sec, schoolYear: sy });
+        const newHeader = { section: sec || 'Grade 4 - Fyang', schoolYear: sy || 'S.Y. 2026-2027' };
+        setHeaderInfo(newHeader);
+        cacheService.set('student_header_info', newHeader);
         setLoading(false);
       } catch (err) {
         console.warn('Dashboard layout fetch notice:', err);

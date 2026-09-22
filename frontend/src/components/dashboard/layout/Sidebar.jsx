@@ -6,6 +6,8 @@ import ClassCard from '../class/ClassCard.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { useSmartNotificationPoll } from '../../../hooks/useSmartNotificationPoll.js';
 
+import { cacheService } from '../../../services/cacheService.js';
+
 function formatNotificationDate(dateString) {
   if (!dateString) return '';
   const d = new Date(dateString);
@@ -21,11 +23,16 @@ function formatNotificationDate(dateString) {
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedNotifs = cacheService.get('teacher_sidebar_notifications');
+  const [notifications, setNotifications] = useState(() => cachedNotifs || []);
+  const [loading, setLoading] = useState(!cachedNotifs);
 
   const fetchNotifications = useCallback(async () => {
     try {
+      const cached = cacheService.get('teacher_sidebar_notifications');
+      if (cached) {
+        setLoading(false);
+      }
       const token = getToken();
       if (!token) return;
       const res = await fetch(getApiUrl('/api/notifications'), {
@@ -35,6 +42,7 @@ export default function Sidebar() {
       if (res.ok && data.success) {
         const newNotifs = data.notifications || [];
         setNotifications((prev) => (JSON.stringify(prev) !== JSON.stringify(newNotifs) ? newNotifs : prev));
+        cacheService.set('teacher_sidebar_notifications', newNotifs);
       }
     } catch (err) {
       console.warn('Overview notification widget fetch notice:', err);

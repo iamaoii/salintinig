@@ -4,10 +4,12 @@ import { Icon } from '@iconify/react';
 import ReadingLevelDonut from './ReadingLevelDonut.jsx';
 import StatCard from './StatCard.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
 
 export default function ClassProgressPanel() {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const cachedStats = cacheService.get('teacher_class_progress_stats');
+  const [loading, setLoading] = useState(!cachedStats);
+  const [stats, setStats] = useState(() => cachedStats || {
     readingLevels: { frustration: 0, instructional: 0, independent: 0 },
     averageAccuracy: 0,
     averageComprehension: 0,
@@ -19,7 +21,10 @@ export default function ClassProgressPanel() {
   useEffect(() => {
     async function fetchProgressStats() {
       try {
-        setLoading(true);
+        const cached = cacheService.get('teacher_class_progress_stats');
+        if (cached) {
+          setLoading(false);
+        }
         const token = getToken();
 
         // 1. Get teacher section name
@@ -87,13 +92,15 @@ export default function ClassProgressPanel() {
           const avgSpd = speedCount > 0 ? Math.round(totalSpeed / speedCount) : 0;
           const avgCmp = compCount > 0 ? Math.round(totalComp / compCount) : 0;
 
-          setStats({
+          const newStats = {
             readingLevels: { frustration, instructional, independent },
             averageAccuracy: avgAcc,
             averageReadingSpeed: avgSpd,
             averageComprehension: avgCmp,
             priorityStudents: frustration,
-          });
+          };
+          setStats(newStats);
+          cacheService.set('teacher_class_progress_stats', newStats);
         }
         setLoading(false);
       } catch (err) {

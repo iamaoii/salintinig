@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import TopNav from '../../components/dashboard/layout/TopNav.jsx';
 import { GraduationCap, X } from '@phosphor-icons/react';
+import { getToken } from '../../lib/auth.js';
+import { getApiUrl } from '../../config/api.js';
+import { cacheService } from '../../services/cacheService.js';
 
 function GradeLevelBanner({ isActive, gradeLevel, onExit }) {
   if (!isActive) return null;
@@ -32,6 +35,60 @@ function GradeLevelBanner({ isActive, gradeLevel, onExit }) {
 export default function DashboardLayout() {
   const [isGradeLevelMode, setIsGradeLevelMode] = useState(false);
   const [ficGradeLevel, setFicGradeLevel] = useState(null);
+
+  useEffect(() => {
+    const prefetchTeacherData = async () => {
+      const token = getToken();
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      try {
+        Promise.allSettled([
+          !cacheService.get('teacher_class_students') &&
+            fetch(getApiUrl('/api/teacher/class-students'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.students)) {
+                  cacheService.set('teacher_class_students', d.students);
+                  cacheService.set('teacher_overview_students', d.students);
+                }
+              }),
+
+          !cacheService.get('teacher_phil_iri_activities') &&
+            fetch(getApiUrl('/api/teacher/assessments/phil-iri-activities'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.activities)) {
+                  cacheService.set('teacher_phil_iri_activities', d.activities);
+                }
+              }),
+
+          !cacheService.get('teacher_phil_iri_passages') &&
+            fetch(getApiUrl('/api/teacher/assessments/passages'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.passages)) {
+                  cacheService.set('teacher_phil_iri_passages', d.passages);
+                  cacheService.set('teacher_passages', d.passages);
+                }
+              }),
+
+          !cacheService.get('teacher_sidebar_notifications') &&
+            fetch(getApiUrl('/api/notifications'), { headers })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d?.success && Array.isArray(d.notifications)) {
+                  cacheService.set('teacher_sidebar_notifications', d.notifications);
+                }
+              }),
+        ]);
+      } catch (err) {
+        // Silently ignore prefetch errors
+      }
+    };
+
+    prefetchTeacherData();
+  }, []);
 
   useEffect(() => {
     const onEnter = (e) => {

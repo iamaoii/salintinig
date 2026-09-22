@@ -193,14 +193,27 @@ export default function AdminAccountRequests() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={7} className="border border-ink/10 p-12 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="size-10 rounded-full border-4 border-ink/10 border-t-brand-blue animate-spin" />
-                        <span className="text-xs font-bold text-ink/70">Loading account activation requests...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  [1, 2, 3, 4].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="border border-ink/10 p-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="size-7 shrink-0 rounded-full bg-ink/10" />
+                          <div className="h-3.5 w-28 rounded bg-ink/10" />
+                        </div>
+                      </td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-4 w-16 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="h-7 w-20 rounded-lg bg-ink/10" />
+                          <div className="h-7 w-16 rounded-lg bg-ink/10" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 ) : filteredRequests.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="border border-ink/10 p-12 text-center">

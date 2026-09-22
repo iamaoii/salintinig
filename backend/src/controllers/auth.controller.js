@@ -211,7 +211,12 @@ async function login(req, res) {
 
       let studentDbId = null;
 
-      if (matchedUser.role === 'admin') {
+      if (matchedUser.role === 'super_admin') {
+        displayName = matchedUser.first_name
+          ? `${matchedUser.first_name} ${matchedUser.last_name || ''}`.trim()
+          : matchedUser.email.split('@')[0];
+        schoolId = null;
+      } else if (matchedUser.role === 'admin') {
         displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
       } else if (matchedUser.role === 'teacher') {
         if (matchedUser.first_name) {
@@ -270,7 +275,11 @@ async function login(req, res) {
         profileImage: matchedUser.profile_image || null,
         profile_image: matchedUser.profile_image || null,
         mustChangePassword: Boolean(matchedUser.must_change_password),
-        defaultPath: matchedUser.role === 'admin' ? '/admin/dashboard' : '/teacher',
+        defaultPath: matchedUser.role === 'super_admin'
+          ? '/super-admin/dashboard'
+          : matchedUser.role === 'admin'
+          ? '/admin/dashboard'
+          : '/teacher',
         source: 'database',
       };
 

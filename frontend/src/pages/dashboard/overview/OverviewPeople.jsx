@@ -3,16 +3,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
+import { StudentTableSkeleton } from '../../../components/common/Skeleton.jsx';
 import Pagination from '../../../components/dashboard/records/Pagination.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
 
 const PAGE_SIZE = 10;
 
 export default function OverviewPeople() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedStudents = cacheService.get('teacher_overview_students') || cacheService.get('teacher_class_students');
+  const [students, setStudents] = useState(() => cachedStudents || []);
+  const [loading, setLoading] = useState(!cachedStudents || cachedStudents.length === 0);
   const [teacherInfo, setTeacherInfo] = useState(() => {
     const u = getUser();
     return {
@@ -24,7 +27,11 @@ export default function OverviewPeople() {
 
   useEffect(() => {
     const fetchOverviewData = async () => {
-      setLoading(true);
+      const cached = cacheService.get('teacher_overview_students') || cacheService.get('teacher_class_students');
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setStudents(cached);
+        setLoading(false);
+      }
       try {
         const token = getToken();
         let targetSection = teacherInfo.section;
@@ -62,6 +69,8 @@ export default function OverviewPeople() {
             return sSec === targetSec || sSec === targetSecNameOnly || (sSec.length > 0 && targetSec.includes(sSec));
           });
           setStudents(filteredStudents);
+          cacheService.set('teacher_overview_students', filteredStudents);
+          cacheService.set('teacher_class_students', filteredStudents);
         }
       } catch (err) {
         console.warn('Could not fetch students for overview:', err);
@@ -115,28 +124,21 @@ export default function OverviewPeople() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-ink/10 bg-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.08)]">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <div className="overflow-hidden rounded-xl border border-ink/10 bg-white shadow-xs">
+          <table className="w-full min-w-[700px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-ink/10 bg-ink/5 text-left text-xs font-bold uppercase tracking-wider text-ink/80">
-                <th className="w-12 px-4 py-3.5 font-bold">#</th>
-                <th className="px-4 py-3.5 font-bold">LRN</th>
-                <th className="px-4 py-3.5 font-bold">Name</th>
-                <th className="px-4 py-3.5 font-bold">Gender</th>
-                <th className="px-4 py-3.5 font-bold">Section</th>
-                <th className="w-24 px-2 py-3.5 text-center font-bold" />
+              <tr className="border-b border-ink/10 bg-[#eef2f6] text-left text-xs font-bold uppercase tracking-wider text-ink/70">
+                <th className="w-12 px-4 py-3.5">#</th>
+                <th className="px-4 py-3.5">LRN</th>
+                <th className="px-4 py-3.5">Name</th>
+                <th className="px-4 py-3.5">Gender</th>
+                <th className="px-4 py-3.5">Reading Level</th>
+                <th className="px-4 py-3.5">Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/5">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold text-ink/70">Loading class roster...</span>
-                    </div>
-                  </td>
-                </tr>
+                <StudentTableSkeleton rows={5} />
               ) : pageStudents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-ink/50">
@@ -152,32 +154,46 @@ export default function OverviewPeople() {
                   </td>
                 </tr>
               ) : (
-                pageStudents.map((student, i) => (
-                  <tr
-                    key={student.lrn}
-                    className="border-b border-ink/10 transition-colors hover:bg-ink/[0.02] last:border-b-0"
-                  >
-                    <td className="px-4 py-3.5 font-semibold text-ink/80">{(page - 1) * PAGE_SIZE + i + 1}</td>
-                    <td className="px-4 py-3.5 font-medium text-ink/90">{student.lrn}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
-                        <span className="font-semibold text-ink">{student.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 font-medium text-ink/90">{student.gender || 'N/A'}</td>
-                    <td className="px-4 py-3.5 font-medium text-ink/90">{student.section}</td>
-                    <td className="w-24 px-2 py-3.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/teacher/student-dashboard/students/${student.lrn}`)}
-                        className="rounded-full bg-brand-blue px-3 py-1 text-xs font-semibold text-cream transition-colors hover:bg-blue-700 cursor-pointer"
-                      >
-                        Profile
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                pageStudents.map((student, i) => {
+                  const rawLvl = (student.level || student.readingLevel || student.reading_level || student.current_profile_label || student.gstResult || '').toLowerCase();
+                  let levelBadge = <span className="text-ink/40 font-bold px-2">—</span>;
+                  if (rawLvl.includes('independ')) {
+                    levelBadge = <span className="inline-flex items-center rounded-full bg-emerald-100/90 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 border border-emerald-200/80">Independent</span>;
+                  } else if (rawLvl.includes('instruct')) {
+                    levelBadge = <span className="inline-flex items-center rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-semibold text-amber-900 border border-amber-200/80">Instructional</span>;
+                  } else if (rawLvl.includes('frustrat') || rawLvl.includes('non-reader') || rawLvl.includes('non reader')) {
+                    levelBadge = <span className="inline-flex items-center rounded-full bg-rose-100/90 px-2.5 py-0.5 text-xs font-semibold text-rose-900 border border-rose-200/80">Frustration</span>;
+                  }
+
+                  const isCompleted = rawLvl.includes('independ') || rawLvl.includes('instruct') || rawLvl.includes('frustrat') || student.status === 'Completed' || student.status === 'completed';
+                  const statusBadge = isCompleted ? (
+                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200/60">Completed</span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 border border-slate-200/80">Pending Evaluation</span>
+                  );
+
+                  return (
+                    <tr
+                      key={student.lrn}
+                      onClick={() => navigate(`/teacher/student-dashboard/students/${student.lrn}`)}
+                      className="group transition-colors hover:bg-ink/[0.015] cursor-pointer"
+                    >
+                      <td className="px-4 py-3.5 text-xs font-semibold text-ink/70">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                      <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.lrn}</td>
+                      <td className="px-4 py-3.5 text-xs">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
+                          <span className="font-semibold text-ink group-hover:text-brand-blue transition-colors">
+                            {student.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.gender || 'N/A'}</td>
+                      <td className="px-4 py-3.5 text-xs">{levelBadge}</td>
+                      <td className="px-4 py-3.5 text-xs">{statusBadge}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

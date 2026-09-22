@@ -2188,65 +2188,84 @@ async function getPassages(req, res) {
         title,
         grade_level AS grade,
         passage_set AS set,
+        COALESCE(stage, 'Pre-Test') AS stage,
         language,
         status,
-        COALESCE(prev_status, 'published') AS prev_status,
         content_text AS text,
         word_count AS words,
         created_at
       FROM phil_iri_passages
+      WHERE LOWER(COALESCE(passage_set, '')) NOT IN ('unassigned', '')
       ORDER BY created_at DESC
     `);
 
-    const passages = await Promise.all(
-      materials.map(async (m) => {
-        const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
-        const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
-        const statusDisplay = (m.status || 'published').charAt(0).toUpperCase() + (m.status || 'published').slice(1);
-        const prevStatusDisplay = (m.prev_status || 'published').charAt(0).toUpperCase() + (m.prev_status || 'published').slice(1);
+    if (!materials.length) {
+      return res.json({ success: true, passages: [] });
+    }
 
-        const { rows: qRows } = await db.query(`
-          SELECT question_id, question_text, question_type
-          FROM phil_iri_questions
-          WHERE passage_id = $1
-          ORDER BY created_at ASC
-        `, [m.id]);
+    const passageIds = materials.map((m) => m.id);
 
-        const questions = await Promise.all(
-          qRows.map(async (q) => {
-            const { rows: cRows } = await db.query(`
-              SELECT choice_id, choice_text, is_correct
-              FROM phil_iri_question_choices
-              WHERE question_id = $1
-            `, [q.question_id]);
+    const { rows: allQuestions } = await db.query(`
+      SELECT question_id, passage_id, question_text, question_type
+      FROM phil_iri_questions
+      WHERE passage_id = ANY($1::uuid[])
+      ORDER BY created_at ASC
+    `, [passageIds]);
 
-            const options = cRows.map((c) => c.choice_text);
-            const correctIndex = cRows.findIndex((c) => c.is_correct);
+    const questionIds = allQuestions.map((q) => q.question_id);
 
-            return {
-              id: q.question_id,
-              question: q.question_text,
-              type: q.question_type || 'Multiple Choice',
-              options,
-              correctAnswer: correctIndex >= 0 ? correctIndex : 0,
-            };
-          })
-        );
+    let allChoices = [];
+    if (questionIds.length) {
+      const choicesRes = await db.query(`
+        SELECT choice_id, question_id, choice_text, is_correct
+        FROM phil_iri_question_choices
+        WHERE question_id = ANY($1::uuid[])
+      `, [questionIds]);
+      allChoices = choicesRes.rows;
+    }
 
-        return {
-          id: m.id,
-          title: m.title,
-          grade: m.grade || 'Grade 4',
-          set: m.set || 'Set A',
-          language: langDisplay,
-          status: statusDisplay,
-          prevStatus: prevStatusDisplay,
-          words,
-          text: m.text,
-          questions,
-        };
-      })
-    );
+    const choicesByQuestion = {};
+    for (const c of allChoices) {
+      if (!choicesByQuestion[c.question_id]) choicesByQuestion[c.question_id] = [];
+      choicesByQuestion[c.question_id].push(c);
+    }
+
+    const questionsByPassage = {};
+    for (const q of allQuestions) {
+      const cRows = choicesByQuestion[q.question_id] || [];
+      const options = cRows.map((c) => c.choice_text);
+      const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+      const formattedQuestion = {
+        id: q.question_id,
+        question: q.question_text,
+        type: q.question_type || 'Multiple Choice',
+        options,
+        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+      };
+
+      if (!questionsByPassage[q.passage_id]) questionsByPassage[q.passage_id] = [];
+      questionsByPassage[q.passage_id].push(formattedQuestion);
+    }
+
+    const passages = materials.map((m) => {
+      const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
+      const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
+      const statusDisplay = (m.status || 'published').charAt(0).toUpperCase() + (m.status || 'published').slice(1);
+
+      return {
+        id: m.id,
+        title: m.title,
+        grade: m.grade || 'Grade 4',
+        set: m.set || 'Set A',
+        stage: m.stage || 'Pre-Test',
+        language: langDisplay,
+        status: statusDisplay,
+        words,
+        text: m.text,
+        questions: questionsByPassage[m.id] || [],
+      };
+    });
 
     return res.json({ success: true, passages });
   } catch (error) {
@@ -2260,20 +2279,24 @@ async function getPassages(req, res) {
  */
 async function createPassage(req, res) {
   try {
-    const { title, grade, set, language, status, text, questions } = req.body;
-    if (!title || !text) {
+    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const finalTitle = title ? title.trim() : '';
+    const finalText = (text || contentText || '').trim();
+    if (!finalTitle || !finalText) {
       return res.status(400).json({ success: false, error: 'Title and content text are required.' });
     }
 
+    const finalGrade = grade || gradeLevel || 'Grade 4';
+    const finalSet = set || passageSet || 'Set A';
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'published').toLowerCase();
-    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     const { rows } = await db.query(`
-      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, prev_status, content_text, word_count)
-      VALUES ($1, $2, $3, $4, $5, $5, $6, $7)
+      INSERT INTO phil_iri_passages (title, grade_level, passage_set, language, status, content_text, word_count)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING passage_id AS id
-    `, [title, grade || 'Grade 4', set || 'Set A', langCode, statusVal, text, wordCount]);
+    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount]);
 
     const materialId = rows[0].id;
 
@@ -2314,18 +2337,24 @@ async function createPassage(req, res) {
 async function updatePassage(req, res) {
   try {
     const { id } = req.params;
-    const { title, grade, set, language, status, prevStatus, text, questions } = req.body;
+    const { title, grade, gradeLevel, set, passageSet, language, status, text, contentText, questions } = req.body;
+    const finalTitle = title ? title.trim() : '';
+    const finalText = (text || contentText || '').trim();
+    if (!finalTitle || !finalText) {
+      return res.status(400).json({ success: false, error: 'Title and content text are required.' });
+    }
 
+    const finalGrade = grade || gradeLevel || 'Grade 4';
+    const finalSet = set || passageSet || 'Set A';
     const langCode = (language || '').toLowerCase().includes('english') || language === 'en' ? 'en' : 'fil';
     const statusVal = (status || 'published').toLowerCase();
-    const prevStatusVal = (prevStatus || 'published').toLowerCase();
-    const wordCount = (text || '').trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = finalText.split(/\s+/).filter(Boolean).length;
 
     await db.query(`
       UPDATE phil_iri_passages
-      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5, prev_status = $6, content_text = $7, word_count = $8, updated_at = CURRENT_TIMESTAMP
-      WHERE passage_id = $9
-    `, [title, grade, set, langCode, statusVal, prevStatusVal, text, wordCount, id]);
+      SET title = $1, grade_level = $2, passage_set = $3, language = $4, status = $5, content_text = $6, word_count = $7, updated_at = CURRENT_TIMESTAMP
+      WHERE passage_id = $8
+    `, [finalTitle, finalGrade, finalSet, langCode, statusVal, finalText, wordCount, id]);
 
     if (Array.isArray(questions)) {
       await db.query(`DELETE FROM phil_iri_questions WHERE passage_id = $1`, [id]);

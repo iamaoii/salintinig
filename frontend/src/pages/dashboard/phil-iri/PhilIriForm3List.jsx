@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { UsersThree } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
+import { PhilIriForm3Skeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 export default function PhilIriForm3List({ formKey, label }) {
@@ -51,11 +52,7 @@ export default function PhilIriForm3List({ formKey, label }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink/50 font-medium">
-                  Loading student records...
-                </td>
-              </tr>
+              <PhilIriForm3Skeleton rows={5} />
             ) : students.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-ink/50 font-medium">

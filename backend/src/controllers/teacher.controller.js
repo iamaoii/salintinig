@@ -1363,12 +1363,72 @@ async function getPhilIriActivities(req, res) {
 
 async function getPhilIriPassages(req, res) {
   try {
-    const { rows } = await db.query(
-      `SELECT passage_id, title, grade_level, passage_set, language, status, content_text, word_count 
+    const { rows: materials } = await db.query(
+      `SELECT passage_id, passage_id AS id, title, grade_level, grade_level AS grade, passage_set, passage_set AS set, COALESCE(stage, 'Pre-Test') AS stage, language, status, content_text, content_text AS text, word_count, word_count AS words 
        FROM phil_iri_passages 
-       ORDER BY passage_set ASC, title ASC`
+       WHERE LOWER(COALESCE(passage_set, '')) NOT IN ('unassigned', '')
+       ORDER BY stage ASC, passage_set ASC, title ASC`
     );
-    return res.json({ success: true, count: rows.length, passages: rows });
+
+    if (!materials || !materials.length) {
+      return res.json({ success: true, count: 0, passages: [] });
+    }
+
+    const passageIds = materials.map((m) => m.passage_id);
+
+    const { rows: allQuestions } = await db.query(
+      `SELECT question_id, passage_id, question_text, question_type
+       FROM phil_iri_questions
+       WHERE passage_id = ANY($1::uuid[])
+       ORDER BY created_at ASC`,
+      [passageIds]
+    );
+
+    const questionIds = allQuestions.map((q) => q.question_id);
+
+    let allChoices = [];
+    if (questionIds.length) {
+      const choicesRes = await db.query(
+        `SELECT choice_id, question_id, choice_text, is_correct
+         FROM phil_iri_question_choices
+         WHERE question_id = ANY($1::uuid[])`,
+        [questionIds]
+      );
+      allChoices = choicesRes.rows;
+    }
+
+    const choicesByQuestion = {};
+    for (const c of allChoices) {
+      if (!choicesByQuestion[c.question_id]) choicesByQuestion[c.question_id] = [];
+      choicesByQuestion[c.question_id].push(c);
+    }
+
+    const questionsByPassage = {};
+    for (const q of allQuestions) {
+      const cRows = choicesByQuestion[q.question_id] || [];
+      const options = cRows.map((c) => c.choice_text);
+      const correctIndex = cRows.findIndex((c) => c.is_correct);
+      const correctChoice = cRows.find((c) => c.is_correct);
+
+      const formattedQuestion = {
+        id: q.question_id,
+        question: q.question_text,
+        type: q.question_type || 'Multiple Choice',
+        options,
+        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+        answer: correctChoice ? correctChoice.choice_text : '',
+      };
+
+      if (!questionsByPassage[q.passage_id]) questionsByPassage[q.passage_id] = [];
+      questionsByPassage[q.passage_id].push(formattedQuestion);
+    }
+
+    const passages = materials.map((m) => ({
+      ...m,
+      questions: questionsByPassage[m.passage_id] || [],
+    }));
+
+    return res.json({ success: true, count: passages.length, passages });
   } catch (error) {
     console.error('Error fetching teacher passages:', error);
     return res.status(500).json({ success: false, error: 'Failed to fetch passages.' });

@@ -7,13 +7,13 @@ import {
   DownloadSimple,
   MagnifyingGlass,
   Funnel,
-  Users,
-  TrendUp,
-  WarningCircle,
-  CheckCircle,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 export default function AdminPhilIriReports() {
   const { globalSearch } = useOutletContext() || {};
@@ -26,15 +26,24 @@ export default function AdminPhilIriReports() {
   const [toast, setToast] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
   const [hoveredSlice, setHoveredSlice] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 8;
 
   const fetchAnalytics = async () => {
     try {
+      const cached = cacheService.get('admin_phil_iri_analytics');
+      if (cached) {
+        setAnalytics(cached);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/analytics/phil-iri'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
-      if (res.ok && data.success) setAnalytics(data.analytics);
+      if (res.ok && data.success) {
+        setAnalytics(data.analytics);
+        cacheService.set('admin_phil_iri_analytics', data.analytics);
+      }
     } catch (err) {
       console.warn('Failed to fetch Phil-IRI analytics:', err);
     }
@@ -42,13 +51,22 @@ export default function AdminPhilIriReports() {
 
   const fetchStudents = async () => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_students');
+      if (cached) {
+        setStudents(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
-      if (res.ok && data.success) setStudents(data.students || []);
+      if (res.ok && data.success) {
+        setStudents(data.students || []);
+        cacheService.set('admin_students', data.students || []);
+      }
     } catch (err) {
       console.warn('Failed to fetch students for reports:', err);
     } finally {
@@ -62,6 +80,11 @@ export default function AdminPhilIriReports() {
     const timer = setTimeout(() => setIsMounted(true), 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Reset pagination on filter or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedGrade, selectedLanguage, searchQuery, globalSearch]);
 
   // Apply language filter
   const filteredByLang = useMemo(() => {
@@ -149,6 +172,13 @@ export default function AdminPhilIriReports() {
       return matchesGrade && matchesQuery;
     });
   }, [filteredByLang, selectedGrade, globalSearch, searchQuery]);
+
+  const totalPages = Math.ceil(filteredStudents.length / PAGE_SIZE) || 1;
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredStudents.slice(start, start + PAGE_SIZE);
+  }, [filteredStudents, currentPage]);
 
   const handleExportCSV = (formType) => {
     if (filteredStudents.length === 0) {
@@ -296,7 +326,12 @@ export default function AdminPhilIriReports() {
                     isMounted ? 'rotate-[-90deg] scale-100 opacity-100' : 'rotate-[-270deg] scale-50 opacity-0'
                   }`}
                 >
+                  {/* Empty state base circle ring when 0 assessed */}
+                  {summaryData.totalEvaluated === 0 && (
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#EAE6DF" strokeWidth="20" />
+                  )}
                   {donutSlices.map((slice, i) => {
+                    if (slice.count === 0) return null;
                     const isHovered = hoveredSlice === i;
                     const isAnyHovered = hoveredSlice !== null;
                     return (
@@ -444,30 +479,20 @@ export default function AdminPhilIriReports() {
         </div>
 
         {/* Learner Masterlist Table */}
-        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-
-          {/* Toolbar */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-5">
-            <div className="relative w-full md:w-80">
-              <MagnifyingGlass size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
-              <input
-                type="text"
-                placeholder="Search student, LRN, section..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-2 text-xs text-ink outline-none focus:border-brand-blue"
-              />
-            </div>
-
-            <div className="flex w-full md:w-auto items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-ink/60 font-semibold">
-                <Funnel size={15} />
+        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
+          {/* Filters Bar matching Picture 2 */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Left: Filters Dropdowns */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5 text-xs text-ink/60 font-semibold mr-0.5">
+                <Funnel size={16} />
                 <span>Filters:</span>
               </div>
+
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}
-                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none focus:border-brand-blue cursor-pointer"
+                className="rounded-full border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-medium text-ink outline-none focus:border-brand-blue cursor-pointer transition-colors"
               >
                 <option value="All">All Grades</option>
                 <option value="Grade 4">Grade 4</option>
@@ -475,34 +500,48 @@ export default function AdminPhilIriReports() {
                 <option value="Grade 6">Grade 6</option>
               </select>
             </div>
+
+            {/* Right: Search Bar */}
+            <div className="relative w-full md:w-80">
+              <MagnifyingGlass size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
+              <input
+                type="text"
+                placeholder="Search student, LRN, section..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-full border border-ink/20 bg-white pl-10 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
+              />
+            </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
+          {/* Student Table Container */}
+          <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
+            <table className="w-full text-left text-xs text-ink border-collapse">
               <thead>
-                <tr className="text-xs text-ink/70">
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">LRN</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Student Name</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Grade & Section</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Phil-IRI Level</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Date Added</th>
+                <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs font-bold text-ink/50">
+                  <th className="py-3.5 px-4 font-bold">LRN</th>
+                  <th className="py-3.5 px-4 font-bold">Student Name</th>
+                  <th className="py-3.5 px-4 font-bold">Grade & Section</th>
+                  <th className="py-3.5 px-4 font-bold">Gender</th>
+                  <th className="py-3.5 px-4 font-bold">Phil-IRI Level</th>
+                  <th className="py-3.5 px-4 font-bold text-right">Date Added</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-ink/10">
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <div className="size-5 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                        <span className="text-xs font-semibold">Loading records...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="py-3.5 px-4"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="py-3.5 px-4"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                      <td className="py-3.5 px-4"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="py-3.5 px-4"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                      <td className="py-3.5 px-4"><div className="h-5 w-28 rounded-full bg-ink/10" /></td>
+                      <td className="py-3.5 px-4 text-right"><div className="h-3.5 w-16 ml-auto rounded bg-ink/10" /></td>
+                    </tr>
+                  ))
                 ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="border border-ink/10 p-10 text-center">
+                    <td colSpan={6} className="py-12 px-4 text-center">
                       <div className="mx-auto max-w-xs flex flex-col items-center gap-2">
                         <ChartPie size={36} className="text-ink/20" />
                         <p className="text-xs font-bold text-ink/60">No records found</p>
@@ -511,7 +550,7 @@ export default function AdminPhilIriReports() {
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((s) => {
+                  paginatedStudents.map((s) => {
                     const lvl = (s.level || '').toLowerCase();
                     let badge = 'bg-slate-100 text-slate-600 border-slate-200';
                     if (lvl.includes('independent')) badge = 'bg-[#00a652]/10 text-[#00a652] border-[#00a652]/20';
@@ -520,18 +559,18 @@ export default function AdminPhilIriReports() {
 
                     return (
                       <tr key={s.id || s.lrn} className="hover:bg-ink/[0.02] transition-colors">
-                        <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{s.lrn}</td>
-                        <td className="border border-ink/10 p-2 font-semibold text-sm text-ink">{s.name}</td>
-                        <td className="border border-ink/10 p-2 text-xs text-ink/80">
-                          <span className="font-semibold">{s.grade || 'Grade 4'}</span> - {s.section || 'Unassigned'}
+                        <td className="py-3.5 px-4 font-mono text-xs text-ink/80">{s.lrn}</td>
+                        <td className="py-3.5 px-4 font-bold text-ink">{s.name}</td>
+                        <td className="py-3.5 px-4 text-xs text-ink/80">
+                          {s.grade || 'Grade 4'} - {s.section || 'Unassigned'}
                         </td>
-                        <td className="border border-ink/10 p-2 text-xs text-ink/70">{s.gender || 'Male'}</td>
-                        <td className="border border-ink/10 p-2">
-                          <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${badge}`}>
+                        <td className="py-3.5 px-4 text-xs text-ink/70">{s.gender || 'Male'}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}>
                             {s.level || 'Pending Evaluation'}
                           </span>
                         </td>
-                        <td className="border border-ink/10 p-2 text-right text-xs text-ink/50">{s.dateAdded || '—'}</td>
+                        <td className="py-3.5 px-4 text-right text-xs text-ink/50">{s.dateAdded || '—'}</td>
                       </tr>
                     );
                   })
@@ -540,11 +579,54 @@ export default function AdminPhilIriReports() {
             </table>
           </div>
 
-          {/* Table Footer */}
-          {!loading && filteredStudents.length > 0 && (
-            <p className="mt-3 text-[11px] text-ink/40 text-right">
-              Showing {filteredStudents.length} of {filteredByLang.length} records
-            </p>
+          {/* Table Footer with Pagination Controls */}
+          {!loading && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-ink/10 pt-4 text-xs text-ink/60">
+              <span>
+                {filteredStudents.length === 0
+                  ? 'Showing 0 of 0 student records'
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`}
+              </span>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                  >
+                    <CaretLeft size={14} /> Previous
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() => setCurrentPage(pg)}
+                        className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === pg
+                            ? 'bg-brand-blue text-white shadow-xs'
+                            : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                  >
+                    Next <CaretRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

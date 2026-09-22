@@ -33,7 +33,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     if (user?.name) return user.name;
     if (user?.displayName && user.displayName !== 'Teacher Account') return user.displayName;
     if (user?.firstName) return `${user.firstName} ${user.lastName || ''}`.trim();
-    return currentRole === 'admin' ? 'Antoinette Jadaone' : 'Teacher';
+    return currentRole === 'super_admin' ? 'Super Admin' : currentRole === 'admin' ? 'Antoinette Jadaone' : 'Teacher';
   });
 
   const [profileEmail, setProfileEmail] = useState(() => user?.email || '');
@@ -61,13 +61,22 @@ export default function ProfileDropdown({ customName, role: propRole }) {
             setIsFic(freshUser.isFacultyInCharge === true);
             setFicGradeLevel(freshUser.ficGradeLevel || null);
           }
-          if (freshUser.profileImage || freshUser.profile_image) {
-            const img = freshUser.profileImage || freshUser.profile_image;
-            setAvatarUrl(img);
-            localStorage.setItem('teacherAvatarCache', img);
+          const img = freshUser.profileImage || freshUser.profile_image || null;
+          setAvatarUrl(img);
+          const cacheKey = (currentRole === 'super_admin' || currentRole === 'admin') ? 'adminAvatarCache' : 'teacherAvatarCache';
+          if (img) {
+            localStorage.setItem(cacheKey, img);
+          } else {
+            localStorage.removeItem(cacheKey);
           }
           const existingUser = getUser() || {};
-          const updatedUser = { ...existingUser, ...freshUser, name: freshName || existingUser.name };
+          const updatedUser = {
+            ...existingUser,
+            ...freshUser,
+            name: freshName || existingUser.name,
+            profileImage: img,
+            profile_image: img,
+          };
           localStorage.setItem('salintinig_user', JSON.stringify(updatedUser));
         }
       } catch (e) {
@@ -80,8 +89,8 @@ export default function ProfileDropdown({ customName, role: propRole }) {
   const name = customName || profileName;
   const email = profileEmail || user?.email || '';
 
-  const profilePath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
-  const settingsPath = currentRole === 'admin' ? '/admin/account' : '/teacher/account';
+  const profilePath = currentRole === 'super_admin' ? '/super-admin/account' : currentRole === 'admin' ? '/admin/account' : '/teacher/account';
+  const settingsPath = currentRole === 'super_admin' ? '/super-admin/account' : currentRole === 'admin' ? '/admin/account' : '/teacher/account';
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -215,7 +224,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
     const handleAvatarUpdate = (e) => {
       if (e?.detail) {
         setAvatarUrl(e.detail);
-        if (currentRole === 'admin') {
+        if (currentRole === 'super_admin' || currentRole === 'admin') {
           localStorage.setItem('adminAvatarCache', e.detail);
         } else {
           localStorage.setItem('teacherAvatarCache', e.detail);
@@ -340,10 +349,16 @@ export default function ProfileDropdown({ customName, role: propRole }) {
                 <ChatText size={22} className="text-brand-blue" />
                 <div>
                   <h3 className="text-lg font-bold text-ink">
-                    {currentRole === 'admin' ? 'Administrator Help & FAQ' : 'Teacher Help & FAQ'}
+                    {currentRole === 'super_admin'
+                      ? 'Super Admin Help & FAQ'
+                      : currentRole === 'admin'
+                      ? 'Administrator Help & FAQ'
+                      : 'Teacher Help & FAQ'}
                   </h3>
                   <p className="text-xs text-ink/50">
-                    {currentRole === 'admin'
+                    {currentRole === 'super_admin'
+                      ? 'Frequently Asked Questions & Platform Management Guide'
+                      : currentRole === 'admin'
                       ? 'Frequently Asked Questions & Admin Management Guide'
                       : 'Frequently Asked Questions & Teacher Guide for SalinTinig'}
                   </p>
@@ -360,7 +375,51 @@ export default function ProfileDropdown({ customName, role: propRole }) {
 
             {/* Role-Specific FAQ Scrollable Content */}
             <div className="flex-1 overflow-y-auto space-y-3.5 text-xs text-ink mt-2 pr-1">
-              {currentRole === 'admin' ? (
+              {currentRole === 'super_admin' ? (
+                <>
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">What are the main responsibilities of the Super Admin?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      As a Super Admin, you oversee platform-wide operations: managing registered DepEd schools, provisioning School Administrator accounts, maintaining official Phil-IRI passages, managing story practice materials, and monitoring global system analytics.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I register a new DepEd School and create a School Admin?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Navigate to <strong>Schools Directory</strong> and click <strong>Add New School</strong>. Fill out the school details and principal information. Once registered, click <strong>Create Admin</strong> to generate credentials and send an automated welcome email to the school principal or administrator.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I manage official Phil-IRI Assessment Passages and Question Banks?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Go to <strong>Phil-IRI Passages</strong>. You can create, edit, or archive standardized DepEd assessment passages across Grade 4 to Grade 6 (Sets A, B, C, D) and configure corresponding comprehension question choices.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I add and manage Story Practice Materials?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Go to <strong>Stories Library</strong> to add practice reading materials for students. You can set the category, language, difficulty level, and comprehension quiz questions. Estimated reading time is calculated automatically based on content word count.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I monitor platform performance and system analytics?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Visit the <strong>Super Admin Dashboard</strong> or <strong>System Analytics</strong> tab to view total active schools, total students and teachers, total assessments conducted, and school-by-school reading proficiency breakdowns.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
+                    <p className="font-bold text-ink text-sm">How do I reset a School Admin password?</p>
+                    <p className="text-ink/70 leading-relaxed">
+                      Find the target school in <strong>Schools Directory</strong>, click the actions menu on the assigned admin, and select <strong>Reset Password</strong>. A temporary login password will be securely dispatched to the administrator's email.
+                    </p>
+                  </div>
+                </>
+              ) : currentRole === 'admin' ? (
                 <>
                   <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
                     <p className="font-bold text-ink text-sm">How do I activate a new Academic School Year?</p>

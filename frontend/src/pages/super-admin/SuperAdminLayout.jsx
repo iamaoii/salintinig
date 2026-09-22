@@ -4,36 +4,34 @@ import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useSmartNotificationPoll } from '../../hooks/useSmartNotificationPoll.js';
 import {
   House,
-  IdentificationCard,
+  Buildings,
+  BookOpen,
+  BookBookmark,
+  ChartBar,
   Bell,
-  DotsThree,
-  ArrowRight,
   List,
   X,
-  Users,
-  BookOpen,
+  ArrowRight,
 } from '@phosphor-icons/react';
 import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import ProfileDropdown from '../../components/dashboard/layout/ProfileDropdown.jsx';
 import { getUser, getToken } from '../../lib/auth.js';
-import { cacheService } from '../../services/cacheService.js';
 
-// Top-level nav groups
 const NAV_ITEMS = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: House, exact: true },
-  { to: '/admin/records', label: 'School Records', icon: Users, group: 'records' },
-  { to: '/admin/sections', label: 'Sections & Faculty', icon: IdentificationCard, group: 'sections' },
-  { to: '/admin/phil-iri', label: 'Phil-IRI', icon: BookOpen, group: 'phil-iri' },
+  { to: '/super-admin/dashboard', label: 'Dashboard', icon: House, exact: true },
+  { to: '/super-admin/schools', label: 'Schools', icon: Buildings, group: 'schools' },
+  { to: '/super-admin/phil-iri', label: 'Phil-IRI', icon: BookOpen, group: 'phil-iri' },
+  { to: '/super-admin/stories', label: 'Stories', icon: BookBookmark },
+  { to: '/super-admin/analytics', label: 'Analytics', icon: ChartBar },
 ];
 
-export default function AdminLayout() {
+export default function SuperAdminLayout() {
   const navigate = useNavigate();
   const currentUser = getUser();
   const location = useLocation();
-  const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
+  const isDashboard = location.pathname === '/super-admin/dashboard' || location.pathname === '/super-admin';
 
-  const [adminInfo, setAdminInfo] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
@@ -41,7 +39,6 @@ export default function AdminLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
 
-  // Fetch live notifications efficiently
   const fetchNotifications = useCallback(async () => {
     try {
       const token = getToken();
@@ -57,54 +54,54 @@ export default function AdminLayout() {
         setUnreadCount((prev) => (prev !== newUnread ? newUnread : prev));
       }
     } catch (err) {
-      console.warn('Failed to fetch notifications:', err.message);
+      console.warn('SA: Failed to fetch notifications:', err.message);
     } finally {
       setLoadingNotifs(false);
     }
   }, []);
 
-  // Use smart visibility-aware background polling
   useSmartNotificationPoll(fetchNotifications, 45000, [location.pathname]);
 
-  // Ultra-Fast 0ms Pre-fetching for Admin Portal
+  // Ultra-Fast 0ms Pre-fetching for Super Admin Portal
   useEffect(() => {
-    const prefetchAdminData = async () => {
+    const prefetchData = async () => {
       const token = getToken();
       if (!token) return;
       const headers = { Authorization: `Bearer ${token}` };
 
+      // Warm up cache for all primary super-admin views silently in background
       try {
-        if (!cacheService.get('admin_dashboard_stats')) {
-          fetch(getApiUrl('/api/admin/stats'), { headers })
+        if (!cacheService.get('sa_dashboard_stats')) {
+          fetch(getApiUrl('/api/super-admin/dashboard/stats'), { headers })
             .then((r) => r.json())
-            .then((d) => d.success && d.stats && cacheService.set('admin_dashboard_stats', d.stats));
+            .then((d) => d.success && cacheService.set('sa_dashboard_stats', { stats: d.stats, schoolsOverview: d.schoolsOverview }));
         }
-        if (!cacheService.get('admin_students')) {
-          fetch(getApiUrl('/api/admin/students'), { headers })
+        if (!cacheService.get('sa_analytics')) {
+          fetch(getApiUrl('/api/super-admin/analytics'), { headers })
             .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.students) && cacheService.set('admin_students', d.students));
+            .then((d) => d.success && cacheService.set('sa_analytics', d.analytics));
         }
-        if (!cacheService.get('admin_teachers')) {
-          fetch(getApiUrl('/api/admin/teachers'), { headers })
+        if (!cacheService.get('sa_schools')) {
+          fetch(getApiUrl('/api/super-admin/schools'), { headers })
             .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.teachers) && cacheService.set('admin_teachers', d.teachers));
+            .then((d) => d.success && Array.isArray(d.schools) && cacheService.set('sa_schools', d.schools));
         }
-        if (!cacheService.get('admin_phil_iri_passages')) {
-          fetch(getApiUrl('/api/admin/phil-iri/passages'), { headers })
+        if (!cacheService.get('sa_passages')) {
+          fetch(getApiUrl('/api/super-admin/phil-iri/passages'), { headers })
             .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('admin_phil_iri_passages', d.passages));
+            .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('sa_passages', d.passages));
         }
-        if (!cacheService.get('admin_phil_iri_assessments')) {
-          fetch(getApiUrl('/api/admin/phil-iri/assessments'), { headers })
+        if (!cacheService.get('sa_stories')) {
+          fetch(getApiUrl('/api/super-admin/stories'), { headers })
             .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.assessments) && cacheService.set('admin_phil_iri_assessments', d.assessments));
+            .then((d) => d.success && Array.isArray(d.stories) && cacheService.set('sa_stories', d.stories));
         }
       } catch (err) {
-        // Silently ignore prefetch errors
+        // Silently ignore prefetch network errors
       }
     };
 
-    prefetchAdminData();
+    prefetchData();
   }, []);
 
   const handleMarkAsRead = async (id) => {
@@ -119,7 +116,7 @@ export default function AdminLayout() {
       });
       fetchNotifications();
     } catch (err) {
-      console.warn('Error marking notification as read:', err.message);
+      console.warn('SA: Error marking notification as read:', err.message);
     }
   };
 
@@ -135,11 +132,10 @@ export default function AdminLayout() {
       });
       fetchNotifications();
     } catch (err) {
-      console.warn('Error marking all notifications as read:', err.message);
+      console.warn('SA: Error marking all as read:', err.message);
     }
   };
 
-  // Close notification popover on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
@@ -150,53 +146,28 @@ export default function AdminLayout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const fetchAdminInfo = async () => {
-      try {
-        const token = getToken();
-        const res = await fetch(getApiUrl('/api/admin/info'), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setAdminInfo(data);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch admin info:', err);
-      }
-    };
-    fetchAdminInfo();
-
-    const handleSYChange = () => {
-      fetchAdminInfo();
-      fetchNotifications();
-    };
-    window.addEventListener('schoolYearChanged', handleSYChange);
-    return () => window.removeEventListener('schoolYearChanged', handleSYChange);
-  }, []);
-
   return (
     <div className="min-h-screen w-full bg-cream text-ink font-sans">
-      {/* Top Header Navigation matching Teacher side TopNav */}
+      {/* Top Header Navigation */}
       <header className="sticky top-0 z-30 border-b border-ink/10 bg-cream/95 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] backdrop-blur-md">
         <div className="mx-auto flex h-14 sm:h-16 max-w-[1480px] items-center justify-between px-6 sm:px-8 lg:px-10">
-          {/* Clickable Logo Branding */}
-          <Link to="/admin/dashboard" className="flex shrink-0 items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer">
+          {/* Logo Branding */}
+          <Link to="/super-admin/dashboard" className="flex shrink-0 items-center gap-2.5 hover:opacity-85 transition-opacity cursor-pointer">
             <img src={logo} alt="SalinTinig" className="h-8 w-auto" />
             <div className="flex items-center gap-2">
               <span className="text-lg sm:text-xl font-bold tracking-tight text-ink font-sans">
                 SalinTinig
               </span>
               <span className="rounded-full bg-brand-red/10 px-2.5 py-0.5 text-xs font-semibold text-brand-red">
-                Admin
+                Super Admin
               </span>
             </div>
           </Link>
 
-          {/* Desktop Navigation Tabs (Visible on lg screens 1024px+) */}
+          {/* Desktop Navigation Tabs */}
           <nav className="hidden lg:flex h-full items-center justify-center gap-4 lg:gap-6">
             {NAV_ITEMS.map(({ to, label, icon: Icon, group, exact }) => {
-              const groupActive = group ? location.pathname.startsWith(`/admin/${group}`) : false;
+              const groupActive = group ? location.pathname.startsWith(`/super-admin/${group}`) : false;
               return (
                 <NavLink
                   key={to}
@@ -226,9 +197,9 @@ export default function AdminLayout() {
             })}
           </nav>
 
-          {/* Right Account Profile & Notification Popover & Mobile Menu Button */}
+          {/* Right — Bell + Profile + Mobile Toggle */}
           <div className="flex shrink-0 items-center gap-3 sm:gap-5">
-            {/* Notification Bell Button */}
+            {/* Notification Bell */}
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
@@ -242,7 +213,6 @@ export default function AdminLayout() {
                 )}
               </button>
 
-              {/* Notification Popover Dropdown */}
               {showNotifPopover && (
                 <div className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_8px_24px_rgba(26,24,22,0.12)] space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-ink/10">
@@ -266,10 +236,7 @@ export default function AdminLayout() {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowNotifPopover(false);
-                          navigate('/admin/notifications');
-                        }}
+                        onClick={() => { setShowNotifPopover(false); navigate('/super-admin/notifications'); }}
                         className="font-semibold text-brand-blue hover:underline cursor-pointer"
                       >
                         View All
@@ -282,7 +249,7 @@ export default function AdminLayout() {
                       <div className="flex flex-col items-center justify-center py-6 text-center">
                         <Bell size={32} weight="regular" className="text-ink/30 mb-2" />
                         <p className="text-xs font-bold text-ink">All caught up!</p>
-                        <p className="text-[11px] text-ink/50 mt-0.5">No unread notifications at the moment.</p>
+                        <p className="text-[11px] text-ink/50 mt-0.5">No unread notifications.</p>
                       </div>
                     ) : (
                       notifications.map((notif) => (
@@ -311,9 +278,9 @@ export default function AdminLayout() {
               )}
             </div>
 
-            <ProfileDropdown role="admin" customName={currentUser?.name} />
+            <ProfileDropdown role="super_admin" customName={currentUser?.name} />
 
-            {/* Mobile / Tablet Navigation Toggle Button (Visible on screens < 1024px) */}
+            {/* Mobile Toggle */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -325,7 +292,7 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {/* Mobile / Tablet Dropdown Navigation Drawer (< 1024px) */}
+        {/* Mobile Dropdown Drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-ink/10 bg-cream p-4 space-y-1.5 shadow-lg animate-fade-in">
             {NAV_ITEMS.map(({ to, label, icon: Icon, group }) => (
@@ -335,7 +302,7 @@ export default function AdminLayout() {
                   onClick={() => !group && setMobileMenuOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                      isActive || (group && location.pathname.startsWith(`/admin/${group}`))
+                      isActive || (group && location.pathname.startsWith(`/super-admin/${group}`))
                         ? 'bg-brand-red text-cream shadow-xs'
                         : 'text-ink/80 hover:bg-ink/5 hover:text-ink'
                     }`
@@ -344,62 +311,40 @@ export default function AdminLayout() {
                   <Icon size={18} weight="regular" />
                   <span>{label}</span>
                 </NavLink>
-
               </div>
             ))}
           </div>
         )}
       </header>
 
-      {/* Main Layout Container */}
+      {/* Main Layout */}
       <main className="mx-auto max-w-[1480px] px-6 pt-6 pb-20 sm:px-8 sm:pt-8 sm:pb-28 lg:px-10 lg:pb-36">
         {isDashboard ? (
           <div className="flex flex-col gap-8 lg:flex-row">
-            {/* Left Side Header Banner + Notification Cards (Dashboard Only) */}
+            {/* Left aside — System overview banner + Notifications */}
             <aside className="flex w-full flex-col gap-4 lg:w-[360px] lg:shrink-0">
-              {/* Red School Header Banner Card */}
+              {/* System Banner */}
               <div className="relative flex items-start justify-between overflow-hidden rounded-2xl bg-brand-red p-5 text-cream shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
                 <img
                   src={logoBg}
                   alt=""
                   className="pointer-events-none absolute right-0 top-0 h-full w-auto object-cover brightness-[3] mix-blend-screen"
                 />
-
-                <div className="relative z-10 flex flex-col items-start gap-2 max-w-[85%] w-full">
+                <div className="relative z-10 flex flex-col items-start gap-2 max-w-[90%] w-full">
                   <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-bold text-cream uppercase tracking-wider">
-                    Welcome, Administrator!
+                    System Administrator
                   </span>
-                  {!adminInfo ? (
-                    <div className="space-y-2 w-full py-1">
-                      <div className="h-6 w-3/4 animate-pulse rounded bg-white/20" />
-                      <div className="h-3 w-1/2 animate-pulse rounded bg-white/20" />
-                      <div className="h-3 w-2/3 animate-pulse rounded bg-white/20" />
-                    </div>
-                  ) : (
-                    <>
-                      <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
-                        {adminInfo.schoolInfo?.schoolName || currentUser?.name || ''}
-                      </h2>
-                      <div className="flex flex-col gap-0.5 text-xs font-medium leading-tight text-cream/90">
-                        <p>School ID: {adminInfo.schoolInfo?.schoolId || currentUser?.schoolId || ''}</p>
-                        <p>
-                          {adminInfo.schoolInfo?.division || ''} • S.Y. {adminInfo.activeSchoolYear || ''}
-                        </p>
-                      </div>
-                    </>
-                  )}
+                  <h2 className="text-xl sm:text-2xl font-bold leading-tight text-cream drop-shadow-sm">
+                    {currentUser?.name || 'Super Admin'}
+                  </h2>
+                  <div className="flex flex-col gap-0.5 text-xs font-medium leading-tight text-cream/90">
+                    <p>{currentUser?.email || ''}</p>
+                    <p>Platform-wide management access</p>
+                  </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="relative z-10 text-cream/90 transition-colors hover:text-cream cursor-pointer"
-                  aria-label="Admin options"
-                >
-                  <DotsThree size={32} weight="bold" />
-                </button>
               </div>
 
-              {/* Notification Card */}
+              {/* Notifications Card */}
               <div className="rounded-2xl border border-ink/5 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -408,7 +353,7 @@ export default function AdminLayout() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/notifications')}
+                    onClick={() => navigate('/super-admin/notifications')}
                     className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer"
                   >
                     <span>View All</span>
@@ -425,7 +370,9 @@ export default function AdminLayout() {
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Bell size={36} weight="regular" className="text-ink/30 mb-2" />
                       <p className="text-xs font-bold text-ink">No Notifications Available</p>
-                      <p className="text-[11px] text-ink/50 mt-0.5 max-w-[200px] leading-snug">System updates and activity alerts will appear here.</p>
+                      <p className="text-[11px] text-ink/50 mt-0.5 max-w-[200px] leading-snug">
+                        System updates and activity alerts will appear here.
+                      </p>
                     </div>
                   ) : (
                     notifications.slice(0, 3).map((n) => (
@@ -448,7 +395,6 @@ export default function AdminLayout() {
             </div>
           </div>
         ) : (
-          /* Full Width Content for Other Admin Pages */
           <div className="w-full">
             <Outlet />
           </div>
