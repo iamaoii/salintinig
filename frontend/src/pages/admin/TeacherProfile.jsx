@@ -10,6 +10,8 @@ import {
   UserSwitch,
   Clock,
   Student,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
@@ -23,6 +25,10 @@ export default function TeacherProfile() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('roster');
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Pagination State for Roster
+  const [rosterPage, setRosterPage] = useState(1);
+  const ROSTER_PAGE_SIZE = 10;
 
   useEffect(() => {
     const fetchTeacherDetail = async () => {
@@ -112,7 +118,7 @@ export default function TeacherProfile() {
         ) : (
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <Avatar name={t.name} size={88} className="text-2xl font-bold shrink-0" />
+              <Avatar name={t.name} src={t.profileImage || t.profile_image || t.avatarUrl || t.avatar} size={88} className="text-2xl font-bold shrink-0" />
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-bold text-ink">{t.name}</h1>
@@ -258,53 +264,102 @@ export default function TeacherProfile() {
 
         {/* Tab 1: Class Roster */}
         {activeTab === 'roster' && (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="text-xs text-ink/70">
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">LRN</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Student Name</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Reading Level</th>
-                  <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classStudents.length > 0 ? (
-                  classStudents.map((std) => (
-                    <tr key={std.lrn} className="hover:bg-ink/[0.02] transition-colors">
-                      <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{std.lrn}</td>
-                      <td className="border border-ink/10 p-2 font-semibold text-ink">{std.name}</td>
-                      <td className="border border-ink/10 p-2 text-xs text-ink/70">{std.gender}</td>
-                      <td className="border border-ink/10 p-2">
-                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-300">
-                          {std.level || 'Pending Evaluation'}
-                        </span>
-                      </td>
-                      <td className="border border-ink/10 p-2 text-right">
-                        <button
-                          type="button"
+          <div className="mt-4 rounded-xl border border-ink/10 bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs font-bold text-ink/50">
+                    <th className="px-5 py-3.5 text-left w-[20%]">LRN</th>
+                    <th className="px-5 py-3.5 text-left w-[35%]">Student Name</th>
+                    <th className="px-5 py-3.5 text-left w-[20%]">Gender</th>
+                    <th className="px-5 py-3.5 text-left w-[25%]">Reading Level</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink/10 text-xs text-ink">
+                  {classStudents.length > 0 ? (
+                    classStudents
+                      .slice((rosterPage - 1) * ROSTER_PAGE_SIZE, rosterPage * ROSTER_PAGE_SIZE)
+                      .map((std) => (
+                        <tr
+                          key={std.lrn}
                           onClick={() => navigate(`/admin/records/students/${std.lrn}`)}
-                          className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
+                          className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
                         >
-                          View Profile
-                        </button>
+                          <td className="px-5 py-4 font-mono text-ink/80">{std.lrn || '—'}</td>
+                          <td className="px-5 py-4 font-bold text-ink group-hover:text-brand-blue transition-colors">
+                            {std.name || '—'}
+                          </td>
+                          <td className="px-5 py-4 text-ink/70">{std.gender || '—'}</td>
+                          <td className="px-5 py-4">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-300">
+                              {std.level || 'Pending Evaluation'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-8 text-center text-ink/50">
+                        <div className="flex flex-col items-center justify-center space-y-1">
+                          <Clock size={28} className="text-ink/30 mb-1" />
+                          <span className="text-xs font-bold text-ink">No Enrolled Students Assigned</span>
+                          <span className="text-[11px] text-ink/60">This teacher does not currently advise a section or section has no enrolled students.</span>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="border border-ink/10 p-8 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center space-y-1">
-                        <Clock size={28} className="text-ink/30 mb-1" />
-                        <span className="text-xs font-bold text-ink">No Enrolled Students Assigned</span>
-                        <span className="text-[11px] text-ink/60">This teacher does not currently advise a section or section has no enrolled students.</span>
-                      </div>
-                    </td>
-                  </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer / Pagination */}
+            {classStudents.length > 0 && (
+              <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+                <span>
+                  {Math.ceil(classStudents.length / ROSTER_PAGE_SIZE) > 1
+                    ? `Showing ${(rosterPage - 1) * ROSTER_PAGE_SIZE + 1} to ${Math.min(rosterPage * ROSTER_PAGE_SIZE, classStudents.length)} of ${classStudents.length} student records`
+                    : `Showing ${classStudents.length} of ${classStudents.length} student records`}
+                </span>
+                {Math.ceil(classStudents.length / ROSTER_PAGE_SIZE) > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={rosterPage === 1}
+                      onClick={() => setRosterPage((p) => Math.max(p - 1, 1))}
+                      className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      <CaretLeft size={14} /> Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.ceil(classStudents.length / ROSTER_PAGE_SIZE) }, (_, i) => i + 1).map((pg) => (
+                        <button
+                          key={pg}
+                          type="button"
+                          onClick={() => setRosterPage(pg)}
+                          className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            rosterPage === pg
+                              ? 'bg-brand-blue text-white shadow-xs'
+                              : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={rosterPage === Math.ceil(classStudents.length / ROSTER_PAGE_SIZE)}
+                      onClick={() => setRosterPage((p) => Math.min(p + 1, Math.ceil(classStudents.length / ROSTER_PAGE_SIZE)))}
+                      className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      Next <CaretRight size={14} />
+                    </button>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         )}
 

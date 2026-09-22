@@ -54,9 +54,20 @@ import AdminRecordsLayout from './pages/admin/AdminRecordsLayout.jsx';
 import AdminSectionsLayout from './pages/admin/AdminSectionsLayout.jsx';
 import AdminPhilIriLayout from './pages/admin/AdminPhilIriLayout.jsx';
 
+import SuperAdminLayout from './pages/super-admin/SuperAdminLayout.jsx';
+import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard.jsx';
+import SuperAdminSchools from './pages/super-admin/SuperAdminSchools.jsx';
+import SuperAdminSchoolDetail from './pages/super-admin/SuperAdminSchoolDetail.jsx';
+import SuperAdminPhilIriLayout from './pages/super-admin/SuperAdminPhilIriLayout.jsx';
+import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
+import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
+import SuperAdminAnalytics from './pages/super-admin/SuperAdminAnalytics.jsx';
+import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
+
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
   const role = getUserRole();
+  if (role === 'super_admin') return <Navigate to="/super-admin/dashboard" replace />;
   return <Navigate to={role === 'admin' ? '/admin/dashboard' : '/teacher'} replace />;
 }
 
@@ -124,6 +135,42 @@ export default function App() {
         <Route path="activities" element={<Navigate to="/admin/phil-iri/assessment" replace />} />
         <Route path="settings" element={<Navigate to="/admin/account" replace />} />
         <Route path="profile" element={<Navigate to="/admin/account" replace />} />
+      </Route>
+
+      <Route
+        path="/super-admin"
+        element={
+          <ProtectedRoute allowedRole="super_admin">
+            <SuperAdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
+        <Route path="dashboard" element={<SuperAdminDashboard />} />
+
+        {/* Schools Management */}
+        <Route path="schools" element={<SuperAdminSchools />} />
+        <Route path="schools/add" element={<Navigate to="/super-admin/schools" replace />} />
+        <Route path="schools/:id" element={<SuperAdminSchoolDetail />} />
+
+        {/* Phil-IRI Passages */}
+        <Route path="phil-iri" element={<SuperAdminPhilIriLayout />}>
+          <Route index element={<Navigate to="passages" replace />} />
+          <Route path="passages" element={<SuperAdminPassages />} />
+        </Route>
+
+        {/* Stories Library */}
+        <Route path="stories" element={<SuperAdminStories />} />
+
+        {/* System Analytics */}
+        <Route path="analytics" element={<SuperAdminAnalytics />} />
+
+        {/* Account & Notifications */}
+        <Route path="notifications" element={<AdminNotifications />} />
+        <Route path="account" element={<SuperAdminSettings />} />
+        <Route path="account/:tab" element={<SuperAdminSettings />} />
+        <Route path="settings" element={<Navigate to="/super-admin/account" replace />} />
+        <Route path="profile" element={<Navigate to="/super-admin/account" replace />} />
       </Route>
 
       <Route

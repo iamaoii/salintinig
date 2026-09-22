@@ -11,8 +11,9 @@ export default function OverviewActivities() {
       ))}
 
       <Link
-        to="/teacher/class-activities/practice/create"
-        aria-label="Add activity"
+        to="/teacher/class-activities/phil-iri/assign"
+        aria-label="Assign Phil-IRI Sets"
+        title="Assign Phil-IRI Sets"
         className="fixed bottom-8 right-8 z-50 flex size-12 items-center justify-center rounded-full bg-brand-red text-cream shadow-lg transition-transform hover:scale-105 hover:bg-[#b8331b] active:scale-95"
       >
         <Plus size={22} weight="bold" />

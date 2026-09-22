@@ -7,13 +7,25 @@ const path = require('path')
 const db = require('./config/db.js')
 const { initSocket } = require('./config/socket.js')
 
+// Catch unhandled promise rejections and uncaught exceptions to prevent silent process crashes on Render
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const app = express()
 const server = http.createServer(app)
 const PORT = process.env.PORT || 5000
+const HOST = '0.0.0.0'
 
 // Middleware
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:5173',
+  'https://salintinig.org',
+  'https://www.salintinig.org',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:5000'
@@ -42,6 +54,7 @@ app.use('/api/auth', require('./routes/auth.routes.js'))
 app.use('/api/students', require('./routes/student.routes.js'))
 app.use('/api/student', require('./routes/student.routes.js'))
 app.use('/api/admin', require('./routes/admin.routes.js'))
+app.use('/api/super-admin', require('./routes/super_admin.routes.js'))
 
 app.use('/api/teacher', require('./routes/teacher.routes.js'))
 app.use('/api/notifications', require('./routes/notification.routes.js'))
@@ -78,8 +91,9 @@ async function initDatabase() {
   }
 }
 
-server.listen(PORT, async () => {
-  console.log(`✅ SalinTinig Server listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`)
+server.listen(PORT, HOST, async () => {
+  console.log(`✅ SalinTinig Server listening on ${HOST}:${PORT} [${process.env.NODE_ENV || 'development'}]`)
   initSocket(server)
   await initDatabase()
 })
+

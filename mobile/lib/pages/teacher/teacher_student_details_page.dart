@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 
@@ -11,14 +12,16 @@ class TeacherStudentDetailsPage extends StatefulWidget {
   final String grade;
   final String section;
   final String lrn;
+  final Map<String, dynamic>? studentData;
 
   const TeacherStudentDetailsPage({
     super.key,
-    this.studentName = 'Adrian Matthew Cruz',
+    this.studentName = 'Student',
     this.level = 'Instructional',
     this.grade = 'Grade 4',
     this.section = 'Fyang',
     this.lrn = '1366 7010 0099',
+    this.studentData,
   });
 
   @override
@@ -27,6 +30,102 @@ class TeacherStudentDetailsPage extends StatefulWidget {
 
 class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  Map<String, dynamic>? _resolvedData;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveStudentData();
+  }
+
+  void _resolveStudentData() {
+    if (widget.studentData != null && widget.studentData!.isNotEmpty) {
+      _resolvedData = Map<String, dynamic>.from(widget.studentData!);
+    } else if (AuthService.cachedClassStudents != null) {
+      final match = AuthService.cachedClassStudents!.firstWhere(
+        (s) {
+          final sName = (s['name'] ?? '').toString().toLowerCase().trim();
+          final wName = widget.studentName.toLowerCase().trim();
+          final sLrn = (s['lrn'] ?? '').toString().trim();
+          final wLrn = widget.lrn.trim();
+          return (wLrn.isNotEmpty && sLrn == wLrn) || (wName.isNotEmpty && sName.contains(wName));
+        },
+        orElse: () => <String, dynamic>{},
+      );
+      if (match.isNotEmpty) {
+        _resolvedData = Map<String, dynamic>.from(match);
+      }
+    }
+  }
+
+  num _safeParseNum(dynamic val) {
+    if (val == null) return 0;
+    if (val is num) return val;
+    if (val is String) return num.tryParse(val) ?? 0;
+    return 0;
+  }
+
+  int _safeParseInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    if (val is String) return int.tryParse(val) ?? 0;
+    return 0;
+  }
+
+  String get _displayName {
+    final raw = (_resolvedData?['name'] ?? widget.studentName).toString().trim();
+    if (raw.isNotEmpty && raw != 'Student') return raw;
+    final first = (_resolvedData?['firstName'] ?? _resolvedData?['first_name'] ?? '').toString().trim();
+    final last = (_resolvedData?['lastName'] ?? _resolvedData?['last_name'] ?? '').toString().trim();
+    final full = '$first $last'.trim();
+    return full.isNotEmpty ? full : widget.studentName;
+  }
+
+  String get _displayLrn => (_resolvedData?['lrn'] ?? widget.lrn).toString().trim();
+  String get _displayGrade => (_resolvedData?['gradeLevel'] ?? _resolvedData?['grade_level'] ?? widget.grade).toString().trim();
+  String get _displaySection => (_resolvedData?['sectionName'] ?? _resolvedData?['section_name'] ?? _resolvedData?['section'] ?? widget.section).toString().trim();
+  String get _displayLevel => (_resolvedData?['readingLevel'] ?? _resolvedData?['level'] ?? widget.level).toString().trim();
+  String? get _avatarUrl => (_resolvedData?['profileImage'] ?? _resolvedData?['profile_image'] ?? _resolvedData?['avatarUrl'])?.toString();
+
+  num get _wpsVal => _safeParseNum(
+        _resolvedData?['readingSpeed'] ??
+        _resolvedData?['wps'] ??
+        _resolvedData?['filOralSpeed'] ??
+        _resolvedData?['engOralSpeed'],
+      );
+
+  num get _accuracyVal => _safeParseNum(
+        _resolvedData?['accuracy'] ??
+        _resolvedData?['oralAccuracy'] ??
+        _resolvedData?['filOralAccuracy'] ??
+        _resolvedData?['engOralAccuracy'],
+      );
+
+  num get _comprehensionVal => _safeParseNum(
+        _resolvedData?['comprehension'] ??
+        _resolvedData?['oralComprehension'] ??
+        _resolvedData?['filOralComprehension'] ??
+        _resolvedData?['engOralComprehension'],
+      );
+
+  int get _storiesVal => _safeParseInt(
+        _resolvedData?['storiesCount'] ??
+        _resolvedData?['storiesRead'] ??
+        _resolvedData?['stories_read'] ??
+        _resolvedData?['completedStoriesCount'],
+      );
+
+  int get _badgesVal => _safeParseInt(
+        _resolvedData?['badgesCount'] ??
+        _resolvedData?['badges_count'],
+      );
+
+  int get _streakVal => _safeParseInt(
+        _resolvedData?['streakCount'] ??
+        _resolvedData?['streak_count'] ??
+        _resolvedData?['streak'],
+      );
 
   void _showGenerateReportModal() {
     Feedback.forTap(context);
@@ -82,7 +181,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                               ),
                             ),
                             Text(
-                              widget.studentName,
+                              _displayName,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: Colors.grey[600],
@@ -104,13 +203,13 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                     ),
                     child: Column(
                       children: [
-                        _buildReportOptionRow('Phil-IRI Reading Level', widget.level),
+                        _buildReportOptionRow('Phil-IRI Reading Level', _displayLevel),
                         const Divider(height: 16),
-                        _buildReportOptionRow('Reading Speed (WPS)', '67 wps'),
+                        _buildReportOptionRow('Reading Speed (WPS)', '$_wpsVal wps'),
                         const Divider(height: 16),
-                        _buildReportOptionRow('Overall Accuracy', '87%'),
+                        _buildReportOptionRow('Overall Accuracy', '$_accuracyVal%'),
                         const Divider(height: 16),
-                        _buildReportOptionRow('Comprehension Score', '37%'),
+                        _buildReportOptionRow('Comprehension Score', '$_comprehensionVal%'),
                       ],
                     ),
                   ),
@@ -125,7 +224,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                             await Future.delayed(const Duration(seconds: 2));
                             if (!context.mounted) return;
                             Navigator.pop(context);
-                            AppToast.success(context, 'Report for ${widget.studentName} generated & downloaded successfully!');
+                            AppToast.success(context, 'Report for $_displayName generated & downloaded successfully!');
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1B64D8),
@@ -201,6 +300,22 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
     const primaryBlue = Color(0xFF1B64D8);
     const softBg = Color(0xFFFCFAF7);
 
+    final lvlLower = _displayLevel.toLowerCase();
+    final Color levelBgColor = lvlLower.contains('frustrat')
+        ? const Color(0xFFFDF4F2)
+        : lvlLower.contains('instruct')
+            ? const Color(0xFFFEF3C7)
+            : lvlLower.contains('independ')
+                ? const Color(0xFFECFDF5)
+                : const Color(0xFFF1F5F9);
+    final Color levelTextColor = lvlLower.contains('frustrat')
+        ? const Color(0xFFD34426)
+        : lvlLower.contains('instruct')
+            ? const Color(0xFFD97706)
+            : lvlLower.contains('independ')
+                ? const Color(0xFF059669)
+                : Colors.grey[700]!;
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: softBg,
@@ -242,7 +357,8 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                       children: [
                         // Avatar Circle
                         InitialsAvatar(
-                          name: widget.studentName,
+                          name: _displayName,
+                          imageUrl: _avatarUrl,
                           radius: 38,
                           fontSize: 26,
                         ),
@@ -260,47 +376,39 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      widget.studentName,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                              Text(
+                                _displayName,
+                                style: GoogleFonts.inter(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: levelBgColor,
+                                  borderRadius: BorderRadius.circular(100),
+                                ),
+                                child: Text(
+                                  _displayLevel,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: levelTextColor,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF3C7),
-                                      borderRadius: BorderRadius.circular(100),
-                                    ),
-                                    child: Text(
-                                      widget.level,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFFD97706),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  _buildInfoColumn('Grade Level', widget.grade),
+                                  _buildInfoColumn('Grade Level', _displayGrade),
                                   const SizedBox(width: 16),
-                                  _buildInfoColumn('Section', widget.section),
+                                  _buildInfoColumn('Section', _displaySection),
                                   const SizedBox(width: 16),
-                                  _buildInfoColumn('LRN', widget.lrn),
+                                  _buildInfoColumn('LRN', _displayLrn),
                                 ],
                               ),
                             ],
@@ -368,9 +476,9 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatItem('5', 'Stories', Ph.book_open_bold, const Color(0xFFE05234)),
-                        _buildStatItem('5', 'Badges', Ph.shield_bold, const Color(0xFFD34426)),
-                        _buildStatItem('5', 'Streak', Ph.flame_bold, const Color(0xFFE05234)),
+                        _buildStatItem('$_storiesVal', 'Stories', Ph.book_open_bold, const Color(0xFFE05234)),
+                        _buildStatItem('$_badgesVal', 'Badges', Ph.shield_bold, const Color(0xFFD34426)),
+                        _buildStatItem('$_streakVal', 'Streak', Ph.flame_bold, const Color(0xFFE05234)),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -433,7 +541,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            value: '67',
+                            value: '$_wpsVal',
                             unit: 'wps',
                             label: 'Reading Speed',
                             iconColor: const Color(0xFFEAB308),
@@ -444,7 +552,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildMetricCard(
-                            value: '87%',
+                            value: '$_accuracyVal%',
                             unit: '',
                             label: 'Accuracy',
                             iconColor: const Color(0xFF1B64D8),
@@ -459,7 +567,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            value: '37%',
+                            value: '$_comprehensionVal%',
                             unit: '',
                             label: 'Comprehension',
                             iconColor: const Color(0xFF10B981),

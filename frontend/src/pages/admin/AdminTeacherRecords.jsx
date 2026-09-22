@@ -18,12 +18,17 @@ import {
   ChalkboardTeacher,
   Prohibit,
   UserSwitch,
+  CaretLeft,
+  CaretRight,
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { TeacherRecordsSkeleton } from '../../components/common/Skeleton.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 import * as XLSX from 'xlsx';
+
 
 function parseCsvRows(csvText) {
   const rows = [];
@@ -155,9 +160,16 @@ export default function AdminTeacherRecords() {
 
   const [availableSections, setAvailableSections] = useState([]);
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_teachers');
+      if (cached && !skipCache) {
+        setTeachers(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/teachers'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -165,6 +177,7 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         setTeachers(data.teachers || []);
+        cacheService.set('admin_teachers', data.teachers || []);
       }
     } catch (err) {
       console.warn('Failed to fetch teachers:', err);
@@ -247,7 +260,8 @@ export default function AdminTeacherRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Teacher record for ${teacherName} updated.`);
-          fetchTeachers();
+          cacheService.invalidate('admin_teachers');
+          fetchTeachers(true);
           setEditingTeacher(null);
           setShowAddModal(false);
         } else {
@@ -265,7 +279,8 @@ export default function AdminTeacherRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Teacher registered successfully. Credentials sent to email.`);
-          fetchTeachers();
+          cacheService.invalidate('admin_teachers');
+          fetchTeachers(true);
           setShowAddModal(false);
         } else {
           showToast(data.error || 'Failed to create teacher account.');
@@ -278,6 +293,7 @@ export default function AdminTeacherRecords() {
 
   const handleToggleStatus = (tch) => {
     const newStatus = tch.status === 'Disabled' ? 'Active' : 'Disabled';
+    cacheService.invalidate('admin_teachers');
     setTeachers((prev) =>
       prev.map((t) => (t.id === tch.id ? { ...t, status: newStatus } : t))
     );
@@ -295,7 +311,8 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Teacher record for ${deletingTeacher.name} removed.`);
-        fetchTeachers();
+        cacheService.invalidate('admin_teachers');
+        fetchTeachers(true);
       } else {
         showToast(data.error || 'Failed to delete teacher.');
       }
@@ -568,34 +585,27 @@ export default function AdminTeacherRecords() {
         </div>
       </div>
 
-      {/* Main Teacher Table matching Phil-IRI table styling */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+      {/* Main Teacher Table matching Super Admin table styling */}
+      <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[900px] text-sm table-fixed">
             <thead>
-              <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Emp ID</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Teacher Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">DepEd Email</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Assigned Class</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Role</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
+              <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                <th className="w-[14%] px-5 py-3 text-left font-bold text-ink/50">Emp ID</th>
+                <th className="w-[20%] px-4 py-3 text-left font-bold text-ink/50">Teacher Name</th>
+                <th className="w-[21%] px-4 py-3 text-left font-bold text-ink/50">DepEd Email</th>
+                <th className="w-[16%] px-4 py-3 text-left font-bold text-ink/50">Assigned Class</th>
+                <th className="w-[17%] px-4 py-3 text-left font-bold text-ink/50">Role</th>
+                <th className="w-[12%] px-4 py-3 text-center font-bold text-ink/50">Account Status</th>
+                <th className="w-[10%] pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/10">
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading teacher records...</span>
-                    </div>
-                  </td>
-                </tr>
+                <TeacherRecordsSkeleton rows={5} />
               ) : filteredTeachers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="border border-ink/10 p-10 text-center">
+                  <td colSpan={7} className="p-10 text-center">
                     <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                       <ChalkboardTeacher size={40} className="text-ink/30" />
                       <h4 className="text-sm font-bold text-ink">
@@ -611,23 +621,24 @@ export default function AdminTeacherRecords() {
                 </tr>
               ) : (
                 paginatedTeachers.map((tch) => (
-                  <tr key={tch.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{tch.employeeId}</td>
-                    <td
-                      className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer"
-                      onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
-                    >
-                      {tch.name}
+                  <tr
+                    key={tch.id}
+                    onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
+                    className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
+                  >
+                    <td className="px-5 py-3 text-left font-mono text-xs text-ink/80">{tch.employeeId || '—'}</td>
+                    <td className="px-4 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors">
+                      {tch.name || '—'}
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{tch.email}</td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">
+                    <td className="px-4 py-3 text-ink/70 text-xs">{tch.email || '—'}</td>
+                    <td className="px-4 py-3 text-ink/70 text-xs">
                       {(!tch.gradeAssigned || tch.gradeAssigned === 'Unassigned' || tch.sectionAssigned === 'Unassigned') ? (
                         'Unassigned'
                       ) : (
                         <span><strong className="font-semibold text-ink">{tch.gradeAssigned}</strong> - {tch.sectionAssigned}</span>
                       )}
                     </td>
-                    <td className="border border-ink/10 p-2 text-xs">
+                    <td className="px-4 py-3 text-xs">
                       {tch.isFacultyInCharge ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[11px] font-bold text-brand-blue border border-brand-blue/20">
                           <ChalkboardTeacher size={13} weight="bold" />
@@ -644,45 +655,24 @@ export default function AdminTeacherRecords() {
                         </span>
                       )}
                     </td>
-                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(tch)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            tch.status === 'Disabled' ? 'bg-ink/20' : 'bg-[#00a652]'
-                          }`}
-                          role="switch"
-                          aria-checked={tch.status !== 'Disabled'}
-                          title={tch.status === 'Disabled' ? 'Click to Enable Account' : 'Click to Disable Account'}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              tch.status === 'Disabled' ? 'translate-x-0' : 'translate-x-4'
-                            }`}
-                          />
-                        </button>
-                        <span
-                          className={`text-xs font-bold inline-block min-w-[55px] ${
-                            tch.status === 'Disabled' ? 'text-brand-red' : 'text-[#00a652]'
-                          }`}
-                        >
-                          {tch.status === 'Disabled' ? 'Disabled' : 'Active'}
-                        </span>
-                      </div>
+                    <td className="px-4 py-3 text-center min-w-[110px]">
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[70px] gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+                          tch.status !== 'Disabled'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-ink/5 text-ink/50 border border-ink/10'
+                        }`}
+                      >
+                        <span className={`size-1.5 rounded-full ${tch.status !== 'Disabled' ? 'bg-emerald-500' : 'bg-ink/40'}`} />
+                        {tch.status === 'Disabled' ? 'Disabled' : 'Active'}
+                      </span>
                     </td>
-                    <td className="border border-ink/10 p-2 text-right">
+                    <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/records/teachers/${tch.employeeId || tch.id}`)}
-                          className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
-                        >
-                          View Profile
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingTeacher(tch);
                             let fn = tch.firstName || '';
                             let mn = tch.middleName || '';
@@ -713,7 +703,21 @@ export default function AdminTeacherRecords() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeletingTeacher(tch)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleStatus(tch);
+                          }}
+                          className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                          title={tch.status === 'Disabled' ? 'Enable Teacher Account' : 'Disable Teacher Account'}
+                        >
+                          {tch.status === 'Disabled' ? <CheckCircle size={16} /> : <Prohibit size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingTeacher(tch);
+                          }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
                           title="Delete Teacher"
                         >
@@ -728,42 +732,54 @@ export default function AdminTeacherRecords() {
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/5 pt-4 text-xs text-ink/50">
-          <span>Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredTeachers.length)}–{Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of {filteredTeachers.length} teacher records</span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                  page === currentPage
-                    ? 'bg-brand-blue text-white'
-                    : 'hover:bg-ink/5 text-ink/70'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ›
-            </button>
+        {/* Table Footer / Pagination */}
+        {filteredTeachers.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+            <span>
+              {totalPages > 1
+                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of ${filteredTeachers.length} teacher records`
+                : `Showing ${filteredTeachers.length} of ${filteredTeachers.length} teacher records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* View Teacher Profile Modal */}
@@ -772,7 +788,7 @@ export default function AdminTeacherRecords() {
           <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in">
             <div className="flex items-center justify-between pb-4 border-b border-ink/10">
               <div className="flex items-center gap-3">
-                <Avatar name={viewingTeacher.name} size={48} className="text-sm font-bold" />
+                <Avatar name={viewingTeacher.name} src={viewingTeacher.profileImage || viewingTeacher.profile_image || viewingTeacher.avatarUrl || viewingTeacher.avatar} size={48} className="text-sm font-bold" />
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-ink">{viewingTeacher.name}</h3>

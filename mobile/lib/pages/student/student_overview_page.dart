@@ -1020,7 +1020,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                       builder: (context) => OralReadingAssessmentQuizPage(
                                                         dynamicQuestions: draft['dynamicQuestions'] as List?,
                                                         recordedAudioPath: draft['recordedAudioPath'] as String?,
-                                                        readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 60,
+                                                        readingTimeSeconds: (draft['readingTimeSeconds'] as int?) ?? 0,
                                                         storyTitle: draft['storyTitle'] as String?,
                                                         assessmentLanguage: draft['assessmentLanguage'] as String?,
                                                         passageId: passageId,
@@ -1228,7 +1228,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                   _buildUnifiedOverviewCard(
                                     totalXp: AnalyticsService.cachedAnalytics?.totalXp ?? 0,
                                     streak: _streakCount,
-                                    stories: _inProgressBooks.length,
+                                    stories: AnalyticsService.cachedAnalytics?.completedStoriesCount ?? 0,
                                   ),
                                   const SizedBox(height: 16),
                                   // Weekly Practice Activity Bar Chart Card

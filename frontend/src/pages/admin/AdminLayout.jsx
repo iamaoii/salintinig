@@ -17,6 +17,7 @@ import logo from '../../assets/logo/logo.webp';
 import logoBg from '../../assets/logo/logo_bg.webp';
 import ProfileDropdown from '../../components/dashboard/layout/ProfileDropdown.jsx';
 import { getUser, getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 
 // Top-level nav groups
 const NAV_ITEMS = [
@@ -64,6 +65,47 @@ export default function AdminLayout() {
 
   // Use smart visibility-aware background polling
   useSmartNotificationPoll(fetchNotifications, 45000, [location.pathname]);
+
+  // Ultra-Fast 0ms Pre-fetching for Admin Portal
+  useEffect(() => {
+    const prefetchAdminData = async () => {
+      const token = getToken();
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      try {
+        if (!cacheService.get('admin_dashboard_stats')) {
+          fetch(getApiUrl('/api/admin/stats'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && d.stats && cacheService.set('admin_dashboard_stats', d.stats));
+        }
+        if (!cacheService.get('admin_students')) {
+          fetch(getApiUrl('/api/admin/students'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.students) && cacheService.set('admin_students', d.students));
+        }
+        if (!cacheService.get('admin_teachers')) {
+          fetch(getApiUrl('/api/admin/teachers'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.teachers) && cacheService.set('admin_teachers', d.teachers));
+        }
+        if (!cacheService.get('admin_phil_iri_passages')) {
+          fetch(getApiUrl('/api/admin/phil-iri/passages'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('admin_phil_iri_passages', d.passages));
+        }
+        if (!cacheService.get('admin_phil_iri_assessments')) {
+          fetch(getApiUrl('/api/admin/phil-iri/assessments'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.assessments) && cacheService.set('admin_phil_iri_assessments', d.assessments));
+        }
+      } catch (err) {
+        // Silently ignore prefetch errors
+      }
+    };
+
+    prefetchAdminData();
+  }, []);
 
   const handleMarkAsRead = async (id) => {
     try {

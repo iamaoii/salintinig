@@ -255,7 +255,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
             'studentId': studentId ?? '',
             'passageId': (widget.passageId ?? 1).toString(),
             'transcriptText': widget.storyTitle ?? 'Oral Reading Assessment',
-            'readingTimeSeconds': (widget.readingTimeSeconds ?? 60).toString(),
+            'readingTimeSeconds': (widget.readingTimeSeconds != null && widget.readingTimeSeconds! > 0 ? widget.readingTimeSeconds! : 1).toString(),
           },
         );
         debugPrint('[QuizPage] Audio upload result: ${audioRes.success}, msg: ${audioRes.message ?? audioRes.error}');
@@ -264,7 +264,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
           'studentId': studentId,
           'passageId': widget.passageId ?? 1,
           'transcriptText': widget.storyTitle ?? 'Oral Reading Assessment',
-          'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
+          'readingTimeSeconds': widget.readingTimeSeconds != null && widget.readingTimeSeconds! > 0 ? widget.readingTimeSeconds! : 1,
         });
         debugPrint('[QuizPage] Audio metadata result: ${audioRes.success}, msg: ${audioRes.message ?? audioRes.error}');
       }
@@ -277,7 +277,7 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
         'passageId': widget.passageId,
         'score': correctCount,
         'maxScore': _questions.length,
-        'readingTimeSeconds': widget.readingTimeSeconds ?? 60,
+        'readingTimeSeconds': widget.readingTimeSeconds != null && widget.readingTimeSeconds! > 0 ? widget.readingTimeSeconds! : 1,
         'answers': answersPayload,
       });
       debugPrint('[QuizPage] Quiz score submission result: ${subRes.success}, msg: ${subRes.message ?? subRes.error}');

@@ -479,7 +479,6 @@ async function seedStoryLibrary() {
           content_text TEXT NOT NULL,
           language VARCHAR(20) NOT NULL DEFAULT 'fil',
           category VARCHAR(50) NOT NULL DEFAULT 'Short Story',
-          grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4',
           difficulty_level VARCHAR(50) DEFAULT 'Easy',
           reading_time_minutes INT DEFAULT 3,
           quiz_questions JSONB DEFAULT '[]'::jsonb,
@@ -491,6 +490,7 @@ async function seedStoryLibrary() {
       ALTER TABLE reading_materials DROP COLUMN IF EXISTS cover_image_url;
       ALTER TABLE reading_materials DROP COLUMN IF EXISTS tags;
       ALTER TABLE reading_materials DROP COLUMN IF EXISTS source_attribution;
+      ALTER TABLE reading_materials DROP COLUMN IF EXISTS grade_level_target;
 
       DO $$
       BEGIN
@@ -516,16 +516,15 @@ async function seedStoryLibrary() {
       await client.query(`
         INSERT INTO reading_materials (
           title, author, description, content_text, language, category,
-          grade_level_target, difficulty_level, reading_time_minutes,
+          difficulty_level, reading_time_minutes,
           quiz_questions, status, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', CURRENT_TIMESTAMP)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', CURRENT_TIMESTAMP)
         ON CONFLICT (title) DO UPDATE SET
           author = EXCLUDED.author,
           description = EXCLUDED.description,
           content_text = EXCLUDED.content_text,
           language = EXCLUDED.language,
           category = EXCLUDED.category,
-          grade_level_target = EXCLUDED.grade_level_target,
           difficulty_level = EXCLUDED.difficulty_level,
           reading_time_minutes = EXCLUDED.reading_time_minutes,
           quiz_questions = EXCLUDED.quiz_questions,
@@ -538,7 +537,6 @@ async function seedStoryLibrary() {
         story.content_text,
         story.language,
         story.category,
-        story.grade_level_target,
         story.difficulty_level,
         story.reading_time_minutes,
         JSON.stringify(story.quiz_questions),
@@ -549,16 +547,16 @@ async function seedStoryLibrary() {
     console.log(`✅ Upserted ${upsertedCount} clean stories into reading_materials.`);
 
     // Print breakdown
-    const gradeSummary = await client.query(`
-      SELECT grade_level_target, language, category, COUNT(*) as count
+    const summary = await client.query(`
+      SELECT language, category, difficulty_level, COUNT(*) as count
       FROM reading_materials
-      GROUP BY grade_level_target, language, category
-      ORDER BY grade_level_target, language, category;
+      GROUP BY language, category, difficulty_level
+      ORDER BY language, category, difficulty_level;
     `);
 
     console.log('\n📊 Stories Library Distribution:');
-    for (const row of gradeSummary.rows) {
-      console.log(`   - [${row.grade_level_target}] (${row.language.toUpperCase()}) ${row.category}: ${row.count} material(s)`);
+    for (const row of summary.rows) {
+      console.log(`   - (${row.language.toUpperCase()}) ${row.category} [${row.difficulty_level}]: ${row.count} material(s)`);
     }
 
     const totalCount = await client.query(`

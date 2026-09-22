@@ -38,6 +38,7 @@ class _BookshelfPageState extends State<BookshelfPage> {
       final books = await LibraryService.fetchBooks(forceRefresh: forceRefresh);
       if (mounted) {
         final List<Map<String, dynamic>> fetchedBooks = List<Map<String, dynamic>>.from(books);
+        fetchedBooks.shuffle();
         setState(() {
           _allBooks = fetchedBooks;
           _isLoading = false;

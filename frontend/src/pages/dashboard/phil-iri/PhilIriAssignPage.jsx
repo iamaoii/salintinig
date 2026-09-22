@@ -19,6 +19,7 @@ import ToastNotification from '../../../components/common/ToastNotification.jsx'
 import CustomDatePicker from '../../../components/common/CustomDatePicker.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { getApiUrl } from '../../../config/api.js';
 
 const ASSESSMENT_TYPES = [
   { key: 'listening', label: 'Listening Assessment', icon: Ear, color: 'bg-[#ffc300]/10 text-[#b38600]' },
@@ -108,13 +109,13 @@ export default function PhilIriAssignPage() {
 
     // Fetch passages
     const fetchPassages = () => {
-      fetch('/api/teacher/assessments/passages', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      fetch(getApiUrl('/api/teacher/assessments/passages'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.passages) && data.passages.length > 0) {
             setPassages(data.passages);
           } else {
-            fetch('/api/students/assessment/passages', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+            fetch(getApiUrl('/api/students/assessment/passages'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
               .then((res) => res.json())
               .then((sData) => {
                 if (sData.success && Array.isArray(sData.passages)) {
@@ -125,7 +126,7 @@ export default function PhilIriAssignPage() {
           }
         })
         .catch(() => {
-          fetch('/api/students/assessment/passages', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          fetch(getApiUrl('/api/students/assessment/passages'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
             .then((res) => res.json())
             .then((sData) => {
               if (sData.success && Array.isArray(sData.passages)) {
@@ -138,13 +139,13 @@ export default function PhilIriAssignPage() {
     fetchPassages();
 
     // Fetch enrolled section students for this teacher
-    fetch('/api/teacher/class-students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/class-students'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.students) && data.students.length > 0) {
           initStudents(data.students);
         } else {
-          fetch('/api/students', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          fetch(getApiUrl('/api/students'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
             .then((res) => res.json())
             .then((sData) => {
               if (sData.success && Array.isArray(sData.students)) {
@@ -161,7 +162,7 @@ export default function PhilIriAssignPage() {
   useEffect(() => {
     if (editId) {
       const token = getToken();
-      fetch(`/api/teacher/assessments/activity-detail/${editId}`, {
+      fetch(getApiUrl(`/api/teacher/assessments/activity-detail/${editId}`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
         .then((res) => res.json())
@@ -345,7 +346,7 @@ export default function PhilIriAssignPage() {
       }));
 
       const token = getToken();
-      const res = await fetch('/api/teacher/assessments/assign-phil-iri-students', {
+      const res = await fetch(getApiUrl('/api/teacher/assessments/assign-phil-iri-students'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

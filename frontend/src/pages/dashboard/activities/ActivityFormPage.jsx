@@ -292,7 +292,7 @@ export default function ActivityFormPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={student.name} size={30} />
+                        <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
                         <div>
                           <p className="text-xs sm:text-sm font-semibold text-ink">{student.name}</p>
                           <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_TAG[student.level]}`}>

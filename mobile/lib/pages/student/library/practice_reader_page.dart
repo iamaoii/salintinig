@@ -325,12 +325,19 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTablet = constraints.maxWidth > 600;
+      body: PopScope(
+        canPop: true,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) {
+            _recordCurrentProgress(_scrollProgress);
+          }
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth > 600;
 
-            return Center(
+              return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: isTablet ? 540 : double.infinity,
@@ -696,8 +703,9 @@ class _PracticeReaderPageState extends State<PracticeReaderPage> {
           },
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // Custom Animated Theme Switcher (Matching Phil-IRI Assessment height 48, width 96)
   Widget _buildThemeSwitcher() {

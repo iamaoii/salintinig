@@ -14,11 +14,12 @@ class TeacherClassProgressPage extends StatefulWidget {
   final String className;
   const TeacherClassProgressPage({
     super.key,
-    this.className = 'Grade 4 - FYANG',
+    this.className = '',
   });
 
   @override
-  State<TeacherClassProgressPage> createState() => _TeacherClassProgressPageState();
+  State<TeacherClassProgressPage> createState() =>
+      _TeacherClassProgressPageState();
 }
 
 class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
@@ -36,6 +37,10 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   double _avgAccuracy = 0.0;
   double _avgComprehension = 0.0;
   double _avgReadingSpeed = 0.0;
+
+  List<Map<String, dynamic>> _rawStudents = [];
+  String _selectedLanguage = 'Filipino';
+  String _selectedType = 'Oral Reading';
 
   @override
   void initState() {
@@ -99,7 +104,52 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     super.dispose();
   }
 
+  String _getProfileLevelForStudent(
+    Map<String, dynamic> s,
+    String lang,
+    String type,
+  ) {
+    final isEng = lang.toLowerCase().contains('eng');
+    final isOral = type.toLowerCase().contains('oral');
+    final isSilent = type.toLowerCase().contains('silent');
+
+    dynamic val;
+    if (isEng) {
+      if (isOral) {
+        val = s['engOralProfile'] ?? s['eng_oral_profile_label'];
+      } else if (isSilent) {
+        val = s['engSilentProfile'] ?? s['eng_silent_profile_label'];
+      } else {
+        val = s['engListeningProfile'] ?? s['eng_listening_profile_label'];
+      }
+    } else {
+      if (isOral) {
+        val = s['filOralProfile'] ?? s['fil_oral_profile_label'];
+      } else if (isSilent) {
+        val = s['filSilentProfile'] ?? s['fil_silent_profile_label'];
+      } else {
+        val = s['filListeningProfile'] ?? s['fil_listening_profile_label'];
+      }
+    }
+
+    if (val != null && val.toString().trim().isNotEmpty) {
+      return val.toString().trim();
+    }
+
+    return (s['readingLevel'] ??
+            s['level'] ??
+            s['reading_level'] ??
+            s['current_profile_label'] ??
+            s['gstResult'] ??
+            s['gst_result'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
   void _applyStudentData(List<Map<String, dynamic>> rawList) {
+    _rawStudents = rawList;
+
     int males = 0;
     int females = 0;
     int frust = 0;
@@ -112,7 +162,6 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     int compCount = 0;
     double totalSpeed = 0.0;
     int speedCount = 0;
-    DateTime? latestDt;
 
     for (var s in rawList) {
       final g = (s['gender'] ?? s['sex'] ?? '').toString().trim().toLowerCase();
@@ -122,7 +171,11 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         females++;
       }
 
-      final lvl = (s['readingLevel'] ?? s['level'] ?? s['reading_level'] ?? s['current_profile_label'] ?? s['gstResult'] ?? s['gst_result'] ?? '').toString().trim().toLowerCase();
+      final lvl = _getProfileLevelForStudent(
+        s,
+        _selectedLanguage,
+        _selectedType,
+      ).toLowerCase();
       if (lvl.contains('frustrat')) {
         frust++;
       } else if (lvl.contains('instruct')) {
@@ -131,40 +184,63 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         indep++;
       }
 
-      final accRaw = s['accuracy'] ?? s['oralAccuracy'] ?? s['oral_accuracy'] ?? s['oral_accuracy_rate'];
+      final isEng = _selectedLanguage.toLowerCase().contains('eng');
+      final isOral = _selectedType.toLowerCase().contains('oral');
+      final isSilent = _selectedType.toLowerCase().contains('silent');
+
+      dynamic accRaw;
+      dynamic speedRaw;
+      dynamic compRaw;
+
+      if (isEng) {
+        if (isOral) {
+          accRaw = s['engOralAccuracy'] ?? s['accuracy'];
+          speedRaw = s['engOralSpeed'] ?? s['readingSpeed'];
+          compRaw = s['engOralComprehension'] ?? s['comprehension'];
+        } else if (isSilent) {
+          compRaw = s['engSilentComprehension'] ?? s['comprehension'];
+        } else {
+          compRaw = s['engListeningComprehension'] ?? s['comprehension'];
+        }
+      } else {
+        if (isOral) {
+          accRaw = s['filOralAccuracy'] ?? s['accuracy'];
+          speedRaw = s['filOralSpeed'] ?? s['readingSpeed'];
+          compRaw = s['filOralComprehension'] ?? s['comprehension'];
+        } else if (isSilent) {
+          compRaw = s['filSilentComprehension'] ?? s['comprehension'];
+        } else {
+          compRaw = s['filListeningComprehension'] ?? s['comprehension'];
+        }
+      }
+
       if (accRaw != null) {
-        final val = double.tryParse(accRaw.toString().replaceAll('%', '').trim());
+        final val = double.tryParse(
+          accRaw.toString().replaceAll('%', '').trim(),
+        );
         if (val != null && val > 0) {
           totalAcc += val;
           accCount++;
         }
       }
 
-      final compRaw = s['comprehension'] ?? s['comprehensionAccuracy'] ?? s['comprehension_score'] ?? s['comprehension_rate'];
       if (compRaw != null) {
-        final val = double.tryParse(compRaw.toString().replaceAll('%', '').trim());
+        final val = double.tryParse(
+          compRaw.toString().replaceAll('%', '').trim(),
+        );
         if (val != null && val > 0) {
           totalComp += val;
           compCount++;
         }
       }
 
-      final speedRaw = s['readingSpeed'] ?? s['reading_speed'] ?? s['wps'] ?? s['reading_speed_wpm'] ?? s['speed'];
       if (speedRaw != null) {
-        final val = double.tryParse(speedRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '').trim());
+        final val = double.tryParse(
+          speedRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '').trim(),
+        );
         if (val != null && val > 0) {
           totalSpeed += val;
           speedCount++;
-        }
-      }
-
-      final tsRaw = s['lastUpdated'] ?? s['updatedAt'] ?? s['updated_at'] ?? s['createdAt'] ?? s['created_at'];
-      if (tsRaw != null) {
-        final dt = DateTime.tryParse(tsRaw.toString());
-        if (dt != null) {
-          if (latestDt == null || dt.isAfter(latestDt)) {
-            latestDt = dt;
-          }
         }
       }
     }
@@ -214,7 +290,10 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
           children: [
             // Custom App Bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -242,103 +321,141 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                 onRefresh: _fetchClassStudents,
                 color: const Color(0xFFD34426),
                 child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 1. Hero Class Card
-                    _buildHeroCard(),
-                    const SizedBox(height: 20),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 8.0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. Hero Class Card
+                      _buildHeroCard(),
+                      const SizedBox(height: 20),
 
-                    // 2. General Information Card
-                    _buildGeneralInfoCard(),
-                    const SizedBox(height: 24),
+                      // 2. General Information Card
+                      _buildGeneralInfoCard(),
+                      const SizedBox(height: 24),
 
-                    // 4. Section Title: Class Progress Dashboard
-                    Row(
-                      children: [
-                        const Iconify(
-                          Ph.presentation_chart_bold,
-                          color: Color(0xFFD34426),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Class Progress Dashboard',
-                          style: GoogleFonts.inter(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black,
+                      // 4. Section Title: Class Progress Dashboard
+                      Row(
+                        children: [
+                          const Iconify(
+                            Ph.presentation_chart_bold,
+                            color: Color(0xFFD34426),
+                            size: 24,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Class Progress Dashboard',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-                    // 5. Reading Level Classification Donut Chart Card
-                    _buildDonutChartCard(),
-                    const SizedBox(height: 20),
+                      // 5. Option 2: 6-Classification Summary Cards Carousel
+                      _buildClassificationCardsCarousel(),
+                      const SizedBox(height: 16),
 
-                    // 6. Metrics 2x2 Grid (Accuracy, Priority Students, Comprehension, Reading Speed)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricCard(
-                            value: '${_avgAccuracy.round()}%',
-                            unit: '',
-                            label: 'Average\nAccuracy',
-                            icon: Ph.target_bold,
-                            iconColor: const Color(0xFF1B64D8),
-                            bgColor: const Color(0xFFDBEAFE),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildPriorityStudentsCard(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricCard(
-                            value: '${_avgReadingSpeed.round()}',
-                            unit: 'wps',
-                            label: 'Average\nReading Speed',
-                            icon: Ph.lightning_bold,
-                            iconColor: const Color(0xFFEAB308),
-                            bgColor: const Color(0xFFFEF9C3),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMetricCard(
-                            value: '${_avgComprehension.round()}%',
-                            unit: '',
-                            label: 'Average\nComprehension',
-                            icon: Ph.lightbulb_bold,
-                            iconColor: const Color(0xFF10B981),
-                            bgColor: const Color(0xFFD1FAE5),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 56),
-                  ],
+                      // 6. Reading Level Classification Donut Chart Card
+                      _buildDonutChartCard(),
+                      const SizedBox(height: 20),
+
+                      // 6. Conditional Metrics Grid based on Assessment Type
+                      Builder(
+                        builder: (context) {
+                          final isOral = _selectedType.toLowerCase().contains('oral');
+
+                          if (isOral) {
+                            // Oral Reading: Show all 4 metrics (Accuracy, Priority, Reading Speed, Comprehension)
+                            return Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildMetricCard(
+                                        value: '${_avgAccuracy.round()}%',
+                                        unit: '',
+                                        label: 'Average\nAccuracy',
+                                        icon: Ph.target_bold,
+                                        iconColor: const Color(0xFF1B64D8),
+                                        bgColor: const Color(0xFFDBEAFE),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: _buildPriorityStudentsCard()),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildMetricCard(
+                                        value: '${_avgReadingSpeed.round()}',
+                                        unit: 'wps',
+                                        label: 'Average\nReading Speed',
+                                        icon: Ph.lightning_bold,
+                                        iconColor: const Color(0xFFEAB308),
+                                        bgColor: const Color(0xFFFEF9C3),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildMetricCard(
+                                        value: '${_avgComprehension.round()}%',
+                                        unit: '',
+                                        label: 'Average\nComprehension',
+                                        icon: Ph.lightbulb_bold,
+                                        iconColor: const Color(0xFF10B981),
+                                        bgColor: const Color(0xFFD1FAE5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          } else {
+                            // Silent Reading & Listening: Show ONLY Comprehension & Priority Students (Accuracy & Speed are not measured)
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: _buildMetricCard(
+                                    value: '${_avgComprehension.round()}%',
+                                    unit: '',
+                                    label: 'Average\nComprehension',
+                                    icon: Ph.lightbulb_bold,
+                                    iconColor: const Color(0xFF10B981),
+                                    bgColor: const Color(0xFFD1FAE5),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildPriorityStudentsCard()),
+                              ],
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 56),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 
   String get _displaySectionTitle {
-    if (widget.className.isNotEmpty && widget.className != 'Grade 4 - FYANG') {
+    if (widget.className.isNotEmpty) {
       return widget.className;
     }
     final rawSection = AuthService.currentUser?.sectionName ?? '';
@@ -355,7 +472,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     if (grade.isNotEmpty) {
       return 'Grade $grade';
     }
-    return 'Grade 4 - Fyang';
+    return '';
   }
 
   Widget _buildHeroCard() {
@@ -452,7 +569,11 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, color: Colors.grey[500], size: 20),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.grey[500],
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'General Information',
@@ -469,7 +590,9 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const TeacherClassDetailsPage(className: 'Grade 4 - FYANG'),
+                      builder: (context) => TeacherClassDetailsPage(
+                        className: _displaySectionTitle,
+                      ),
                     ),
                   );
                 },
@@ -479,8 +602,6 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF1D4ED8),
-                    decoration: TextDecoration.underline,
-                    decorationColor: const Color(0xFF1D4ED8),
                   ),
                 ),
               ),
@@ -491,15 +612,24 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             children: [
               Iconify(Ph.users_three, color: Colors.black87, size: 28),
               const SizedBox(width: 8),
-              Text(
-                _isLoadingStudents ? '...' : '$_totalStudents',
-                style: GoogleFonts.inter(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.black,
-                  height: 1.0,
-                ),
-              ),
+              _isLoadingStudents
+                  ? Container(
+                      width: 44,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    )
+                  : Text(
+                      '$_totalStudents',
+                      style: GoogleFonts.inter(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.black,
+                        height: 1.0,
+                      ),
+                    ),
               const SizedBox(width: 6),
               Text(
                 'Total\nStudents',
@@ -512,21 +642,34 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    Text(
-                      _isLoadingStudents ? '... ' : '$_maleCount ',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF1D4ED8),
-                      ),
-                    ),
+                    _isLoadingStudents
+                        ? Container(
+                            width: 18,
+                            height: 15,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          )
+                        : Text(
+                            '$_maleCount ',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF1D4ED8),
+                            ),
+                          ),
+                    const SizedBox(width: 2),
                     Text(
                       'Males',
                       style: GoogleFonts.inter(
@@ -540,21 +683,34 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    Text(
-                      _isLoadingStudents ? '... ' : '$_femaleCount ',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF1D4ED8),
-                      ),
-                    ),
+                    _isLoadingStudents
+                        ? Container(
+                            width: 18,
+                            height: 15,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          )
+                        : Text(
+                            '$_femaleCount ',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF1D4ED8),
+                            ),
+                          ),
+                    const SizedBox(width: 2),
                     Text(
                       'Females',
                       style: GoogleFonts.inter(
@@ -573,8 +729,161 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     );
   }
 
+  Widget _buildClassificationCardsCarousel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Language Matrix Toggle Tabs (Filipino vs English)
+        Container(
+          height: 46,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Feedback.forTap(context);
+                    setState(() {
+                      _selectedLanguage = 'Filipino';
+                      _applyStudentData(_rawStudents);
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: _selectedLanguage == 'Filipino'
+                          ? Colors.white
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: _selectedLanguage == 'Filipino'
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Filipino Matrix',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: _selectedLanguage == 'Filipino'
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: _selectedLanguage == 'Filipino'
+                            ? const Color(0xFFD34426)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Feedback.forTap(context);
+                    setState(() {
+                      _selectedLanguage = 'English';
+                      _applyStudentData(_rawStudents);
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: _selectedLanguage == 'English'
+                          ? Colors.white
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: _selectedLanguage == 'English'
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'English Matrix',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: _selectedLanguage == 'English'
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: _selectedLanguage == 'English'
+                            ? const Color(0xFFD34426)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // 3 Sub-mode Filter Pills (Oral Reading, Silent Reading, Listening)
+        Row(
+          children: ['Oral Reading', 'Silent Reading', 'Listening'].map((type) {
+            final isSel = _selectedType == type;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                child: InkWell(
+                  onTap: () {
+                    Feedback.forTap(context);
+                    setState(() {
+                      _selectedType = type;
+                      _applyStudentData(_rawStudents);
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSel
+                          ? const Color(0xFFD34426)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSel
+                            ? const Color(0xFFD34426)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      type.replaceAll(' Reading', ''),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                        color: isSel ? Colors.white : const Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDonutChartCard() {
-    final totalEvaluated = _frustrationCount + _instructionalCount + _independentCount;
+    final totalEvaluated =
+        _frustrationCount + _instructionalCount + _independentCount;
 
     return InkWell(
       onTap: () {
@@ -582,7 +891,11 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const TeacherReadingLevelsPage(initialLevel: 'All'),
+            builder: (context) => TeacherReadingLevelsPage(
+              initialLevel: 'All',
+              language: _selectedLanguage,
+              assessmentType: _selectedType,
+            ),
           ),
         );
       },
@@ -607,19 +920,28 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Iconify(Ph.chart_pie_slice_bold, color: Color(0xFFD34426), size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Reading Level Classification',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey[700],
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Iconify(
+                        Ph.chart_pie_slice_bold,
+                        color: Color(0xFFD34426),
+                        size: 20,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Reading Level ($_selectedLanguage - $_selectedType)',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const Icon(
                   Icons.arrow_forward_ios_rounded,
@@ -680,11 +1002,29 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLegendRow(_frustrationCount, 'Frustration\nLevel', const Color(0xFFD34426), totalEvaluated, 'Frustration'),
+                      _buildLegendRow(
+                        _frustrationCount,
+                        'Frustration\nLevel',
+                        const Color(0xFFD34426),
+                        totalEvaluated,
+                        'Frustration',
+                      ),
                       const SizedBox(height: 12),
-                      _buildLegendRow(_instructionalCount, 'Instructional\nLevel', const Color(0xFFEAB308), totalEvaluated, 'Instructional'),
+                      _buildLegendRow(
+                        _instructionalCount,
+                        'Instructional\nLevel',
+                        const Color(0xFFEAB308),
+                        totalEvaluated,
+                        'Instructional',
+                      ),
                       const SizedBox(height: 12),
-                      _buildLegendRow(_independentCount, 'Independent\nLevel', const Color(0xFF10B981), totalEvaluated, 'Independent'),
+                      _buildLegendRow(
+                        _independentCount,
+                        'Independent\nLevel',
+                        const Color(0xFF10B981),
+                        totalEvaluated,
+                        'Independent',
+                      ),
                     ],
                   ),
                 ),
@@ -696,7 +1036,13 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     );
   }
 
-  Widget _buildLegendRow(int count, String label, Color color, int total, String filterLevel) {
+  Widget _buildLegendRow(
+    int count,
+    String label,
+    Color color,
+    int total,
+    String filterLevel,
+  ) {
     final pct = total > 0 ? ((count / total) * 100).round() : 0;
 
     return InkWell(
@@ -705,7 +1051,11 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TeacherReadingLevelsPage(initialLevel: filterLevel),
+            builder: (context) => TeacherReadingLevelsPage(
+              initialLevel: filterLevel,
+              language: _selectedLanguage,
+              assessmentType: _selectedType,
+            ),
           ),
         );
       },
@@ -787,32 +1137,41 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    value,
-                    style: GoogleFonts.inter(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black,
-                      height: 1.0,
-                    ),
-                  ),
-                  if (unit.isNotEmpty) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      unit,
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[500],
+              _isLoadingStudents
+                  ? Container(
+                      width: 50,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(6),
                       ),
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          value,
+                          style: GoogleFonts.inter(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
+                            height: 1.0,
+                          ),
+                        ),
+                        if (unit.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            unit,
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ],
-              ),
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -839,76 +1198,13 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
   }
 
   Widget _buildPriorityStudentsCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF4F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFD34426).withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '$_frustrationCount',
-                    style: GoogleFonts.inter(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFD34426),
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFD34426), width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Color(0xFFD34426),
-                      size: 14,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Iconify(Ph.warning_circle_bold, color: Color(0xFFD34426), size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Priority\nStudents',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFFD34426),
-              height: 1.2,
-            ),
-          ),
-        ],
-      ),
+    return _buildMetricCard(
+      value: '$_frustrationCount',
+      unit: '',
+      label: 'Priority\nStudents',
+      icon: Ph.warning_circle_bold,
+      iconColor: const Color(0xFFD34426),
+      bgColor: const Color(0xFFFEE2E2),
     );
   }
 }
@@ -929,7 +1225,10 @@ class _DonutChartPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2;
     final strokeWidth = radius * 0.42;
-    final rect = Rect.fromCircle(center: center, radius: radius - strokeWidth / 2);
+    final rect = Rect.fromCircle(
+      center: center,
+      radius: radius - strokeWidth / 2,
+    );
 
     final total = frustration + instructional + independent;
 

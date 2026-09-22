@@ -19,6 +19,7 @@ import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { getApiUrl } from '../../../config/api.js';
 
 const PROFILE_TAG = {
   Independent: 'bg-emerald-100 text-emerald-950 border border-emerald-200',
@@ -43,7 +44,7 @@ export default function ActivityDetailPage() {
   const fetchActivityDetail = () => {
     setLoading(true);
     const token = getToken();
-    fetch(`/api/teacher/assessments/activity-detail/${id}`, {
+    fetch(getApiUrl(`/api/teacher/assessments/activity-detail/${id}`), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((res) => res.json())
@@ -110,7 +111,7 @@ export default function ActivityDetailPage() {
     setIsDeleting(true);
     try {
       const token = getToken();
-      const res = await fetch(`/api/teacher/assessments/${id}`, {
+      const res = await fetch(getApiUrl(`/api/teacher/assessments/${id}`), {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -345,7 +346,7 @@ export default function ActivityDetailPage() {
                         <tr key={std.assessmentId || std.studentId} className="hover:bg-cream/30 transition-colors">
                           <td className="py-2.5 px-3 font-bold text-ink">
                             <div className="flex items-center gap-2.5">
-                              <Avatar name={std.studentName} size={28} />
+                              <Avatar name={std.studentName} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={28} />
                               <span>{std.studentName}</span>
                             </div>
                           </td>

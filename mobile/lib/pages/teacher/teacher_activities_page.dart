@@ -297,6 +297,47 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
         activity['activityStatus'] != 'closed' &&
         activity['status'] != 'closed';
 
+    final String rawNotes = (activity['specialInstructions'] ??
+            activity['teacherNotes'] ??
+            activity['teacher_notes'] ??
+            activity['customInstructions'] ??
+            '')
+        .toString()
+        .trim();
+
+    final bool isDefaultOrArrayString = rawNotes.isEmpty ||
+        rawNotes.startsWith('[') ||
+        rawNotes.contains('Read the assigned passage') ||
+        rawNotes.contains('Listen attentively') ||
+        rawNotes.contains('Complete the assessment');
+
+    final String teacherNotes = isDefaultOrArrayString ? '' : rawNotes;
+
+    List<String> standardInstructions;
+    final upperType = typeStr.toUpperCase();
+    if (upperType.contains('SILENT')) {
+      standardInstructions = [
+        'Read the assigned passage silently at your regular reading speed.',
+        'Focus on understanding main ideas, details, and context clues in the passage.',
+        'Answer all comprehension questions independently after reading.',
+        'Complete the assessment to determine Silent Reading Rate and Comprehension level.',
+      ];
+    } else if (upperType.contains('LISTEN')) {
+      standardInstructions = [
+        'Listen attentively while the reading passage is read aloud clearly.',
+        'Focus on remembering key characters, events, and details of the story.',
+        'Answer all comprehension questions based strictly on what you heard.',
+        'Complete the assessment to determine Listening Comprehension level.',
+      ];
+    } else {
+      standardInstructions = [
+        'Read the assigned passage aloud clearly and accurately into your device microphone.',
+        'Maintain proper pronunciation, pace, and reading expression.',
+        'Answer all comprehension questions carefully after completing the reading passage.',
+        'Complete the assessment to evaluate Oral Reading Fluency (WPM) and Comprehension level.',
+      ];
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -325,16 +366,17 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                   Row(
                     children: [
                       const Iconify(
-                        Ph.chart_pie_slice,
-                        color: Color(0xFFD34426),
+                        Ph.clipboard_text_bold,
+                        color: Color(0xFFF97316),
                         size: 22,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Activity Overview',
+                        'Assessment Overview',
                         style: GoogleFonts.inter(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
+                          color: const Color(0xFF18181B),
                         ),
                       ),
                     ],
@@ -347,310 +389,33 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
               ),
               const SizedBox(height: 14),
 
-              // Overview Stat Card (Web Design Concept)
+              // Unified Assessment Detail Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              '$total',
-                              style: GoogleFonts.inter(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Total\nStudents',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[500],
-                                height: 1.1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 4,
-                                  height: 14,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF00A652),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$done',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Done',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 4,
-                                  height: 14,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$pending',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Not Done',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // 3 Metric Containers Grid (Total Assigned, Completed, Pending)
-                    Row(
-                      children: [
-                        // Container 1: Total Assigned
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFBFDBFE),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '$total',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w900,
-                                        color: const Color(0xFF1E40AF),
-                                      ),
-                                    ),
-                                    const Iconify(
-                                      Ph.users_three,
-                                      color: Color(0xFF1D4ED8),
-                                      size: 16,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Total\nAssigned',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF1E3A8A),
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Container 2: Completed Students
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF5),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFA7F3D0),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '$done',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w900,
-                                        color: const Color(0xFF047857),
-                                      ),
-                                    ),
-                                    const Iconify(
-                                      Ph.check_circle,
-                                      color: Color(0xFF059669),
-                                      size: 16,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Completed\nStudents',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF065F46),
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Container 3: Pending Evaluation
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFFBEB),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFFDE68A),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '$pending',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w900,
-                                        color: const Color(0xFFB45309),
-                                      ),
-                                    ),
-                                    const Iconify(
-                                      Ph.clock,
-                                      color: Color(0xFFD97706),
-                                      size: 16,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Pending\nEvaluation',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF92400E),
-                                    height: 1.1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Last Update: Active Assessment Session',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Instructions & Controls Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    // Status Badge & Type Chip
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 3,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: isOpen
@@ -674,45 +439,262 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                             ),
                           ),
                         ),
-                        Text(
-                          'Type: $typeStr',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey[600],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Text(
+                            'TYPE: $typeStr',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1E40AF),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
+
+                    // Title
                     Text(
                       title,
                       style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF18181B),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 14),
+
+                    // Clean 3 Metric Columns Row
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          // Total Assigned
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      Ph.users_three_bold,
+                                      color: Color(0xFF1B64D8),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$total',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF18181B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Assigned',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF71717A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            height: 32,
+                            width: 1,
+                            color: const Color(0xFFE2E8F0),
+                          ),
+                          // Completed
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      Ph.check_circle_bold,
+                                      color: Color(0xFF10B981),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$done',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF18181B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Completed',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF71717A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            height: 32,
+                            width: 1,
+                            color: const Color(0xFFE2E8F0),
+                          ),
+                          // Pending Evaluation
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Iconify(
+                                      Ph.clock_bold,
+                                      color: Color(0xFFF59E0B),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$pending',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF18181B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Pending',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF71717A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 12),
+
+                    // Instructions Header
                     Text(
                       'Instructions:',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
                         color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '1. Students complete oral, listening, or silent assessment in student app.\n2. Automated AI computes accuracy %, WPM, and comprehension level.\n3. Teacher verifies miscues for oral reading tests.',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: Colors.grey[700],
-                        height: 1.4,
+                    const SizedBox(height: 10),
+
+                    // Standard Instruction Bullet Points (1..4)
+                    ...standardInstructions.asMap().entries.map((entry) {
+                      final idx = '${entry.key + 1}.';
+                      final text = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              child: Text(
+                                idx,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF3F3F46),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                text,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF3F3F46),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+
+                    // Special Instructions from Teacher Container (if provided)
+                    if (teacherNotes.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFBFDBFE),
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Special Instructions from Teacher',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1D4ED8),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              teacherNotes,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFF1E293B),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

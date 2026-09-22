@@ -56,11 +56,9 @@ router.patch('/students/:lrn/status', studentController.toggleStudentStatus);
 router.delete('/students/:lrn', studentController.deleteStudent);
 router.post('/students/import-csv', studentController.importStudentsCSV);
 
-// Phil-IRI Passages Management Endpoints
+// Phil-IRI Passages — Admin READ-ONLY (write operations moved to Super Admin)
 router.get('/phil-iri/passages', adminController.getPassages);
-router.post('/phil-iri/passages', adminController.createPassage);
-router.put('/phil-iri/passages/:id', adminController.updatePassage);
-router.delete('/phil-iri/passages/:id', adminController.deletePassage);
+// POST/PUT/DELETE passages are now handled by /api/super-admin/phil-iri/passages
 
 // Phil-IRI Assessment Monitoring & Screening Periods
 router.get('/phil-iri/assessments', adminController.getPhilIriAssessments);

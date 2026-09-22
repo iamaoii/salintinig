@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     content_text TEXT NOT NULL,
     language VARCHAR(20) NOT NULL DEFAULT 'fil', -- 'fil' or 'en'
     category VARCHAR(50) NOT NULL DEFAULT 'Short Story', -- 'Short Story', 'Poem', 'Fable', 'Folktale', 'Informational'
-    grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4', -- 'Grade 4', 'Grade 5', 'Grade 6'
     difficulty_level VARCHAR(50) DEFAULT 'Easy', -- 'Easy', 'Medium', 'Hard'
     reading_time_minutes INT DEFAULT 3,
     quiz_questions JSONB DEFAULT '[]'::jsonb,
@@ -162,7 +161,7 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_reading_materials_filter ON reading_materials(language, grade_level_target, category, status);
+CREATE INDEX IF NOT EXISTS idx_reading_materials_filter ON reading_materials(language, category, status);
 CREATE INDEX IF NOT EXISTS idx_reading_materials_title ON reading_materials(title);
 
 -- -----------------------------------------------------------------------------
@@ -172,10 +171,10 @@ CREATE TABLE IF NOT EXISTS phil_iri_passages (
     passage_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(255) NOT NULL,
     grade_level VARCHAR(50) NOT NULL DEFAULT 'Grade 4',
-    passage_set VARCHAR(50) NOT NULL DEFAULT 'Set A',
+    passage_set VARCHAR(50) NOT NULL DEFAULT 'Unassigned',
+    stage VARCHAR(50) NOT NULL DEFAULT 'Unassigned',
     language VARCHAR(20) DEFAULT 'fil',
     status VARCHAR(50) DEFAULT 'published',
-    prev_status VARCHAR(50) DEFAULT 'published',
     content_text TEXT NOT NULL,
     word_count INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

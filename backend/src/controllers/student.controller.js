@@ -82,6 +82,8 @@ async function getStudents(req, res) {
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
             CASE 
               WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
               WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
@@ -174,6 +176,8 @@ async function getStudentByLrn(req, res) {
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
             COALESCE(p.email, '') AS "parentEmail",
             COALESCE(u.email, '') AS "personalEmail",
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
             CASE 
               WHEN sgh.promotion_status = 'dropped' THEN 'Dropped'
               WHEN sgh.promotion_status = 'transferred' THEN 'Transferred'
@@ -676,13 +680,13 @@ async function toggleStudentStatus(req, res) {
           await db.query(
             `UPDATE student_grade_history 
              SET promotion_status = 'pending' 
-             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)
+             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $1)
                AND promotion_status IN ('dropped', 'transferred')`,
             [lrn]
           );
         }
 
-        // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)
+        // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)https://127.0.0.1:51712/static/artifacts/8aa78d5c-0bf1-4621-af72-67233f13d6f5/.user_uploaded/media_1790101988571.png?csrf=b40ad291-4f15-4607-b6b0-79a6941e489a
         const isParentAccessActive = (newStatus === 'Active');
         await db.query(
           `UPDATE student_parents 
@@ -1337,9 +1341,10 @@ async function submitPhilIriAssessment(req, res) {
         if (validPassageId) {
           const aRes = await db.query(
             `SELECT assessment_id FROM assessments 
-             WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = LOWER($3) 
+             WHERE student_id = $1 AND passage_id = $2 
+             ORDER BY (CASE WHEN LOWER(assessment_type) = LOWER($3) THEN 1 ELSE 2 END), created_at DESC 
              LIMIT 1`,
-            [resolvedStudentId, validPassageId, assessmentType || 'oral']
+            [resolvedStudentId, validPassageId, aType]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         }
@@ -1348,7 +1353,7 @@ async function submitPhilIriAssessment(req, res) {
             `SELECT assessment_id FROM assessments 
              WHERE student_id = $1 AND LOWER(assessment_type) = LOWER($2) 
              ORDER BY created_at DESC LIMIT 1`,
-            [resolvedStudentId, assessmentType || 'oral']
+            [resolvedStudentId, aType]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         }
@@ -1359,13 +1364,13 @@ async function submitPhilIriAssessment(req, res) {
           const aRes = await db.query(
             `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status, reading_level_result)
              VALUES ($1, $2, $3, 'pre_test', $4, $5) RETURNING assessment_id`,
-            [resolvedStudentId, validPassageId, assessmentType || 'oral', targetStatus, newLevel]
+            [resolvedStudentId, validPassageId, aType, targetStatus, newLevel]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         } else {
           await db.query(
-            `UPDATE assessments SET status = $1, reading_level_result = $2, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $3`,
-            [targetStatus, newLevel, assessmentId]
+            `UPDATE assessments SET assessment_type = $1, status = $2, reading_level_result = $3, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $4`,
+            [aType, targetStatus, newLevel, assessmentId]
           );
         }
 
@@ -1963,58 +1968,74 @@ async function getStudentActiveAssignment(req, res) {
           console.warn('[getStudentActiveAssignment] attempts query skipped:', attErr.message);
         }
 
-        // Step 3: Map rows to assignedActivities
-        assignedActivities = await Promise.all(
-          aRes.rows.map(async (row) => {
-            const typeLabel =
-              row.assessmentType === 'oral'      ? 'Oral Reading' :
-              row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
-            const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
-            const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
-            const rawSet      = row.set ? String(row.set).trim() : 'Set A';
-            const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
+        // Step 3: Batch fetch all questions & choices to prevent N+1 query lag
+        const passageIds = [...new Set(aRes.rows.map((r) => r.passageId).filter(Boolean))];
+        const questionsByPassage = {};
+        if (passageIds.length > 0) {
+          try {
+            const { rows: allQRows } = await db.query(
+              `SELECT question_id, passage_id, question_text, question_type
+               FROM phil_iri_questions
+               WHERE passage_id = ANY($1::uuid[])
+               ORDER BY created_at ASC`,
+              [passageIds]
+            );
 
-            const statusLower = (row.status || 'open').toLowerCase();
-            const isCompleted = statusLower === 'completed';
-            const isDone = ['completed', 'submitted', 'pending_review'].includes(statusLower);
-
-            let questions = [];
-            try {
-              const { rows: qRows } = await db.query(
-                `SELECT question_id, question_text, question_type
-                 FROM phil_iri_questions
-                 WHERE passage_id = $1
-                 ORDER BY created_at ASC`,
-                [row.passageId]
+            const questionIds = allQRows.map((q) => q.question_id);
+            const choicesByQuestion = {};
+            if (questionIds.length > 0) {
+              const { rows: allCRows } = await db.query(
+                `SELECT choice_id, question_id, choice_text, is_correct
+                 FROM phil_iri_question_choices
+                 WHERE question_id = ANY($1::uuid[])
+                 ORDER BY choice_id ASC`,
+                [questionIds]
               );
-
-              questions = await Promise.all(
-                qRows.map(async (q) => {
-                  const { rows: cRows } = await db.query(
-                    `SELECT choice_id, choice_text, is_correct
-                     FROM phil_iri_question_choices
-                     WHERE question_id = $1
-                     ORDER BY choice_id ASC`,
-                    [q.question_id]
-                  );
-
-                  const options = cRows.map((c) => c.choice_text);
-                  const correctIndex = cRows.findIndex((c) => c.is_correct);
-
-                  return {
-                    id: q.question_id,
-                    question: q.question_text,
-                    questionText: q.question_text,
-                    type: q.question_type || 'Multiple Choice',
-                    options: options.length > 0 ? options : ['Oo', 'Hindi'],
-                    correctIndex: correctIndex >= 0 ? correctIndex : 0,
-                    correctAnswerIndex: correctIndex >= 0 ? correctIndex : 0,
-                  };
-                })
-              );
-            } catch (qErr) {
-              console.warn('[getStudentActiveAssignment] question query error:', qErr.message);
+              for (const c of allCRows) {
+                if (!choicesByQuestion[c.question_id]) {
+                  choicesByQuestion[c.question_id] = [];
+                }
+                choicesByQuestion[c.question_id].push(c);
+              }
             }
+
+            for (const q of allQRows) {
+              if (!questionsByPassage[q.passage_id]) {
+                questionsByPassage[q.passage_id] = [];
+              }
+              const cRows = choicesByQuestion[q.question_id] || [];
+              const options = cRows.map((c) => c.choice_text);
+              const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+              questionsByPassage[q.passage_id].push({
+                id: q.question_id,
+                question: q.question_text,
+                questionText: q.question_text,
+                type: q.question_type || 'Multiple Choice',
+                options: options.length > 0 ? options : ['Oo', 'Hindi'],
+                correctIndex: correctIndex >= 0 ? correctIndex : 0,
+                correctAnswerIndex: correctIndex >= 0 ? correctIndex : 0,
+              });
+            }
+          } catch (qErr) {
+            console.warn('[getStudentActiveAssignment] batch question query error:', qErr.message);
+          }
+        }
+
+        assignedActivities = aRes.rows.map((row) => {
+          const typeLabel =
+            row.assessmentType === 'oral'      ? 'Oral Reading' :
+            row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+          const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+          const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+          const rawSet      = row.set ? String(row.set).trim() : 'Set A';
+          const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
+
+          const statusLower = (row.status || 'open').toLowerCase();
+          const isCompleted = statusLower === 'completed';
+          const isDone = ['completed', 'submitted', 'pending_review'].includes(statusLower);
+
+          const questions = questionsByPassage[row.passageId] || [];
 
             return {
               id:            row.assessmentId,
@@ -2050,8 +2071,7 @@ async function getStudentActiveAssignment(req, res) {
                 questions:  questions,
               },
             };
-          })
-        );
+          });
       } catch (queryErr) {
         console.error('[getStudentActiveAssignment] assessment query error:', queryErr.message);
       }
@@ -2545,22 +2565,25 @@ async function updateAssessmentStartProgress(req, res) {
       if (!resolvedStudentId) resolvedStudentId = studentId;
 
       if (resolvedStudentId) {
-        const typeToMatch = (req.body.assessmentType || req.body.assessment_type || 'oral').toLowerCase();
+        const typeToMatch = (req.body.assessmentType || req.body.assessment_type || req.body.type || 'oral').toLowerCase();
+        const periodToMatch = (req.body.assessmentPeriod || req.body.assessment_period || req.body.period || 'pre_test').toLowerCase();
         const existing = await db.query(
-          `SELECT assessment_id FROM assessments WHERE student_id = $1 AND passage_id = $2 AND LOWER(assessment_type) = $3 LIMIT 1`,
+          `SELECT assessment_id FROM assessments 
+           WHERE student_id = $1 AND passage_id = $2 
+           ORDER BY (CASE WHEN LOWER(assessment_type) = $3 THEN 1 ELSE 2 END), created_at DESC LIMIT 1`,
           [resolvedStudentId, passageId, typeToMatch]
         );
 
         if (existing.rows?.[0]?.assessment_id) {
           await db.query(
-            `UPDATE assessments SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $1`,
-            [existing.rows[0].assessment_id]
+            `UPDATE assessments SET assessment_type = $1, status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $2`,
+            [typeToMatch, existing.rows[0].assessment_id]
           );
         } else {
           await db.query(
-            `INSERT INTO assessments (student_id, passage_id, assessment_type, status)
-             VALUES ($1, $2, $3, 'in_progress')`,
-            [resolvedStudentId, passageId, typeToMatch]
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status)
+             VALUES ($1, $2, $3, $4, 'in_progress')`,
+            [resolvedStudentId, passageId, typeToMatch, periodToMatch]
           );
         }
       }
@@ -3458,10 +3481,6 @@ async function getLibraryBooks(req, res) {
           params.push(category);
           conditions.push(`category = $${params.length}`);
         }
-        if (grade) {
-          params.push(grade);
-          conditions.push(`grade_level_target = $${params.length}`);
-        }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
         const { rows } = await db.query(
@@ -3473,7 +3492,6 @@ async function getLibraryBooks(req, res) {
             content_text AS "contentText",
             language,
             category,
-            grade_level_target AS "gradeLevel",
             difficulty_level AS "difficultyLevel",
             reading_time_minutes AS "readingTimeMinutes",
             quiz_questions AS "quizQuestions",
@@ -3545,7 +3563,6 @@ async function getStudentReadingProgress(req, res) {
           rm.content_text AS "contentText",
           rm.language,
           rm.category,
-          rm.grade_level_target AS "gradeLevel",
           rm.difficulty_level AS "difficultyLevel",
           rm.reading_time_minutes AS "readingTimeMinutes",
           rm.quiz_questions AS "quizQuestions"
@@ -3713,6 +3730,27 @@ function formatYmdDate(val) {
   }
   return String(val).split('T')[0].split(' ')[0];
 }
+
+/**
+ * Fast student UUID resolution — single query matching by student_id, user_id, or LRN.
+ * Replaces the repeated 2-step sequential lookup pattern across streak/badge/analytics endpoints.
+ */
+async function resolveStudentId(req) {
+  const rawId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
+  const rawLrn = req.user?.lrn || req.user?.idNo || req.user?.id_no;
+  const id = rawId ? String(rawId).trim() : '';
+  const lrn = rawLrn ? String(rawLrn).trim() : '';
+  if (!id && !lrn) return null;
+
+  const { rows } = await db.query(
+    `SELECT student_id FROM students
+     WHERE student_id::text = $1 OR user_id::text = $1 OR TRIM(lrn) = $2
+     LIMIT 1`,
+    [id || lrn, lrn || id]
+  );
+  return rows[0]?.student_id ?? null;
+}
+
 async function updateStudentStreakInDb(studentId) {
   if (!studentId || !process.env.DATABASE_URL) return null;
   try {
@@ -3854,18 +3892,7 @@ async function updateStudentStreakInDb(studentId) {
  */
 async function getStudentStreak(req, res) {
   try {
-    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
-    if (!studentId && req.user?.lrn) {
-      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    } else if (studentId) {
-      const sRes = await db.query(
-        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
-        [String(studentId).trim()]
-      );
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    }
-
+    const studentId = await resolveStudentId(req);
     if (!studentId) {
       return res.status(404).json({ success: false, message: 'Student record not found' });
     }
@@ -3915,18 +3942,7 @@ async function getStudentStreak(req, res) {
  */
 async function getStudentBadges(req, res) {
   try {
-    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
-    if (!studentId && req.user?.lrn) {
-      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    } else if (studentId) {
-      const sRes = await db.query(
-        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
-        [String(studentId).trim()]
-      );
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    }
-
+    const studentId = await resolveStudentId(req);
     if (!studentId) {
       return res.status(404).json({ success: false, message: 'Student record not found' });
     }
@@ -3945,69 +3961,95 @@ async function getStudentBadges(req, res) {
  */
 async function getStudentAnalytics(req, res) {
   try {
-    let studentId = req.user?.studentId || req.user?.student_id || req.user?.id || req.user?.user_id;
-    if (!studentId && req.user?.lrn) {
-      const sRes = await db.query(`SELECT student_id FROM students WHERE lrn = $1 LIMIT 1`, [req.user.lrn]);
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    } else if (studentId) {
-      const sRes = await db.query(
-        `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
-        [String(studentId).trim()]
-      );
-      if (sRes.rows?.[0]) studentId = sRes.rows[0].student_id;
-    }
-
+    const studentId = await resolveStudentId(req);
     if (!studentId) {
       return res.status(404).json({ success: false, message: 'Student record not found' });
     }
 
-    // 1. Fetch student_progress (streak & earned badges)
-    const progRes = await db.query(
-      `SELECT current_streak, earned_badges FROM student_progress WHERE student_id = $1 LIMIT 1`,
-      [studentId]
-    );
+
+    const timeZone = process.env.APP_TIMEZONE || 'Asia/Manila';
+    const nowStr = new Date().toLocaleString('en-US', { timeZone });
+    const now = new Date(nowStr);
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const sundayEnd = new Date(monday);
+    sundayEnd.setDate(monday.getDate() + 6);
+    sundayEnd.setHours(23, 59, 59, 999);
+
+    const mondayStr = formatYmdDate(monday);
+    const sundayStr = formatYmdDate(sundayEnd);
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    // Batch fetch all data in parallel — single round-trip instead of 12 sequential queries
+    const [progRes, storyRes, vocabRes, sentRes, pronRes, weeklyBatchRes] = await Promise.all([
+      // 1. streak & earned badges
+      db.query(
+        `SELECT current_streak, earned_badges FROM student_progress WHERE student_id = $1 LIMIT 1`,
+        [studentId]
+      ),
+      // 2. completed stories
+      db.query(
+        `SELECT COUNT(*) as completed_count, AVG(CASE WHEN total_questions > 0 THEN (quiz_score::float / total_questions) * 100 ELSE 100 END) as avg_comp
+         FROM student_story_progress
+         WHERE student_id = $1 AND status = 'completed'`,
+        [studentId]
+      ),
+      // 3. vocabulary
+      db.query(
+        `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM vocabulary_attempts WHERE student_id = $1`,
+        [studentId]
+      ),
+      // 4. sentences
+      db.query(
+        `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM sentence_attempts WHERE student_id = $1`,
+        [studentId]
+      ),
+      // 5. pronunciation
+      db.query(
+        `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM pronunciation_attempts WHERE student_id = $1`,
+        [studentId]
+      ),
+      // 6. Weekly activity — batch GROUP BY DATE (replaces 7 individual day queries)
+      db.query(
+        `SELECT DATE(created_at AT TIME ZONE 'Asia/Manila') as day, AVG(score) as avg_score
+         FROM (
+           SELECT score, created_at FROM vocabulary_attempts
+             WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') BETWEEN $2 AND $3
+           UNION ALL
+           SELECT score, created_at FROM sentence_attempts
+             WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') BETWEEN $2 AND $3
+           UNION ALL
+           SELECT score, created_at FROM pronunciation_attempts
+             WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') BETWEEN $2 AND $3
+         ) sub
+         GROUP BY DATE(created_at AT TIME ZONE 'Asia/Manila')`,
+        [studentId, mondayStr, sundayStr]
+      ),
+    ]);
+
     const currentStreak = progRes.rows[0]?.current_streak || 0;
     const earnedBadges = progRes.rows[0]?.earned_badges || [];
     const totalBadgesCount = Array.isArray(earnedBadges) ? earnedBadges.length : 0;
 
-    // 2. Fetch completed stories count & story quiz comprehension
-    const storyRes = await db.query(
-      `SELECT COUNT(*) as completed_count, AVG(CASE WHEN total_questions > 0 THEN (quiz_score::float / total_questions) * 100 ELSE 100 END) as avg_comp
-       FROM student_story_progress 
-       WHERE student_id = $1 AND status = 'completed'`,
-      [studentId]
-    );
     const completedStoriesCount = parseInt(storyRes.rows[0]?.completed_count || '0', 10);
     const storyComprehensionAvg = Math.round(parseFloat(storyRes.rows[0]?.avg_comp || '0'));
 
-    // 3. Fetch Vocabulary attempts summary
-    const vocabRes = await db.query(
-      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM vocabulary_attempts WHERE student_id = $1`,
-      [studentId]
-    );
     const vocabCount = parseInt(vocabRes.rows[0]?.cnt || '0', 10);
     const vocabAvg = Math.round(parseFloat(vocabRes.rows[0]?.avg_score || '0'));
     const vocabXp = parseInt(vocabRes.rows[0]?.total_xp || '0', 10);
 
-    // 4. Fetch Sentence attempts summary
-    const sentRes = await db.query(
-      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM sentence_attempts WHERE student_id = $1`,
-      [studentId]
-    );
     const sentCount = parseInt(sentRes.rows[0]?.cnt || '0', 10);
     const sentAvg = Math.round(parseFloat(sentRes.rows[0]?.avg_score || '0'));
     const sentXp = parseInt(sentRes.rows[0]?.total_xp || '0', 10);
 
-    // 5. Fetch Pronunciation attempts summary
-    const pronRes = await db.query(
-      `SELECT COUNT(*) as cnt, AVG(score) as avg_score, SUM(xp_earned) as total_xp FROM pronunciation_attempts WHERE student_id = $1`,
-      [studentId]
-    );
     const pronCount = parseInt(pronRes.rows[0]?.cnt || '0', 10);
     const pronAvg = Math.round(parseFloat(pronRes.rows[0]?.avg_score || '0'));
     const pronXp = parseInt(pronRes.rows[0]?.total_xp || '0', 10);
 
-    // Calculate total XP & overall accuracy & total sessions
+    // Calculate total XP, overall accuracy & total sessions
     const totalXp = vocabXp + sentXp + pronXp + (completedStoriesCount * 20);
     const totalSessions = vocabCount + sentCount + pronCount + completedStoriesCount;
 
@@ -4017,50 +4059,30 @@ async function getStudentAnalytics(req, res) {
     if (sentCount > 0) validScores.push(sentAvg);
     if (pronCount > 0) validScores.push(pronAvg);
     if (completedStoriesCount > 0 && storyComprehensionAvg > 0) validScores.push(storyComprehensionAvg);
-
     if (validScores.length > 0) {
       overallAccuracy = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
     }
 
-    // Estimate practice time (approx 2 mins per session)
     const totalTimeSpentMins = Math.max(totalSessions * 2, totalSessions > 0 ? 5 : 0);
 
-    // 6. Build Weekly Mon-Sun Activity Bar Chart data
-    const timeZone = process.env.APP_TIMEZONE || 'Asia/Manila';
-    const nowStr = new Date().toLocaleString('en-US', { timeZone });
-    const now = new Date(nowStr);
-    const dayOfWeek = now.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayOffset);
-    monday.setHours(0, 0, 0, 0);
+    // Build weekly chart from batch results
+    const weeklyScoreMap = {};
+    for (const row of weeklyBatchRes.rows) {
+      const dStr = formatYmdDate(new Date(row.day));
+      weeklyScoreMap[dStr] = row.avg_score != null ? Math.round(parseFloat(row.avg_score)) : null;
+    }
 
-    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     const weeklyActivity = [];
-
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       const dStr = formatYmdDate(d);
-
-      const dayRes = await db.query(
-        `SELECT AVG(score) as avg_score FROM (
-           SELECT score FROM vocabulary_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
-           UNION ALL
-           SELECT score FROM sentence_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
-           UNION ALL
-           SELECT score FROM pronunciation_attempts WHERE student_id = $1 AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $2
-         ) sub`,
-        [studentId, dStr]
-      );
-      const avgScore = dayRes.rows[0]?.avg_score != null ? Math.round(parseFloat(dayRes.rows[0].avg_score)) : 0;
-      const isCompleted = dayRes.rows[0]?.avg_score != null;
-
+      const avgScore = weeklyScoreMap[dStr] ?? 0;
       weeklyActivity.push({
         day: dayLabels[i],
         date: dStr,
         score: avgScore,
-        completed: isCompleted,
+        completed: dStr in weeklyScoreMap,
       });
     }
 

@@ -21,12 +21,17 @@ import {
   Prohibit,
   UserSwitch,
   CaretDown,
+  CaretLeft,
+  CaretRight,
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { StudentRecordsSkeleton } from '../../components/common/Skeleton.jsx';
 import { encodeSecureToken } from '../../lib/securityToken.js';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 import * as XLSX from 'xlsx';
+
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -101,8 +106,16 @@ export default function AdminStudentRecords() {
 
   const [availableSections, setAvailableSections] = useState([]);
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (skipCache = false) => {
     try {
+      const cached = cacheService.get('admin_students');
+      if (cached && !skipCache) {
+        setStudents(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -110,6 +123,7 @@ export default function AdminStudentRecords() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.students)) {
         setStudents(data.students);
+        cacheService.set('admin_students', data.students);
       }
     } catch (err) {
       console.warn('DB student fetch notice, using fallback:', err);
@@ -213,7 +227,8 @@ export default function AdminStudentRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Student ${existingStudentFound.name} successfully transferred in!`);
-        fetchStudents();
+        cacheService.invalidate('admin_students');
+        fetchStudents(true);
         setShowAddModal(false);
         setExistingStudentFound(null);
       } else {
@@ -252,7 +267,8 @@ export default function AdminStudentRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Student record for ${studentName} updated successfully.`);
-          fetchStudents();
+          cacheService.invalidate('admin_students');
+          fetchStudents(true);
           setEditingStudent(null);
         } else {
           showToast(data.error || 'Failed to update student.');
@@ -269,7 +285,8 @@ export default function AdminStudentRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Student registered successfully. Credentials sent to email.`);
-          fetchStudents();
+          cacheService.invalidate('admin_students');
+          fetchStudents(true);
           setShowAddModal(false);
         } else {
           showToast(data.error || 'Failed to create student.');
@@ -285,6 +302,7 @@ export default function AdminStudentRecords() {
     const newStatusVal = targetStatus || (std.status === 'Disabled' || std.status === 'Dropped' ? 'Active' : 'Disabled');
     
     // Update state locally in-place without triggering a re-fetch that re-sorts the list
+    cacheService.invalidate('admin_students');
     setStudents((prev) =>
       prev.map((s) => ((s.lrn === targetLrn || s.id === targetLrn) ? { ...s, status: newStatusVal } : s))
     );
@@ -320,9 +338,10 @@ export default function AdminStudentRecords() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
+      cacheService.invalidate('admin_students');
       if (res.ok && data.success) {
         showToast(`Student ${deletingStudent.name} deleted.`);
-        fetchStudents();
+        fetchStudents(true);
       } else {
         setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
         showToast(`Student ${deletingStudent.name} deleted.`);
@@ -633,35 +652,28 @@ export default function AdminStudentRecords() {
         </div>
       </div>
 
-      {/* Main Student Table matching Phil-IRI table styling */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+      {/* Main Student Table matching Super Admin table styling */}
+      <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[900px] text-sm table-fixed">
             <thead>
-              <tr className="text-xs text-ink/70">
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">LRN</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Student Name</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Grade & Section</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Gender</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Parent Access Code</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left">Email Address</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-left min-w-[130px] whitespace-nowrap">Account Status</th>
-                <th className="border border-ink/10 bg-ink/[0.03] p-2 text-right">Actions</th>
+              <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
+                <th className="w-[13%] px-5 py-3 text-left font-bold text-ink/50">LRN</th>
+                <th className="w-[19%] px-4 py-3 text-left font-bold text-ink/50">Student Name</th>
+                <th className="w-[14%] px-4 py-3 text-left font-bold text-ink/50">Grade & Section</th>
+                <th className="w-[9%] px-4 py-3 text-left font-bold text-ink/50">Gender</th>
+                <th className="w-[17%] px-4 py-3 text-left font-bold text-ink/50">Parent Access Code</th>
+                <th className="w-[18%] px-4 py-3 text-left font-bold text-ink/50">Email Address</th>
+                <th className="w-[10%] px-4 py-3 text-center font-bold text-ink/50">Account Status</th>
+                <th className="w-[10%] pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-ink/10">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading student records...</span>
-                    </div>
-                  </td>
-                </tr>
+                <StudentRecordsSkeleton rows={5} />
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="border border-ink/10 p-10 text-center">
+                  <td colSpan={8} className="p-10 text-center">
                     <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2">
                       <Student size={40} className="text-ink/30" />
                       <h4 className="text-sm font-bold text-ink">
@@ -677,14 +689,22 @@ export default function AdminStudentRecords() {
                 </tr>
               ) : (
                 paginatedStudents.map((std) => (
-                  <tr key={std.id} className="hover:bg-ink/[0.02] transition-colors">
-                    <td className="border border-ink/10 p-2 font-mono text-xs text-ink/80">{std.lrn}</td>
-                    <td className="border border-ink/10 p-2 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}>{std.name}</td>
-                    <td className="border border-ink/10 p-2 text-ink/80">
-                      <span className="font-semibold">{std.grade}</span> - {std.section}
+                  <tr
+                    key={std.id}
+                    onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}
+                    className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
+                  >
+                    <td className="px-5 py-3 text-left font-mono text-xs text-ink/80">{std.lrn || '—'}</td>
+                    <td className="px-4 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors">{std.name || '—'}</td>
+                    <td className="px-4 py-3 text-ink/80">
+                      {std.grade && std.section ? (
+                        <span><span className="font-semibold">{std.grade}</span> - {std.section}</span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.gender}</td>
-                    <td className="border border-ink/10 p-2">
+                    <td className="px-4 py-3 text-ink/70 text-xs">{std.gender || '—'}</td>
+                    <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-xs font-bold border transition-colors ${
                           std.status === 'Active'
@@ -697,39 +717,25 @@ export default function AdminStudentRecords() {
                         <span>{std.parentAccessCode || `PAC-${std.lrn.slice(-5)}`}</span>
                       </span>
                     </td>
-                    <td className="border border-ink/10 p-2 text-ink/70 text-xs">{std.personalEmail}</td>
-                    <td className="border border-ink/10 p-2 min-w-[130px] whitespace-nowrap">
-                      <div className="relative inline-flex items-center">
-                        <span
-                          className={`absolute left-3 size-2 rounded-full pointer-events-none z-10 ${
-                            std.status === 'Active' ? 'bg-[#00a652]' : 'bg-brand-red'
-                          }`}
-                        />
-                        <select
-                          value={std.status === 'Disabled' ? 'Disabled' : 'Active'}
-                          onChange={(e) => handleToggleStatus(std, e.target.value)}
-                          className="appearance-none rounded-full bg-white/90 hover:bg-white border border-ink/15 pl-7 pr-6 py-1 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Disabled">Disabled</option>
-                        </select>
-                        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink/40">
-                          <CaretDown size={10} weight="bold" />
-                        </div>
-                      </div>
+                    <td className="px-4 py-3 text-ink/70 text-xs">{std.personalEmail}</td>
+                    <td className="px-4 py-3 text-center min-w-[110px]">
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[70px] gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+                          std.status === 'Active'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-ink/5 text-ink/50 border border-ink/10'
+                        }`}
+                      >
+                        <span className={`size-1.5 rounded-full ${std.status === 'Active' ? 'bg-emerald-500' : 'bg-ink/40'}`} />
+                        {std.status === 'Disabled' ? 'Disabled' : 'Active'}
+                      </span>
                     </td>
-                    <td className="border border-ink/10 p-2 text-right">
+                    <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}
-                          className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
-                        >
-                          View Profile
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingStudent(std);
                             setFormData({
                               lrn: std.lrn || '',
@@ -749,7 +755,22 @@ export default function AdminStudentRecords() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeletingStudent(std)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextStatus = std.status === 'Disabled' ? 'Active' : 'Disabled';
+                            handleToggleStatus(std, nextStatus);
+                          }}
+                          className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                          title={std.status === 'Disabled' ? 'Enable Student Account' : 'Disable Student Account'}
+                        >
+                          {std.status === 'Disabled' ? <CheckCircle size={16} /> : <Prohibit size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingStudent(std);
+                          }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
                           title="Delete Student"
                         >
@@ -764,42 +785,54 @@ export default function AdminStudentRecords() {
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/5 pt-4 text-xs text-ink/50">
-          <span>Showing {filteredStudents.length === 0 ? 0 : Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredStudents.length)}–{Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of {filteredStudents.length} student records</span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                  page === currentPage
-                    ? 'bg-brand-blue text-white'
-                    : 'hover:bg-ink/5 text-ink/70'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="rounded-lg px-2.5 py-1 font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-            >
-              ›
-            </button>
+        {/* Table Footer / Pagination */}
+        {filteredStudents.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+            <span>
+              {totalPages > 1
+                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`
+                : `Showing ${filteredStudents.length} of ${filteredStudents.length} student records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Add / Edit Student Modal */}

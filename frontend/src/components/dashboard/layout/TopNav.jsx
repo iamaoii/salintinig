@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: '/teacher/overview', label: 'Overview', icon: House },
   { to: '/teacher/student-dashboard', label: 'Student Dashboard', icon: PresentationChart },
   { to: '/teacher/phil-iri-records', label: 'Phil - IRI Records', icon: Article },
-  { to: '/teacher/class-activities', label: 'Class Activities', icon: FlagPennant },
+  { to: '/teacher/class-activities', label: 'Phil-IRI Assessments', icon: FlagPennant },
 ];
 
 export default function TopNav() {

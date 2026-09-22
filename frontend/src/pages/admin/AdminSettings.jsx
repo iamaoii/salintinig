@@ -32,6 +32,8 @@ import { getUser, logout } from '../../lib/auth.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
+import AboutAppModal from '../../components/common/AboutAppModal.jsx';
+import { cacheService } from '../../services/cacheService.js';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
@@ -39,20 +41,33 @@ export default function AdminSettings() {
   const currentUser = getUser();
   const fileInputRef = useRef(null);
 
-  const [loading, setLoading] = useState(true);
+  const cachedInfo = cacheService.get('admin_settings_info');
+  const [loading, setLoading] = useState(!currentUser && !cachedInfo);
   const [isSaving, setIsSaving] = useState(false);
-  const [adminInfo, setAdminInfo] = useState(null);
+  const [adminInfo, setAdminInfo] = useState(() => cachedInfo || null);
 
-  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
+  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || cachedInfo?.profileImage || null);
   const [cropSrc, setCropSrc] = useState(null); // holds raw image data URL for crop modal
 
-  const [schoolProfile, setSchoolProfile] = useState({
-    schoolName: '',
-    schoolId: '',
-    division: '',
-    region: '',
-    principalName: '',
-    contactEmail: '',
+  const [schoolProfile, setSchoolProfile] = useState(() => {
+    if (cachedInfo?.schoolInfo) {
+      return {
+        schoolName: cachedInfo.schoolInfo.schoolName || '',
+        schoolId: cachedInfo.schoolInfo.schoolId || '',
+        division: cachedInfo.schoolInfo.division || '',
+        region: cachedInfo.schoolInfo.region || '',
+        principalName: cachedInfo.schoolInfo.principalName || '',
+        contactEmail: cachedInfo.schoolInfo.officialEmail || currentUser?.email || '',
+      };
+    }
+    return {
+      schoolName: '',
+      schoolId: '',
+      division: '',
+      region: '',
+      principalName: '',
+      contactEmail: currentUser?.email || '',
+    };
   });
 
   const [securitySettings, setSecuritySettings] = useState({
@@ -221,7 +236,10 @@ export default function AdminSettings() {
 
   const fetchAdminInfo = async () => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_settings_info');
+      if (cached) {
+        setLoading(false);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/info'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -229,6 +247,7 @@ export default function AdminSettings() {
       const data = await res.json();
       if (res.ok && data.success) {
         setAdminInfo(data);
+        cacheService.set('admin_settings_info', data);
         if (data.profileImage) {
           setAvatarUrl(data.profileImage);
           localStorage.setItem('adminAvatarCache', data.profileImage);
@@ -824,47 +843,7 @@ export default function AdminSettings() {
       )}
 
       {/* About Application Modal */}
-      {isAboutModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-5 text-center">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="absolute right-4 top-4 rounded-full p-1 text-ink/40 hover:bg-ink/5 hover:text-ink transition-colors cursor-pointer"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="flex flex-col items-center gap-3 pt-2">
-              <img src={logo} alt="SalinTinig Logo" className="h-14 w-auto" />
-              <div>
-                <h3 className="text-xl font-bold text-ink">SalinTinig</h3>
-                <p className="text-xs text-ink/50">DepEd Phil-IRI Assessment System</p>
-              </div>
-              <span className="inline-block rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-bold text-brand-blue">
-                Version 1.0.0 (Build 2026.08)
-              </span>
-            </div>
-
-            <div className="rounded-2xl bg-white border border-ink/10 p-4 text-xs text-ink/70 text-left space-y-2">
-              <p>
-                <strong>SalinTinig</strong> is the official Philippine Informal Reading Inventory (Phil-IRI) oral reading diagnostic and analytics portal designed for elementary schools.
-              </p>
-              <p className="text-[11px] text-ink/50">
-                Department of Education • Division of City Schools • All rights reserved.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={closeModal}
-              className="w-full rounded-full bg-ink px-6 py-2.5 text-xs font-semibold text-cream hover:bg-ink/90 cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <AboutAppModal isOpen={isAboutModalOpen} onClose={closeModal} />
 
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (

@@ -170,7 +170,7 @@ export default function AdminStudentProfile() {
         ) : (
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <Avatar name={std.name} size={88} className="text-2xl font-bold shrink-0" />
+              <Avatar name={std.name} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={88} className="text-2xl font-bold shrink-0" />
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-bold text-ink">{std.name}</h1>
