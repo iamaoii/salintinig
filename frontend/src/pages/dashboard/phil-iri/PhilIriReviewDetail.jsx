@@ -279,7 +279,7 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
     setIsSubmitting(true);
     try {
       const token = getToken();
-      const res = await fetch(`/api/teacher/assessments/${attemptId}/verify-oral`, {
+      const res = await fetch(getApiUrl(`/api/teacher/assessments/${attemptId}/verify-oral`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -633,7 +633,7 @@ export function PhilIriReviewPage() {
       try {
         const token = getToken();
         // 1. Try direct review detail endpoint first
-        const directRes = await fetch(`/api/teacher/assessments/review/${attemptId}`, {
+        const directRes = await fetch(getApiUrl(`/api/teacher/assessments/review/${attemptId}`), {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
