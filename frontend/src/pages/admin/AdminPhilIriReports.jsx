@@ -14,6 +14,8 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 export default function AdminPhilIriReports() {
   const { globalSearch } = useOutletContext() || {};
@@ -29,12 +31,19 @@ export default function AdminPhilIriReports() {
 
   const fetchAnalytics = async () => {
     try {
+      const cached = cacheService.get('admin_phil_iri_analytics');
+      if (cached) {
+        setAnalytics(cached);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/analytics/phil-iri'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
-      if (res.ok && data.success) setAnalytics(data.analytics);
+      if (res.ok && data.success) {
+        setAnalytics(data.analytics);
+        cacheService.set('admin_phil_iri_analytics', data.analytics);
+      }
     } catch (err) {
       console.warn('Failed to fetch Phil-IRI analytics:', err);
     }
@@ -42,13 +51,22 @@ export default function AdminPhilIriReports() {
 
   const fetchStudents = async () => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_students');
+      if (cached) {
+        setStudents(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
-      if (res.ok && data.success) setStudents(data.students || []);
+      if (res.ok && data.success) {
+        setStudents(data.students || []);
+        cacheService.set('admin_students', data.students || []);
+      }
     } catch (err) {
       console.warn('Failed to fetch students for reports:', err);
     } finally {
@@ -492,14 +510,21 @@ export default function AdminPhilIriReports() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <div className="size-5 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                        <span className="text-xs font-semibold">Loading records...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 shrink-0 rounded-full bg-ink/10" />
+                          <div className="h-3.5 w-32 rounded bg-ink/10" />
+                        </div>
+                      </td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-4 w-24 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-16 ml-auto rounded bg-ink/10" /></td>
+                    </tr>
+                  ))
                 ) : filteredStudents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="border border-ink/10 p-10 text-center">

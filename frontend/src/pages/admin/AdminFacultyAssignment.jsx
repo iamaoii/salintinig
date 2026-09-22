@@ -15,6 +15,8 @@ import {
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 export default function AdminFacultyAssignment() {
   const location = useLocation();
@@ -152,8 +154,12 @@ export default function AdminFacultyAssignment() {
     }
   };
 
-  const fetchStudentSectioning = async () => {
+  const fetchStudentSectioning = async (skipCache = false) => {
     try {
+      const cached = cacheService.get('admin_student_sectioning');
+      if (cached && !skipCache) {
+        setSectioningStudents(cached);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/student-sectioning'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -161,6 +167,7 @@ export default function AdminFacultyAssignment() {
       const data = await res.json();
       if (res.ok && data.success) {
         setSectioningStudents(data.students || []);
+        cacheService.set('admin_student_sectioning', data.students || []);
       }
     } catch (err) {
       console.warn('Failed to fetch student sectioning:', err);
@@ -189,7 +196,8 @@ export default function AdminFacultyAssignment() {
         showToast(data.message || 'Students assigned to section.');
         setSelectedStudentIds([]);
         setTargetAssignSection('');
-        fetchStudentSectioning();
+        cacheService.invalidate('admin_student_sectioning');
+        fetchStudentSectioning(true);
         fetchAssignmentData();
       } else {
         showToast(data.error || 'Failed to assign students.');
@@ -646,80 +654,94 @@ export default function AdminFacultyAssignment() {
                 </tr>
               </thead>
               <tbody>
-                {sectioningStudents
-                  .filter((s) =>
-                    (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
-                    (sectioningStatusFilter === 'All' ||
-                      (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
-                      (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
-                  )
-                  .map((std) => (
-                    <tr key={std.studentId} className="hover:bg-ink/[0.02] border-b border-ink/10 text-xs">
-                      <td className="border border-ink/10 p-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedStudentIds.includes(std.studentId)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedStudentIds([...selectedStudentIds, std.studentId]);
-                            } else {
-                              setSelectedStudentIds(selectedStudentIds.filter((id) => id !== std.studentId));
-                            }
-                          }}
-                          className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
-                        />
-                      </td>
-                      <td className="border border-ink/10 p-3 font-mono font-semibold text-ink/80">{std.lrn}</td>
-                      <td className="border border-ink/10 p-3 font-bold text-ink">{std.name}</td>
-                      <td className="border border-ink/10 p-3 font-semibold text-ink/80">{std.gradeLevel}</td>
-                      <td className="border border-ink/10 p-3">
-                        <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            std.sectionName === 'Unassigned'
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          }`}
-                        >
-                          {std.sectionName}
-                        </span>
-                      </td>
-                      <td className="border border-ink/10 p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePromotion(std.studentId, std.promotionStatus)}
-                          className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                            std.promotionStatus === 'retained'
-                              ? 'bg-brand-red/10 text-brand-red border-brand-red/30 hover:bg-brand-red/20'
-                              : 'bg-brand-blue/10 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/20'
-                          }`}
-                          title="Click to toggle Promoted vs Retained status"
-                        >
-                          {std.promotionStatus === 'retained' ? 'Retained' : 'Promoted'}
-                        </button>
-                      </td>
-                      <td className="border border-ink/10 p-3 text-right">
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setTargetAssignSection(e.target.value);
-                              setSelectedStudentIds([std.studentId]);
-                            }
-                          }}
-                          className="rounded-lg border border-ink/20 bg-white px-2 py-1 text-[11px] font-semibold text-ink outline-none focus:border-brand-blue cursor-pointer"
-                        >
-                          <option value="">Assign Section...</option>
-                          {(allSectionsList || [])
-                            .filter((sec) => sec.gradeLevel === std.gradeLevel)
-                            .map((sec) => (
-                              <option key={sec.id} value={sec.sectionName}>
-                                {sec.sectionName}
-                              </option>
-                            ))}
-                        </select>
-                      </td>
+                {loading ? (
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse border-b border-ink/10 text-xs">
+                      <td className="border border-ink/10 p-3 text-center"><div className="size-4 rounded bg-ink/10 mx-auto" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-32 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-4 w-20 rounded-full bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3"><div className="h-4 w-16 rounded-lg bg-ink/10" /></td>
+                      <td className="border border-ink/10 p-3 text-right"><div className="h-6 w-28 rounded-lg bg-ink/10 ml-auto" /></td>
                     </tr>
-                  ))}
+                  ))
+                ) : (
+                  sectioningStudents
+                    .filter((s) =>
+                      (sectioningGradeFilter === 'All' || s.gradeLevel === sectioningGradeFilter) &&
+                      (sectioningStatusFilter === 'All' ||
+                        (sectioningStatusFilter === 'Unassigned' && s.sectionName === 'Unassigned') ||
+                        (sectioningStatusFilter === 'Assigned' && s.sectionName !== 'Unassigned'))
+                    )
+                    .map((std) => (
+                      <tr key={std.studentId} className="hover:bg-ink/[0.02] border-b border-ink/10 text-xs">
+                        <td className="border border-ink/10 p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.includes(std.studentId)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStudentIds([...selectedStudentIds, std.studentId]);
+                              } else {
+                                setSelectedStudentIds(selectedStudentIds.filter((id) => id !== std.studentId));
+                              }
+                            }}
+                            className="rounded border-ink/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
+                          />
+                        </td>
+                        <td className="border border-ink/10 p-3 font-mono font-semibold text-ink/80">{std.lrn}</td>
+                        <td className="border border-ink/10 p-3 font-bold text-ink">{std.name}</td>
+                        <td className="border border-ink/10 p-3 font-semibold text-ink/80">{std.gradeLevel}</td>
+                        <td className="border border-ink/10 p-3">
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                              std.sectionName === 'Unassigned'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            }`}
+                          >
+                            {std.sectionName}
+                          </span>
+                        </td>
+                        <td className="border border-ink/10 p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePromotion(std.studentId, std.promotionStatus)}
+                            className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                              std.promotionStatus === 'retained'
+                                ? 'bg-brand-red/10 text-brand-red border-brand-red/30 hover:bg-brand-red/20'
+                                : 'bg-brand-blue/10 text-brand-blue border-brand-blue/30 hover:bg-brand-blue/20'
+                            }`}
+                            title="Click to toggle Promoted vs Retained status"
+                          >
+                            {std.promotionStatus === 'retained' ? 'Retained' : 'Promoted'}
+                          </button>
+                        </td>
+                        <td className="border border-ink/10 p-3 text-right">
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setTargetAssignSection(e.target.value);
+                                setSelectedStudentIds([std.studentId]);
+                              }
+                            }}
+                            className="rounded-lg border border-ink/20 bg-white px-2 py-1 text-[11px] font-semibold text-ink outline-none focus:border-brand-blue cursor-pointer"
+                          >
+                            <option value="">Assign Section...</option>
+                            {(allSectionsList || [])
+                              .filter((sec) => sec.gradeLevel === std.gradeLevel)
+                              .map((sec) => (
+                                <option key={sec.id} value={sec.sectionName}>
+                                  {sec.sectionName}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))
+                )}
               </tbody>
             </table>
           </div>
@@ -729,42 +751,61 @@ export default function AdminFacultyAssignment() {
         <div className="space-y-6">
         {/* Grade Level Faculty-in-Charge Bar */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {assignments.map((item) => (
-            <div
-              key={item.gradeLevel}
-              className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
-                  <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
-                  <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
-                    {sections[item.gradeLevel]?.length || 0} Sections
-                  </span>
-                </div>
-
-                <div className="mt-3 space-y-1">
-                  <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
-                  {loading ? (
-                    <div className="h-4 w-32 animate-pulse rounded-md bg-ink/10 my-0.5" />
-                  ) : (
-                    <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAssigningFacultyGrade(item.gradeLevel);
-                  setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
-                }}
-                className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+          {loading ? (
+            [1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between animate-pulse"
               >
-                <UserSwitch size={14} />
-                <span>Change Faculty-in-Charge</span>
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                    <div className="h-4 w-16 rounded bg-ink/10" />
+                    <div className="h-4 w-16 rounded-full bg-ink/10" />
+                  </div>
+
+                  <div className="mt-3 space-y-1.5">
+                    <div className="h-3 w-24 rounded bg-ink/10" />
+                    <div className="h-4 w-36 rounded bg-ink/10" />
+                  </div>
+                </div>
+
+                <div className="mt-4 h-8 w-full rounded-xl bg-ink/10" />
+              </div>
+            ))
+          ) : (
+            assignments.map((item) => (
+              <div
+                key={item.gradeLevel}
+                className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between border-b border-ink/10 pb-2.5">
+                    <span className="text-sm font-bold text-ink">{item.gradeLevel}</span>
+                    <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-blue">
+                      {sections[item.gradeLevel]?.length || 0} Sections
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-1">
+                    <span className="text-[11px] text-ink/50 block">Faculty-in-Charge:</span>
+                    <p className="text-xs font-bold text-ink">{item.facultyInCharge || 'Unassigned'}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningFacultyGrade(item.gradeLevel);
+                    setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
+                  }}
+                  className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+                >
+                  <UserSwitch size={14} />
+                  <span>Change Faculty-in-Charge</span>
+                </button>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Class Sections Table & Controls */}
@@ -827,14 +868,21 @@ export default function AdminFacultyAssignment() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading class sections...</span>
-                    </div>
-                  </td>
-                </tr>
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="border border-ink/10 p-3"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-3"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-3"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-3"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-3"><div className="h-4 w-48 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="size-7 rounded bg-ink/10" />
+                        <div className="size-7 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : filteredSections.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="border border-ink/10 p-10 text-center">

@@ -27,6 +27,8 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 const SET_COLORS = {
   'Set A': 'bg-purple-100/90 text-purple-900 border border-purple-200/80',
@@ -107,9 +109,16 @@ export default function SuperAdminPassages() {
     questions: [],
   });
 
-  const fetchPassages = async () => {
+  const fetchPassages = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('sa_passages');
+      if (cached && !skipCache) {
+        setPassages(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/super-admin/phil-iri/passages'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -117,6 +126,7 @@ export default function SuperAdminPassages() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.passages)) {
         setPassages(data.passages);
+        cacheService.set('sa_passages', data.passages);
       } else {
         setPassages([]);
       }
@@ -156,7 +166,8 @@ export default function SuperAdminPassages() {
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({ message: data.message || `Passage status updated to ${data.status}.`, type: 'success' });
-        fetchPassages();
+        cacheService.invalidate('sa_passages');
+        fetchPassages(true);
       } else {
         setToast({ message: data.error || 'Failed to update passage status.', type: 'error' });
       }
@@ -280,7 +291,8 @@ export default function SuperAdminPassages() {
           type: 'success',
         });
         setIsAddEditOpen(false);
-        fetchPassages();
+        cacheService.invalidate('sa_passages');
+        fetchPassages(true);
       } else {
         setToast({ message: data.error || 'Failed to save passage.', type: 'error' });
       }
@@ -333,7 +345,8 @@ export default function SuperAdminPassages() {
         const data = await res.json();
         if (res.ok && data.success) {
           setToast({ message: `${setKey} slot unassigned.`, type: 'success' });
-          fetchPassages();
+          cacheService.invalidate('sa_passages');
+          fetchPassages(true);
         } else {
           setToast({ message: data.error || 'Failed to update slot.', type: 'error' });
         }
@@ -358,7 +371,8 @@ export default function SuperAdminPassages() {
       if (res.ok && data.success) {
         setToast({ message: `Passage assigned to ${setKey} (${setsStage}) for ${setsGrade} (${setsLanguage}).`, type: 'success' });
         setPickerSlotKey(null); // Return smoothly to 4-slot overview inside same modal
-        fetchPassages();
+        cacheService.invalidate('sa_passages');
+        fetchPassages(true);
       } else {
         setToast({ message: data.error || 'Failed to update assignment.', type: 'error' });
       }

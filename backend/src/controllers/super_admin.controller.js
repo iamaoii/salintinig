@@ -532,53 +532,72 @@ async function getPassages(req, res) {
       ORDER BY created_at DESC
     `);
 
-    const passages = await Promise.all(
-      materials.map(async (m) => {
-        const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
-        const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
+    if (!materials.length) {
+      return res.json({ success: true, passages: [] });
+    }
 
-        const { rows: qRows } = await db.query(`
-          SELECT question_id, question_text, question_type
-          FROM phil_iri_questions
-          WHERE passage_id = $1
-          ORDER BY created_at ASC
-        `, [m.id]);
+    const passageIds = materials.map((m) => m.id);
 
-        const questions = await Promise.all(
-          qRows.map(async (q) => {
-            const { rows: cRows } = await db.query(`
-              SELECT choice_id, choice_text, is_correct
-              FROM phil_iri_question_choices
-              WHERE question_id = $1
-            `, [q.question_id]);
+    const { rows: allQuestions } = await db.query(`
+      SELECT question_id, passage_id, question_text, question_type
+      FROM phil_iri_questions
+      WHERE passage_id = ANY($1::uuid[])
+      ORDER BY created_at ASC
+    `, [passageIds]);
 
-            const options = cRows.map((c) => c.choice_text);
-            const correctIndex = cRows.findIndex((c) => c.is_correct);
+    const questionIds = allQuestions.map((q) => q.question_id);
 
-            return {
-              id: q.question_id,
-              question: q.question_text,
-              type: q.question_type || 'Multiple Choice',
-              options,
-              correctAnswer: correctIndex >= 0 ? correctIndex : 0,
-            };
-          })
-        );
+    let allChoices = [];
+    if (questionIds.length) {
+      const choicesRes = await db.query(`
+        SELECT choice_id, question_id, choice_text, is_correct
+        FROM phil_iri_question_choices
+        WHERE question_id = ANY($1::uuid[])
+      `, [questionIds]);
+      allChoices = choicesRes.rows;
+    }
 
-        return {
-          id: m.id,
-          title: m.title,
-          grade: m.grade || 'Grade 4',
-          set: m.set || 'Unassigned',
-          stage: m.stage || 'Unassigned',
-          language: langDisplay,
-          status: m.status,
-          words,
-          text: m.text,
-          questions,
-        };
-      })
-    );
+    const choicesByQuestion = {};
+    for (const c of allChoices) {
+      if (!choicesByQuestion[c.question_id]) choicesByQuestion[c.question_id] = [];
+      choicesByQuestion[c.question_id].push(c);
+    }
+
+    const questionsByPassage = {};
+    for (const q of allQuestions) {
+      const cRows = choicesByQuestion[q.question_id] || [];
+      const options = cRows.map((c) => c.choice_text);
+      const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+      const formattedQuestion = {
+        id: q.question_id,
+        question: q.question_text,
+        type: q.question_type || 'Multiple Choice',
+        options,
+        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+      };
+
+      if (!questionsByPassage[q.passage_id]) questionsByPassage[q.passage_id] = [];
+      questionsByPassage[q.passage_id].push(formattedQuestion);
+    }
+
+    const passages = materials.map((m) => {
+      const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
+      const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
+
+      return {
+        id: m.id,
+        title: m.title,
+        grade: m.grade || 'Grade 4',
+        set: m.set || 'Unassigned',
+        stage: m.stage || 'Unassigned',
+        language: langDisplay,
+        status: m.status,
+        words,
+        text: m.text,
+        questions: questionsByPassage[m.id] || [],
+      };
+    });
 
     return res.json({ success: true, passages });
   } catch (err) {
@@ -807,7 +826,6 @@ async function getStories(req, res) {
         content_text,
         language,
         category,
-        grade_level_target,
         difficulty_level,
         reading_time_minutes,
         quiz_questions,
@@ -826,22 +844,34 @@ async function getStories(req, res) {
 }
 
 /**
+ * Helper to compute estimated reading time in minutes based on text word count.
+ * Average reading speed: ~150 words per minute.
+ */
+function calculateReadingTime(text) {
+  if (!text) return 1;
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(wordCount / 150));
+}
+
+/**
  * POST /api/super-admin/stories
  */
 async function createStory(req, res) {
   try {
     const {
       title, author, description, content_text, language, category,
-      grade_level_target, difficulty_level, reading_time_minutes, quiz_questions, status,
+      difficulty_level, reading_time_minutes, quiz_questions, status,
     } = req.body;
 
     if (!title) return res.status(400).json({ success: false, error: 'Title is required.' });
 
+    const computedReadingTime = calculateReadingTime(content_text);
+
     const { rows } = await db.query(`
       INSERT INTO reading_materials
-        (title, author, description, content_text, language, category, grade_level_target,
+        (title, author, description, content_text, language, category,
          difficulty_level, reading_time_minutes, quiz_questions, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING material_id AS id
     `, [
       title,
@@ -850,11 +880,10 @@ async function createStory(req, res) {
       content_text || null,
       language || 'Filipino',
       category || null,
-      grade_level_target || null,
       difficulty_level || null,
-      reading_time_minutes ? parseInt(reading_time_minutes) : null,
+      reading_time_minutes ? parseInt(reading_time_minutes) : computedReadingTime,
       quiz_questions ? JSON.stringify(quiz_questions) : null,
-      (status || 'draft').toLowerCase(),
+      (status || 'active').toLowerCase(),
     ]);
 
     return res.status(201).json({ success: true, message: 'Story created.', storyId: rows[0].id });
@@ -872,8 +901,11 @@ async function updateStory(req, res) {
     const { id } = req.params;
     const {
       title, author, description, content_text, language, category,
-      grade_level_target, difficulty_level, reading_time_minutes, quiz_questions,
+      difficulty_level, reading_time_minutes, quiz_questions,
     } = req.body;
+
+    const computedReadingTime = content_text ? calculateReadingTime(content_text) : null;
+    const finalReadingTime = reading_time_minutes ? parseInt(reading_time_minutes) : computedReadingTime;
 
     await db.query(`
       UPDATE reading_materials
@@ -883,16 +915,15 @@ async function updateStory(req, res) {
           content_text = COALESCE($4, content_text),
           language = COALESCE($5, language),
           category = COALESCE($6, category),
-          grade_level_target = COALESCE($7, grade_level_target),
-          difficulty_level = COALESCE($8, difficulty_level),
-          reading_time_minutes = COALESCE($9, reading_time_minutes),
-          quiz_questions = COALESCE($10, quiz_questions),
+          difficulty_level = COALESCE($7, difficulty_level),
+          reading_time_minutes = COALESCE($8, reading_time_minutes),
+          quiz_questions = COALESCE($9, quiz_questions),
           updated_at = CURRENT_TIMESTAMP
-      WHERE material_id = $11
+      WHERE material_id = $10
     `, [
       title, author, description, content_text, language, category,
-      grade_level_target, difficulty_level,
-      reading_time_minutes ? parseInt(reading_time_minutes) : null,
+      difficulty_level,
+      finalReadingTime,
       quiz_questions ? JSON.stringify(quiz_questions) : null,
       id,
     ]);

@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     content_text TEXT NOT NULL,
     language VARCHAR(20) NOT NULL DEFAULT 'fil', -- 'fil' or 'en'
     category VARCHAR(50) NOT NULL DEFAULT 'Short Story', -- 'Short Story', 'Poem', 'Fable', 'Folktale', 'Informational'
-    grade_level_target VARCHAR(50) NOT NULL DEFAULT 'Grade 4', -- 'Grade 4', 'Grade 5', 'Grade 6'
     difficulty_level VARCHAR(50) DEFAULT 'Easy', -- 'Easy', 'Medium', 'Hard'
     reading_time_minutes INT DEFAULT 3,
     quiz_questions JSONB DEFAULT '[]'::jsonb,
@@ -162,7 +161,7 @@ CREATE TABLE IF NOT EXISTS reading_materials (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_reading_materials_filter ON reading_materials(language, grade_level_target, category, status);
+CREATE INDEX IF NOT EXISTS idx_reading_materials_filter ON reading_materials(language, category, status);
 CREATE INDEX IF NOT EXISTS idx_reading_materials_title ON reading_materials(title);
 
 -- -----------------------------------------------------------------------------

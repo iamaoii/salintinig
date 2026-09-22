@@ -3481,10 +3481,6 @@ async function getLibraryBooks(req, res) {
           params.push(category);
           conditions.push(`category = $${params.length}`);
         }
-        if (grade) {
-          params.push(grade);
-          conditions.push(`grade_level_target = $${params.length}`);
-        }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
         const { rows } = await db.query(
@@ -3496,7 +3492,6 @@ async function getLibraryBooks(req, res) {
             content_text AS "contentText",
             language,
             category,
-            grade_level_target AS "gradeLevel",
             difficulty_level AS "difficultyLevel",
             reading_time_minutes AS "readingTimeMinutes",
             quiz_questions AS "quizQuestions",
@@ -3568,7 +3563,6 @@ async function getStudentReadingProgress(req, res) {
           rm.content_text AS "contentText",
           rm.language,
           rm.category,
-          rm.grade_level_target AS "gradeLevel",
           rm.difficulty_level AS "difficultyLevel",
           rm.reading_time_minutes AS "readingTimeMinutes",
           rm.quiz_questions AS "quizQuestions"

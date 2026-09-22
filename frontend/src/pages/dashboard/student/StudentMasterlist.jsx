@@ -7,6 +7,8 @@ import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { encodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
+
 
 const TABS = [
   { to: '/teacher/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
@@ -55,7 +57,13 @@ export default function StudentMasterlist({ level }) {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        setLoading(true);
+        const cached = cacheService.get('teacher_class_students');
+        if (cached) {
+          setStudents(cached);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
         const token = getToken();
 
         const res = await fetch(getApiUrl('/api/teacher/class-students'), {
@@ -64,6 +72,7 @@ export default function StudentMasterlist({ level }) {
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
           setStudents(data.students);
+          cacheService.set('teacher_class_students', data.students);
         } else {
           setStudents([]);
         }

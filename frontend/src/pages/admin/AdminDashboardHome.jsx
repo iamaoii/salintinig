@@ -258,41 +258,58 @@ export default function AdminDashboardHome() {
       <div>
         <h2 className="text-sm font-bold text-ink mb-2.5">System Summary</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
-          {STAT_CARDS.map((card) => {
-            const Icon = card.icon;
-            return (
+          {loadingStats ? (
+            [1, 2, 3, 4, 5].map((i) => (
               <div
-                key={card.title}
-                onClick={() => navigate(card.link)}
-                className="group relative flex flex-col justify-between rounded-2xl border border-ink/10 bg-cream p-3 shadow-[0px_4px_8px_0px_rgba(26,24,22,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer min-w-0"
+                key={i}
+                className="flex flex-col justify-between rounded-2xl border border-ink/10 bg-cream p-3 shadow-[0px_4px_8px_0px_rgba(26,24,22,0.05)] animate-pulse min-w-0"
               >
                 <div className="flex items-start justify-between gap-1">
-                  {loadingStats ? (
-                    <div className="h-6 w-10 animate-pulse rounded bg-ink/10" />
-                  ) : (
+                  <div className="h-6 w-12 rounded bg-ink/10" />
+                  <div className="size-7 shrink-0 rounded-lg bg-ink/10" />
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  <div className="h-3.5 w-24 rounded bg-ink/10" />
+                  <div className="h-2.5 w-16 rounded bg-ink/10" />
+                </div>
+                <div className="mt-3 flex items-center justify-end border-t border-ink/5 pt-2">
+                  <div className="h-3 w-12 rounded bg-ink/10" />
+                </div>
+              </div>
+            ))
+          ) : (
+            STAT_CARDS.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.title}
+                  onClick={() => navigate(card.link)}
+                  className="group relative flex flex-col justify-between rounded-2xl border border-ink/10 bg-cream p-3 shadow-[0px_4px_8px_0px_rgba(26,24,22,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer min-w-0"
+                >
+                  <div className="flex items-start justify-between gap-1">
                     <p className="text-xl font-black text-ink leading-none tracking-tight">
                       {card.value}
                     </p>
-                  )}
-                  <div className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${card.bgIcon}`}>
-                    <Icon size={14} weight="bold" />
+                    <div className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${card.bgIcon}`}>
+                      <Icon size={14} weight="bold" />
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5">
+                    <p className="text-xs font-bold text-ink truncate">{card.title}</p>
+                    <p className="text-[11px] text-ink/50 truncate mt-0.5">{card.subtitle}</p>
+                  </div>
+
+                  <div className="mt-2.5 flex items-center justify-end border-t border-ink/5 pt-1.5">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue group-hover:underline shrink-0">
+                      <span>Manage</span>
+                      <ArrowRight size={12} />
+                    </div>
                   </div>
                 </div>
-
-                <div className="mt-2.5">
-                  <p className="text-xs font-bold text-ink truncate">{card.title}</p>
-                  <p className="text-[11px] text-ink/50 truncate mt-0.5">{card.subtitle}</p>
-                </div>
-
-                <div className="mt-2.5 flex items-center justify-end border-t border-ink/5 pt-1.5">
-                  <div className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue group-hover:underline shrink-0">
-                    <span>Manage</span>
-                    <ArrowRight size={12} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -323,9 +340,25 @@ export default function AdminDashboardHome() {
         </div>
 
         {loadingRequests ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-ink/50">
-            <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-            <span className="text-xs font-semibold">Loading account activation requests...</span>
+          <div className="mt-3 divide-y divide-ink/10">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between py-2.5 px-2 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="size-9 shrink-0 rounded-full bg-ink/10" />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3.5 w-32 rounded bg-ink/10" />
+                      <div className="h-3.5 w-14 rounded bg-ink/10" />
+                    </div>
+                    <div className="h-2.5 w-48 rounded bg-ink/10" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-20 rounded-lg bg-ink/10" />
+                  <div className="h-7 w-16 rounded-lg bg-ink/10" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="mx-auto max-w-sm flex flex-col items-center justify-center space-y-2 py-8 text-center">

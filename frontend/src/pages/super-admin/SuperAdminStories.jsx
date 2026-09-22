@@ -23,6 +23,8 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 function StatusBadge({ status }) {
   const s = (status || 'active').toLowerCase();
@@ -80,16 +82,20 @@ export default function SuperAdminStories() {
     contentText: '',
     language: 'Filipino',
     category: 'Short Story',
-    gradeLevelTarget: 'Grade 4',
     difficultyLevel: 'Medium',
-    readingTimeMinutes: 3,
-    status: 'active',
     quizQuestions: [],
   });
 
-  const fetchStories = async () => {
+  const fetchStories = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('sa_stories');
+      if (cached && !skipCache) {
+        setStories(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/super-admin/stories'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -97,6 +103,7 @@ export default function SuperAdminStories() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.stories)) {
         setStories(data.stories);
+        cacheService.set('sa_stories', data.stories);
       } else {
         setStories([]);
       }
@@ -140,7 +147,8 @@ export default function SuperAdminStories() {
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({ message: `Story status updated to ${newStatus}.`, type: 'success' });
-        fetchStories();
+        cacheService.invalidate('sa_stories');
+        fetchStories(true);
       } else {
         setToast({ message: data.error || 'Failed to update status.', type: 'error' });
       }
@@ -158,10 +166,7 @@ export default function SuperAdminStories() {
       contentText: '',
       language: 'Filipino',
       category: 'Short Story',
-      gradeLevelTarget: 'Grade 4',
       difficultyLevel: 'Medium',
-      readingTimeMinutes: 3,
-      status: 'active',
       quizQuestions: [],
     });
     setModalTab('details');
@@ -186,10 +191,7 @@ export default function SuperAdminStories() {
       contentText: story.content_text || '',
       language: story.language || 'Filipino',
       category: story.category || 'Short Story',
-      gradeLevelTarget: story.grade_level_target || 'Grade 4',
       difficultyLevel: story.difficulty_level || 'Medium',
-      readingTimeMinutes: story.reading_time_minutes || 3,
-      status: story.status || 'active',
       quizQuestions: parsedQuiz,
     });
     setModalTab('details');
@@ -252,11 +254,8 @@ export default function SuperAdminStories() {
         content_text: formData.contentText.trim(),
         language: formData.language,
         category: formData.category,
-        grade_level_target: formData.gradeLevelTarget,
         difficulty_level: formData.difficultyLevel,
-        reading_time_minutes: Number(formData.readingTimeMinutes) || 3,
         quiz_questions: formData.quizQuestions || [],
-        status: formData.status,
       };
 
       const endpoint = editingStoryId
@@ -280,7 +279,8 @@ export default function SuperAdminStories() {
           type: 'success',
         });
         setIsAddEditOpen(false);
-        fetchStories();
+        cacheService.invalidate('sa_stories');
+        fetchStories(true);
       } else {
         setToast({ message: data.error || 'Failed to save story.', type: 'error' });
       }
@@ -502,7 +502,7 @@ export default function SuperAdminStories() {
                           {story.language || 'Filipino'}
                         </span>
                         <span className="rounded-md bg-amber-100/70 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
-                          {story.grade_level_target || 'Grade 4'}
+                          {story.difficulty_level || 'Medium'}
                         </span>
                       </div>
                       <StatusBadge status={story.status} />
@@ -522,10 +522,8 @@ export default function SuperAdminStories() {
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1">
                         <Clock size={14} />
-                        <span>{story.reading_time_minutes || 3} mins</span>
+                        <span>{story.reading_time_minutes || 1} mins</span>
                       </span>
-                      <span>•</span>
-                      <span>{story.difficulty_level || 'Medium'}</span>
                     </div>
 
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -580,7 +578,7 @@ export default function SuperAdminStories() {
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Title & Author</th>
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Category</th>
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Language</th>
-                    <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Target Grade</th>
+                    <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Difficulty</th>
                     <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Status</th>
                     <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Actions</th>
                   </tr>
@@ -594,7 +592,7 @@ export default function SuperAdminStories() {
                       </td>
                       <td className="p-3 font-semibold text-brand-blue">{story.category || 'Story'}</td>
                       <td className="p-3 text-ink/70">{story.language}</td>
-                      <td className="p-3 text-ink/70">{story.grade_level_target || 'Grade 4'}</td>
+                      <td className="p-3 text-ink/70">{story.difficulty_level || 'Medium'}</td>
                       <td className="p-3 text-left">
                         <StatusBadge status={story.status} />
                       </td>
@@ -697,7 +695,7 @@ export default function SuperAdminStories() {
                   {editingStoryId ? 'Edit Story Material' : 'Add New Story Material'}
                 </h3>
                 <p className="text-xs text-ink/50 mt-0.5">
-                  Manage reading content, target grade level, and comprehension quiz.
+                  Manage reading content and comprehension quiz.
                 </p>
               </div>
               <button
@@ -716,7 +714,7 @@ export default function SuperAdminStories() {
                 onClick={() => setModalTab('details')}
                 className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   modalTab === 'details'
-                    ? 'border-brand-red text-brand-red'
+                    ? 'border-brand-blue text-brand-blue'
                     : 'border-transparent text-ink/60 hover:text-ink'
                 }`}
               >
@@ -727,7 +725,7 @@ export default function SuperAdminStories() {
                 onClick={() => setModalTab('quiz')}
                 className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   modalTab === 'quiz'
-                    ? 'border-brand-red text-brand-red'
+                    ? 'border-brand-blue text-brand-blue'
                     : 'border-transparent text-ink/60 hover:text-ink'
                 }`}
               >
@@ -742,7 +740,7 @@ export default function SuperAdminStories() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-semibold text-ink mb-1">
-                        Story Title <span className="text-brand-red">*</span>
+                        Story Title <span className="text-brand-blue">*</span>
                       </label>
                       <input
                         type="text"
@@ -750,7 +748,7 @@ export default function SuperAdminStories() {
                         placeholder="e.g. Ang Alamat ng Pinya"
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                       />
                     </div>
 
@@ -761,7 +759,7 @@ export default function SuperAdminStories() {
                         placeholder="e.g. Kwentong Bayan"
                         value={formData.author}
                         onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                       />
                     </div>
                   </div>
@@ -773,17 +771,17 @@ export default function SuperAdminStories() {
                       placeholder="Short synopsis or lesson of the story..."
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
+                      className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block font-semibold text-ink mb-1">Category</label>
                       <select
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Short Story">Short Story</option>
                         <option value="Poem">Poem</option>
@@ -801,25 +799,10 @@ export default function SuperAdminStories() {
                       <select
                         value={formData.language}
                         onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Filipino">Filipino</option>
                         <option value="English">English</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-ink mb-1">Target Grade</label>
-                      <select
-                        value={formData.gradeLevelTarget}
-                        onChange={(e) => setFormData({ ...formData, gradeLevelTarget: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
-                      >
-                        <option value="Grade 2">Grade 2</option>
-                        <option value="Grade 3">Grade 3</option>
-                        <option value="Grade 4">Grade 4</option>
-                        <option value="Grade 5">Grade 5</option>
-                        <option value="Grade 6">Grade 6</option>
                       </select>
                     </div>
 
@@ -828,7 +811,7 @@ export default function SuperAdminStories() {
                       <select
                         value={formData.difficultyLevel}
                         onChange={(e) => setFormData({ ...formData, difficultyLevel: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
+                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Easy">Easy</option>
                         <option value="Medium">Medium</option>
@@ -837,36 +820,9 @@ export default function SuperAdminStories() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-ink mb-1">Estimated Reading Time (mins)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        value={formData.readingTimeMinutes}
-                        onChange={(e) => setFormData({ ...formData, readingTimeMinutes: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-ink mb-1">Status</label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-red"
-                      >
-                        <option value="active">Active (Visible to Students)</option>
-                        <option value="draft">Draft</option>
-                        <option value="archived">Archived</option>
-                      </select>
-                    </div>
-                  </div>
-
                   <div>
                     <label className="block font-semibold text-ink mb-1">
-                      Story Content Text <span className="text-brand-red">*</span>
+                      Story Content Text <span className="text-brand-blue">*</span>
                     </label>
                     <textarea
                       rows={10}
@@ -874,7 +830,7 @@ export default function SuperAdminStories() {
                       placeholder="Type or paste the complete reading material text..."
                       value={formData.contentText}
                       onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
-                      className="w-full rounded-xl border border-ink/20 bg-cream p-3 text-xs text-ink outline-none focus:border-brand-red leading-relaxed font-sans"
+                      className="w-full rounded-xl border border-ink/20 bg-cream p-3 text-xs text-ink outline-none focus:border-brand-blue leading-relaxed font-sans"
                     />
                   </div>
                 </>
@@ -888,7 +844,7 @@ export default function SuperAdminStories() {
                     <button
                       type="button"
                       onClick={handleAddQuizQuestion}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-brand-red/90 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-brand-blue/90 cursor-pointer"
                     >
                       <Plus size={14} weight="bold" />
                       <span>Add Quiz Question</span>
@@ -923,7 +879,7 @@ export default function SuperAdminStories() {
                           placeholder="Enter quiz question..."
                           value={q.question || ''}
                           onChange={(e) => handleQuizQuestionChange(qIdx, 'question', e.target.value)}
-                          className="w-full rounded-lg border border-ink/20 bg-cream px-3 py-1.5 text-xs text-ink outline-none focus:border-brand-red"
+                          className="w-full rounded-lg border border-ink/20 bg-cream px-3 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
                         />
 
                         <div className="space-y-1.5 pt-1">
@@ -937,14 +893,14 @@ export default function SuperAdminStories() {
                                 name={`quiz-correct-${qIdx}`}
                                 checked={Number(q.correctAnswer) === optIdx}
                                 onChange={() => handleQuizQuestionChange(qIdx, 'correctAnswer', optIdx)}
-                                className="accent-brand-red cursor-pointer"
+                                className="accent-brand-blue cursor-pointer"
                               />
                               <input
                                 type="text"
                                 placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
                                 value={opt}
                                 onChange={(e) => handleQuizOptionChange(qIdx, optIdx, e.target.value)}
-                                className="w-full rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs text-ink outline-none focus:border-brand-red"
+                                className="w-full rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs text-ink outline-none focus:border-brand-blue"
                               />
                             </div>
                           ))}
@@ -957,27 +913,7 @@ export default function SuperAdminStories() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t border-ink/10 p-4 bg-ink/[0.02]">
-              <div className="text-[11px] text-ink/50">
-                {modalTab === 'details' ? (
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('quiz')}
-                    className="font-semibold text-brand-blue hover:underline cursor-pointer"
-                  >
-                    Next: Quiz Questions →
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('details')}
-                    className="font-semibold text-ink/60 hover:underline cursor-pointer"
-                  >
-                    ← Back to Story Details
-                  </button>
-                )}
-              </div>
-
+            <div className="flex items-center justify-end border-t border-ink/10 p-4 bg-ink/[0.02]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -990,7 +926,7 @@ export default function SuperAdminStories() {
                   type="button"
                   onClick={handleSaveStory}
                   disabled={savingStory}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-brand-blue/90 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {savingStory ? (
                     <>
@@ -1020,7 +956,7 @@ export default function SuperAdminStories() {
                   <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[10px] font-medium text-ink/70">
                     {previewStory.language}
                   </span>
-                  <span className="text-xs text-ink/50">• {previewStory.grade_level_target}</span>
+                  <span className="text-xs text-ink/50">• {previewStory.difficulty_level || 'Medium'}</span>
                 </div>
                 <h3 className="text-lg font-bold text-ink">{previewStory.title}</h3>
                 <p className="text-xs text-ink/50 mt-0.5">By {previewStory.author || 'Unknown'}</p>

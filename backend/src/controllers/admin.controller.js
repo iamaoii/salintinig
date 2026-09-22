@@ -2199,54 +2199,73 @@ async function getPassages(req, res) {
       ORDER BY created_at DESC
     `);
 
-    const passages = await Promise.all(
-      materials.map(async (m) => {
-        const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
-        const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
-        const statusDisplay = (m.status || 'published').charAt(0).toUpperCase() + (m.status || 'published').slice(1);
+    if (!materials.length) {
+      return res.json({ success: true, passages: [] });
+    }
 
-        const { rows: qRows } = await db.query(`
-          SELECT question_id, question_text, question_type
-          FROM phil_iri_questions
-          WHERE passage_id = $1
-          ORDER BY created_at ASC
-        `, [m.id]);
+    const passageIds = materials.map((m) => m.id);
 
-        const questions = await Promise.all(
-          qRows.map(async (q) => {
-            const { rows: cRows } = await db.query(`
-              SELECT choice_id, choice_text, is_correct
-              FROM phil_iri_question_choices
-              WHERE question_id = $1
-            `, [q.question_id]);
+    const { rows: allQuestions } = await db.query(`
+      SELECT question_id, passage_id, question_text, question_type
+      FROM phil_iri_questions
+      WHERE passage_id = ANY($1::uuid[])
+      ORDER BY created_at ASC
+    `, [passageIds]);
 
-            const options = cRows.map((c) => c.choice_text);
-            const correctIndex = cRows.findIndex((c) => c.is_correct);
+    const questionIds = allQuestions.map((q) => q.question_id);
 
-            return {
-              id: q.question_id,
-              question: q.question_text,
-              type: q.question_type || 'Multiple Choice',
-              options,
-              correctAnswer: correctIndex >= 0 ? correctIndex : 0,
-            };
-          })
-        );
+    let allChoices = [];
+    if (questionIds.length) {
+      const choicesRes = await db.query(`
+        SELECT choice_id, question_id, choice_text, is_correct
+        FROM phil_iri_question_choices
+        WHERE question_id = ANY($1::uuid[])
+      `, [questionIds]);
+      allChoices = choicesRes.rows;
+    }
 
-        return {
-          id: m.id,
-          title: m.title,
-          grade: m.grade || 'Grade 4',
-          set: m.set || 'Set A',
-          stage: m.stage || 'Pre-Test',
-          language: langDisplay,
-          status: statusDisplay,
-          words,
-          text: m.text,
-          questions,
-        };
-      })
-    );
+    const choicesByQuestion = {};
+    for (const c of allChoices) {
+      if (!choicesByQuestion[c.question_id]) choicesByQuestion[c.question_id] = [];
+      choicesByQuestion[c.question_id].push(c);
+    }
+
+    const questionsByPassage = {};
+    for (const q of allQuestions) {
+      const cRows = choicesByQuestion[q.question_id] || [];
+      const options = cRows.map((c) => c.choice_text);
+      const correctIndex = cRows.findIndex((c) => c.is_correct);
+
+      const formattedQuestion = {
+        id: q.question_id,
+        question: q.question_text,
+        type: q.question_type || 'Multiple Choice',
+        options,
+        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+      };
+
+      if (!questionsByPassage[q.passage_id]) questionsByPassage[q.passage_id] = [];
+      questionsByPassage[q.passage_id].push(formattedQuestion);
+    }
+
+    const passages = materials.map((m) => {
+      const words = m.words || (m.text || '').trim().split(/\s+/).filter(Boolean).length;
+      const langDisplay = m.language === 'en' ? 'English' : m.language === 'fil' ? 'Filipino' : m.language;
+      const statusDisplay = (m.status || 'published').charAt(0).toUpperCase() + (m.status || 'published').slice(1);
+
+      return {
+        id: m.id,
+        title: m.title,
+        grade: m.grade || 'Grade 4',
+        set: m.set || 'Set A',
+        stage: m.stage || 'Pre-Test',
+        language: langDisplay,
+        status: statusDisplay,
+        words,
+        text: m.text,
+        questions: questionsByPassage[m.id] || [],
+      };
+    });
 
     return res.json({ success: true, passages });
   } catch (error) {

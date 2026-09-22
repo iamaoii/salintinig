@@ -25,8 +25,8 @@ import {
 import logoBg from '../../assets/logo/logo_bg.webp';
 import { getToken, getUser } from '../../lib/auth.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
-import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
+import AboutAppModal from '../../components/common/AboutAppModal.jsx';
 
 export default function SuperAdminSettings() {
   const navigate = useNavigate();
@@ -744,50 +744,7 @@ export default function SuperAdminSettings() {
       )}
 
       {/* About Application Modal */}
-      {isAboutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
-              <div className="flex items-center gap-2">
-                <Info size={22} className="text-brand-blue" />
-                <h3 className="text-base font-bold text-ink">About SalinTinig Platform</h3>
-              </div>
-              <button type="button" onClick={closeModal} className="text-ink/40 hover:text-ink cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-ink/80 leading-relaxed">
-              <div className="flex items-center justify-between rounded-xl bg-white p-3 border border-ink/10">
-                <div>
-                  <p className="font-bold text-ink text-sm">SalinTinig Phil-IRI System</p>
-                  <p className="text-[11px] text-ink/50">DepEd Digital Assessment Engine</p>
-                </div>
-                <span className="rounded-full bg-brand-blue/10 px-3 py-1 text-[11px] font-bold text-brand-blue">
-                  v2.4.0
-                </span>
-              </div>
-
-              <p>
-                SalinTinig is a comprehensive reading assessment and analytics system aligned with the Department of Education Philippine Informal Reading Inventory (Phil-IRI) standards.
-              </p>
-              <p>
-                As a Super Administrator, you have system-wide oversight to onboard schools, manage regional passage banks, publish reading materials, and monitor literacy assessment metrics across all divisions.
-              </p>
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-ink/10">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="rounded-full bg-brand-blue px-6 py-2 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AboutAppModal isOpen={isAboutModalOpen} onClose={closeModal} />
 
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (

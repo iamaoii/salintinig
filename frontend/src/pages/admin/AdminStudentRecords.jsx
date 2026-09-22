@@ -26,7 +26,9 @@ import {
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { encodeSecureToken } from '../../lib/securityToken.js';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 import * as XLSX from 'xlsx';
+
 
 export default function AdminStudentRecords() {
   const navigate = useNavigate();
@@ -101,8 +103,16 @@ export default function AdminStudentRecords() {
 
   const [availableSections, setAvailableSections] = useState([]);
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (skipCache = false) => {
     try {
+      const cached = cacheService.get('admin_students');
+      if (cached && !skipCache) {
+        setStudents(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/students'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -110,6 +120,7 @@ export default function AdminStudentRecords() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.students)) {
         setStudents(data.students);
+        cacheService.set('admin_students', data.students);
       }
     } catch (err) {
       console.warn('DB student fetch notice, using fallback:', err);
@@ -213,7 +224,8 @@ export default function AdminStudentRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Student ${existingStudentFound.name} successfully transferred in!`);
-        fetchStudents();
+        cacheService.invalidate('admin_students');
+        fetchStudents(true);
         setShowAddModal(false);
         setExistingStudentFound(null);
       } else {
@@ -252,7 +264,8 @@ export default function AdminStudentRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Student record for ${studentName} updated successfully.`);
-          fetchStudents();
+          cacheService.invalidate('admin_students');
+          fetchStudents(true);
           setEditingStudent(null);
         } else {
           showToast(data.error || 'Failed to update student.');
@@ -269,7 +282,8 @@ export default function AdminStudentRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Student registered successfully. Credentials sent to email.`);
-          fetchStudents();
+          cacheService.invalidate('admin_students');
+          fetchStudents(true);
           setShowAddModal(false);
         } else {
           showToast(data.error || 'Failed to create student.');
@@ -285,6 +299,7 @@ export default function AdminStudentRecords() {
     const newStatusVal = targetStatus || (std.status === 'Disabled' || std.status === 'Dropped' ? 'Active' : 'Disabled');
     
     // Update state locally in-place without triggering a re-fetch that re-sorts the list
+    cacheService.invalidate('admin_students');
     setStudents((prev) =>
       prev.map((s) => ((s.lrn === targetLrn || s.id === targetLrn) ? { ...s, status: newStatusVal } : s))
     );
@@ -320,9 +335,10 @@ export default function AdminStudentRecords() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
+      cacheService.invalidate('admin_students');
       if (res.ok && data.success) {
         showToast(`Student ${deletingStudent.name} deleted.`);
-        fetchStudents();
+        fetchStudents(true);
       } else {
         setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
         showToast(`Student ${deletingStudent.name} deleted.`);
@@ -651,14 +667,28 @@ export default function AdminStudentRecords() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading student records...</span>
-                    </div>
-                  </td>
-                </tr>
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="border border-ink/10 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="size-7 shrink-0 rounded-full bg-ink/10" />
+                        <div className="h-3.5 w-32 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-16 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-4 w-16 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="size-7 rounded bg-ink/10" />
+                        <div className="size-7 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="border border-ink/10 p-10 text-center">

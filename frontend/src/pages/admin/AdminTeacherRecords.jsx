@@ -23,7 +23,9 @@ import {
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 import * as XLSX from 'xlsx';
+
 
 function parseCsvRows(csvText) {
   const rows = [];
@@ -155,9 +157,16 @@ export default function AdminTeacherRecords() {
 
   const [availableSections, setAvailableSections] = useState([]);
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_teachers');
+      if (cached && !skipCache) {
+        setTeachers(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/teachers'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -165,6 +174,7 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         setTeachers(data.teachers || []);
+        cacheService.set('admin_teachers', data.teachers || []);
       }
     } catch (err) {
       console.warn('Failed to fetch teachers:', err);
@@ -247,7 +257,8 @@ export default function AdminTeacherRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Teacher record for ${teacherName} updated.`);
-          fetchTeachers();
+          cacheService.invalidate('admin_teachers');
+          fetchTeachers(true);
           setEditingTeacher(null);
           setShowAddModal(false);
         } else {
@@ -265,7 +276,8 @@ export default function AdminTeacherRecords() {
         const data = await res.json();
         if (res.ok && data.success) {
           showToast(`Teacher registered successfully. Credentials sent to email.`);
-          fetchTeachers();
+          cacheService.invalidate('admin_teachers');
+          fetchTeachers(true);
           setShowAddModal(false);
         } else {
           showToast(data.error || 'Failed to create teacher account.');
@@ -278,6 +290,7 @@ export default function AdminTeacherRecords() {
 
   const handleToggleStatus = (tch) => {
     const newStatus = tch.status === 'Disabled' ? 'Active' : 'Disabled';
+    cacheService.invalidate('admin_teachers');
     setTeachers((prev) =>
       prev.map((t) => (t.id === tch.id ? { ...t, status: newStatus } : t))
     );
@@ -295,7 +308,8 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Teacher record for ${deletingTeacher.name} removed.`);
-        fetchTeachers();
+        cacheService.invalidate('admin_teachers');
+        fetchTeachers(true);
       } else {
         showToast(data.error || 'Failed to delete teacher.');
       }
@@ -585,14 +599,27 @@ export default function AdminTeacherRecords() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="border border-ink/10 p-8 text-center text-ink/50">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-                      <span className="text-xs font-semibold">Loading teacher records...</span>
-                    </div>
-                  </td>
-                </tr>
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="border border-ink/10 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="size-7 shrink-0 rounded-full bg-ink/10" />
+                        <div className="h-3.5 w-32 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5"><div className="h-4 w-16 rounded bg-ink/10" /></td>
+                    <td className="border border-ink/10 p-2.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="size-7 rounded bg-ink/10" />
+                        <div className="size-7 rounded bg-ink/10" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : filteredTeachers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="border border-ink/10 p-10 text-center">

@@ -28,6 +28,8 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 const SET_COLORS = {
   'Set A': 'bg-purple-100/90 text-purple-900 border border-purple-200/80',
@@ -71,9 +73,16 @@ export default function AdminPhilIriPassages() {
     questions: [],
   });
 
-  const fetchPassages = async () => {
+  const fetchPassages = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_phil_iri_passages');
+      if (cached && !skipCache) {
+        setPassages(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/phil-iri/passages'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -81,6 +90,7 @@ export default function AdminPhilIriPassages() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.passages)) {
         setPassages(data.passages);
+        cacheService.set('admin_phil_iri_passages', data.passages);
       } else {
         setPassages([]);
       }
@@ -195,7 +205,8 @@ export default function AdminPhilIriPassages() {
       });
       if (res.ok) {
         setToast({ message: `Passage status updated to ${newStatus}.` });
-        fetchPassages();
+        cacheService.invalidate('admin_phil_iri_passages');
+        fetchPassages(true);
         return;
       }
     } catch (err) {
@@ -219,7 +230,8 @@ export default function AdminPhilIriPassages() {
       });
       if (res.ok) {
         setToast({ message: `Passage "${passage.title}" deleted successfully.` });
-        fetchPassages();
+        cacheService.invalidate('admin_phil_iri_passages');
+        fetchPassages(true);
         setDeletingPassage(null);
         return;
       }
@@ -268,7 +280,8 @@ export default function AdminPhilIriPassages() {
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({ message: `Passage ${editingPassageId ? 'updated' : 'created'} successfully.` });
-        fetchPassages();
+        cacheService.invalidate('admin_phil_iri_passages');
+        fetchPassages(true);
         setIsAddEditOpen(false);
         return;
       }
@@ -499,11 +512,30 @@ export default function AdminPhilIriPassages() {
 
         {/* ── Passage Cards / List View ── */}
         {loading ? (
-          <div className="py-16 text-center rounded-2xl border border-ink/10 bg-white">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-              <span className="text-xs font-semibold text-ink/70">Loading Phil-IRI Passage Records...</span>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-2xl border border-ink/10 bg-white p-5 space-y-4 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-16 rounded bg-ink/10" />
+                    <div className="h-4 w-12 rounded bg-ink/10" />
+                  </div>
+                  <div className="h-4 w-20 rounded-full bg-ink/10" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-3/4 rounded bg-ink/10" />
+                  <div className="h-3 w-1/2 rounded bg-ink/10" />
+                </div>
+                <div className="space-y-1.5 pt-2 border-t border-ink/10">
+                  <div className="h-3 w-full rounded bg-ink/10" />
+                  <div className="h-3 w-4/5 rounded bg-ink/10" />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div className="h-3.5 w-24 rounded bg-ink/10" />
+                  <div className="h-7 w-20 rounded-lg bg-ink/10" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : paginatedPassages.length === 0 ? (
           <div className="py-16 text-center rounded-2xl border border-ink/10 bg-white">

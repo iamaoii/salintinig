@@ -27,6 +27,7 @@ import { getToken, getUser, logout } from '../../../lib/auth.js';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import AvatarCropModal from '../../../components/common/AvatarCropModal.jsx';
+import AboutAppModal from '../../../components/common/AboutAppModal.jsx';
 
 export default function AccountSettings() {
   const navigate = useNavigate();
@@ -794,32 +795,7 @@ export default function AccountSettings() {
       )}
 
       {/* About Application Modal */}
-      {isAboutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-3xl border border-ink/10 bg-cream p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-ink/10 pb-4">
-              <h3 className="text-base font-bold text-ink">About SalinTinig</h3>
-              <button type="button" onClick={() => setIsAboutModalOpen(false)} className="text-ink/40 hover:text-ink cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3 text-xs text-ink">
-              <p><strong className="font-semibold">App Version:</strong> SalinTinig v1.0.0 (Production Release)</p>
-              <p><strong className="font-semibold">Department:</strong> Department of Education (DepEd)</p>
-              <p><strong className="font-semibold">Purpose:</strong> Automated Phil-IRI oral & silent reading assessment management platform.</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsAboutModalOpen(false)}
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-semibold text-cream hover:bg-blue-700 cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AboutAppModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
 
       {/* Help / FAQ Modal */}
       {isHelpModalOpen && (

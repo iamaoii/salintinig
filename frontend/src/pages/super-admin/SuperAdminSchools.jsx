@@ -21,6 +21,8 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
+
 
 function StatusBadge({ status }) {
   const s = (status || 'active').toLowerCase();
@@ -73,9 +75,16 @@ export default function SuperAdminSchools() {
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const fetchSchools = async () => {
+  const fetchSchools = async (skipCache = false) => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('sa_schools');
+      if (cached && !skipCache) {
+        setSchools(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       const token = getToken();
       const res = await fetch(getApiUrl('/api/super-admin/schools'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -83,6 +92,7 @@ export default function SuperAdminSchools() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.schools)) {
         setSchools(data.schools);
+        cacheService.set('sa_schools', data.schools);
       } else {
         setSchools([]);
       }
@@ -181,6 +191,7 @@ export default function SuperAdminSchools() {
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({ message: `School set to ${newStatus}.`, type: 'success' });
+        cacheService.invalidate('sa_schools');
         setSchools((prev) =>
           prev.map((s) => (s.school_id === schoolId ? { ...s, status: newStatus } : s))
         );
@@ -223,7 +234,8 @@ export default function SuperAdminSchools() {
       if (res.ok && data.success) {
         setToast({ message: 'School details updated successfully.', type: 'success' });
         setEditingSchool(null);
-        fetchSchools();
+        cacheService.invalidate('sa_schools');
+        fetchSchools(true);
       } else {
         setToast({ message: data.error || 'Failed to update school.', type: 'error' });
       }

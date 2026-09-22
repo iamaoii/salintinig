@@ -178,9 +178,19 @@ export default function AdminNotifications() {
         {/* Notifications Master List */}
         <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
           {loading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-ink/50">
-              <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-              <span className="text-xs font-semibold text-ink/70">Loading notifications...</span>
+            <div className="divide-y divide-ink/10">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center justify-between py-4 px-3 animate-pulse">
+                  <div className="flex items-center gap-3.5">
+                    <div className="size-9 shrink-0 rounded-xl bg-ink/10" />
+                    <div className="space-y-1.5">
+                      <div className="h-3.5 w-40 rounded bg-ink/10" />
+                      <div className="h-2.5 w-64 rounded bg-ink/10" />
+                    </div>
+                  </div>
+                  <div className="h-3 w-16 rounded bg-ink/10" />
+                </div>
+              ))}
             </div>
           ) : filteredNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
