@@ -50,7 +50,7 @@ export default function PhilIriPassageBank() {
     }
 
     const token = getToken();
-    fetch('/api/teacher/assessments/passages', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(getApiUrl('/api/teacher/assessments/passages'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.passages)) {
