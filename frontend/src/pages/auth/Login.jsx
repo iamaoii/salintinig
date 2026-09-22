@@ -21,6 +21,7 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [modalError, setModalError] = useState('');
   const [isUpdatingPass, setIsUpdatingPass] = useState(false);
 
@@ -216,16 +217,27 @@ export default function Login() {
               </button>
             </div>
 
-            <TextField
-              type={showNewPass ? 'text' : 'password'}
-              placeholder="Confirm New Password"
-              required
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                if (modalError) setModalError('');
-              }}
-            />
+            <div className="relative w-full">
+              <TextField
+                type={showConfirmPass ? 'text' : 'password'}
+                placeholder="Confirm New Password"
+                required
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (modalError) setModalError('');
+                }}
+                className="pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPass((prev) => !prev)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink/50 transition-colors hover:text-ink cursor-pointer"
+                title={showConfirmPass ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPass ? <EyeSlash size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <PrimaryButton type="submit" disabled={isUpdatingPass}>
