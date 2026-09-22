@@ -7,9 +7,19 @@ const path = require('path')
 const db = require('./config/db.js')
 const { initSocket } = require('./config/socket.js')
 
+// Catch unhandled promise rejections and uncaught exceptions to prevent silent process crashes on Render
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const app = express()
 const server = http.createServer(app)
 const PORT = process.env.PORT || 5000
+const HOST = '0.0.0.0'
 
 // Middleware
 const allowedOrigins = [
@@ -81,8 +91,9 @@ async function initDatabase() {
   }
 }
 
-server.listen(PORT, async () => {
-  console.log(`✅ SalinTinig Server listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`)
+server.listen(PORT, HOST, async () => {
+  console.log(`✅ SalinTinig Server listening on ${HOST}:${PORT} [${process.env.NODE_ENV || 'development'}]`)
   initSocket(server)
   await initDatabase()
 })
+
