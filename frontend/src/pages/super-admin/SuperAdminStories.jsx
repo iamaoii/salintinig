@@ -20,10 +20,12 @@ import {
   SpinnerGap,
   Sparkle,
   FileText,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
+import { CardGridSkeleton } from '../../components/common/Skeleton.jsx';
 
 
 function StatusBadge({ status }) {
@@ -69,6 +71,7 @@ export default function SuperAdminStories() {
 
   // Modals state
   const [previewStory, setPreviewStory] = useState(null);
+  const [deletingStory, setDeletingStory] = useState(null);
   const isPreviewOpen = Boolean(previewStory);
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingStoryId, setEditingStoryId] = useState(null);
@@ -154,6 +157,28 @@ export default function SuperAdminStories() {
       }
     } catch (err) {
       setToast({ message: 'Network error.', type: 'error' });
+    }
+  };
+
+  const handleDeleteStory = async () => {
+    if (!deletingStory) return;
+    try {
+      const token = getToken();
+      const res = await fetch(getApiUrl(`/api/super-admin/stories/${deletingStory.id}`), {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: 'Story deleted successfully.', type: 'success' });
+        setDeletingStory(null);
+        cacheService.invalidate('sa_stories');
+        fetchStories(true);
+      } else {
+        setToast({ message: data.error || 'Failed to delete story.', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Network error deleting story.', type: 'error' });
     }
   };
 
@@ -443,35 +468,7 @@ export default function SuperAdminStories() {
 
         {/* Stories Content */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((idx) => (
-              <div
-                key={idx}
-                className="animate-pulse rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_2px_8px_rgba(26,24,22,0.06)] flex flex-col justify-between space-y-4"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-5 w-16 rounded-md bg-ink/10" />
-                      <div className="h-5 w-14 rounded-md bg-ink/5" />
-                      <div className="h-5 w-16 rounded-md bg-ink/5" />
-                    </div>
-                    <div className="h-5 w-16 rounded-full bg-ink/10" />
-                  </div>
-                  <div className="h-5 w-3/4 rounded bg-ink/10 mb-1.5" />
-                  <div className="h-3 w-28 rounded bg-ink/5 mb-3" />
-                  <div className="space-y-1.5">
-                    <div className="h-3 w-full rounded bg-ink/5" />
-                    <div className="h-3 w-5/6 rounded bg-ink/5" />
-                  </div>
-                </div>
-                <div className="pt-3 border-t border-ink/10 flex items-center justify-between">
-                  <div className="h-3.5 w-32 rounded bg-ink/5" />
-                  <div className="h-4 w-12 rounded bg-ink/10" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <CardGridSkeleton count={6} />
         ) : filteredStories.length === 0 ? (
           <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_2px_8px_rgba(26,24,22,0.06)]">
             <BookBookmark size={40} className="mx-auto text-ink/20 mb-2" />
@@ -562,6 +559,14 @@ export default function SuperAdminStories() {
                           <CheckCircle size={16} />
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setDeletingStory(story)}
+                        className="flex size-7 items-center justify-center rounded-lg text-brand-red hover:bg-brand-red/10 cursor-pointer transition-colors"
+                        title="Delete Story"
+                      >
+                        <Trash size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -596,37 +601,41 @@ export default function SuperAdminStories() {
                       <td className="p-3 text-left">
                         <StatusBadge status={story.status} />
                       </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => setPreviewStory(story)}
-                            className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                             title="Preview"
                           >
-                            <Eye size={15} />
+                            <Eye size={16} />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(story)}
-                            className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-brand-blue cursor-pointer"
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                             title="Edit"
                           >
-                            <Pencil size={15} />
+                            <Pencil size={16} />
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               handleToggleStatus(story.id, story.status === 'active' ? 'archived' : 'active')
                             }
-                            className={`flex size-7 items-center justify-center rounded-lg cursor-pointer ${
-                              story.status === 'active'
-                                ? 'text-amber-700 hover:bg-amber-50'
-                                : 'text-emerald-600 hover:bg-emerald-50'
-                            }`}
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
                             title={story.status === 'active' ? 'Archive' : 'Publish'}
                           >
-                            {story.status === 'active' ? <Archive size={15} /> : <CheckCircle size={15} />}
+                            {story.status === 'active' ? <Archive size={16} /> : <CheckCircle size={16} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingStory(story)}
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
+                            title="Delete Story"
+                          >
+                            <Trash size={16} />
                           </button>
                         </div>
                       </td>
@@ -1023,6 +1032,40 @@ export default function SuperAdminStories() {
                 className="rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 cursor-pointer"
               >
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Story Confirmation Modal */}
+      {deletingStory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-sm rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-brand-red/10 text-brand-red mb-3">
+                <WarningCircle size={24} weight="bold" />
+              </div>
+              <h3 className="text-base font-bold text-ink">Delete Practice Story?</h3>
+              <p className="mt-1 text-xs text-ink/60 leading-relaxed">
+                Are you sure you want to permanently delete <strong className="text-ink">{deletingStory.title}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingStory(null)}
+                className="rounded-full border border-ink/10 bg-cream px-4 py-1.5 text-xs font-medium text-ink hover:bg-ink/5 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteStory}
+                className="rounded-full bg-brand-red px-5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 shadow-xs cursor-pointer"
+              >
+                Delete Story
               </button>
             </div>
           </div>

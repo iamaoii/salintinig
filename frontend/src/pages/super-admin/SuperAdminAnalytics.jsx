@@ -1,27 +1,36 @@
 import { getApiUrl } from '../../config/api.js';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ChartBar,
   Buildings,
-  Student,
-  BookOpen,
   CalendarBlank,
   Translate,
   TrendUp,
-  SpinnerGap,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 
 export default function SuperAdminAnalytics() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 8;
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        setLoading(true);
+        const cached = cacheService.get('sa_analytics');
+        if (cached) {
+          setAnalytics(cached);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         const token = getToken();
         const res = await fetch(getApiUrl('/api/super-admin/analytics'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -29,6 +38,7 @@ export default function SuperAdminAnalytics() {
         const data = await res.json();
         if (res.ok && data.success) {
           setAnalytics(data.analytics);
+          cacheService.set('sa_analytics', data.analytics);
         } else {
           setToast({ message: data.error || 'Failed to load system analytics.', type: 'error' });
         }
@@ -47,6 +57,12 @@ export default function SuperAdminAnalytics() {
   const readingLevelBreakdown = analytics?.readingLevelBreakdown || [];
   const languageBreakdown = analytics?.languageBreakdown || [];
   const monthlyAssessments = analytics?.monthlyAssessments || [];
+
+  const totalPages = Math.ceil(schoolBreakdown.length / PAGE_SIZE) || 1;
+  const paginatedSchools = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return schoolBreakdown.slice(start, start + PAGE_SIZE);
+  }, [schoolBreakdown, currentPage]);
 
   const totalReadingLevels = readingLevelBreakdown.reduce((acc, curr) => acc + (Number(curr.count) || 0), 0);
   const totalPassagesByLang = languageBreakdown.reduce((acc, curr) => acc + (Number(curr.count) || 0), 0);
@@ -287,35 +303,84 @@ export default function SuperAdminAnalytics() {
           {schoolBreakdown.length === 0 ? (
             <p className="text-xs text-ink/40 py-8 text-center">No schools registered in system.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-ink/10 bg-ink/[0.02]">
-                    <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">School Name</th>
-                    <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Division</th>
-                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Students</th>
-                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Teachers</th>
-                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">School Admins</th>
-                    <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Assessments Taken</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink/10">
-                  {schoolBreakdown.map((row) => (
-                    <tr key={row.school_id} className="hover:bg-ink/[0.02] transition-colors">
-                      <td className="p-3">
-                        <p className="font-bold text-ink">{row.school_name}</p>
-                        <p className="text-[10px] font-mono text-ink/40">ID: {row.school_id}</p>
-                      </td>
-                      <td className="p-3 text-ink/70">{row.division || '—'}</td>
-                      <td className="p-3 text-right font-bold text-ink">{row.student_count ?? 0}</td>
-                      <td className="p-3 text-right font-bold text-ink">{row.teacher_count ?? 0}</td>
-                      <td className="p-3 text-right font-bold text-ink">{row.admin_count ?? 0}</td>
-                      <td className="p-3 text-right font-bold text-brand-blue">{row.assessment_count ?? 0}</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-ink/10 bg-ink/[0.02]">
+                      <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">School Name</th>
+                      <th className="p-3 text-left font-bold text-ink/60 uppercase text-[11px]">Division</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Students</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Active Teachers</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">School Admins</th>
+                      <th className="p-3 text-right font-bold text-ink/60 uppercase text-[11px]">Assessments Taken</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {paginatedSchools.map((row) => (
+                      <tr key={row.school_id} className="hover:bg-ink/[0.02] transition-colors">
+                        <td className="p-3">
+                          <p className="font-bold text-ink">{row.school_name}</p>
+                          <p className="text-[10px] font-mono text-ink/40">ID: {row.school_id}</p>
+                        </td>
+                        <td className="p-3 text-ink/70">{row.division || '—'}</td>
+                        <td className="p-3 text-right font-bold text-ink">{row.student_count ?? 0}</td>
+                        <td className="p-3 text-right font-bold text-ink">{row.teacher_count ?? 0}</td>
+                        <td className="p-3 text-right font-bold text-ink">{row.admin_count ?? 0}</td>
+                        <td className="p-3 text-right font-bold text-brand-blue">{row.assessment_count ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer with Pagination Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-ink/10 pt-4 text-xs text-ink/60">
+                <span>
+                  Showing {(currentPage - 1) * PAGE_SIZE + 1} to{' '}
+                  {Math.min(currentPage * PAGE_SIZE, schoolBreakdown.length)} of {schoolBreakdown.length} school records
+                </span>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      <CaretLeft size={14} /> Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                        <button
+                          key={pg}
+                          type="button"
+                          onClick={() => setCurrentPage(pg)}
+                          className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            currentPage === pg
+                              ? 'bg-brand-blue text-white shadow-xs'
+                              : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      Next <CaretRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </>

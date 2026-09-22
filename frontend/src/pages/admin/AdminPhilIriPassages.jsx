@@ -18,7 +18,6 @@ import {
   Funnel,
   ListPlus,
   GraduationCap,
-  ArrowLeft,
   ArrowRight,
   DotsThreeVertical,
   SquaresFour,
@@ -27,6 +26,7 @@ import {
   CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { CardGridSkeleton } from '../../components/common/Skeleton.jsx';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
 
@@ -50,7 +50,7 @@ export default function AdminPhilIriPassages() {
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState(null);
 
-  const ITEMS_PER_PAGE = 6;
+  const ITEMS_PER_PAGE = 8;
 
   // Modals state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -399,44 +399,67 @@ export default function AdminPhilIriPassages() {
           </div>
         </div>
 
-        {/* ── Filters & Search Toolbar (Matching Wireframe) ── */}
-        <div className="rounded-2xl border border-ink/10 bg-white p-4 space-y-3 shadow-xs">
-          {/* Top Control Bar: Search & Dropdown Filters */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-3 border-b border-ink/10">
-            {/* System Standard Search Bar */}
+        {/* ── Filters & Search Toolbar (Matching SuperAdmin Design) ── */}
+        <div className="rounded-2xl border border-ink/10 bg-cream p-4 space-y-3 shadow-[0px_2px_8px_rgba(26,24,22,0.06)]">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            {/* Search */}
             <div className="relative w-full md:w-80">
               <MagnifyingGlass size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
               <input
                 type="text"
                 placeholder="Search passage title or text..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-full border border-ink/20 bg-cream pl-10 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
               />
             </div>
 
-            {/* Dropdown Filters & View Switcher */}
+            {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <div className="flex items-center gap-1.5 text-xs text-ink/60 font-semibold mr-0.5">
+              <div className="flex items-center gap-1.5 text-xs text-ink/60 font-semibold mr-1">
                 <Funnel size={16} />
-                <span>Filters:</span>
+                <span>Filter:</span>
               </div>
 
-              {/* Language */}
+              <select
+                value={selectedGrade}
+                onChange={(e) => {
+                  setSelectedGrade(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
+              >
+                <option value="All">All Grades</option>
+                <option value="Grade 1">Grade 1</option>
+                <option value="Grade 2">Grade 2</option>
+                <option value="Grade 3">Grade 3</option>
+                <option value="Grade 4">Grade 4</option>
+                <option value="Grade 5">Grade 5</option>
+                <option value="Grade 6">Grade 6</option>
+              </select>
+
               <select
                 value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
+                onChange={(e) => {
+                  setSelectedLanguage(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Languages</option>
-                <option value="English">English</option>
                 <option value="Filipino">Filipino</option>
+                <option value="English">English</option>
               </select>
 
-              {/* Passage Set */}
               <select
                 value={selectedSet}
-                onChange={(e) => setSelectedSet(e.target.value)}
+                onChange={(e) => {
+                  setSelectedSet(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Sets</option>
@@ -446,97 +469,49 @@ export default function AdminPhilIriPassages() {
                 <option value="Set D">Set D</option>
               </select>
 
-              {/* Status */}
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Statuses</option>
-                <option value="Published">Published</option>
-                <option value="Draft">Draft</option>
+                <option value="Published">Published / Active</option>
                 <option value="Archived">Archived</option>
               </select>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-0.5 rounded-full border border-ink/20 bg-cream p-0.5 ml-1">
+              {/* View Switcher - Exact SuperAdmin style */}
+              <div className="ml-auto flex items-center gap-1 rounded-full border border-ink/10 bg-cream p-0.5">
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded-full text-xs transition-colors cursor-pointer ${
-                    viewMode === 'grid' ? 'bg-white text-brand-blue shadow-2xs' : 'text-ink/60 hover:text-ink'
+                  className={`flex size-7 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-ink/10 text-ink font-bold' : 'text-ink/50 hover:text-ink'
                   }`}
                   title="Grid View"
                 >
-                  <SquaresFour size={16} weight="bold" />
+                  <SquaresFour size={16} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 rounded-full text-xs transition-colors cursor-pointer ${
-                    viewMode === 'list' ? 'bg-white text-brand-blue shadow-2xs' : 'text-ink/60 hover:text-ink'
+                  className={`flex size-7 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    viewMode === 'list' ? 'bg-ink/10 text-ink font-bold' : 'text-ink/50 hover:text-ink'
                   }`}
-                  title="Compact List View"
+                  title="List View"
                 >
-                  <ListBullets size={16} weight="bold" />
+                  <ListBullets size={16} />
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Grade Level Filter Tabs & Results Info */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-ink/50 mr-1">Grade Level:</span>
-              {['All', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setSelectedGrade(g)}
-                  className={`rounded-full px-3.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-                    selectedGrade === g
-                      ? 'bg-brand-blue text-white shadow-2xs'
-                      : 'bg-ink/5 text-ink/70 hover:bg-ink/10'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-
-            <span className="text-xs font-semibold text-ink/50">
-              Showing {filteredPassages.length > 0 ? Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredPassages.length) : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
-            </span>
           </div>
         </div>
 
         {/* ── Passage Cards / List View ── */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="rounded-2xl border border-ink/10 bg-white p-5 space-y-4 animate-pulse">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-4 w-16 rounded bg-ink/10" />
-                    <div className="h-4 w-12 rounded bg-ink/10" />
-                  </div>
-                  <div className="h-4 w-20 rounded-full bg-ink/10" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-3/4 rounded bg-ink/10" />
-                  <div className="h-3 w-1/2 rounded bg-ink/10" />
-                </div>
-                <div className="space-y-1.5 pt-2 border-t border-ink/10">
-                  <div className="h-3 w-full rounded bg-ink/10" />
-                  <div className="h-3 w-4/5 rounded bg-ink/10" />
-                </div>
-                <div className="flex items-center justify-between pt-2">
-                  <div className="h-3.5 w-24 rounded bg-ink/10" />
-                  <div className="h-7 w-20 rounded-lg bg-ink/10" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <CardGridSkeleton count={6} />
         ) : paginatedPassages.length === 0 ? (
           <div className="py-16 text-center rounded-2xl border border-ink/10 bg-white">
             <Article size={40} className="text-ink/20 mx-auto mb-2" />
@@ -545,25 +520,27 @@ export default function AdminPhilIriPassages() {
           </div>
         ) : viewMode === 'grid' ? (
           /* GRID VIEW */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
             {paginatedPassages.map((passage) => {
-              const questionCount = passage.questions ? passage.questions.length : 0;
+              const isArchived = (passage.status || '').toLowerCase() === 'archived';
+              const questionCount = passage.questions?.length || 0;
+              const wordCount = passage.text ? passage.text.trim().split(/\s+/).length : 0;
 
               let statusBadge = (
-                <span className="rounded-full bg-[#00a652]/10 border border-[#00a652]/20 px-2.5 py-0.5 text-[10px] font-bold text-[#00a652]">
-                  Published
+                <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 capitalize">
+                  {passage.status || 'Published'}
                 </span>
               );
 
               if (passage.status === 'Draft') {
                 statusBadge = (
-                  <span className="rounded-full bg-[#ffc300]/20 border border-[#ffc300]/40 px-2.5 py-0.5 text-[10px] font-bold text-[#b38600]">
+                  <span className="rounded-full bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 capitalize">
                     Draft
                   </span>
                 );
-              } else if (passage.status === 'Archived') {
+              } else if (isArchived) {
                 statusBadge = (
-                  <span className="rounded-full bg-ink/5 border border-ink/10 px-2.5 py-0.5 text-[10px] font-semibold text-ink/50">
+                  <span className="rounded-full bg-ink/10 border border-ink/15 px-2.5 py-0.5 text-[10px] font-semibold text-ink/50 capitalize">
                     Archived
                   </span>
                 );
@@ -572,50 +549,54 @@ export default function AdminPhilIriPassages() {
               return (
                 <div
                   key={passage.id}
-                  className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-4"
+                  className={`group rounded-2xl border p-5 transition-all flex flex-col justify-between ${
+                    isArchived
+                      ? 'border-ink/10 bg-ink/[0.02] opacity-75'
+                      : 'border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] hover:border-ink/20'
+                  }`}
                 >
-                  <div className="space-y-2">
-                    {/* Header line: Title & Status */}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-bold text-ink leading-snug line-clamp-2">
-                        {passage.title}
-                      </h3>
+                  <div>
+                    {/* Badges row: Set, Grade, Language, Status */}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5 text-ink'}`}>
+                          {passage.set || 'Unassigned'}
+                        </span>
+                        <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
+                          {passage.grade || 'Grade 4'}
+                        </span>
+                        <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[10px] font-medium text-ink/70">
+                          {passage.language || 'Filipino'}
+                        </span>
+                      </div>
                       {statusBadge}
                     </div>
 
-                    {/* Metadata line: Grade 4 • English • Set A */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink/60 font-medium">
-                      <span className="font-bold text-brand-blue">{passage.grade}</span>
-                      <span>•</span>
-                      <span>{passage.language}</span>
-                      <span>•</span>
-                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[passage.set] || 'bg-ink/5 text-ink/70'}`}>
-                        {passage.set}
-                      </span>
-                    </div>
+                    {/* Title */}
+                    <h3 className="text-base font-bold text-ink line-clamp-1">{passage.title}</h3>
 
-                    {/* Excerpt with Natural Text Mask Fade */}
-                    <div className="bg-cream/60 p-2.5 rounded-xl border border-ink/5">
-                      <p className="text-xs text-ink/70 leading-relaxed font-serif line-clamp-3 [mask-image:linear-gradient(to_bottom,rgba(0,0,0,1)_50%,rgba(0,0,0,0)_100%)] [-webkit-mask-image:linear-gradient(to_bottom,rgba(0,0,0,1)_50%,rgba(0,0,0,0)_100%)]">
-                        "{passage.text}"
-                      </p>
-                    </div>
+                    {/* Text Preview */}
+                    <p className="mt-2 text-xs text-ink/70 line-clamp-3 leading-relaxed">
+                      {passage.text}
+                    </p>
                   </div>
 
-                  {/* Footer line: Questions Count & Actions (Edit | Archive | Preview) */}
-                  <div className="pt-3 border-t border-ink/10 flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink/60 bg-ink/5 px-2.5 py-0.5 rounded-md">
-                      Questions: {questionCount}
-                    </span>
+                  {/* Footer line: Word & Question Count + Preview Action */}
+                  <div className="mt-4 pt-3 border-t border-ink/10 flex items-center justify-between text-xs text-ink/50">
+                    <div className="flex items-center gap-3">
+                      <span>{wordCount} words</span>
+                      <span>•</span>
+                      <span>{questionCount} Questions</span>
+                    </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <button
                         type="button"
                         onClick={() => {
                           setPreviewPassage(passage);
                           setIsPreviewOpen(true);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-bold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
                         title="Preview Passage"
                       >
                         <Eye size={14} weight="bold" />
@@ -691,18 +672,23 @@ export default function AdminPhilIriPassages() {
         )}
 
         {/* ── Pagination Controls ── */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-2">
+        <div className="flex items-center justify-between border-t border-ink/10 pt-4 text-xs text-ink/60">
+          <span>
+            Showing {filteredPassages.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to{' '}
+            {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
+          </span>
+
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              className="flex items-center gap-1 rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-ink/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
             >
-              <CaretLeft size={14} weight="bold" /> Previous
+              <CaretLeft size={14} /> Previous
             </button>
 
-            <div className="flex items-center gap-1 px-2">
+            <div className="flex items-center gap-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
                 <button
                   key={pg}
@@ -711,7 +697,7 @@ export default function AdminPhilIriPassages() {
                   className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     currentPage === pg
                       ? 'bg-brand-blue text-white shadow-xs'
-                      : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
                   }`}
                 >
                   {pg}
@@ -722,13 +708,13 @@ export default function AdminPhilIriPassages() {
             <button
               type="button"
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              className="flex items-center gap-1 rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink hover:bg-ink/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
             >
-              Next <CaretRight size={14} weight="bold" />
+              Next <CaretRight size={14} />
             </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── DELETE CONFIRMATION MODAL ── */}
@@ -774,89 +760,84 @@ export default function AdminPhilIriPassages() {
       {/* ── PREVIEW MODAL ── */}
       {isPreviewOpen && previewPassage && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-2xl rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-5 animate-in fade-in max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-ink/10 bg-cream shadow-2xl overflow-hidden animate-in fade-in">
+            {/* Fixed Header */}
+            <div className="flex items-center justify-between border-b border-ink/10 p-5 shrink-0 bg-cream">
               <div>
-                <span className="text-[11px] font-bold text-brand-blue uppercase tracking-wider block">Passage Preview</span>
-                <h2 className="text-lg font-bold text-ink">{previewPassage.title}</h2>
+                <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${SET_COLORS[previewPassage.set] || 'bg-ink/5 text-ink'}`}>
+                    {previewPassage.set || 'Unassigned'}
+                  </span>
+                  <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
+                    {previewPassage.grade}
+                  </span>
+                  <span className="text-xs text-ink/50 font-medium">• {previewPassage.language}</span>
+                </div>
+                <h3 className="text-lg font-bold text-ink">{previewPassage.title}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(false)}
-                className="rounded-full p-1.5 text-ink/40 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                className="flex size-8 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Metadata Tags */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-brand-blue/10 px-3 py-0.5 text-xs font-bold text-brand-blue">
-                {previewPassage.grade}
-              </span>
-              <span className="rounded-full bg-white border border-ink/15 px-3 py-0.5 text-xs font-semibold text-ink/70">
-                Language: {previewPassage.language}
-              </span>
-              <span className="rounded-full bg-white border border-ink/15 px-3 py-0.5 text-xs font-semibold text-ink/70">
-                Set: {previewPassage.set}
-              </span>
-              <span className="rounded-full bg-white border border-ink/15 px-3 py-0.5 text-xs font-semibold text-ink/70">
-                Word Count: {previewPassage.words} words
-              </span>
-            </div>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              {/* Passage Body Text */}
+              <div className="rounded-xl border border-ink/10 bg-white p-4">
+                <p className="text-sm leading-relaxed text-ink whitespace-pre-line font-sans">
+                  {previewPassage.text}
+                </p>
+                <p className="text-[11px] text-ink/40 mt-3 pt-2 border-t border-ink/10">
+                  Word Count: {previewPassage.words || 0} words
+                </p>
+              </div>
 
-            {/* Passage Body Text */}
-            <div className="rounded-xl border border-ink/10 bg-white p-4 space-y-2">
-              <h4 className="text-xs font-bold text-ink/50 uppercase tracking-wider">Passage Content</h4>
-              <p className="text-sm text-ink leading-relaxed font-serif text-justify whitespace-pre-line">
-                {previewPassage.text}
-              </p>
-            </div>
-
-            {/* Questions List */}
-            <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-ink/50 uppercase tracking-wider">
-                Comprehension Questions ({previewPassage.questions?.length || 0})
-              </h4>
-
+              {/* Comprehension Questions */}
               {(!previewPassage.questions || previewPassage.questions.length === 0) ? (
                 <p className="text-xs text-ink/40 italic">No questions attached to this passage yet.</p>
               ) : (
-                previewPassage.questions.map((q, idx) => (
-                  <div key={idx} className="rounded-xl border border-ink/10 bg-white p-3.5 space-y-2">
-                    <p className="text-xs font-bold text-ink">
-                      {idx + 1}. {q.question}
-                    </p>
-                    {q.options && q.options.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2">
-                        {q.options.map((opt, optIdx) => (
-                          <div
-                            key={optIdx}
-                            className={`rounded-lg px-2.5 py-1 text-xs border ${
-                              q.correctAnswer === optIdx
-                                ? 'bg-[#00a652]/10 border-[#00a652]/30 font-bold text-[#00a652]'
-                                : 'bg-cream/50 border-ink/10 text-ink/70'
-                            }`}
-                          >
-                            <span className="font-bold mr-1.5">{String.fromCharCode(65 + optIdx)}.</span>
-                            {opt}
-                            {q.correctAnswer === optIdx && <span className="ml-1 text-[10px]"> (Correct Answer)</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
+                <div className="space-y-4 pt-1">
+                  {previewPassage.questions.map((q, idx) => (
+                    <div key={idx} className="rounded-2xl border border-ink/10 bg-white p-5 space-y-3.5 shadow-xs">
+                      <p className="text-sm font-bold text-ink">
+                        {idx + 1}. {q.question}
+                      </p>
+                      {q.options && q.options.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {q.options.map((opt, optIdx) => (
+                            <div
+                              key={optIdx}
+                              className={`rounded-full px-4 py-2 text-xs border flex items-center transition-all ${
+                                Number(q.correctAnswer) === optIdx
+                                  ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-800 shadow-2xs'
+                                  : 'bg-white border-ink/15 text-ink/70'
+                              }`}
+                            >
+                              <span className="font-bold mr-2 text-ink">{String.fromCharCode(65 + optIdx)}.</span>
+                              <span className="truncate">{opt}</span>
+                              {Number(q.correctAnswer) === optIdx && (
+                                <span className="ml-1.5 font-bold text-emerald-700 shrink-0"> (Correct Answer)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 border-t border-ink/10 pt-4">
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end p-4 px-5 border-t border-ink/10 shrink-0 bg-cream">
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(false)}
-                className="rounded-full border border-ink/15 bg-white px-5 py-2 text-xs font-bold text-ink/70 hover:bg-ink/5 cursor-pointer transition-colors"
+                className="rounded-full bg-brand-blue px-6 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 cursor-pointer transition-colors"
               >
                 Close Preview
               </button>

@@ -62,6 +62,48 @@ export default function SuperAdminLayout() {
 
   useSmartNotificationPoll(fetchNotifications, 45000, [location.pathname]);
 
+  // Ultra-Fast 0ms Pre-fetching for Super Admin Portal
+  useEffect(() => {
+    const prefetchData = async () => {
+      const token = getToken();
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Warm up cache for all primary super-admin views silently in background
+      try {
+        if (!cacheService.get('sa_dashboard_stats')) {
+          fetch(getApiUrl('/api/super-admin/dashboard/stats'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && cacheService.set('sa_dashboard_stats', { stats: d.stats, schoolsOverview: d.schoolsOverview }));
+        }
+        if (!cacheService.get('sa_analytics')) {
+          fetch(getApiUrl('/api/super-admin/analytics'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && cacheService.set('sa_analytics', d.analytics));
+        }
+        if (!cacheService.get('sa_schools')) {
+          fetch(getApiUrl('/api/super-admin/schools'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.schools) && cacheService.set('sa_schools', d.schools));
+        }
+        if (!cacheService.get('sa_passages')) {
+          fetch(getApiUrl('/api/super-admin/phil-iri/passages'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('sa_passages', d.passages));
+        }
+        if (!cacheService.get('sa_stories')) {
+          fetch(getApiUrl('/api/super-admin/stories'), { headers })
+            .then((r) => r.json())
+            .then((d) => d.success && Array.isArray(d.stories) && cacheService.set('sa_stories', d.stories));
+        }
+      } catch (err) {
+        // Silently ignore prefetch network errors
+      }
+    };
+
+    prefetchData();
+  }, []);
+
   const handleMarkAsRead = async (id) => {
     try {
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));

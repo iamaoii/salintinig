@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass, X, User } from '@phosphor-icons/react';
+import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass, X } from '@phosphor-icons/react';
 import ActivityRow from '../../../components/dashboard/activity/ActivityRow.jsx';
 import ActivityDetailPanel from '../../../components/dashboard/activity/ActivityDetailPanel.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
@@ -9,6 +9,8 @@ import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { getApiUrl } from '../../../config/api.js';
+import { cacheService } from '../../../services/cacheService.js';
+import { ActivityRowSkeleton } from '../../../components/common/Skeleton.jsx';
 
 import { practiceActivities } from '../../../data/classActivities.js';
 
@@ -89,13 +91,21 @@ export default function ClassActivities() {
   const selectedActivity = currentActivities.find((a) => a.id === selectedId);
 
   const fetchPhilIriActivities = () => {
+    const cached = cacheService.get('teacher_phil_iri_activities');
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      setPhilIriActivitiesList(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     const token = getToken();
-    setIsLoading(true);
     fetch(getApiUrl('/api/teacher/assessments/phil-iri-activities'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.activities) {
-          setPhilIriActivitiesList(consolidateActivities(data.activities));
+          const consolidated = consolidateActivities(data.activities);
+          setPhilIriActivitiesList(consolidated);
+          cacheService.set('teacher_phil_iri_activities', consolidated);
         }
       })
       .catch(() => {})
@@ -343,10 +353,7 @@ export default function ClassActivities() {
           )}
 
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-ink/50">
-              <div className="size-6 animate-spin rounded-full border-2 border-brand-red border-t-transparent" />
-              <span className="text-xs font-semibold text-ink/60">Loading Phil-IRI assessments...</span>
-            </div>
+            <ActivityRowSkeleton rows={4} />
           ) : currentActivities.length > 0 ? (
             <>
               {paginatedActivities.length > 0 ? (

@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 
 export default function AdminDashboardHome() {
   const navigate = useNavigate();
@@ -36,7 +37,13 @@ export default function AdminDashboardHome() {
   // Fetch Phil-IRI reading analytics
   const fetchAnalytics = async () => {
     try {
-      setLoadingAnalytics(true);
+      const cached = cacheService.get('admin_phil_iri_analytics');
+      if (cached) {
+        setAnalytics(cached);
+        setLoadingAnalytics(false);
+      } else {
+        setLoadingAnalytics(true);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/analytics/phil-iri'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -44,6 +51,7 @@ export default function AdminDashboardHome() {
       const data = await res.json();
       if (res.ok && data.success) {
         setAnalytics(data.analytics);
+        cacheService.set('admin_phil_iri_analytics', data.analytics);
       }
     } catch (err) {
       console.warn('Could not fetch Phil-IRI analytics:', err);
@@ -55,6 +63,11 @@ export default function AdminDashboardHome() {
   // Fetch pending account activation requests
   const fetchRequests = async () => {
     try {
+      const cached = cacheService.get('admin_account_requests');
+      if (cached) {
+        setAccountRequests(cached);
+        setLoadingRequests(false);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/account-requests'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -62,6 +75,7 @@ export default function AdminDashboardHome() {
       const data = await res.json();
       if (res.ok && data.success) {
         setAccountRequests(data.requests || []);
+        cacheService.set('admin_account_requests', data.requests || []);
       }
     } catch (err) {
       console.warn('Could not fetch account requests:', err);
@@ -76,6 +90,13 @@ export default function AdminDashboardHome() {
   // Fetch live system metrics
   const fetchStats = async () => {
     try {
+      const cached = cacheService.get('admin_dashboard_stats');
+      if (cached) {
+        setStats(cached);
+        setLoadingStats(false);
+      } else {
+        setLoadingStats(true);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/stats'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -83,6 +104,7 @@ export default function AdminDashboardHome() {
       const data = await res.json();
       if (res.ok && data.success && data.stats) {
         setStats(data.stats);
+        cacheService.set('admin_dashboard_stats', data.stats);
       }
     } catch (err) {
       console.warn('Could not fetch admin stats:', err);
@@ -258,7 +280,7 @@ export default function AdminDashboardHome() {
       <div>
         <h2 className="text-sm font-bold text-ink mb-2.5">System Summary</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
-          {loadingStats ? (
+          {loadingStats && !stats ? (
             [1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}

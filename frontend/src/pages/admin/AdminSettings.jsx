@@ -33,6 +33,7 @@ import ToastNotification from '../../components/common/ToastNotification.jsx';
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
 import AboutAppModal from '../../components/common/AboutAppModal.jsx';
+import { cacheService } from '../../services/cacheService.js';
 
 export default function AdminSettings() {
   const navigate = useNavigate();
@@ -40,20 +41,33 @@ export default function AdminSettings() {
   const currentUser = getUser();
   const fileInputRef = useRef(null);
 
-  const [loading, setLoading] = useState(true);
+  const cachedInfo = cacheService.get('admin_settings_info');
+  const [loading, setLoading] = useState(!currentUser && !cachedInfo);
   const [isSaving, setIsSaving] = useState(false);
-  const [adminInfo, setAdminInfo] = useState(null);
+  const [adminInfo, setAdminInfo] = useState(() => cachedInfo || null);
 
-  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || null);
+  const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || cachedInfo?.profileImage || null);
   const [cropSrc, setCropSrc] = useState(null); // holds raw image data URL for crop modal
 
-  const [schoolProfile, setSchoolProfile] = useState({
-    schoolName: '',
-    schoolId: '',
-    division: '',
-    region: '',
-    principalName: '',
-    contactEmail: '',
+  const [schoolProfile, setSchoolProfile] = useState(() => {
+    if (cachedInfo?.schoolInfo) {
+      return {
+        schoolName: cachedInfo.schoolInfo.schoolName || '',
+        schoolId: cachedInfo.schoolInfo.schoolId || '',
+        division: cachedInfo.schoolInfo.division || '',
+        region: cachedInfo.schoolInfo.region || '',
+        principalName: cachedInfo.schoolInfo.principalName || '',
+        contactEmail: cachedInfo.schoolInfo.officialEmail || currentUser?.email || '',
+      };
+    }
+    return {
+      schoolName: '',
+      schoolId: '',
+      division: '',
+      region: '',
+      principalName: '',
+      contactEmail: currentUser?.email || '',
+    };
   });
 
   const [securitySettings, setSecuritySettings] = useState({
@@ -222,7 +236,10 @@ export default function AdminSettings() {
 
   const fetchAdminInfo = async () => {
     try {
-      setLoading(true);
+      const cached = cacheService.get('admin_settings_info');
+      if (cached) {
+        setLoading(false);
+      }
       const token = getToken();
       const res = await fetch(getApiUrl('/api/admin/info'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -230,6 +247,7 @@ export default function AdminSettings() {
       const data = await res.json();
       if (res.ok && data.success) {
         setAdminInfo(data);
+        cacheService.set('admin_settings_info', data);
         if (data.profileImage) {
           setAvatarUrl(data.profileImage);
           localStorage.setItem('adminAvatarCache', data.profileImage);

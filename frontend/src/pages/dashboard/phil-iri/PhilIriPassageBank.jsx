@@ -16,6 +16,7 @@ import {
 } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { CardGridSkeleton } from '../../../components/common/Skeleton.jsx';
 
 const SET_COLORS = {
   'Set A': 'bg-purple-100/90 text-purple-900 border border-purple-200/80',
@@ -258,11 +259,8 @@ export default function PhilIriPassageBank() {
         )}
       </div>
 
-      {/* Content Rendering: Grid View vs List View */}
       {isLoading ? (
-        <div className="mt-8 flex justify-center py-12 text-sm font-semibold text-ink/50">
-          Loading Phil-IRI passages...
-        </div>
+        <CardGridSkeleton count={6} className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" />
       ) : paginatedPassages.length > 0 ? (
         viewMode === 'grid' ? (
           /* GRID VIEW */

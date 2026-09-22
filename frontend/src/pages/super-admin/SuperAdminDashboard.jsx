@@ -11,6 +11,7 @@ import {
   SpinnerGap,
 } from '@phosphor-icons/react';
 import { getToken } from '../../lib/auth.js';
+import { cacheService } from '../../services/cacheService.js';
 
 function StatCard({ icon: Icon, title, subtitle, value, iconBgClass, iconColorClass, linkTo, loading }) {
   const navigate = useNavigate();
@@ -93,6 +94,15 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        const cached = cacheService.get('sa_dashboard_stats');
+        if (cached) {
+          setStats(cached.stats);
+          setSchoolsOverview(cached.schoolsOverview || []);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         const token = getToken();
         const res = await fetch(getApiUrl('/api/super-admin/dashboard/stats'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -101,6 +111,7 @@ export default function SuperAdminDashboard() {
         if (res.ok && data.success) {
           setStats(data.stats);
           setSchoolsOverview(data.schoolsOverview || []);
+          cacheService.set('sa_dashboard_stats', { stats: data.stats, schoolsOverview: data.schoolsOverview });
         }
       } catch (err) {
         console.warn('SA Dashboard: failed to fetch stats:', err.message);
@@ -170,7 +181,7 @@ export default function SuperAdminDashboard() {
       {/* Stat Cards Grid (5 Column Layout matching 2nd image) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {STAT_CARDS.map((card) => (
-          <StatCard key={card.title} {...card} loading={loading} />
+          <StatCard key={card.title} {...card} loading={loading && !stats} />
         ))}
       </div>
 
@@ -268,7 +279,7 @@ export default function SuperAdminDashboard() {
                     >
                       <td className="px-5 py-3 overflow-hidden">
                         <div className="min-w-0">
-                          <p className="font-bold text-ink text-xs leading-tight truncate" title={school.school_name}>
+                          <p className="font-bold text-ink text-xs leading-tight truncate group-hover:text-brand-blue transition-colors" title={school.school_name}>
                             {school.school_name}
                           </p>
                           <p className="text-[11px] font-mono text-ink/50 mt-0.5 truncate" title={`Code: ${school.school_id}`}>

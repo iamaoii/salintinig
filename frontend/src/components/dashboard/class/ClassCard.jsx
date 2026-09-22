@@ -1,14 +1,26 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import logoBg from '../../../assets/logo/logo_bg.webp';
-import { getToken } from '../../../lib/auth.js';
+import { getToken, getUser } from '../../../lib/auth.js';
+import { cacheService } from '../../../services/cacheService.js';
 
 export default function ClassCard() {
-  const [loading, setLoading] = useState(true);
-  const [sectionInfo, setSectionInfo] = useState({
-    sectionName: '',
-    schoolYear: '',
-    learnerCount: '',
+  const cached = cacheService.get('teacher_class_card_info');
+  const currentUser = getUser();
+
+  const [loading, setLoading] = useState(!cached && !currentUser);
+  const [sectionInfo, setSectionInfo] = useState(() => {
+    if (cached) return cached;
+
+    const userSec = currentUser?.section || currentUser?.assigned_section || 'Unassigned Section';
+    const rawSy = currentUser?.activeSchoolYear || currentUser?.schoolYear;
+    const syText = rawSy ? `S.Y. ${String(rawSy).replace(/^S\.?Y\.?\s*/i, '')}` : '';
+
+    return {
+      sectionName: userSec,
+      schoolYear: syText,
+      learnerCount: '',
+    };
   });
 
   useEffect(() => {
@@ -16,7 +28,10 @@ export default function ClassCard() {
 
     async function fetchClassInfo() {
       try {
-        setLoading(true);
+        const cachedCard = cacheService.get('teacher_class_card_info');
+        if (cachedCard) {
+          setLoading(false);
+        }
         const token = getToken();
 
         // 1. Fetch current logged-in user profile from /api/auth/me
@@ -85,11 +100,13 @@ export default function ClassCard() {
         }
 
         if (isMounted) {
-          setSectionInfo({
+          const info = {
             sectionName,
             schoolYear: activeSY,
             learnerCount: learnerText,
-          });
+          };
+          setSectionInfo(info);
+          cacheService.set('teacher_class_card_info', info);
           setLoading(false);
         }
       } catch (e) {

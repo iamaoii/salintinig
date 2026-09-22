@@ -26,6 +26,7 @@ import {
   ArrowLeft,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { CardGridSkeleton } from '../../components/common/Skeleton.jsx';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
 
@@ -81,6 +82,7 @@ export default function SuperAdminPassages() {
 
   // Preview Modal
   const [previewPassage, setPreviewPassage] = useState(null);
+  const [deletingPassage, setDeletingPassage] = useState(null);
 
   // Add / Edit Modal
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -300,6 +302,28 @@ export default function SuperAdminPassages() {
       setToast({ message: 'Network error saving passage.', type: 'error' });
     } finally {
       setSavingPassage(false);
+    }
+  };
+
+  const handleDeletePassage = async () => {
+    if (!deletingPassage) return;
+    try {
+      const token = getToken();
+      const res = await fetch(getApiUrl(`/api/super-admin/phil-iri/passages/${deletingPassage.id}`), {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: 'Passage deleted successfully.', type: 'success' });
+        setDeletingPassage(null);
+        cacheService.invalidate('sa_passages');
+        fetchPassages(true);
+      } else {
+        setToast({ message: data.error || 'Failed to delete passage.', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Network error deleting passage.', type: 'error' });
     }
   };
 
@@ -565,28 +589,7 @@ export default function SuperAdminPassages() {
 
         {/* Passages Display */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((idx) => (
-              <div key={idx} className="animate-pulse rounded-2xl border border-ink/10 bg-cream p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <div className="h-5 w-12 rounded bg-ink/10" />
-                    <div className="h-5 w-16 rounded bg-ink/10" />
-                  </div>
-                  <div className="h-5 w-20 rounded-full bg-ink/10" />
-                </div>
-                <div className="h-5 w-3/4 rounded bg-ink/10" />
-                <div className="space-y-1.5 pt-1">
-                  <div className="h-3 w-full rounded bg-ink/5" />
-                  <div className="h-3 w-5/6 rounded bg-ink/5" />
-                </div>
-                <div className="pt-3 border-t border-ink/10 flex justify-between">
-                  <div className="h-4 w-24 rounded bg-ink/5" />
-                  <div className="h-4 w-16 rounded bg-ink/5" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <CardGridSkeleton count={6} />
         ) : filteredPassages.length === 0 ? (
           <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_2px_8px_rgba(26,24,22,0.06)]">
             <Article size={40} className="mx-auto text-ink/20 mb-2" />
@@ -678,6 +681,14 @@ export default function SuperAdminPassages() {
                       >
                         <Archive size={16} />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingPassage(passage)}
+                        className="flex size-7 items-center justify-center rounded-lg text-brand-red hover:bg-brand-red/10 cursor-pointer transition-colors"
+                        title="Delete Passage"
+                      >
+                        <Trash size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -705,7 +716,7 @@ export default function SuperAdminPassages() {
                     const isArchived = (passage.status || '').toLowerCase() === 'archived';
                     return (
                       <tr key={passage.id} className="group hover:bg-ink/[0.02] transition-colors">
-                        <td className="p-3 font-bold text-ink text-xs">{passage.title}</td>
+                        <td className="p-3 font-bold text-ink text-xs group-hover:text-brand-blue transition-colors">{passage.title}</td>
                         <td className="p-3 font-semibold text-brand-blue">{passage.grade}</td>
                         <td className="p-3 text-ink/70">{passage.language}</td>
                         <td className="p-3">
@@ -727,33 +738,39 @@ export default function SuperAdminPassages() {
                             {passage.status || 'Published'}
                           </span>
                         </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               type="button"
                               onClick={() => setPreviewPassage(passage)}
-                              className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                               title="Preview"
                             >
-                              <Eye size={15} />
+                              <Eye size={16} />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(passage)}
-                              className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-brand-blue cursor-pointer"
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                               title="Edit"
                             >
-                              <Pencil size={15} />
+                              <Pencil size={16} />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleArchiveToggle(passage)}
-                              className={`flex size-7 items-center justify-center rounded-lg cursor-pointer ${
-                                isArchived ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-700 hover:bg-amber-50'
-                              }`}
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
                               title={isArchived ? 'Restore' : 'Archive'}
                             >
-                              <Archive size={15} />
+                              <Archive size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingPassage(passage)}
+                              className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
+                              title="Delete Passage"
+                            >
+                              <Trash size={16} />
                             </button>
                           </div>
                         </td>
@@ -1409,27 +1426,28 @@ export default function SuperAdminPassages() {
               </div>
 
               {previewPassage.questions && previewPassage.questions.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h4 className="font-bold text-ink text-sm">
-                    Comprehension Questions ({previewPassage.questions.length})
-                  </h4>
+                <div className="space-y-4 pt-1">
                   {previewPassage.questions.map((q, idx) => (
-                    <div key={idx} className="rounded-xl border border-ink/10 bg-ink/[0.02] p-3 space-y-1.5">
-                      <p className="font-semibold text-ink">
+                    <div key={idx} className="rounded-2xl border border-ink/10 bg-white p-5 space-y-3.5 shadow-xs">
+                      <p className="text-sm font-bold text-ink">
                         {idx + 1}. {q.question}
                       </p>
                       {q.options && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-3 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           {q.options.map((opt, oIdx) => (
                             <div
                               key={oIdx}
-                              className={`rounded-md px-2 py-1 text-[11px] ${
+                              className={`rounded-full px-4 py-2 text-xs border flex items-center transition-all ${
                                 Number(q.correctAnswer) === oIdx
-                                  ? 'bg-emerald-100 font-bold text-emerald-900 border border-emerald-300'
-                                  : 'text-ink/70'
+                                  ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-800 shadow-2xs'
+                                  : 'bg-white border-ink/15 text-ink/70'
                               }`}
                             >
-                              {String.fromCharCode(65 + oIdx)}. {opt}
+                              <span className="font-bold mr-2 text-ink">{String.fromCharCode(65 + oIdx)}.</span>
+                              <span className="truncate">{opt}</span>
+                              {Number(q.correctAnswer) === oIdx && (
+                                <span className="ml-1.5 font-bold text-emerald-700 shrink-0"> (Correct Answer)</span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1447,6 +1465,40 @@ export default function SuperAdminPassages() {
                 className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
               >
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Passage Confirmation Modal */}
+      {deletingPassage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-sm rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-brand-red/10 text-brand-red mb-3">
+                <WarningCircle size={24} weight="bold" />
+              </div>
+              <h3 className="text-base font-bold text-ink">Delete Phil-IRI Passage?</h3>
+              <p className="mt-1 text-xs text-ink/60 leading-relaxed">
+                Are you sure you want to permanently delete <strong className="text-ink">{deletingPassage.title}</strong> ({deletingPassage.grade} - {deletingPassage.language})? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingPassage(null)}
+                className="rounded-full border border-ink/10 bg-cream px-4 py-1.5 text-xs font-medium text-ink hover:bg-ink/5 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePassage}
+                className="rounded-full bg-brand-red px-5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 shadow-xs cursor-pointer"
+              >
+                Delete Passage
               </button>
             </div>
           </div>

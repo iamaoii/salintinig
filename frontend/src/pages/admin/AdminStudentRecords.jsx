@@ -26,6 +26,7 @@ import {
   ArrowClockwise,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { StudentRecordsSkeleton } from '../../components/common/Skeleton.jsx';
 import { encodeSecureToken } from '../../lib/securityToken.js';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
@@ -654,33 +655,22 @@ export default function AdminStudentRecords() {
       {/* Main Student Table matching Super Admin table styling */}
       <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-sm">
+          <table className="w-full min-w-[900px] text-sm table-fixed">
             <thead>
               <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
-                <th className="px-4 py-3 text-right font-bold text-ink/50">LRN</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50">Student Name</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50">Grade & Section</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50">Gender</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50">Parent Access Code</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50">Email Address</th>
-                <th className="px-4 py-3 text-left font-bold text-ink/50 min-w-[130px] whitespace-nowrap">Account Status</th>
-                <th className="pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
+                <th className="w-[13%] px-5 py-3 text-left font-bold text-ink/50">LRN</th>
+                <th className="w-[19%] px-4 py-3 text-left font-bold text-ink/50">Student Name</th>
+                <th className="w-[14%] px-4 py-3 text-left font-bold text-ink/50">Grade & Section</th>
+                <th className="w-[9%] px-4 py-3 text-left font-bold text-ink/50">Gender</th>
+                <th className="w-[17%] px-4 py-3 text-left font-bold text-ink/50">Parent Access Code</th>
+                <th className="w-[18%] px-4 py-3 text-left font-bold text-ink/50">Email Address</th>
+                <th className="w-[10%] px-4 py-3 text-center font-bold text-ink/50">Account Status</th>
+                <th className="w-[10%] pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
               {loading ? (
-                [1, 2, 3, 4, 5].map((i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="px-4 py-3.5 text-right"><div className="h-3.5 w-24 rounded bg-ink/10 ml-auto" /></td>
-                    <td className="px-4 py-3.5"><div className="h-3.5 w-32 rounded bg-ink/10" /></td>
-                    <td className="px-4 py-3.5"><div className="h-3.5 w-20 rounded bg-ink/10" /></td>
-                    <td className="px-4 py-3.5"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
-                    <td className="px-4 py-3.5"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
-                    <td className="px-4 py-3.5"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
-                    <td className="px-4 py-3.5"><div className="h-5 w-16 rounded-full bg-ink/10" /></td>
-                    <td className="pr-5 py-3.5 text-right"><div className="h-6 w-16 rounded bg-ink/10 ml-auto" /></td>
-                  </tr>
-                ))
+                <StudentRecordsSkeleton rows={5} />
               ) : filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-10 text-center">
@@ -699,13 +689,21 @@ export default function AdminStudentRecords() {
                 </tr>
               ) : (
                 paginatedStudents.map((std) => (
-                  <tr key={std.id} className="group hover:bg-ink/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-right font-mono text-xs text-ink/80">{std.lrn}</td>
-                    <td className="px-4 py-3 font-semibold text-brand-blue hover:underline cursor-pointer" onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}>{std.name}</td>
+                  <tr
+                    key={std.id}
+                    onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}
+                    className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
+                  >
+                    <td className="px-5 py-3 text-left font-mono text-xs text-ink/80">{std.lrn || '—'}</td>
+                    <td className="px-4 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors">{std.name || '—'}</td>
                     <td className="px-4 py-3 text-ink/80">
-                      <span className="font-semibold">{std.grade}</span> - {std.section}
+                      {std.grade && std.section ? (
+                        <span><span className="font-semibold">{std.grade}</span> - {std.section}</span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-ink/70 text-xs">{std.gender}</td>
+                    <td className="px-4 py-3 text-ink/70 text-xs">{std.gender || '—'}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-xs font-bold border transition-colors ${
@@ -720,38 +718,24 @@ export default function AdminStudentRecords() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-ink/70 text-xs">{std.personalEmail}</td>
-                    <td className="px-4 py-3 min-w-[130px] whitespace-nowrap">
-                      <div className="relative inline-flex items-center">
-                        <span
-                          className={`absolute left-3 size-2 rounded-full pointer-events-none z-10 ${
-                            std.status === 'Active' ? 'bg-[#00a652]' : 'bg-brand-red'
-                          }`}
-                        />
-                        <select
-                          value={std.status === 'Disabled' ? 'Disabled' : 'Active'}
-                          onChange={(e) => handleToggleStatus(std, e.target.value)}
-                          className="appearance-none rounded-full bg-white/90 hover:bg-white border border-ink/15 pl-7 pr-6 py-1 text-xs font-semibold text-ink outline-none cursor-pointer shadow-2xs transition-all hover:border-ink/30"
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Disabled">Disabled</option>
-                        </select>
-                        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink/40">
-                          <CaretDown size={10} weight="bold" />
-                        </div>
-                      </div>
+                    <td className="px-4 py-3 text-center min-w-[110px]">
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[70px] gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+                          std.status === 'Active'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-ink/5 text-ink/50 border border-ink/10'
+                        }`}
+                      >
+                        <span className={`size-1.5 rounded-full ${std.status === 'Active' ? 'bg-emerald-500' : 'bg-ink/40'}`} />
+                        {std.status === 'Disabled' ? 'Disabled' : 'Active'}
+                      </span>
                     </td>
                     <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/admin/records/students/${encodeSecureToken('st', std.lrn)}`)}
-                          className="rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition-colors cursor-pointer"
-                        >
-                          View Profile
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingStudent(std);
                             setFormData({
                               lrn: std.lrn || '',
@@ -771,7 +755,22 @@ export default function AdminStudentRecords() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setDeletingStudent(std)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextStatus = std.status === 'Disabled' ? 'Active' : 'Disabled';
+                            handleToggleStatus(std, nextStatus);
+                          }}
+                          className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
+                          title={std.status === 'Disabled' ? 'Enable Student Account' : 'Disable Student Account'}
+                        >
+                          {std.status === 'Disabled' ? <CheckCircle size={16} /> : <Prohibit size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingStudent(std);
+                          }}
                           className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
                           title="Delete Student"
                         >

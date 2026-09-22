@@ -680,13 +680,13 @@ async function toggleStudentStatus(req, res) {
           await db.query(
             `UPDATE student_grade_history 
              SET promotion_status = 'pending' 
-             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $2)
+             WHERE student_id = (SELECT student_id FROM students WHERE lrn = $1)
                AND promotion_status IN ('dropped', 'transferred')`,
             [lrn]
           );
         }
 
-        // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)
+        // 3. Update Parent Portal access code status (disable parent access code if student is Disabled/Dropped/Transferred)https://127.0.0.1:51712/static/artifacts/8aa78d5c-0bf1-4621-af72-67233f13d6f5/.user_uploaded/media_1790101988571.png?csrf=b40ad291-4f15-4607-b6b0-79a6941e489a
         const isParentAccessActive = (newStatus === 'Active');
         await db.query(
           `UPDATE student_parents 

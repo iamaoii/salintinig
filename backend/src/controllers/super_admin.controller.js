@@ -50,7 +50,7 @@ async function getDashboardStats(req, res) {
       db.query(`SELECT COUNT(*)::int AS count FROM phil_iri_passages`).catch(() => ({ rows: [{ count: 0 }] })),
     ]);
 
-    // School overview: each school with admin email, student/teacher count
+    // School overview: each school with admin email, student/teacher count (Optimized via JOIN)
     const schoolsOverview = await db.query(`
       SELECT
         s.school_id,
@@ -58,15 +58,18 @@ async function getDashboardStats(req, res) {
         s.division,
         s.region,
         COALESCE(s.status, 'active') AS status,
-        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'student' AND status = 'active') AS student_count,
-        (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count,
-        (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1) AS admin_email,
-        (SELECT COALESCE(
-          (SELECT CONCAT(t.first_name, ' ', t.last_name) FROM teachers t JOIN users u ON t.user_id = u.user_id WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' AND TRIM(t.first_name) != '' AND TRIM(t.first_name) != 'Admin' LIMIT 1),
-          (SELECT u.email FROM users u WHERE u.school_id = s.school_id AND u.role = 'admin' AND u.status = 'active' LIMIT 1),
+        COUNT(DISTINCT CASE WHEN u.role = 'student' AND u.status = 'active' THEN u.user_id END)::int AS student_count,
+        COUNT(DISTINCT CASE WHEN u.role = 'teacher' AND u.status = 'active' THEN u.user_id END)::int AS teacher_count,
+        MAX(CASE WHEN u.role = 'admin' AND u.status = 'active' THEN u.email END) AS admin_email,
+        COALESCE(
+          MAX(CASE WHEN u.role = 'admin' AND u.status = 'active' AND TRIM(t.first_name) != '' AND TRIM(t.first_name) != 'Admin' THEN CONCAT(t.first_name, ' ', t.last_name) END),
+          MAX(CASE WHEN u.role = 'admin' AND u.status = 'active' THEN u.email END),
           'School Admin'
-        )) AS admin_name
+        ) AS admin_name
       FROM schools s
+      LEFT JOIN users u ON u.school_id = s.school_id
+      LEFT JOIN teachers t ON t.user_id = u.user_id
+      GROUP BY s.school_id, s.school_name, s.division, s.region, s.status
       ORDER BY s.school_name ASC
       LIMIT 10
     `).catch((err) => {
@@ -1026,6 +1029,61 @@ async function getSystemAnalytics(req, res) {
   }
 }
 
+/**
+ * DELETE /api/super-admin/schools/:id
+ */
+async function deleteSchool(req, res) {
+  try {
+    const { id } = req.params;
+    // Delete all users (admins, teachers, students) associated with this school ID
+    await db.query(`DELETE FROM users WHERE school_id = $1`, [id]);
+
+    // Delete the school record itself
+    const result = await db.query(`DELETE FROM schools WHERE school_id = $1 RETURNING school_id`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'School not found.' });
+    }
+    return res.json({ success: true, message: 'School and associated users deleted successfully.' });
+  } catch (err) {
+    console.error('SA deleteSchool error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to delete school: ' + err.message });
+  }
+}
+
+/**
+ * DELETE /api/super-admin/phil-iri/passages/:id
+ */
+async function deletePassage(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await db.query(`DELETE FROM phil_iri_passages WHERE passage_id = $1 RETURNING passage_id`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Passage not found.' });
+    }
+    return res.json({ success: true, message: 'Passage deleted successfully.' });
+  } catch (err) {
+    console.error('SA deletePassage error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to delete passage.' });
+  }
+}
+
+/**
+ * DELETE /api/super-admin/stories/:id
+ */
+async function deleteStory(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await db.query(`DELETE FROM reading_materials WHERE material_id = $1 RETURNING material_id`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Story material not found.' });
+    }
+    return res.json({ success: true, message: 'Story material deleted successfully.' });
+  } catch (err) {
+    console.error('SA deleteStory error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to delete story material.' });
+  }
+}
+
 module.exports = {
   getDashboardStats,
   getSchools,
@@ -1033,6 +1091,7 @@ module.exports = {
   createSchool,
   updateSchool,
   toggleSchoolStatus,
+  deleteSchool,
   getSchoolAdmins,
   createSchoolAdmin,
   toggleAdminStatus,
@@ -1042,9 +1101,11 @@ module.exports = {
   updatePassage,
   updatePassageSet,
   archivePassage,
+  deletePassage,
   getStories,
   createStory,
   updateStory,
   setStoryStatus,
+  deleteStory,
   getSystemAnalytics,
 };

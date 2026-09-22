@@ -461,24 +461,24 @@ export default function GradeLevelPage() {
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Email Address</th>
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Assigned Section</th>
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Account Status</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.teachers?.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
+                        <td colSpan={5} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
                           No faculty assigned to sections in {data.gradeLevel} yet.
                         </td>
                       </tr>
                     ) : (
                       data.teachers.map((tc) => (
-                        <tr key={tc.id} className="hover:bg-ink/[0.02] transition-colors text-xs">
+                        <tr
+                          key={tc.id}
+                          onClick={() => navigate(`/teacher/grade-level/faculty/${tc.employeeId || tc.id}`)}
+                          className="group hover:bg-ink/[0.02] transition-colors text-xs cursor-pointer"
+                        >
                           <td className="border border-ink/10 p-2.5 font-mono text-ink/70">{tc.employeeId || 'N/A'}</td>
-                          <td
-                            onClick={() => navigate(`/teacher/grade-level/faculty/${tc.employeeId || tc.id}`)}
-                            className="border border-ink/10 p-2.5 font-semibold text-brand-blue hover:underline cursor-pointer"
-                          >
+                          <td className="border border-ink/10 p-2.5 font-bold text-ink group-hover:text-brand-blue transition-colors">
                             {tc.name}
                           </td>
                           <td className="border border-ink/10 p-2.5 text-ink/70">{tc.email || 'N/A'}</td>
@@ -495,15 +495,6 @@ export default function GradeLevelPage() {
                             >
                               {tc.status}
                             </span>
-                          </td>
-                          <td className="border border-ink/10 p-2.5 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/teacher/grade-level/faculty/${tc.employeeId || tc.id}`)}
-                              className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-brand-blue/10 px-3.5 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
-                            >
-                              View Profile
-                            </button>
                           </td>
                         </tr>
                       ))
@@ -526,23 +517,23 @@ export default function GradeLevelPage() {
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Section</th>
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Gender</th>
                       <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Phil-IRI Reading Status</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
+                        <td colSpan={5} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
                           No student records found matching search filters.
                         </td>
                       </tr>
                     ) : (
                       filteredStudents.map((st) => (
-                        <tr key={st.id} className="hover:bg-ink/[0.02] transition-colors text-xs">
-                          <td
-                            onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
-                            className="border border-ink/10 p-2.5 font-semibold text-brand-blue hover:underline cursor-pointer flex items-center gap-2.5"
-                          >
+                        <tr
+                          key={st.id}
+                          onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
+                          className="group hover:bg-ink/[0.02] transition-colors text-xs cursor-pointer"
+                        >
+                          <td className="border border-ink/10 p-2.5 font-bold text-ink group-hover:text-brand-blue transition-colors flex items-center gap-2.5">
                             <Avatar name={st.name} src={st.profileImage} size={28} />
                             <span>{st.name}</span>
                           </td>
@@ -557,15 +548,6 @@ export default function GradeLevelPage() {
                             >
                               {st.readingLevel}
                             </span>
-                          </td>
-                          <td className="border border-ink/10 p-2.5 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
-                              className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-brand-blue/10 px-3.5 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/20 transition-colors cursor-pointer"
-                            >
-                              View Profile
-                            </button>
                           </td>
                         </tr>
                       ))

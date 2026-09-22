@@ -27,6 +27,8 @@ import { getToken, getUser } from '../../lib/auth.js';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import AvatarCropModal from '../../components/common/AvatarCropModal.jsx';
 import AboutAppModal from '../../components/common/AboutAppModal.jsx';
+import Avatar from '../../components/dashboard/student/Avatar.jsx';
+import { cacheService } from '../../services/cacheService.js';
 
 export default function SuperAdminSettings() {
   const navigate = useNavigate();
@@ -34,20 +36,24 @@ export default function SuperAdminSettings() {
   const currentUser = getUser();
   const fileInputRef = useRef(null);
 
-  const [loading, setLoading] = useState(true);
+  const cachedProfile = cacheService.get('sa_profile_settings');
+  const [loading, setLoading] = useState(!currentUser && !cachedProfile);
   const [isSaving, setIsSaving] = useState(false);
 
   const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('adminAvatarCache') || currentUser?.profileImage || currentUser?.profile_image || null);
   const [cropSrc, setCropSrc] = useState(null);
 
-  const [profileForm, setProfileForm] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    fullName: currentUser?.name || '',
-    email: currentUser?.email || '',
-    superAdminId: (currentUser?.id || currentUser?.user_id) ? `SA-${String(currentUser.id || currentUser.user_id).padStart(4, '0')}` : '',
-    office: 'DepEd Central Office',
+  const [profileForm, setProfileForm] = useState(() => {
+    if (cachedProfile) return cachedProfile;
+    return {
+      firstName: currentUser?.firstName || currentUser?.first_name || '',
+      middleName: currentUser?.middleName || currentUser?.middle_name || '',
+      lastName: currentUser?.lastName || currentUser?.last_name || '',
+      fullName: currentUser?.name || 'Super Admin',
+      email: currentUser?.email || '',
+      superAdminId: (currentUser?.id || currentUser?.user_id) ? `SA-${String(currentUser.id || currentUser.user_id).padStart(4, '0')}` : '—',
+      office: currentUser?.office || 'DepEd Central Office',
+    };
   });
 
   // Modal states
@@ -134,7 +140,10 @@ export default function SuperAdminSettings() {
   useEffect(() => {
     async function fetchSuperAdminProfile() {
       try {
-        setLoading(true);
+        const cached = cacheService.get('sa_profile_settings');
+        if (cached) {
+          setLoading(false);
+        }
         const token = getToken();
         if (!token) return;
 
@@ -146,8 +155,9 @@ export default function SuperAdminSettings() {
           const u = data.user;
           const fn = u.name || [u.firstName || u.first_name, u.lastName || u.last_name].filter(Boolean).join(' ') || 'Super Admin';
           const saId = (u.id || u.user_id) ? `SA-${String(u.id || u.user_id).padStart(4, '0')}` : '—';
+          const img = u.profileImage || u.profile_image || null;
 
-          setProfileForm({
+          const updated = {
             firstName: u.firstName || u.first_name || '',
             middleName: u.middleName || u.middle_name || '',
             lastName: u.lastName || u.last_name || '',
@@ -155,9 +165,11 @@ export default function SuperAdminSettings() {
             email: u.email || '',
             superAdminId: saId,
             office: u.office || 'DepEd Central Office',
-          });
+          };
 
-          const img = u.profileImage || u.profile_image || null;
+          setProfileForm(updated);
+          cacheService.set('sa_profile_settings', updated);
+
           setAvatarUrl(img);
           if (img) {
             localStorage.setItem('adminAvatarCache', img);

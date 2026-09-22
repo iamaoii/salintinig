@@ -23,6 +23,7 @@ router.post('/schools', sa.createSchool);
 router.get('/schools/:id', sa.getSchoolById);
 router.put('/schools/:id', sa.updateSchool);
 router.patch('/schools/:id/status', sa.toggleSchoolStatus);
+router.delete('/schools/:id', sa.deleteSchool);
 
 // School Admin accounts
 router.get('/schools/:id/admins', sa.getSchoolAdmins);
@@ -30,18 +31,20 @@ router.post('/schools/:id/admins', sa.createSchoolAdmin);
 router.patch('/schools/:id/admins/:adminId/status', sa.toggleAdminStatus);
 router.post('/schools/:id/admins/:adminId/reset-password', sa.resetAdminPassword);
 
-// Phil-IRI Passages (Super Admin only — full CRUD with archive)
+// Phil-IRI Passages (Super Admin only — full CRUD with archive and delete)
 router.get('/phil-iri/passages', sa.getPassages);
 router.post('/phil-iri/passages', sa.createPassage);
 router.put('/phil-iri/passages/:id', sa.updatePassage);
 router.patch('/phil-iri/passages/:id/set', sa.updatePassageSet);
 router.patch('/phil-iri/passages/:id/archive', sa.archivePassage);
+router.delete('/phil-iri/passages/:id', sa.deletePassage);
 
 // Stories / Reading Materials
 router.get('/stories', sa.getStories);
 router.post('/stories', sa.createStory);
 router.put('/stories/:id', sa.updateStory);
 router.patch('/stories/:id/status', sa.setStoryStatus);
+router.delete('/stories/:id', sa.deleteStory);
 
 // System Analytics
 router.get('/analytics', sa.getSystemAnalytics);

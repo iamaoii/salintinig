@@ -18,8 +18,11 @@ import {
   User,
   X,
   SpinnerGap,
+  Trash,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { SchoolsTableSkeleton } from '../../components/common/Skeleton.jsx';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
 
@@ -29,7 +32,7 @@ function StatusBadge({ status }) {
   const isActive = s === 'active';
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+      className={`inline-flex items-center justify-center min-w-[70px] gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
         isActive
           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
           : 'bg-ink/5 text-ink/50 border border-ink/10'
@@ -65,6 +68,7 @@ export default function SuperAdminSchools() {
 
   // Edit School Modal state
   const [editingSchool, setEditingSchool] = useState(null);
+  const [deletingSchool, setDeletingSchool] = useState(null);
   const [editFormData, setEditFormData] = useState({
     schoolName: '',
     division: '',
@@ -200,6 +204,28 @@ export default function SuperAdminSchools() {
       }
     } catch (err) {
       setToast({ message: 'Network error updating status.', type: 'error' });
+    }
+  };
+
+  const handleDeleteSchool = async () => {
+    if (!deletingSchool) return;
+    try {
+      const token = getToken();
+      const res = await fetch(getApiUrl(`/api/super-admin/schools/${deletingSchool.school_id}`), {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ message: 'School deleted successfully.', type: 'success' });
+        setDeletingSchool(null);
+        cacheService.invalidate('sa_schools');
+        fetchSchools(true);
+      } else {
+        setToast({ message: data.error || 'Failed to delete school.', type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: 'Network error deleting school.', type: 'error' });
     }
   };
 
@@ -339,49 +365,22 @@ export default function SuperAdminSchools() {
         {/* Schools Table Container */}
         <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-sm table-fixed">
+            <table className="w-full min-w-[900px] text-sm table-fixed">
               <thead>
                 <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs">
-                  <th className="w-[28%] px-5 py-3 text-left font-bold text-ink/50">School Code & Name</th>
-                  <th className="w-[20%] px-4 py-3 text-left font-bold text-ink/50">Division & Region</th>
-                  <th className="w-[22%] px-4 py-3 text-left font-bold text-ink/50">School Admin</th>
-                  <th className="w-[9%] px-4 py-3 text-right font-bold text-ink/50">Students</th>
-                  <th className="w-[9%] px-4 py-3 text-right font-bold text-ink/50">Teachers</th>
-                  <th className="w-[11%] px-4 py-3 text-left font-bold text-ink/50">Status</th>
-                  <th className="w-[80px] pr-5 py-3 text-right font-bold text-ink/50"></th>
+                  <th className="w-[24%] px-5 py-3 text-left font-bold text-ink/50">School Code & Name</th>
+                  <th className="w-[17%] px-4 py-3 text-left font-bold text-ink/50">Division & Region</th>
+                  <th className="w-[19%] px-4 py-3 text-left font-bold text-ink/50">School Admin</th>
+                  <th className="w-[10%] px-4 py-3 text-center font-bold text-ink/50">Students</th>
+                  <th className="w-[10%] px-4 py-3 text-center font-bold text-ink/50">Teachers</th>
+                  <th className="w-[11%] px-4 py-3 text-center font-bold text-ink/50">Status</th>
+                  <th className="w-[9%] pr-5 py-3 text-right font-bold text-ink/50">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink/10">
                 {loading ? (
-                  [1, 2, 3, 4, 5].map((idx) => (
-                    <tr key={idx} className="animate-pulse">
-                      <td className="px-5 py-3.5">
-                        <div className="h-4 w-40 rounded bg-ink/10 mb-1" />
-                        <div className="h-3 w-20 rounded bg-ink/5" />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="h-4 w-28 rounded bg-ink/10 mb-1" />
-                        <div className="h-3 w-16 rounded bg-ink/5" />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="h-4 w-32 rounded bg-ink/10 mb-1" />
-                        <div className="h-3 w-24 rounded bg-ink/5" />
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="h-4 w-8 rounded bg-ink/10 ml-auto" />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="h-5 w-16 rounded-full bg-ink/10" />
-                      </td>
-                      <td className="w-[80px] pr-5 py-3.5 text-right">
-                        <div className="h-6 w-12 rounded bg-ink/10 ml-auto" />
-                      </td>
-                    </tr>
-                  ))
-                ) : paginatedSchools.length === 0 ? (
+                  <SchoolsTableSkeleton rows={5} />
+                ) : filteredSchools.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
@@ -404,7 +403,7 @@ export default function SuperAdminSchools() {
                     >
                       <td className="px-5 py-3 overflow-hidden">
                         <div className="min-w-0">
-                          <p className="font-bold text-ink text-xs leading-tight truncate" title={school.school_name}>
+                          <p className="font-bold text-ink text-xs leading-tight truncate group-hover:text-brand-blue transition-colors" title={school.school_name}>
                             {school.school_name}
                           </p>
                           <p className="text-[11px] font-mono text-ink/50 mt-0.5 truncate" title={`Code: ${school.school_id}`}>
@@ -439,24 +438,24 @@ export default function SuperAdminSchools() {
                         )}
                       </td>
 
-                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
+                      <td className="px-4 py-3 text-center text-xs font-semibold text-ink">
                         {school.student_count ?? 0}
                       </td>
 
-                      <td className="px-4 py-3 text-right text-xs font-semibold text-ink">
+                      <td className="px-4 py-3 text-center text-xs font-semibold text-ink">
                         {school.teacher_count ?? 0}
                       </td>
 
-                      <td className="px-4 py-3 text-left">
+                      <td className="px-4 py-3 text-center">
                         <StatusBadge status={school.status} />
                       </td>
 
-                      <td className="w-[80px] pr-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                      <td className="pr-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={(e) => openEditModal(school, e)}
-                            className="flex size-7 items-center justify-center rounded-lg text-ink/60 hover:bg-ink/5 hover:text-brand-blue transition-colors cursor-pointer"
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                             title="Edit School"
                           >
                             <Pencil size={16} />
@@ -464,14 +463,21 @@ export default function SuperAdminSchools() {
                           <button
                             type="button"
                             onClick={(e) => handleToggleStatus(school.school_id, school.status, e)}
-                            className={`flex size-7 items-center justify-center rounded-lg transition-colors cursor-pointer ${
-                              school.status === 'active'
-                                ? 'text-rose-600 hover:bg-rose-50'
-                                : 'text-emerald-600 hover:bg-emerald-50'
-                            }`}
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-ink/5 hover:text-ink cursor-pointer"
                             title={school.status === 'active' ? 'Deactivate School' : 'Activate School'}
                           >
                             {school.status === 'active' ? <Prohibit size={16} /> : <CheckCircle size={16} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingSchool(school);
+                            }}
+                            className="rounded-lg p-1.5 text-ink/60 hover:bg-brand-red/10 hover:text-brand-red cursor-pointer"
+                            title="Delete School"
+                          >
+                            <Trash size={16} />
                           </button>
                         </div>
                       </td>
@@ -759,6 +765,40 @@ export default function SuperAdminSchools() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete School Confirmation Modal */}
+      {deletingSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-sm rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-brand-red/10 text-brand-red mb-3">
+                <WarningCircle size={24} weight="bold" />
+              </div>
+              <h3 className="text-base font-bold text-ink">Delete School Record?</h3>
+              <p className="mt-1 text-xs text-ink/60 leading-relaxed">
+                Are you sure you want to permanently delete <strong className="text-ink">{deletingSchool.school_name}</strong> (Code: {deletingSchool.school_id})? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingSchool(null)}
+                className="rounded-full border border-ink/10 bg-cream px-4 py-1.5 text-xs font-medium text-ink hover:bg-ink/5 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSchool}
+                className="rounded-full bg-brand-red px-5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 shadow-xs cursor-pointer"
+              >
+                Delete School
+              </button>
+            </div>
           </div>
         </div>
       )}
