@@ -40,35 +40,45 @@ function withPlaceholders(items) {
   return [...items, ...placeholders];
 }
 
+import { cacheService } from '../../../services/cacheService.js';
+
 export default function StudentProfile() {
   const { lrn: rawLrn } = useParams();
   const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Activities');
-  const [dbStudent, setDbStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  const cacheKey = `student_profile_${lrn || rawLrn}`;
+  const cachedData = cacheService.get(cacheKey);
+
+  const [dbStudent, setDbStudent] = useState(cachedData || null);
+  const [loading, setLoading] = useState(!cachedData);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchStudent = async () => {
       try {
-        setLoading(true);
         const token = getToken();
         const targetLrn = lrn || rawLrn;
+        if (!cachedData) setLoading(true);
+
         const res = await fetch(getApiUrl(`/api/teacher/students/${targetLrn}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
-        if (res.ok && data.success && data.student) {
+        if (isMounted && res.ok && data.success && data.student) {
           setDbStudent(data.student);
+          cacheService.set(cacheKey, data.student, 120000); // 2 minutes TTL
         }
       } catch (err) {
         console.warn('Fetch student details notice:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchStudent();
-  }, [lrn, rawLrn]);
+    return () => { isMounted = false; };
+  }, [lrn, rawLrn, cacheKey]);
 
   const fallbackStudent = mockStudentsData.find((s) => s.lrn === lrn);
   const student = dbStudent || fallbackStudent || {

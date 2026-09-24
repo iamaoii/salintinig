@@ -771,12 +771,9 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.asset(
-          imagePath,
-          fit: BoxFit.cover,
-        ),
+      child: Image.asset(
+        imagePath,
+        fit: BoxFit.contain,
       ),
     );
   }

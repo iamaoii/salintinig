@@ -56,20 +56,29 @@ function withPlaceholders(items) {
   return [...items, ...placeholders];
 }
 
+import { cacheService } from '../../services/cacheService.js';
+
 export default function AdminStudentProfile() {
   const { lrn: rawLrn } = useParams();
   const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
-  const [student, setStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  const cacheKey = `admin_student_profile_${lrn || rawLrn}`;
+  const cachedData = cacheService.get(cacheKey);
+
+  const [student, setStudent] = useState(cachedData || null);
+  const [loading, setLoading] = useState(!cachedData);
   const [achievementTab, setAchievementTab] = useState('Phil-IRI Records');
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchStudentDetail = async () => {
       try {
         const token = getToken();
         const targetId = lrn || rawLrn;
+        if (!cachedData) setLoading(true);
+
         let res = await fetch(getApiUrl(`/api/admin/students/${targetId}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -82,17 +91,19 @@ export default function AdminStudentProfile() {
           data = await res.json();
         }
 
-        if (res.ok && data.success && data.student) {
+        if (isMounted && res.ok && data.success && data.student) {
           setStudent(data.student);
+          cacheService.set(cacheKey, data.student, 120000); // 2 min TTL
         }
       } catch (err) {
         console.warn('Failed to fetch student details:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchStudentDetail();
-  }, [lrn, rawLrn]);
+    return () => { isMounted = false; };
+  }, [lrn, rawLrn, cacheKey]);
 
   const std = student || {
     id: lrn || '',

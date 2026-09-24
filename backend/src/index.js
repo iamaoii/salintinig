@@ -45,9 +45,15 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
-// Serve static files (backend public directory including logos)
-app.use(express.static(path.join(__dirname, '../public')));
-app.use('/assets', express.static(path.join(__dirname, '../../frontend/src/assets')));
+// Serve static files with production browser caching (1 day for public, 7 days for immutable assets)
+app.use(express.static(path.join(__dirname, '../public'), {
+  maxAge: '1d',
+  etag: true,
+}));
+app.use('/assets', express.static(path.join(__dirname, '../../frontend/src/assets'), {
+  maxAge: '7d',
+  immutable: true,
+}));
 
 // Routes
 app.use('/api/auth', require('./routes/auth.routes.js'))
