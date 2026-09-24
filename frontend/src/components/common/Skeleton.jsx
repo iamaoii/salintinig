@@ -620,3 +620,68 @@ export function StudentProfileSkeleton() {
     </div>
   );
 }
+
+/**
+ * TeacherProfileSkeleton
+ * Matches: Admin / Teacher Profile page layout
+ */
+export function TeacherProfileSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* Top Back Navigation Skeleton */}
+      <div className="h-8 w-24 rounded-xl bg-ink/10" />
+
+      {/* Profile Header Banner Skeleton */}
+      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="size-22 rounded-full bg-ink/10 shrink-0" />
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="h-7 w-48 rounded-lg bg-ink/10" />
+                <div className="h-5 w-24 rounded-full bg-ink/10" />
+                <div className="h-5 w-16 rounded-full bg-ink/10" />
+              </div>
+              <div className="h-4 w-36 rounded-md bg-ink/10" />
+              <div className="h-4 w-72 rounded-md bg-ink/10" />
+            </div>
+          </div>
+          <div className="h-9 w-36 rounded-full bg-ink/10" />
+        </div>
+      </div>
+
+      {/* 4 Summary Stat Widgets Skeleton */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-2xl border border-ink/10 bg-cream p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-28 rounded-md bg-ink/10" />
+              <div className="size-8 rounded-lg bg-ink/10" />
+            </div>
+            <div className="h-8 w-16 rounded-lg bg-ink/10" />
+            <div className="h-3 w-32 rounded-md bg-ink/10" />
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs & Content Area Skeleton */}
+      <div className="rounded-2xl border border-ink/10 bg-cream p-6 space-y-4">
+        <div className="flex items-center gap-6 border-b border-ink/10 pb-3">
+          <div className="h-5 w-44 rounded-md bg-ink/10" />
+          <div className="h-5 w-44 rounded-md bg-ink/10" />
+        </div>
+        <div className="rounded-xl border border-ink/10 bg-white p-4 space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center justify-between py-2 border-b border-ink/5 last:border-0">
+              <div className="h-4 w-28 rounded-md bg-ink/10" />
+              <div className="h-4 w-48 rounded-md bg-ink/10" />
+              <div className="h-4 w-20 rounded-md bg-ink/10" />
+              <div className="h-5 w-24 rounded-full bg-ink/10" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+

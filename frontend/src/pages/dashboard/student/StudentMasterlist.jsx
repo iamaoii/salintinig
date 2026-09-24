@@ -108,6 +108,8 @@ export default function StudentMasterlist({ level }) {
             ? 'Selection cleared (Pending evaluation).'
             : `Learner status set to ${newStatus.toUpperCase()}.`
         );
+        cacheService.invalidate('teacher_class_students');
+        cacheService.invalidate('admin_student_sectioning');
         setStudents((prev) =>
           prev.map((s) => (s.id === studentId || s.studentId === studentId ? { ...s, promotionStatus: newStatus } : s))
         );

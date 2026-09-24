@@ -492,7 +492,7 @@ export default function SuperAdminStories() {
                   <div>
                     {/* Story Book Visual matching mobile and Picture 1 */}
                     <div className="w-full flex justify-center mb-3">
-                      <div className="w-[140px] max-w-full drop-shadow-sm group-hover:scale-[1.02] transition-transform">
+                      <div className="w-[140px] max-w-full drop-shadow-sm">
                         <StoryBookCover
                           story={story}
                           index={(currentPage - 1) * PAGE_SIZE + idx}
@@ -1030,33 +1030,54 @@ export default function SuperAdminStories() {
 
               {previewStory.quiz_questions &&
                 (Array.isArray(previewStory.quiz_questions) ? previewStory.quiz_questions : []).length > 0 && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-4 pt-2">
                     <h4 className="font-bold text-ink text-sm">
                       Comprehension Quiz ({previewStory.quiz_questions.length} questions)
                     </h4>
-                    {previewStory.quiz_questions.map((q, idx) => (
-                      <div key={idx} className="rounded-xl border border-ink/10 bg-ink/[0.02] p-3 space-y-1.5">
-                        <p className="font-semibold text-ink">
-                          {idx + 1}. {q.question}
-                        </p>
-                        {q.options && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-3 pt-1">
-                            {q.options.map((opt, oIdx) => (
-                              <div
-                                key={oIdx}
-                                className={`rounded-md px-2 py-1 text-[11px] ${
-                                  Number(q.correctAnswer) === oIdx
-                                    ? 'bg-emerald-100 font-bold text-emerald-900 border border-emerald-300'
-                                    : 'text-ink/70'
-                                }`}
-                              >
-                                {String.fromCharCode(65 + oIdx)}. {opt}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {previewStory.quiz_questions.map((q, idx) => {
+                      const questionText = q.question || q.questionText || '';
+                      const rawCorrect = q.correctAnswer ?? q.correctAnswerIndex;
+                      const correctIdx = rawCorrect !== undefined ? Number(rawCorrect) : -1;
+                      const options = Array.isArray(q.options) ? q.options : [];
+
+                      return (
+                        <div
+                          key={idx}
+                          className="rounded-2xl border border-ink/10 bg-white p-5 space-y-3.5 shadow-[0px_2px_8px_rgba(26,24,22,0.04)]"
+                        >
+                          <p className="text-sm font-bold text-ink">
+                            {idx + 1}. {questionText}
+                          </p>
+                          {options.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {options.map((opt, oIdx) => {
+                                const isCorrect = correctIdx === oIdx;
+                                return (
+                                  <div
+                                    key={oIdx}
+                                    className={`rounded-full px-4 py-2 text-xs border flex items-center transition-all ${
+                                      isCorrect
+                                        ? 'bg-emerald-50 border-emerald-500 font-bold text-emerald-900 shadow-2xs'
+                                        : 'bg-white border-ink/15 text-ink/70'
+                                    }`}
+                                  >
+                                    <span className="font-bold mr-2 text-ink">
+                                      {String.fromCharCode(65 + oIdx)}.
+                                    </span>
+                                    <span className="truncate">{opt}</span>
+                                    {isCorrect && (
+                                      <span className="ml-1.5 font-bold text-emerald-700 shrink-0">
+                                        {' '}(Correct Answer)
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
             </div>
@@ -1065,7 +1086,7 @@ export default function SuperAdminStories() {
               <button
                 type="button"
                 onClick={() => setPreviewStory(null)}
-                className="rounded-full bg-brand-red px-5 py-2 text-xs font-bold text-cream hover:bg-brand-red/90 cursor-pointer"
+                className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-brand-blue/90 cursor-pointer shadow-xs"
               >
                 Close Preview
               </button>

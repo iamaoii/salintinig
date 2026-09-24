@@ -145,18 +145,18 @@ async function getTeacherById(req, res) {
              t.middle_name AS "middleName",
              t.last_name AS "lastName",
              CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
-             COALESCE(t.sex, 'Male') AS gender,
+             COALESCE(t.sex, 'Female') AS gender,
              COALESCE(u.email, '') AS email,
              COALESCE(
-               (SELECT c.grade_level FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.grade_level FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                'Unassigned'
              ) AS "gradeAssigned",
              COALESCE(
-               (SELECT c.section_name FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.section_name FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                'Unassigned'
              ) AS "sectionAssigned",
              COALESCE(
-               (SELECT c.class_id FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.class_id FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                NULL
              ) AS "classId",
              EXISTS(
@@ -173,7 +173,15 @@ async function getTeacherById(req, res) {
 
         if (rows && rows.length > 0) {
           const teacherObj = rows[0];
-          const classId = teacherObj.classId;
+          let classId = teacherObj.classId;
+
+          if (!classId && teacherObj.sectionAssigned !== 'Unassigned') {
+            const { rows: cMatch } = await db.query(
+              `SELECT class_id FROM classes WHERE section_name = $1 LIMIT 1`,
+              [teacherObj.sectionAssigned]
+            );
+            if (cMatch.length > 0) classId = cMatch[0].class_id;
+          }
 
           // Fetch enrolled class roster if teacher has assigned section
           if (classId) {
@@ -192,7 +200,7 @@ async function getTeacherById(req, res) {
                  FROM assessments
                  ORDER BY student_id, created_at DESC
                ) a ON a.student_id = s.student_id
-               WHERE sgh.class_id = $1 AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+               WHERE sgh.class_id = $1 AND LOWER(COALESCE(sgh.promotion_status, '')) NOT IN ('dropped', 'transferred')
                ORDER BY s.last_name ASC`,
               [classId]
             );
@@ -204,8 +212,13 @@ async function getTeacherById(req, res) {
           // Count submissions created by teacher and fetch recent assessment activity logs
           try {
             const { rows: subRes } = await db.query(
-              `SELECT COUNT(*) FROM assessments WHERE assigned_by_teacher_id = $1`,
-              [teacherObj.id]
+              `SELECT COUNT(*) FROM assessments a 
+               WHERE a.assigned_by_teacher_id::text = $1 
+                  OR a.assigned_by_teacher_id::text = $2
+                  OR ($3::text IS NOT NULL AND a.student_id IN (
+                     SELECT sgh.student_id FROM student_grade_history sgh WHERE sgh.class_id::text = $3
+                  ))`,
+              [teacherObj.id, teacherObj.employeeId, classId]
             );
             teacherObj.submissionsCount = parseInt(subRes[0]?.count || 0, 10);
 
@@ -213,17 +226,25 @@ async function getTeacherById(req, res) {
               `SELECT 
                  a.assessment_id AS id,
                  CONCAT('Assigned ', UPPER(a.assessment_type), ' Assessment (', REPLACE(a.assessment_period, '_', ' '), ')') AS title,
-                 CONCAT('Material ID: ', COALESCE(rm.title, 'Phil-IRI Passage')) AS detail,
-                 TO_CHAR(a.date_assigned, 'Mon DD, YYYY "at" HH12:MI AM') AS time
+                 CONCAT('Material: ', COALESCE(p.title, 'Phil-IRI Passage'), COALESCE(' • Student: ' || s.first_name || ' ' || s.last_name, '')) AS detail,
+                 TO_CHAR(a.created_at, 'Mon DD, YYYY "at" HH12:MI AM') AS time,
+                 a.status,
+                 a.reading_level_result AS "readingLevelResult"
                FROM assessments a
-               LEFT JOIN reading_materials rm ON a.material_id = rm.material_id
-               WHERE a.assigned_by_teacher_id = $1
-               ORDER BY a.date_assigned DESC
-               LIMIT 10`,
-              [teacherObj.id]
+               LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+               LEFT JOIN students s ON a.student_id = s.student_id
+               WHERE a.assigned_by_teacher_id::text = $1 
+                  OR a.assigned_by_teacher_id::text = $2
+                  OR ($3::text IS NOT NULL AND a.student_id IN (
+                     SELECT sgh.student_id FROM student_grade_history sgh WHERE sgh.class_id::text = $3
+                  ))
+               ORDER BY a.created_at DESC
+               LIMIT 20`,
+              [teacherObj.id, teacherObj.employeeId, classId]
             );
             teacherObj.activityLogs = logRows || [];
           } catch (e) {
+            console.error('Error fetching teacher activity logs:', e);
             teacherObj.submissionsCount = 0;
             teacherObj.activityLogs = [];
           }

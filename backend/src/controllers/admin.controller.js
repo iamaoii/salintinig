@@ -1792,14 +1792,12 @@ async function getStudentSectioning(req, res) {
                sgh_inner.grade_level, 
                sgh_inner.promotion_status
              FROM student_grade_history sgh_inner
-             LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
-             WHERE (sgh_inner.school_year_id = $2 OR c_inner.school_year_id = $2 OR $2 IS NULL)
              ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
            ) sgh ON s.student_id = sgh.student_id
            LEFT JOIN classes c ON sgh.class_id = c.class_id
            WHERE (u.school_id = $1 OR u.school_id IS NULL OR $1 IS NULL)
            ORDER BY COALESCE(c.section_name, 'Unassigned') ASC, s.last_name ASC`,
-          [schoolId, activeSyId]
+          [schoolId]
         );
 
         return res.json({
@@ -1843,17 +1841,32 @@ async function assignStudentsToSection(req, res) {
         }
 
         for (const sid of studentIds) {
-          await db.query(
-            `INSERT INTO student_grade_history (student_id, class_id, grade_level)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (student_id, class_id) DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level`,
-            [sid, targetClassId, gradeLevel]
+          // Find latest student_grade_history row for this student
+          const existingHistory = await db.query(
+            `SELECT history_id FROM student_grade_history WHERE student_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [sid]
           );
+
+          if (existingHistory.rows.length > 0) {
+            const historyId = existingHistory.rows[0].history_id;
+            await db.query(
+              `UPDATE student_grade_history 
+               SET class_id = $1, grade_level = COALESCE($2, grade_level) 
+               WHERE history_id = $3`,
+              [targetClassId, gradeLevel, historyId]
+            );
+          } else {
+            await db.query(
+              `INSERT INTO student_grade_history (student_id, class_id, grade_level, promotion_status)
+               VALUES ($1, $2, $3, 'pending')`,
+              [sid, targetClassId, gradeLevel]
+            );
+          }
         }
 
         return res.json({
           success: true,
-          message: `Successfully assigned ${studentIds.length} student(s) to section.`,
+          message: `Successfully updated section for ${studentIds.length} student(s).`,
         });
       } catch (dbErr) {
         console.warn('DB assign students notice:', dbErr.message);

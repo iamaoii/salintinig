@@ -53,7 +53,7 @@ export default function StoryBookCover({
     <div
       onClick={onClick}
       style={{ aspectRatio }}
-      className={`relative w-full flex flex-col select-none drop-shadow-md transition-transform duration-200 hover:-translate-y-1 ${
+      className={`relative w-full flex flex-col select-none drop-shadow-md ${
         onClick ? 'cursor-pointer' : ''
       } ${className}`}
     >
