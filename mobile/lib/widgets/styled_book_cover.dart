@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../pages/student/library/story_preview_page.dart';
 
+class BookCoverTheme {
+  final Color primary;
+  final Color darkSpine;
+  final Color titleColor;
+
+  const BookCoverTheme({
+    required this.primary,
+    required this.darkSpine,
+    required this.titleColor,
+  });
+}
+
 class StyledBookCover extends StatelessWidget {
   final Map<String, dynamic> book;
   final int index;
@@ -18,24 +30,37 @@ class StyledBookCover extends StatelessWidget {
     this.height,
   });
 
-  static const List<List<Color>> _coverGradients = [
-    [Color(0xFF1E3A8A), Color(0xFF2563EB)], // Deep Sapphire
-    [Color(0xFF064E3B), Color(0xFF059669)], // Emerald Forest
-    [Color(0xFF831843), Color(0xFFDB2777)], // Ruby Rose
-    [Color(0xFF7C2D12), Color(0xFFEA580C)], // Burnt Amber
-    [Color(0xFF312E81), Color(0xFF4F46E5)], // Indigo Night
-    [Color(0xFF134E4A), Color(0xFF0D9488)], // Teal Ocean
-    [Color(0xFF8A2387), Color(0xFFE94057)], // Royal Amethyst
-    [Color(0xFFB91C1C), Color(0xFFEA580C)], // Warm Crimson
-    [Color(0xFF0F766E), Color(0xFF14B8A6)], // Deep Teal
-    [Color(0xFF4C1D95), Color(0xFF7C3AED)], // Purple Majesty
+  // 4 Signature Story Book Colors from Picture 1 (Green, Gold/Amber, Crimson Red, Royal Blue)
+  static const List<BookCoverTheme> _coverThemes = [
+    BookCoverTheme(
+      primary: Color(0xFF008744), // Rich emerald green
+      darkSpine: Color(0xFF005F30), // Deep darker green spine
+      titleColor: Color(0xFF008744),
+    ),
+    BookCoverTheme(
+      primary: Color(0xFFF4B400), // Vibrant amber gold
+      darkSpine: Color(0xFFC48E00), // Dark golden yellow spine
+      titleColor: Color(0xFFC48E00),
+    ),
+    BookCoverTheme(
+      primary: Color(0xFFD83B27), // Crimson Red
+      darkSpine: Color(0xFF9E2213), // Deep wine red spine
+      titleColor: Color(0xFF9E2213),
+    ),
+    BookCoverTheme(
+      primary: Color(0xFF1565C0), // Royal Blue
+      darkSpine: Color(0xFF0D47A1), // Navy spine
+      titleColor: Color(0xFF1565C0),
+    ),
   ];
 
-  /// Generates a rich, dynamic cover gradient deterministically using deep jewel tones across 360° HSL (prevents neon/harsh colors)
-  static List<Color> getGradientForBook(Map<String, dynamic> book, [int fallbackIndex = 0]) {
+  static BookCoverTheme getThemeForBook(
+    Map<String, dynamic> book, [
+    int fallbackIndex = 0,
+  ]) {
     final title = (book['title'] as String?) ?? (book['id'] as String?) ?? '';
     if (title.isEmpty) {
-      return _coverGradients[fallbackIndex % _coverGradients.length];
+      return _coverThemes[fallbackIndex % _coverThemes.length];
     }
 
     int hash = 0;
@@ -43,38 +68,26 @@ class StyledBookCover extends StatelessWidget {
       hash = (hash * 37 + title.codeUnitAt(i)) & 0xFFFFFFFF;
     }
 
-    // Map title hash to 0..360° Hue on HSL color wheel
-    final double hue = (hash.abs() % 360).toDouble();
-
-    // High-luminance hues (yellows, limes, cyans) are toned down to rich gold/emerald/teal to prevent neon strain
-    final bool isHighLuminance = hue >= 40 && hue <= 180;
-    final double sat1 = isHighLuminance ? 0.45 : 0.56;
-    final double light1 = isHighLuminance ? 0.22 : 0.25;
-
-    final double sat2 = isHighLuminance ? 0.52 : 0.62;
-    final double light2 = isHighLuminance ? 0.35 : 0.40;
-
-    final HSLColor primaryHsl = HSLColor.fromAHSL(1.0, hue, sat1, light1);
-    final HSLColor secondaryHsl = HSLColor.fromAHSL(1.0, (hue + 20) % 360, sat2, light2);
-
-    return [
-      primaryHsl.toColor(),
-      secondaryHsl.toColor(),
-    ];
+    return _coverThemes[hash.abs() % _coverThemes.length];
   }
 
   @override
   Widget build(BuildContext context) {
-    final gradient = getGradientForBook(book, index);
+    final theme = getThemeForBook(book, index);
     final title = (book['title'] as String?) ?? 'Walang Pamagat';
     final author = (book['author'] as String?) ?? 'Juan dela Cruz';
 
     Widget coverWidget = LayoutBuilder(
       builder: (context, constraints) {
-        // Derive scale from width — always finite and accurate in both grid & list
-        final effectiveWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 138.0;
-        final cardHeight = effectiveWidth * 1.45;
-        final scale = (cardHeight / 200.0).clamp(0.5, 2.0);
+        final effectiveWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 138.0;
+        final totalHeight = effectiveWidth * 1.45;
+        final scale = (totalHeight / 200.0).clamp(0.5, 2.0);
+
+        final strokeWidth = 2.4 * scale;
+        final spineWidth = effectiveWidth * 0.135;
+        final pagesHeight = 11.5 * scale;
 
         return AspectRatio(
           aspectRatio: 1 / 1.45,
@@ -82,184 +95,315 @@ class StyledBookCover extends StatelessWidget {
             width: width,
             height: height,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14 * scale),
               boxShadow: [
                 BoxShadow(
-                  color: gradient[0].withValues(alpha: 0.30),
-                  blurRadius: 12 * scale,
-                  offset: Offset(0, 5 * scale),
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 8 * scale,
+                  offset: Offset(0, 4 * scale),
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14 * scale),
-            child: Stack(
+            child: Column(
               children: [
-                // 1. Dual-tone Gradient Background
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: gradient,
-                    ),
-                  ),
-                ),
-
-                // 2. Subtle Geometric Watermark Rings
-                Positioned(
-                  right: -25 * scale,
-                  top: -25 * scale,
+                // Top Cover Board (Main Face + Spine)
+                Expanded(
                   child: Container(
-                    width: 90 * scale,
-                    height: 90 * scale,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.10),
-                        width: 14 * scale,
+                      color: const Color(0xFF1A1816),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(10 * scale),
+                        topRight: Radius.circular(10 * scale),
+                        bottomRight: Radius.circular(2 * scale),
                       ),
                     ),
-                  ),
-                ),
-                Positioned(
-                  right: -10 * scale,
-                  bottom: 8 * scale,
-                  child: Container(
-                    width: 50 * scale,
-                    height: 50 * scale,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 8 * scale,
-                      ),
+                    padding: EdgeInsets.fromLTRB(
+                      strokeWidth,
+                      strokeWidth,
+                      strokeWidth,
+                      0,
                     ),
-                  ),
-                ),
-
-                // 3. Elegant Gold Foil Outer Border Frame
-                Positioned.fill(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(16 * scale, 8 * scale, 8 * scale, 8 * scale),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8 * scale),
-                        border: Border.all(
-                          color: const Color(0xFFFFDF79).withValues(alpha: 0.50),
-                          width: 1 * scale,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 4. Center White Band: Fixed Proportional Height & Position
-                Positioned(
-                  top: cardHeight * 0.33,
-                  left: 0,
-                  right: 0,
-                  height: cardHeight * 0.35,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.22),
-                          blurRadius: 8 * scale,
-                          offset: Offset(0, 3 * scale),
-                        ),
-                      ],
-                    ),
-                    padding: EdgeInsets.fromLTRB(18 * scale, 6 * scale, 8 * scale, 6 * scale),
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      title,
-                      maxLines: 4,
-                      softWrap: true,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: (14.0 * scale).clamp(10.0, 18.0),
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF0F172A),
-                        height: 1.12,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 5. Author Name directly below white container
-                Positioned(
-                  top: (cardHeight * 0.33) + (cardHeight * 0.35) + (6 * scale),
-                  left: 18 * scale,
-                  right: 8 * scale,
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 3 * scale),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.black.withValues(alpha: 0.40),
-                            Colors.black.withValues(alpha: 0.25),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(6 * scale),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.20),
-                          width: 0.8 * scale,
-                        ),
-                      ),
-                      child: Text(
-                        author,
-                        maxLines: 1,
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: (8.5 * scale).clamp(7.0, 12.0),
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 6. Spine crease (3D Book spine shadow)
-                _buildSpineCrease(scale),
-
-                // 7. Top: Salintinig Logo + Brand Name
-                Positioned(
-                  top: 13 * scale,
-                  left: 20 * scale,
-                  right: 8 * scale,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.asset(
-                        'assets/logo/logo_v2.webp',
-                        height: 12 * scale,
-                        color: const Color(0xFFFFDF79),
-                      ),
-                      SizedBox(width: 4 * scale),
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'SALINTINIG',
-                            maxLines: 1,
-                            style: GoogleFonts.outfit(
-                              fontSize: (7.5 * scale).clamp(6.0, 11.0),
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFFFFDF79),
-                              letterSpacing: 0.4,
+                    child: Stack(
+                      children: [
+                        // Primary Book Background Color
+                        Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          decoration: BoxDecoration(
+                            color: theme.primary,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(8 * scale),
+                              topRight: Radius.circular(8 * scale),
                             ),
                           ),
                         ),
+
+                        // Subtle Organic Circular Watermark Rings
+                        Positioned(
+                          right: -30 * scale,
+                          top: -30 * scale,
+                          child: Container(
+                            width: 130 * scale,
+                            height: 130 * scale,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.14),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: -20 * scale,
+                          top: totalHeight * 0.22,
+                          child: Container(
+                            width: 90 * scale,
+                            height: 90 * scale,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.08),
+                            ),
+                          ),
+                        ),
+
+                        // Left Spine Vertical Strip
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: spineWidth,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: theme.darkSpine,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(8 * scale),
+                              ),
+                              border: Border(
+                                right: BorderSide(
+                                  color: const Color(0xFF1A1816),
+                                  width: strokeWidth,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Spine Groove Shadow
+                        Positioned(
+                          left: spineWidth,
+                          top: 0,
+                          bottom: 0,
+                          width: 4 * scale,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.32),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Center White Belt / Belly Band for Title & Author
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: totalHeight * 0.36,
+                          height: totalHeight * 0.28,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border(
+                                top: BorderSide(
+                                  color: const Color(0xFF1A1816),
+                                  width: strokeWidth,
+                                ),
+                                bottom: BorderSide(
+                                  color: const Color(0xFF1A1816),
+                                  width: strokeWidth,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 3 * scale,
+                                  offset: Offset(0, 1.5 * scale),
+                                ),
+                              ],
+                            ),
+                            child: Stack(
+                              children: [
+                                // Left Spine Tint in White Belt
+                                Positioned(
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: spineWidth,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: theme.darkSpine.withValues(
+                                        alpha: 0.26,
+                                      ),
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: const Color(0xFF1A1816),
+                                          width: strokeWidth,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // Title and Author text inside white band
+                                Positioned.fill(
+                                  child: Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      spineWidth + (8 * scale),
+                                      3 * scale,
+                                      6 * scale,
+                                      3 * scale,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.playfairDisplay(
+                                            fontSize: (13.0 * scale).clamp(
+                                              9.0,
+                                              18.0,
+                                            ),
+                                            fontWeight: FontWeight.w900,
+                                            color: theme.titleColor,
+                                            height: 1.08,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2 * scale),
+                                        Text(
+                                          'by $author',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.playfairDisplay(
+                                            fontStyle: FontStyle.italic,
+                                            fontSize: (8.0 * scale).clamp(
+                                              6.5,
+                                              11.0,
+                                            ),
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(
+                                              0xFF1A1816,
+                                            ).withValues(alpha: 0.82),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Bottom-Right Branding (Logo + SalinTinig)
+                        Positioned(
+                          bottom: 7 * scale,
+                          right: 8 * scale,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                'assets/logo/logo_v2.webp',
+                                height: 12 * scale,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 4 * scale),
+                              Text(
+                                'SalinTinig',
+                                style: GoogleFonts.inter(
+                                  fontSize: (9.5 * scale).clamp(7.0, 13.0),
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Bottom Pages Section (Exposed Book Edge from Picture 1)
+                SizedBox(
+                  height: pagesHeight,
+                  width: double.infinity,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // White / Grey Block of Pages with rounded ends & dark stroke
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCDFE4), // Pages base tone
+                            borderRadius: BorderRadius.horizontal(
+                              left: Radius.circular(pagesHeight / 2),
+                              right: Radius.circular(2 * scale),
+                            ),
+                            border: Border.all(
+                              color: const Color(0xFF1A1816),
+                              width: strokeWidth,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.horizontal(
+                              left: Radius.circular(
+                                (pagesHeight / 2) - strokeWidth,
+                              ),
+                              right: Radius.circular(1 * scale),
+                            ),
+                            child: Column(
+                              children: [
+                                // Top lighter highlight of pages
+                                Expanded(
+                                  flex: 5,
+                                  child: Container(
+                                    color: const Color(0xFFEEEEF0),
+                                  ),
+                                ),
+                                // Bottom darker beveled shadow of pages
+                                Expanded(
+                                  flex: 4,
+                                  child: Container(
+                                    color: const Color(0xFFBCC2CA),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Left Spine Overhang Curve
+                      // Connects the dark vertical spine to the rounded front curve of the book
+                      Positioned(
+                        left: 0,
+                        top: -strokeWidth,
+                        width: strokeWidth,
+                        height: pagesHeight * 0.5,
+                        child: Container(color: const Color(0xFF1A1816)),
                       ),
                     ],
                   ),
@@ -267,10 +411,9 @@ class StyledBookCover extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
 
     if (!enableTap) return coverWidget;
 
@@ -285,30 +428,6 @@ class StyledBookCover extends StatelessWidget {
         );
       },
       child: coverWidget,
-    );
-  }
-
-  Widget _buildSpineCrease(double scale) {
-    return Positioned(
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 15 * scale,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              Colors.black.withValues(alpha: 0.42),
-              Colors.black.withValues(alpha: 0.14),
-              Colors.white.withValues(alpha: 0.09),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.35, 0.45, 1.0],
-          ),
-        ),
-      ),
     );
   }
 }
