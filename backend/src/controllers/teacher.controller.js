@@ -995,6 +995,7 @@ async function getPendingOralReviews(req, res) {
           orr.verified_miscues_json AS "verifiedMiscues",
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
+          orr.comprehension_score AS "comprehensionScore",
           orr.verification_status AS "verificationStatus",
           aa.completed_at AS "submittedAt"
         FROM assessments a
@@ -1076,10 +1077,12 @@ async function getOralReviewDetail(req, res) {
 async function verifyOralReadingResult(req, res) {
   try {
     const { attemptId } = req.params;
-    const { verifiedMiscues, verifiedWpm, verifiedAccuracyPct, comprehensionScore } = req.body;
+    const { verifiedMiscues, verifiedWpm, verifiedAccuracyPct, comprehensionScore, isDiscontinued, discontinuationReason, overallProfile } = req.body;
 
     const { getPhilIriProfile } = require('../services/miscueEngine.js');
-    const profileLabel = getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0);
+    const profileLabel = isDiscontinued
+      ? 'Frustration'
+      : (overallProfile || getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0));
 
     if (process.env.DATABASE_URL) {
       // 1. Resolve real attempt_id, assessment_id, and student_id
@@ -1163,7 +1166,9 @@ async function verifyOralReadingResult(req, res) {
       );
 
       // 4. Update main assessment record status, reading profile, and remarks
-      const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
+      const remarksText = isDiscontinued
+        ? `Verified Oral Reading Assessment Result - Frustration (Discontinued - Refusal to Read)`
+        : `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
       if (resolvedAssessmentId) {
         await db.query(
           `UPDATE assessments
@@ -1504,6 +1509,60 @@ async function getTeacherClassStudents(req, res) {
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
 
     if (process.env.DATABASE_URL) {
+      let sectionName = null;
+      let gradeLevel = null;
+      let schoolYear = null;
+
+      // Query section metadata directly for advisor teacher
+      try {
+        const metaRes = await db.query(
+          `SELECT c.section_name, c.grade_level, sy.school_year
+           FROM teachers t
+           JOIN classes c ON c.advisor_teacher_id = t.teacher_id
+           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+           WHERE t.user_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+        if (metaRes.rows && metaRes.rows.length > 0) {
+          sectionName = metaRes.rows[0].section_name;
+          gradeLevel = metaRes.rows[0].grade_level ? String(metaRes.rows[0].grade_level) : null;
+          schoolYear = metaRes.rows[0].school_year;
+        }
+      } catch (mErr) {
+        console.warn('Teacher section metadata query notice:', mErr.message);
+      }
+
+      // Fallback for active school year if not resolved yet
+      if (!schoolYear) {
+        try {
+          const syRes = await db.query(`SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`);
+          if (syRes.rows?.[0]?.school_year) {
+            schoolYear = syRes.rows[0].school_year;
+          }
+        } catch (syErr) {}
+      }
+
+      // Fallback for FIC metadata if teacher is FIC with no direct section advisory
+      if (!sectionName) {
+        try {
+          const ficMetaRes = await db.query(
+            `SELECT fic.grade_level, sy.school_year
+             FROM teachers t
+             JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id AND fic.status = 'active'
+             JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+             WHERE t.user_id = $1
+             LIMIT 1`,
+            [userId]
+          );
+          if (ficMetaRes.rows && ficMetaRes.rows.length > 0) {
+            gradeLevel = ficMetaRes.rows[0].grade_level ? String(ficMetaRes.rows[0].grade_level) : null;
+            sectionName = gradeLevel ? `Grade ${gradeLevel} (All Sections)` : 'Grade Level Mode';
+            schoolYear = ficMetaRes.rows[0].school_year;
+          }
+        } catch (fErr) {}
+      }
+
       // 1. Fetch students enrolled in the teacher's assigned section
       const sectionQuery = `
         SELECT 
@@ -1634,6 +1693,12 @@ async function getTeacherClassStudents(req, res) {
         students = ficRes.rows || [];
       }
 
+      // Extract section metadata from students list if available
+      if (!sectionName && students.length > 0 && students[0].sectionName) {
+        sectionName = students[0].sectionName;
+        gradeLevel = gradeLevel || (students[0].gradeLevel ? String(students[0].gradeLevel) : null);
+      }
+
       if (students.length > 0) {
         const studentIds = students.map((s) => String(s.id || s.studentId)).filter(Boolean);
         if (studentIds.length > 0) {
@@ -1666,7 +1731,14 @@ async function getTeacherClassStudents(req, res) {
         }
       }
 
-      return res.json({ success: true, students });
+      return res.json({
+        success: true,
+        students,
+        sectionName,
+        gradeLevel,
+        schoolYear: schoolYear || '2026-2027',
+        totalStudents: students.length,
+      });
     }
 
     return res.json({ success: true, students: [] });

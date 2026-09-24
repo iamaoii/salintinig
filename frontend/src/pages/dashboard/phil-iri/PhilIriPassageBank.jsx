@@ -19,6 +19,7 @@ import BackButton from '../../../components/common/BackButton.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { CardGridSkeleton } from '../../../components/common/Skeleton.jsx';
 import { cacheService } from '../../../services/cacheService.js';
+import { getApiUrl } from '../../../config/api.js';
 
 const SET_COLORS = {
   'Set A': 'bg-purple-100/90 text-purple-900 border border-purple-200/80',

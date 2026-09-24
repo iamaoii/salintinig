@@ -218,20 +218,36 @@ async function getStudentByLrn(req, res) {
           const studentObj = rows[0];
           const studentId = studentObj.id;
 
-          // Fetch real assessment performance attempts
+          // 1. Fetch real Phil-IRI profile level from reading_profiles view or student_reading_profiles
+          try {
+            const { rows: profRows } = await db.query(
+              `SELECT profile_level, accuracy_rate, comprehension_rate, speed_wpm
+               FROM student_reading_profiles
+               WHERE student_id = $1
+               ORDER BY updated_at DESC LIMIT 1`,
+              [studentId]
+            );
+            if (profRows.length > 0 && profRows[0].profile_level) {
+              studentObj.level = profRows[0].profile_level;
+            }
+          } catch (_) {}
+
+          // 2. Fetch real assessment performance attempts (Oral & Silent)
           const { rows: perfRows } = await db.query(
             `SELECT 
+               aa.attempt_id,
                aa.completed_at,
-               COALESCE(orr.fluency_score, 0) AS oral_accuracy,
+               COALESCE(orr.accuracy_percentage, orr.fluency_score, 0) AS oral_accuracy,
                COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension,
                COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, 0) AS reading_time,
-               COALESCE(orr.words_read, 0) AS words_read
+               COALESCE(orr.words_read, 0) AS words_read,
+               COALESCE(orr.reading_rate_wpm, 0) AS reading_rate_wpm
              FROM assessment_attempts aa
              JOIN assessments a ON aa.assessment_id = a.assessment_id
              LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
              LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
-             WHERE a.student_id = $1 AND aa.status = 'completed'
-             ORDER BY aa.completed_at ASC
+             WHERE a.student_id = $1 AND (aa.status = 'completed' OR aa.status = 'verified')
+             ORDER BY aa.completed_at ASC NULLS LAST, aa.created_at ASC
              LIMIT 6`,
             [studentId]
           );
@@ -249,7 +265,11 @@ async function getStudentByLrn(req, res) {
             perfRows.forEach((r) => {
               const sec = Number(r.reading_time || 0);
               const words = Number(r.words_read || 0);
-              if (sec > 0 && words > 0) {
+              const wpm = Number(r.reading_rate_wpm || 0);
+              if (wpm > 0) {
+                totalWps += Math.round(wpm / 60);
+                wpsCount++;
+              } else if (sec > 0 && words > 0) {
                 totalWps += Math.round(words / sec);
                 wpsCount++;
               }
@@ -271,9 +291,73 @@ async function getStudentByLrn(req, res) {
             studentObj.avgWps = 0;
           }
 
-          studentObj.activities = [];
+          // 3. Fetch real student activities (Assigned Phil-IRI assessments)
+          try {
+            const { rows: actRows } = await db.query(
+              `SELECT 
+                 a.assessment_id AS id,
+                 p.title AS "passageTitle",
+                 p.passage_set AS "passageSet",
+                 COALESCE(p.language, 'fil') AS language,
+                 LOWER(a.assessment_type) AS "assessmentType",
+                 LOWER(a.assessment_period) AS "assessmentPeriod",
+                 CASE 
+                   WHEN LOWER(COALESCE(aa.status, a.status, 'open')) IN ('completed', 'verified') THEN 'done'
+                   ELSE 'not-done'
+                 END AS status,
+                 aa.attempt_id,
+                 aa.completed_at,
+                 COALESCE(orr.accuracy_percentage, orr.fluency_score, 0) AS accuracy_score,
+                 COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score
+               FROM assessments a
+               LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+               LEFT JOIN LATERAL (
+                 SELECT attempt_id, status, completed_at FROM assessment_attempts
+                 WHERE assessment_id = a.assessment_id
+                 ORDER BY completed_at DESC NULLS LAST, created_at DESC NULLS LAST
+                 LIMIT 1
+               ) aa ON true
+               LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+               LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
+               WHERE a.student_id = $1 AND LOWER(COALESCE(a.status, 'open')) != 'cancelled'
+               ORDER BY a.created_at DESC`,
+              [studentId]
+            );
+            studentObj.activities = actRows.map((r) => {
+              const typeLabel =
+                r.assessmentType === 'oral'      ? 'Oral Reading' :
+                r.assessmentType === 'listening' ? 'Listening'    :
+                r.assessmentType === 'silent'    ? 'Silent Reading' : 'Practice';
+              const periodLabel = r.assessmentPeriod === 'post_test' ? 'Post-Test' : 'Pre-Test';
+              const langLabel   = String(r.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+              const rawSet      = r.passageSet ? String(r.passageSet).trim() : 'Set A';
+              const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : `Set ${rawSet}`;
 
-          // Fetch earned badges from student_progress DB table
+              const isDone = r.status === 'done';
+
+              return {
+                id: r.id,
+                attemptId: r.attempt_id,
+                title: `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
+                passageTitle: r.passageTitle,
+                assessmentType: r.assessmentType,
+                type: r.assessmentType,
+                language: r.language,
+                passageSet: setLabel,
+                tag: 'Phil-IRI',
+                status: r.status,
+                accuracyScore: Math.round(Number(r.accuracy_score || 0)),
+                comprehensionScore: Math.round(Number(r.comprehension_score || 0)),
+                completedAt: r.completed_at,
+                action: isDone ? 'View result' : 'Open',
+              };
+            });
+          } catch (actErr) {
+            console.warn('[getStudentByLrn] activities query notice:', actErr.message);
+            studentObj.activities = [];
+          }
+
+          // 4. Fetch earned badges from student_progress DB table or badge service
           try {
             const { rows: pRows } = await db.query(
               `SELECT earned_badges FROM student_progress WHERE student_id = $1 LIMIT 1`,
@@ -291,10 +375,16 @@ async function getStudentByLrn(req, res) {
             studentObj.badges = [];
           }
 
-          // Fetch completed stories from DB if table exists
+          // 5. Fetch completed stories from DB
           try {
             const { rows: storyRows } = await db.query(
-              `SELECT rm.material_id AS id, rm.title, COALESCE(rm.category, 'blue') AS color
+              `SELECT rm.material_id AS id, rm.title, 
+                      CASE 
+                        WHEN LOWER(rm.category) = 'fable' THEN 'green'
+                        WHEN LOWER(rm.category) = 'poem' THEN 'yellow'
+                        WHEN LOWER(rm.category) = 'folktale' THEN 'red'
+                        ELSE 'blue'
+                      END AS color
                FROM student_story_progress ssp
                JOIN reading_materials rm ON ssp.material_id = rm.material_id
                WHERE ssp.student_id = $1 AND ssp.status = 'completed'

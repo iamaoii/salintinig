@@ -10,11 +10,12 @@ import AccuracyTrendChart from '../../../components/dashboard/progress/AccuracyT
 import AchievementActivityRow from '../../../components/dashboard/activity/AchievementActivityRow.jsx';
 import BadgeCard from '../../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
+import { StudentProfileSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { decodeSecureToken } from '../../../lib/securityToken.js';
 
 import { students as mockStudentsData } from '../../../data/students.js';
-import { badgesByLrn, storiesByLrn } from '../../../data/studentAchievements.js';
+import { defaultBadges, defaultStories } from '../../../data/studentAchievements.js';
 
 const LEVEL_BADGE = {
   Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
@@ -25,15 +26,6 @@ const LEVEL_BADGE = {
 };
 
 const ACHIEVEMENT_TABS = ['Activities', 'Badges', 'Stories'];
-
-const ACTIVITIES = [
-  { id: 1, title: 'Activity name', status: 'not-done' },
-  { id: 2, title: 'Activity name', status: 'done' },
-];
-
-const SESSIONS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
-const ACCURACY_TREND = [58, 65, 70, 76, 82, 87];
-const COMPREHENSION_TREND = [20, 24, 28, 31, 34, 37];
 
 const BADGE_COLUMNS = 5;
 
@@ -61,7 +53,8 @@ export default function StudentProfile() {
       try {
         setLoading(true);
         const token = getToken();
-        const res = await fetch(getApiUrl(`/api/teacher/students/${lrn}`), {
+        const targetLrn = lrn || rawLrn;
+        const res = await fetch(getApiUrl(`/api/teacher/students/${targetLrn}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
@@ -75,7 +68,7 @@ export default function StudentProfile() {
       }
     };
     fetchStudent();
-  }, [lrn]);
+  }, [lrn, rawLrn]);
 
   const fallbackStudent = mockStudentsData.find((s) => s.lrn === lrn);
   const student = dbStudent || fallbackStudent || {
@@ -86,18 +79,46 @@ export default function StudentProfile() {
     level: 'Pending Evaluation',
   };
 
-  const rawBadges = (badgesByLrn[student.lrn] && badgesByLrn[student.lrn].length > 0)
-    ? badgesByLrn[student.lrn]
-    : (badgesByLrn['136670100091'] || []);
-  const badges = withPlaceholders(rawBadges);
+  // Map real database badges or default badge assets (only unlocked badges)
+  const badges = (student.badges && student.badges.length > 0)
+    ? student.badges.map((b) => {
+        const found = defaultBadges.find(
+          (db) => db.name.toLowerCase() === (b.badgeName || b.name || '').toLowerCase() ||
+                  db.id === (b.id || b.badge_id)
+        );
+        return {
+          id: b.id || b.badge_id || b.badgeName,
+          name: b.badgeName || b.name,
+          image: b.iconPath ? getApiUrl(b.iconPath) : (found?.image || defaultBadges[0]?.image),
+          description: b.description || found?.description,
+        };
+      })
+    : [];
 
-  const stories = (storiesByLrn[student.lrn] && storiesByLrn[student.lrn].length > 0)
-    ? storiesByLrn[student.lrn]
-    : (storiesByLrn['136670100091'] || [
-        { id: 1, title: 'The Lost Kite', color: 'blue' },
-        { id: 2, title: 'Adventures in the Forest', color: 'green' },
-        { id: 3, title: 'The Brave Little Turtle', color: 'yellow' },
-      ]);
+  // Map real database completed stories
+  const stories = (student.stories && student.stories.length > 0)
+    ? student.stories.map((s) => ({
+        id: s.id,
+        title: s.title,
+        color: s.color || 'blue',
+      }))
+    : [];
+
+  // Map real database completed activities (Achievements only include finished work)
+  const activities = (student.activities && student.activities.length > 0)
+    ? student.activities
+        .filter((act) => act.status === 'done')
+        .map((act) => ({
+          ...act,
+          onAction: (a) => {
+            if (a.attemptId) {
+              navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
+            } else if (a.id) {
+              navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+            }
+          },
+        }))
+    : [];
 
   return (
     <div>
@@ -107,12 +128,7 @@ export default function StudentProfile() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-          <div className="flex flex-col items-center justify-center gap-2">
-            <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-            <span className="text-xs font-semibold text-ink/60">Loading student profile...</span>
-          </div>
-        </div>
+        <StudentProfileSkeleton />
       ) : (
         <>
           <div className="mt-4 flex flex-wrap items-start justify-between gap-4 py-2">
@@ -217,11 +233,19 @@ export default function StudentProfile() {
           <div className="mt-4">
             <div key={activeTab} className="animate-fadeIn">
               {activeTab === 'Activities' && (
-                <div className="flex flex-col gap-3">
-                  {ACTIVITIES.map((activity) => (
-                    <AchievementActivityRow key={activity.id} activity={activity} />
-                  ))}
-                </div>
+                activities.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {activities.map((activity) => (
+                      <AchievementActivityRow key={activity.id} activity={activity} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-ink/10 bg-cream">
+                    <Icon icon="ph:article" className="mb-2 size-9 text-ink/30" />
+                    <p className="text-base font-bold text-ink/70">No completed activities yet.</p>
+                    <p className="text-xs text-ink/50 mt-1">Activities completed by this student will appear here.</p>
+                  </div>
+                )
               )}
 
               {activeTab === 'Badges' &&

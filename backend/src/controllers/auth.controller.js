@@ -219,10 +219,58 @@ async function login(req, res) {
       } else if (matchedUser.role === 'admin') {
         displayName = matchedUser.school_name || 'Mandaluyong Elementary School';
       } else if (matchedUser.role === 'teacher') {
-        if (matchedUser.first_name) {
-          displayName = `${matchedUser.first_name} ${matchedUser.last_name}`;
-        } else {
-          displayName = 'Teacher Account';
+        try {
+          const tRes = await db.query(
+            `SELECT t.first_name, t.middle_name, t.last_name, t.teacher_no, c.grade_level, c.section_name,
+                    sch.school_name,
+                    EXISTS(
+                      SELECT 1 FROM faculty_in_charge fic
+                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+                      WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
+                    ) AS is_faculty_in_charge,
+                    (
+                      SELECT fic2.grade_level FROM faculty_in_charge fic2
+                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
+                      WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
+                      LIMIT 1
+                    ) AS fic_grade_level,
+                    sy_active.school_year AS active_school_year
+             FROM teachers t
+             LEFT JOIN users u ON t.user_id = u.user_id
+             LEFT JOIN schools sch ON u.school_id = sch.school_id
+             LEFT JOIN school_years sy_active ON sy_active.is_active = true
+             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id AND (c.school_year_id = sy_active.school_year_id OR c.school_year_id IS NULL)
+             WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
+             LIMIT 1`,
+            [matchedUser.user_id, matchedUser.email || '']
+          );
+          if (tRes.rows && tRes.rows.length > 0) {
+            const tRow = tRes.rows[0];
+            firstName = tRow.first_name || matchedUser.first_name || '';
+            lastName = tRow.last_name || matchedUser.last_name || '';
+            empId = tRow.teacher_no || matchedUser.teacher_no || null;
+            displayName = [tRow.first_name, tRow.middle_name, tRow.last_name].filter(Boolean).join(' ') || 'Teacher Account';
+
+            sectionName = tRow.section_name || null;
+            gradeLevel = tRow.grade_level ? String(tRow.grade_level) : null;
+
+            const gPrefix = gradeLevel ? `Grade ${gradeLevel}` : '';
+            const secLabel = sectionName ? (gPrefix && !sectionName.toLowerCase().includes('grade') ? `${gPrefix} - ${sectionName}` : sectionName) : '';
+
+            matchedUser.sectionName = sectionName;
+            matchedUser.gradeLevel = gradeLevel;
+            matchedUser.section = secLabel;
+            matchedUser.assigned_section = secLabel;
+            matchedUser.isFacultyInCharge = tRow.is_faculty_in_charge === true;
+            matchedUser.ficGradeLevel = tRow.fic_grade_level || null;
+            matchedUser.activeSchoolYear = tRow.active_school_year || '2026-2027';
+            if (tRow.school_name) matchedUser.school_name = tRow.school_name;
+          } else {
+            displayName = matchedUser.first_name ? `${matchedUser.first_name} ${matchedUser.last_name}` : 'Teacher Account';
+          }
+        } catch (tErr) {
+          console.warn('Teacher login detail enrichment warning:', tErr.message);
+          displayName = matchedUser.first_name ? `${matchedUser.first_name} ${matchedUser.last_name}` : 'Teacher Account';
         }
       } else if (matchedUser.role === 'student') {
         try {
@@ -264,8 +312,14 @@ async function login(req, res) {
         firstName: firstName || displayName,
         lastName,
         lrn,
-        gradeLevel,
-        sectionName,
+        gradeLevel: gradeLevel || matchedUser.gradeLevel || null,
+        sectionName: sectionName || matchedUser.sectionName || null,
+        section: matchedUser.section || (matchedUser.sectionName ? `Grade ${matchedUser.gradeLevel || ''} - ${matchedUser.sectionName}` : ''),
+        assigned_section: matchedUser.assigned_section || matchedUser.section || '',
+        isFacultyInCharge: matchedUser.isFacultyInCharge || false,
+        ficGradeLevel: matchedUser.ficGradeLevel || null,
+        activeSchoolYear: matchedUser.activeSchoolYear || '2026-2027',
+        schoolYear: matchedUser.activeSchoolYear || '2026-2027',
         email: matchedUser.email,
         role: matchedUser.role,
         schoolId,

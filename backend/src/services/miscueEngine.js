@@ -347,22 +347,7 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
     };
   }
 
-  // 1. Detect audio hesitations / pauses from word-level timestamps (pause >= 2.5s)
-  const isHesitation = new Array(spokenWords.length).fill(false);
-  if (timestampedWords.length > 1) {
-    for (let k = 1; k < timestampedWords.length; k++) {
-      const prevEnd = timestampedWords[k - 1]?.end;
-      const currStart = timestampedWords[k]?.start;
-      if (typeof prevEnd === 'number' && typeof currStart === 'number') {
-        const pauseSec = currStart - prevEnd;
-        if (pauseSec >= 2.5) {
-          isHesitation[k] = true;
-        }
-      }
-    }
-  }
-
-  // 2. Detect word and phrase repetitions (N-Gram & sentence loop-back detection)
+  // 1. Detect word and phrase repetitions (N-Gram & sentence loop-back detection)
   const repInfo = detectRepetitions(spokenWords);
 
   // 3. Mark filler words
@@ -399,26 +384,26 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
       return;
     }
 
-    // Priority ranking:
-    // 1. self_correction (highest)
-    // 2. repetition (overwrites generic insertion and hesitation)
-    // 3. substitution / omission (content errors)
+    // Priority ranking (8 Official Phil-IRI Miscues):
+    // 1. self_correction (highest - student corrected themselves)
+    // 2. repetition (overwrites generic insertion)
+    // 3. mispronunciation / substitution / omission / reversal / transposition (content errors)
     // 4. insertion
-    // 5. hesitation (lowest)
     if (cleanMiscue.miscue_type === 'self_correction') {
       miscuesByPosition.set(validPos, cleanMiscue);
       return;
     }
 
     if (cleanMiscue.miscue_type === 'repetition') {
-      if (existing.miscue_type === 'insertion' || existing.miscue_type === 'hesitation') {
+      if (existing.miscue_type === 'insertion') {
         miscuesByPosition.set(validPos, cleanMiscue);
         return;
       }
     }
 
-    if (cleanMiscue.miscue_type === 'substitution' || cleanMiscue.miscue_type === 'omission') {
-      if (existing.miscue_type === 'insertion' || existing.miscue_type === 'hesitation') {
+    const contentErrorTypes = ['mispronunciation', 'substitution', 'omission', 'reversal', 'transposition'];
+    if (contentErrorTypes.includes(cleanMiscue.miscue_type)) {
+      if (existing.miscue_type === 'insertion') {
         miscuesByPosition.set(validPos, cleanMiscue);
         return;
       }
@@ -480,14 +465,6 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
             is_corrected: false,
             phonetic_confidence: step.phoneticConfidence || 100
           });
-        } else if (isHesitation[sIdx]) {
-          setMiscue(currentOrigPos, {
-            expected_word: originalWords[step.origIdx],
-            spoken_word: spokenWords[sIdx],
-            miscue_type: 'hesitation',
-            is_corrected: false,
-            phonetic_confidence: step.phoneticConfidence || 100
-          });
         }
       }
       continue;
@@ -506,11 +483,42 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
     }
 
     // D. Substitution Step (Student mispronounced or changed the word)
+    // D. Substitution / Mispronunciation / Reversal / Transposition Step
     if (step.type === 'substitution') {
+      const exp = originalWords[step.origIdx] || '';
+      const spk = spokenWords[step.spokIdx] || '';
+      const expNorm = normalizeWord(exp);
+      const spkNorm = normalizeWord(spk);
+
+      // Check for Reversal: e.g. "bad" read as "dab", "on" as "no", "was" as "saw"
+      const isReversal = expNorm.length > 1 && expNorm === spkNorm.split('').reverse().join('');
+
+      // Check for Transposition: e.g. adjacent words swapped in sequence
+      const isTransposition = nextStep && nextStep.type === 'substitution' &&
+        nextStep.origIdx !== null && nextStep.spokIdx !== null &&
+        normalizeWord(originalWords[nextStep.origIdx]) === spkNorm &&
+        expNorm === normalizeWord(spokenWords[nextStep.spokIdx]);
+
+      let detectedType = 'substitution';
+      if (isReversal) {
+        detectedType = 'reversal';
+      } else if (isTransposition) {
+        detectedType = 'transposition';
+      } else {
+        const { similarity } = getPhoneticSimilarity(spk, exp);
+        // Mispronunciation: student attempted the target word but mispronounced phonemes
+        // Substitution: student substituted an entirely different word
+        if (similarity >= 0.40 || (step.phoneticConfidence && step.phoneticConfidence >= 35)) {
+          detectedType = 'mispronunciation';
+        } else {
+          detectedType = 'substitution';
+        }
+      }
+
       setMiscue(currentOrigPos, {
-        expected_word: originalWords[step.origIdx],
-        spoken_word: spokenWords[step.spokIdx],
-        miscue_type: 'substitution',
+        expected_word: exp,
+        spoken_word: spk,
+        miscue_type: detectedType,
         is_corrected: false,
         phonetic_confidence: step.phoneticConfidence || 0
       });
@@ -523,22 +531,8 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
       const currentSpoken = spokenWords[sIdx];
 
       if (isFillerWord(currentSpoken)) {
-        // Find upcoming match step in passage to anchor the hesitation
-        let targetPos = currentOrigPos;
-        for (let f = s + 1; f < steps.length; f++) {
-          if (steps[f].origIdx !== null && steps[f].type === 'match') {
-            targetPos = steps[f].origIdx + 1;
-            break;
-          }
-        }
-
-        setMiscue(targetPos, {
-          expected_word: originalWords[targetPos - 1] || originalWords[0] || '',
-          spoken_word: currentSpoken,
-          miscue_type: 'hesitation',
-          is_corrected: false,
-          phonetic_confidence: 0
-        });
+        // Phil-IRI Rule: Vocal fillers/pauses (uh, uhm, ano) are not Phil-IRI miscues.
+        continue;
       } else if (isSameWordAsNext && nextStep && nextStep.origIdx !== null) {
         // Identical word read twice in sequence
         const targetPos = nextStep.origIdx + 1;
@@ -580,11 +574,18 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
   // Convert map to sorted array by 1-indexed word_position
   const miscues = Array.from(miscuesByPosition.values()).sort((a, b) => a.word_position - b.word_position);
 
-  // Phil-IRI Accuracy scoring: Self-corrections and minor hesitations do not penalize accuracy
+  // DepEd Phil-IRI Accuracy scoring:
+  // All miscues count as 1 error EXCEPT Self-Correction
+  // - Mispronunciation: 1 error
+  // - Omission: 1 error
+  // - Substitution: 1 error
+  // - Insertion: 1 error
+  // - Repetition: 1 error
+  // - Transposition: 1 error
+  // - Reversal: 1 error
+  // - Self-Correction: Don't count self-correction as an error
   const penalizedMiscues = miscues.filter(m => 
-    m.miscue_type === 'omission' || 
-    m.miscue_type === 'substitution' || 
-    m.miscue_type === 'insertion'
+    m.miscue_type !== 'self_correction'
   ).length;
 
   const correctWords = Math.max(0, totalPassageWords - penalizedMiscues);
@@ -607,48 +608,78 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
   };
 }
 
+// ===========================================================================
+// OFFICIAL DEPED PHIL-IRI COMPUTATION STANDARDS
+// ===========================================================================
+
 /**
- * 1. Oral Reading Profile (Word Accuracy % + Comprehension Score %)
- * 
- * DepEd Phil-IRI Matrix:
- * - Independent: Word Reading >= 97% AND Comprehension >= 80%
- * - Instructional: Word Reading 90-96% AND Comprehension 59-79% (or mixed Ind/Inst)
- * - Frustration: Word Reading < 90% OR Comprehension < 59%
- * 
- * @param {number} accuracyPercentage - Word reading accuracy percentage
- * @param {number} comprehensionScorePercentage - Reading comprehension score percentage
- * @returns {'Independent'|'Instructional'|'Frustration'}
+ * Table 6. Table of Percentage for Comprehension Scores
+ * Derived by dividing the number of correct answers over the number of questions and multiplying by 100.
  */
-function getPhilIriOralProfile(accuracyPercentage, comprehensionScorePercentage) {
-  let wordLevel = 'Frustration';
-  if (accuracyPercentage >= 97) wordLevel = 'Independent';
-  else if (accuracyPercentage >= 90) wordLevel = 'Instructional';
+const TABLE_6_PERCENTAGES = {
+  5: { 5: 100, 4: 80, 3: 60, 2: 40, 1: 20 },
+  6: { 6: 100, 5: 83, 4: 67, 3: 50, 2: 33, 1: 17 },
+  7: { 7: 100, 6: 86, 5: 71, 4: 57, 3: 43, 2: 29, 1: 14 },
+  8: { 8: 100, 7: 88, 6: 75, 5: 63, 4: 50, 3: 38, 2: 25, 1: 13 },
+};
 
-  let compLevel = 'Frustration';
-  if (comprehensionScorePercentage >= 80) compLevel = 'Independent';
-  else if (comprehensionScorePercentage >= 59) compLevel = 'Instructional';
-
-  if (wordLevel === 'Frustration' || compLevel === 'Frustration') {
-    return 'Frustration';
+/**
+ * Calculate Comprehension Score Percentage (Image 2, 3 & Table 6)
+ * C = (No. of correct answers / No. of questions) * 100 = % of comprehension
+ */
+function getComprehensionScorePercentage(correctAnswers, totalQuestions) {
+  const correct = Math.max(0, Number(correctAnswers) || 0);
+  const total = Number(totalQuestions) || 0;
+  if (total <= 0) return 0;
+  if (TABLE_6_PERCENTAGES[total] && TABLE_6_PERCENTAGES[total][correct] !== undefined) {
+    return TABLE_6_PERCENTAGES[total][correct];
   }
-  if (wordLevel === 'Instructional' || compLevel === 'Instructional') {
-    return 'Instructional';
-  }
-  return 'Independent';
+  return Math.round((correct / total) * 100);
 }
 
 /**
- * 2. Listening Comprehension Profile (Comprehension Score % only)
- * 
- * DepEd Phil-IRI Listening Cutoffs:
- * - Independent: Comprehension 80% - 100%
- * - Instructional: Comprehension 59% - 79%
- * - Frustration: Comprehension 58% and below
- * 
- * @param {number} comprehensionScorePercentage - Listening comprehension score percentage
- * @returns {'Independent'|'Instructional'|'Frustration'}
+ * Oral Reading Score / Word Reading Score % (Image 1)
+ * Oral Reading Score = ((No. of words - No. of miscues) / No. of words) * 100
  */
-function getPhilIriListeningProfile(comprehensionScorePercentage) {
+function calculateOralReadingScore(totalWords, miscuesCount) {
+  const words = Math.max(0, Number(totalWords) || 0);
+  const miscues = Math.max(0, Number(miscuesCount) || 0);
+  if (words <= 0) return 0;
+  const correct = Math.max(0, words - miscues);
+  return Number(((correct / words) * 100).toFixed(1));
+}
+
+/**
+ * Reading Rate in Words Per Minute (Image 5)
+ * Reading Rate = (Words Read / Time in seconds) * 60
+ */
+function calculateReadingRate(wordsRead, durationSeconds) {
+  const words = Math.max(0, Number(wordsRead) || 0);
+  const secs = Number(durationSeconds) || 0;
+  if (secs <= 0) return 0;
+  return Number(((words / secs) * 60).toFixed(1));
+}
+
+/**
+ * Table 7. Word Reading Score Criteria (in %)
+ * - Independent: 97 - 100%
+ * - Instructional: 90 - 96%
+ * - Frustration: 89% and below
+ */
+function getWordReadingLevel(accuracyPercentage) {
+  const acc = Number(accuracyPercentage) || 0;
+  if (acc >= 97) return 'Independent';
+  if (acc >= 90) return 'Instructional';
+  return 'Frustration';
+}
+
+/**
+ * Table 7. Comprehension Score Criteria (in %)
+ * - Independent: 80 - 100%
+ * - Instructional: 59 - 79%
+ * - Frustration: 58% and below
+ */
+function getComprehensionLevel(comprehensionScorePercentage) {
   const comp = Number(comprehensionScorePercentage) || 0;
   if (comp >= 80) return 'Independent';
   if (comp >= 59) return 'Instructional';
@@ -656,25 +687,49 @@ function getPhilIriListeningProfile(comprehensionScorePercentage) {
 }
 
 /**
- * 3. Silent Reading Profile (Reading Speed WPM + Comprehension Score %)
- * 
- * DepEd Phil-IRI Silent Reading Matrix:
- * - Independent: Fast/Standard Speed AND Comprehension >= 80%
- * - Instructional: Average Speed AND Comprehension >= 59%
- * - Frustration: Slow Speed OR Comprehension < 59%
- * 
- * @param {number} readingSpeedWpm - Silent reading rate in Words Per Minute
- * @param {number} comprehensionScorePercentage - Reading comprehension score percentage
- * @param {string} [gradeLevel='Grade 4'] - Student grade level
- * @param {string} [language='fil'] - Passage language ('en' | 'fil')
- * @returns {'Independent'|'Instructional'|'Frustration'}
+ * Table 8. Student's Reading Profile Per Passage
+ * Combines Word Reading and Reading Comprehension:
+ * | Word Reading  | Reading Comprehension | Reading Profile per passage |
+ * | Independent   | Independent           | Independent                 |
+ * | Independent   | Instructional         | Instructional               |
+ * | Instructional | Independent           | Instructional               |
+ * | Instructional | Frustration           | Frustration                 |
+ * | Frustration   | Instructional         | Frustration                 |
+ * | Frustration   | Frustration           | Frustration                 |
+ * (Frustration with any level yields Frustration)
+ */
+function getPhilIriOralProfile(accuracyPercentage, comprehensionScorePercentage) {
+  const wordLevel = getWordReadingLevel(accuracyPercentage);
+  const compLevel = getComprehensionLevel(comprehensionScorePercentage);
+
+  if (wordLevel === 'Independent' && compLevel === 'Independent') {
+    return 'Independent';
+  }
+  if (
+    (wordLevel === 'Independent' && compLevel === 'Instructional') ||
+    (wordLevel === 'Instructional' && compLevel === 'Independent') ||
+    (wordLevel === 'Instructional' && compLevel === 'Instructional')
+  ) {
+    return 'Instructional';
+  }
+  return 'Frustration';
+}
+
+/**
+ * Listening Comprehension Profile (Comprehension Score % only)
+ * - Independent: 80% - 100%
+ * - Instructional: 59% - 79%
+ * - Frustration: 58% and below
+ */
+function getPhilIriListeningProfile(comprehensionScorePercentage) {
+  return getComprehensionLevel(comprehensionScorePercentage);
+}
+
+/**
+ * Silent Reading Profile (Reading Speed WPM + Comprehension Score %)
  */
 function getPhilIriSilentProfile(readingSpeedWpm, comprehensionScorePercentage, gradeLevel = 'Grade 4', language = 'fil') {
-  let compLevel = 'Frustration';
-  const comp = Number(comprehensionScorePercentage) || 0;
-  if (comp >= 80) compLevel = 'Independent';
-  else if (comp >= 59) compLevel = 'Instructional';
-
+  const compLevel = getComprehensionLevel(comprehensionScorePercentage);
   const speed = Number(readingSpeedWpm) || 0;
   if (speed <= 0) {
     return compLevel;
@@ -713,6 +768,12 @@ module.exports = {
   getPhilIriOralProfile,
   getPhilIriListeningProfile,
   getPhilIriSilentProfile,
+  getWordReadingLevel,
+  getComprehensionLevel,
+  getComprehensionScorePercentage,
+  calculateOralReadingScore,
+  calculateReadingRate,
+  TABLE_6_PERCENTAGES,
   alignSequences,
   detectRepetitions,
   normalizeWord,

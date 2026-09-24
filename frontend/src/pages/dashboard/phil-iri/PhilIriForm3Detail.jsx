@@ -20,16 +20,19 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
       { type: 'Substitution', typeFilipino: 'Pagpapalit', count: 1 },
       { type: 'Insertion', typeFilipino: 'Pagsingit', count: 0 },
       { type: 'Repetition', typeFilipino: 'Pag-uulit', count: 1 },
-      { type: 'Reversal', typeFilipino: 'Pagsasalungat', count: 0 },
-      { type: 'Refusal to Pronounce', typeFilipino: 'Hindi Pagbigkas', count: 0 },
+      { type: 'Transposition', typeFilipino: 'Pagpapalit ng lugar', count: 0 },
+      { type: 'Reversal', typeFilipino: 'Paglilipat', count: 0 },
+      { type: 'Self-Correction', typeFilipino: 'Sariling Pagwawasto', count: 1 },
     ],
     totalMiscues: 5,
-    oralAccuracy: '92%',
+    totalWords: 100,
+    wordReadingScore: '95%',
+    readingLevel: 'Instructional',
+    oralAccuracy: '95%',
     answers: ['Tama', 'Tama', 'Mali', 'Tama', 'Mali', 'Tama', 'Tama'],
     responses: ['Correct', 'Correct', 'Incorrect', 'Correct', 'Incorrect', 'Correct', 'Correct'],
     compScore: '5/7',
     compPercentage: '71%',
-    readingLevel: 'Instructional',
   };
 
   const [isEditing, setIsEditing] = useState(false);
@@ -45,9 +48,27 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
   const handleMiscueChange = (index, count) => {
     setRecord((prev) => {
       const nextMiscues = [...prev.miscues];
-      nextMiscues[index] = { ...nextMiscues[index], count: Number(count) || 0 };
-      const totalMiscues = nextMiscues.reduce((sum, m) => sum + m.count, 0);
-      return { ...prev, miscues: nextMiscues, totalMiscues };
+      nextMiscues[index] = { ...nextMiscues[index], count: Math.max(0, Number(count) || 0) };
+      // Self-Correction is not counted as an error in official Phil-IRI scoring
+      const totalMiscues = nextMiscues.reduce((sum, m) => {
+        if (m.type === 'Self-Correction' || m.type === 'Self -Correction') return sum;
+        return sum + m.count;
+      }, 0);
+      const totalWords = prev.totalWords || 100;
+      const correctWords = Math.max(0, totalWords - totalMiscues);
+      const scorePct = ((correctWords / totalWords) * 100).toFixed(1);
+      let readingLevel = 'Frustration';
+      if (scorePct >= 97) readingLevel = 'Independent';
+      else if (scorePct >= 90) readingLevel = 'Instructional';
+
+      return {
+        ...prev,
+        miscues: nextMiscues,
+        totalMiscues,
+        wordReadingScore: `${scorePct}%`,
+        oralAccuracy: `${scorePct}%`,
+        readingLevel,
+      };
     });
   };
 
@@ -215,7 +236,7 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                 </tr>
                 <tr className="font-medium text-ink">
                   <td colSpan={2} className="border border-ink/10 p-2">
-                    Total Miscues <span className="italic text-ink/50">(Antas ng Pagbabasa)</span>
+                    Reading Level <span className="italic text-ink/50">(Antas ng Pagbabasa)</span>
                   </td>
                   <td className="border border-ink/10 p-2">{record.readingLevel}</td>
                 </tr>

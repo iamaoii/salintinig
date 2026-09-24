@@ -107,8 +107,20 @@ export default function AdminStudentProfile() {
   };
 
   const rawBadges = std.badges || [];
-  const badges = withPlaceholders(rawBadges);
+  const badges = rawBadges;
   const stories = std.stories || [];
+  const completedActivities = (std.activities || [])
+    .filter((act) => act.status === 'done')
+    .map((act) => ({
+      ...act,
+      onAction: (a) => {
+        if (a.attemptId) {
+          navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
+        } else if (a.id) {
+          navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+        }
+      },
+    }));
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -382,9 +394,9 @@ export default function AdminStudentProfile() {
 
               {achievementTab === 'Activities' && (
                 <div>
-                  {std.activities && std.activities.length > 0 ? (
+                  {completedActivities.length > 0 ? (
                     <div className="flex flex-col gap-3">
-                      {std.activities.map((activity) => (
+                      {completedActivities.map((activity) => (
                         <AchievementActivityRow key={activity.id} activity={activity} />
                       ))}
                     </div>
@@ -392,9 +404,9 @@ export default function AdminStudentProfile() {
                     <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
                       <div className="flex flex-col items-center justify-center space-y-1.5">
                         <Icon icon="ph:article-bold" className="size-8 text-ink/30 mb-1" />
-                        <span className="text-xs font-bold text-ink">No Activities Assigned Yet</span>
+                        <span className="text-xs font-bold text-ink">No Completed Activities Yet</span>
                         <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
-                          This student has not been assigned any class reading activities.
+                          Activities completed by this student will appear here.
                         </span>
                       </div>
                     </div>

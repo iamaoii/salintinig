@@ -38,7 +38,8 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
   // Loading & Data States
   bool _isLoading = _cachedPhilIriActivities == null;
-  List<Map<String, dynamic>> _philIriActivities = _cachedPhilIriActivities ?? [];
+  List<Map<String, dynamic>> _philIriActivities =
+      _cachedPhilIriActivities ?? [];
   List<Map<String, dynamic>> _pendingReviews = _cachedPendingReviews ?? [];
 
   // Default Mock Practice Activities
@@ -297,15 +298,17 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
         activity['activityStatus'] != 'closed' &&
         activity['status'] != 'closed';
 
-    final String rawNotes = (activity['specialInstructions'] ??
-            activity['teacherNotes'] ??
-            activity['teacher_notes'] ??
-            activity['customInstructions'] ??
-            '')
-        .toString()
-        .trim();
+    final String rawNotes =
+        (activity['specialInstructions'] ??
+                activity['teacherNotes'] ??
+                activity['teacher_notes'] ??
+                activity['customInstructions'] ??
+                '')
+            .toString()
+            .trim();
 
-    final bool isDefaultOrArrayString = rawNotes.isEmpty ||
+    final bool isDefaultOrArrayString =
+        rawNotes.isEmpty ||
         rawNotes.startsWith('[') ||
         rawNotes.contains('Read the assigned passage') ||
         rawNotes.contains('Listen attentively') ||
@@ -792,7 +795,10 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
         onPressed: _activeTab == 'phil-iri'
             ? _navigateToAssignPage
             : () {
-                AppToast.warning(context, 'Practice activity creation opened...');
+                AppToast.warning(
+                  context,
+                  'Practice activity creation opened...',
+                );
               },
         backgroundColor: const Color(0xFFD34426),
         foregroundColor: Colors.white,
