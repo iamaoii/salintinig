@@ -379,9 +379,9 @@ export default function TeacherProfile() {
             {classStudents.length > 0 && (
               <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
                 <span>
-                  {Math.ceil(classStudents.length / ROSTER_PAGE_SIZE) > 1
-                    ? `Showing ${(rosterPage - 1) * ROSTER_PAGE_SIZE + 1} to ${Math.min(rosterPage * ROSTER_PAGE_SIZE, classStudents.length)} of ${classStudents.length} student records`
-                    : `Showing ${classStudents.length} of ${classStudents.length} student records`}
+                  {classStudents.length === 0
+                    ? 'Showing 0 of 0 student records'
+                    : `Showing ${(rosterPage - 1) * ROSTER_PAGE_SIZE + 1} to ${Math.min(rosterPage * ROSTER_PAGE_SIZE, classStudents.length)} of ${classStudents.length} student records`}
                 </span>
                 {Math.ceil(classStudents.length / ROSTER_PAGE_SIZE) > 1 && (
                   <div className="flex items-center gap-1.5">
@@ -497,12 +497,12 @@ export default function TeacherProfile() {
                 {activityLogs.length > 0 && (
                   <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-ink/10 bg-white text-xs text-ink/60">
                     <span>
-                      {Math.ceil(activityLogs.length / LOGS_PAGE_SIZE) > 1
-                        ? `Showing ${(logsPage - 1) * LOGS_PAGE_SIZE + 1} to ${Math.min(
+                      {activityLogs.length === 0
+                        ? 'Showing 0 of 0 assessment logs'
+                        : `Showing ${(logsPage - 1) * LOGS_PAGE_SIZE + 1} to ${Math.min(
                             logsPage * LOGS_PAGE_SIZE,
                             activityLogs.length
-                          )} of ${activityLogs.length} assessment logs`
-                        : `Showing ${activityLogs.length} of ${activityLogs.length} assessment logs`}
+                          )} of ${activityLogs.length} assessment logs`}
                     </span>
                     {Math.ceil(activityLogs.length / LOGS_PAGE_SIZE) > 1 && (
                       <div className="flex items-center gap-1.5">

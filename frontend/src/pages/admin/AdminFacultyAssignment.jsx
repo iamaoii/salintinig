@@ -1040,12 +1040,12 @@ export default function AdminFacultyAssignment() {
             {filteredSectioningStudents.length > 0 && (
               <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
                 <span>
-                  {totalSectioningPages > 1
-                    ? `Showing ${(sectioningPage - 1) * SECTIONING_PAGE_SIZE + 1} to ${Math.min(
+                  {filteredSectioningStudents.length === 0
+                    ? 'Showing 0 of 0 student records'
+                    : `Showing ${(sectioningPage - 1) * SECTIONING_PAGE_SIZE + 1} to ${Math.min(
                         sectioningPage * SECTIONING_PAGE_SIZE,
                         filteredSectioningStudents.length
-                      )} of ${filteredSectioningStudents.length} student records`
-                    : `Showing ${filteredSectioningStudents.length} of ${filteredSectioningStudents.length} student records`}
+                      )} of ${filteredSectioningStudents.length} student records`}
                 </span>
                 {totalSectioningPages > 1 && (
                   <div className="flex items-center gap-1.5">
@@ -1319,9 +1319,9 @@ export default function AdminFacultyAssignment() {
         {filteredSections.length > 0 && (
           <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
             <span>
-              {totalPages > 1
-                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSections.length)} of ${filteredSections.length} section records`
-                : `Showing ${filteredSections.length} of ${filteredSections.length} section records`}
+              {filteredSections.length === 0
+                ? 'Showing 0 of 0 section records'
+                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSections.length)} of ${filteredSections.length} section records`}
             </span>
             {totalPages > 1 && (
               <div className="flex items-center gap-1.5">

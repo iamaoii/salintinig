@@ -392,9 +392,9 @@ export default function AdminPhilIriAssessment() {
           {filteredStudents.length > 0 && (
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink/50">
               <span>
-                {totalPages > 1
-                  ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`
-                  : `Showing ${filteredStudents.length} of ${filteredStudents.length} student records`}
+                {filteredStudents.length === 0
+                  ? 'Showing 0 of 0 student records'
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`}
               </span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1.5">

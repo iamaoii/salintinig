@@ -2,7 +2,7 @@ import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { ArrowsClockwise, Check, X, UserCheck, CaretDown } from '@phosphor-icons/react';
+import { ArrowsClockwise, Check, X, UserCheck, CaretDown, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { encodeSecureToken } from '../../../lib/securityToken.js';
@@ -25,6 +25,13 @@ export default function StudentMasterlist({ level }) {
   const [loading, setLoading] = useState(true);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [level]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -172,6 +179,9 @@ export default function StudentMasterlist({ level }) {
     : students.filter((s) => (s.level || s.readingLevel || '').toLowerCase().includes(level.toLowerCase()));
   const headerColor = TABS.find((tab) => tab.level === level)?.activeColor ?? '#165fd5';
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+  const paginatedStudents = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const evaluatedCount = students.filter((s) => s.promotionStatus && s.promotionStatus !== 'pending').length;
 
   return (
@@ -233,7 +243,7 @@ export default function StudentMasterlist({ level }) {
             <tbody className="divide-y divide-ink/5">
               {loading && <StudentTableSkeleton rows={6} />}
 
-              {!loading && filtered.map((student, i) => {
+              {!loading && paginatedStudents.map((student, i) => {
                 const rawLvl = (student.level || student.readingLevel || student.reading_level || student.current_profile_label || student.gstResult || '').toLowerCase();
                 let levelBadge = <span className="text-ink/40 font-bold px-2">—</span>;
                 if (rawLvl.includes('independ')) {
@@ -257,7 +267,7 @@ export default function StudentMasterlist({ level }) {
                     onClick={() => navigate(`/teacher/student-dashboard/students/${encodeSecureToken('st', student.lrn)}`)}
                     className="group transition-colors hover:bg-ink/[0.015] cursor-pointer"
                   >
-                    <td className="px-4 py-3.5 text-xs font-semibold text-ink/70">{i + 1}</td>
+                    <td className="px-4 py-3.5 text-xs font-semibold text-ink/70">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
                     <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.lrn}</td>
                     <td className="px-4 py-3.5 text-xs">
                       <div className="flex items-center gap-3">
@@ -285,6 +295,55 @@ export default function StudentMasterlist({ level }) {
               )}
             </tbody>
           </table>
+
+          {/* Masterlist Table Footer / Pagination */}
+          {filtered.length > 0 && (
+            <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+              <span>
+                {filtered.length === 0
+                  ? 'Showing 0 of 0 student records'
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filtered.length)} of ${filtered.length} student records`}
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                  >
+                    <CaretLeft size={14} /> Previous
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() => setCurrentPage(pg)}
+                        className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === pg
+                            ? 'bg-brand-blue text-white shadow-xs'
+                            : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                  >
+                    Next <CaretRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

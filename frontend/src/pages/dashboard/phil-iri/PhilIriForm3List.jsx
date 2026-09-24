@@ -1,7 +1,7 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { UsersThree } from '@phosphor-icons/react';
+import { UsersThree, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { PhilIriForm3Skeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
@@ -9,6 +9,8 @@ import { getToken } from '../../../lib/auth.js';
 export default function PhilIriForm3List({ formKey, label }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -30,6 +32,9 @@ export default function PhilIriForm3List({ formKey, label }) {
     };
     fetchStudents();
   }, []);
+
+  const totalPages = Math.ceil(students.length / PAGE_SIZE) || 1;
+  const paginatedStudents = students.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div>
@@ -60,9 +65,9 @@ export default function PhilIriForm3List({ formKey, label }) {
                 </td>
               </tr>
             ) : (
-              students.map((student, i) => (
+              paginatedStudents.map((student, i) => (
                 <tr key={student.lrn} className="border-b border-ink/5 last:border-b-0 hover:bg-ink/[0.02] transition-colors">
-                  <td className="px-4 py-3 text-ink/50 font-medium">{i + 1}</td>
+                  <td className="px-4 py-3 text-ink/50 font-medium">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
                   <td className="px-4 py-3 text-ink/70 font-mono font-medium">{student.lrn}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -85,6 +90,55 @@ export default function PhilIriForm3List({ formKey, label }) {
             )}
           </tbody>
         </table>
+
+        {/* Table Footer / Pagination */}
+        {students.length > 0 && (
+          <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-white">
+            <span>
+              {students.length === 0
+                ? 'Showing 0 of 0 student records'
+                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, students.length)} of ${students.length} student records`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  <CaretLeft size={14} /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        currentPage === pg
+                          ? 'bg-brand-blue text-white shadow-xs'
+                          : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                >
+                  Next <CaretRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

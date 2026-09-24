@@ -492,9 +492,9 @@ export default function SuperAdminSchools() {
           {filteredSchools.length > 0 && (
             <div className="px-5 py-3 flex items-center justify-between border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
               <span>
-                {totalPages > 1
-                  ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of ${filteredSchools.length} schools`
-                  : `Showing ${filteredSchools.length} of ${filteredSchools.length} schools`}
+                {filteredSchools.length === 0
+                  ? 'Showing 0 of 0 schools'
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of ${filteredSchools.length} schools`}
               </span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1.5">

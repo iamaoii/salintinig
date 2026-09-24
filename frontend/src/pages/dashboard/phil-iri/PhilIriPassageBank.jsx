@@ -268,7 +268,8 @@ export default function PhilIriPassageBank() {
       {/* Results Header Info */}
       <div className="mt-3.5 flex items-center justify-between px-1 text-xs text-ink/60 font-semibold">
         <span>
-          Showing {filteredPassages.length > 0 ? Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredPassages.length) : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
+          Showing {filteredPassages.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to{' '}
+          {Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of {filteredPassages.length} passages
         </span>
         {totalPages > 1 && (
           <span>Page {currentPage} of {totalPages}</span>
@@ -423,12 +424,15 @@ export default function PhilIriPassageBank() {
       )}
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {filteredPassages.length > 0 && (
         <div className="mt-5 flex items-center justify-between border-t border-ink/10 pt-3 text-xs text-ink/70">
           <span>
-            Showing page {currentPage} of {totalPages}
+            {filteredPassages.length === 0
+              ? 'Showing 0 of 0 passages'
+              : `Showing ${(currentPage - 1) * ITEMS_PER_PAGE + 1} to ${Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length)} of ${filteredPassages.length} passages`}
           </span>
-          <div className="flex items-center gap-1.5">
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={currentPage === 1}
@@ -460,6 +464,7 @@ export default function PhilIriPassageBank() {
               <CaretRight size={14} weight="bold" />
             </button>
           </div>
+          )}
         </div>
       )}
 
