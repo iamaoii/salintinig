@@ -316,9 +316,6 @@ export function PhilIriForm3Skeleton({ rows = 5 }) {
           <td className="px-4 py-3">
             <SkeletonBlock className="h-3.5 w-16" />
           </td>
-          <td className="px-4 py-3 text-right">
-            <SkeletonBlock className="h-[28px] w-24 rounded-full ml-auto" />
-          </td>
         </tr>
       ))}
     </>

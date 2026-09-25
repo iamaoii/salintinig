@@ -1,12 +1,13 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { UsersThree, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { PhilIriForm3Skeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 export default function PhilIriForm3List({ formKey, label }) {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,23 +37,38 @@ export default function PhilIriForm3List({ formKey, label }) {
   const totalPages = Math.ceil(students.length / PAGE_SIZE) || 1;
   const paginatedStudents = students.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  const formTitleMap = {
+    'form-3a': 'TALAAN NG INDIBIDWAL NA PAGTATASA SA PAGBABASA (TAGALOG)',
+    'form-3b': 'INDIVIDUAL READING PROFILE (ENGLISH)',
+    'form-4': 'RUNNING RECORD FORM',
+  };
+
+  const formTitle = formTitleMap[formKey] || 'READING PROFILE RECORD';
+
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2 text-ink/70">
-        <UsersThree size={18} />
-        <h2 className="text-sm font-medium">Students with {label}</h2>
+      {/* Top Header Title Bar matching Form 1 & 2 */}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-ink">
+            PHIL-IRI {label} - {formTitle}
+          </h3>
+          <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-ink/60">
+            <UsersThree size={15} />
+            <span>Class Student Records</span>
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-ink/10 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)] bg-cream">
         <table className="w-full min-w-[560px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-ink/10 bg-ink/[0.03] text-left text-xs uppercase tracking-wide text-ink/70">
-              <th className="w-12 px-4 py-3 font-bold">#</th>
-              <th className="px-4 py-3 font-bold">LRN</th>
-              <th className="px-4 py-3 font-bold">Name</th>
-              <th className="px-4 py-3 font-bold">Gender</th>
-              <th className="px-4 py-3 font-bold">Section</th>
-              <th className="px-4 py-3 text-right font-bold" />
+            <tr className="border-b border-ink/10 bg-ink/[0.03] text-left text-xs uppercase tracking-wider text-ink/70">
+              <th className="w-12 px-5 py-3.5 font-bold">#</th>
+              <th className="w-44 px-5 py-3.5 font-bold">LRN</th>
+              <th className="px-5 py-3.5 font-bold">Name</th>
+              <th className="w-32 px-5 py-3.5 font-bold">Gender</th>
+              <th className="w-40 px-5 py-3.5 font-bold">Section</th>
             </tr>
           </thead>
           <tbody>
@@ -60,31 +76,27 @@ export default function PhilIriForm3List({ formKey, label }) {
               <PhilIriForm3Skeleton rows={5} />
             ) : students.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink/50 font-medium">
+                <td colSpan={5} className="px-5 py-8 text-center text-ink/50 font-medium">
                   No student records found in database.
                 </td>
               </tr>
             ) : (
               paginatedStudents.map((student, i) => (
-                <tr key={student.lrn} className="border-b border-ink/5 last:border-b-0 hover:bg-ink/[0.02] transition-colors">
-                  <td className="px-4 py-3 text-ink/50 font-medium">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
-                  <td className="px-4 py-3 text-ink/70 font-mono font-medium">{student.lrn}</td>
-                  <td className="px-4 py-3">
+                <tr
+                  key={student.lrn}
+                  onClick={() => navigate(`/teacher/phil-iri-records/${formKey}/${student.lrn}`)}
+                  className="group border-b border-ink/5 last:border-b-0 hover:bg-brand-blue/5 cursor-pointer transition-colors"
+                >
+                  <td className="px-5 py-3.5 text-ink/50 font-medium">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
+                  <td className="px-5 py-3.5 text-ink/70 font-mono font-medium tracking-tight">{student.lrn}</td>
+                  <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={28} />
-                      <span className="font-semibold text-ink">{student.name}</span>
+                      <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
+                      <span className="font-semibold text-ink group-hover:text-brand-blue transition-colors">{student.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-ink/70">{student.gender || 'N/A'}</td>
-                  <td className="px-4 py-3 text-ink/70">{student.section}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      to={`/teacher/phil-iri-records/${formKey}/${student.lrn}`}
-                      className="inline-block rounded-full bg-brand-blue px-4 py-1.5 text-xs font-semibold text-cream transition-colors hover:bg-blue-700"
-                    >
-                      {label}
-                    </Link>
-                  </td>
+                  <td className="px-5 py-3.5 text-ink/70">{student.gender || 'N/A'}</td>
+                  <td className="px-5 py-3.5 text-ink/70 font-medium">{student.sectionName || student.section_name || student.section || '—'}</td>
                 </tr>
               ))
             )}
