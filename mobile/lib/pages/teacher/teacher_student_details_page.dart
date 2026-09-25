@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
@@ -16,11 +17,11 @@ class TeacherStudentDetailsPage extends StatefulWidget {
 
   const TeacherStudentDetailsPage({
     super.key,
-    this.studentName = 'Student',
-    this.level = 'Instructional',
-    this.grade = 'Grade 4',
-    this.section = 'Fyang',
-    this.lrn = '1366 7010 0099',
+    this.studentName = '',
+    this.level = 'Pending Evaluation',
+    this.grade = '',
+    this.section = '',
+    this.lrn = '',
     this.studentData,
   });
 
@@ -31,11 +32,13 @@ class TeacherStudentDetailsPage extends StatefulWidget {
 class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? _resolvedData;
+  bool _isLoadingApi = false;
 
   @override
   void initState() {
     super.initState();
     _resolveStudentData();
+    _fetchStudentDetailsApi();
   }
 
   void _resolveStudentData() {
@@ -55,6 +58,24 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
       if (match.isNotEmpty) {
         _resolvedData = Map<String, dynamic>.from(match);
       }
+    }
+  }
+
+  Future<void> _fetchStudentDetailsApi() async {
+    final targetLrn = (_resolvedData?['lrn'] ?? widget.lrn).toString().replaceAll(' ', '').trim();
+    if (targetLrn.isEmpty) return;
+
+    try {
+      final res = await ApiService.get('/api/teacher/students/$targetLrn');
+      if (res.success && res.data != null && res.data['student'] != null) {
+        if (mounted) {
+          setState(() {
+            _resolvedData = Map<String, dynamic>.from(res.data['student']);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[TeacherStudentDetailsPage] API fetch error: $e');
     }
   }
 
@@ -79,16 +100,17 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
     final first = (_resolvedData?['firstName'] ?? _resolvedData?['first_name'] ?? '').toString().trim();
     final last = (_resolvedData?['lastName'] ?? _resolvedData?['last_name'] ?? '').toString().trim();
     final full = '$first $last'.trim();
-    return full.isNotEmpty ? full : widget.studentName;
+    return full.isNotEmpty ? full : (widget.studentName.isNotEmpty ? widget.studentName : 'Student Record');
   }
 
   String get _displayLrn => (_resolvedData?['lrn'] ?? widget.lrn).toString().trim();
-  String get _displayGrade => (_resolvedData?['gradeLevel'] ?? _resolvedData?['grade_level'] ?? widget.grade).toString().trim();
-  String get _displaySection => (_resolvedData?['sectionName'] ?? _resolvedData?['section_name'] ?? _resolvedData?['section'] ?? widget.section).toString().trim();
-  String get _displayLevel => (_resolvedData?['readingLevel'] ?? _resolvedData?['level'] ?? widget.level).toString().trim();
+  String get _displayGrade => (_resolvedData?['grade'] ?? _resolvedData?['gradeLevel'] ?? _resolvedData?['grade_level'] ?? widget.grade).toString().trim();
+  String get _displaySection => (_resolvedData?['section'] ?? _resolvedData?['sectionName'] ?? _resolvedData?['section_name'] ?? widget.section).toString().trim();
+  String get _displayLevel => (_resolvedData?['level'] ?? _resolvedData?['readingLevel'] ?? widget.level).toString().trim();
   String? get _avatarUrl => (_resolvedData?['profileImage'] ?? _resolvedData?['profile_image'] ?? _resolvedData?['avatarUrl'])?.toString();
 
   num get _wpsVal => _safeParseNum(
+        _resolvedData?['avgWps'] ??
         _resolvedData?['readingSpeed'] ??
         _resolvedData?['wps'] ??
         _resolvedData?['filOralSpeed'] ??
@@ -96,6 +118,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
       );
 
   num get _accuracyVal => _safeParseNum(
+        _resolvedData?['avgAccuracy'] ??
         _resolvedData?['accuracy'] ??
         _resolvedData?['oralAccuracy'] ??
         _resolvedData?['filOralAccuracy'] ??
@@ -103,6 +126,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
       );
 
   num get _comprehensionVal => _safeParseNum(
+        _resolvedData?['avgComprehension'] ??
         _resolvedData?['comprehension'] ??
         _resolvedData?['oralComprehension'] ??
         _resolvedData?['filOralComprehension'] ??
@@ -345,12 +369,14 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: _isLoadingApi && _resolvedData == null
+                  ? _buildSkeletonBody()
+                  : SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     // Profile Header Card
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -771,12 +797,84 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.asset(
-          imagePath,
-          fit: BoxFit.cover,
-        ),
+      child: Image.asset(
+        imagePath,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  Widget _buildSkeletonBody() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE2E8F0),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(width: 60, height: 12, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                    const SizedBox(height: 6),
+                    Container(width: 160, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6))),
+                    const SizedBox(height: 8),
+                    Container(width: 100, height: 22, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(100))),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(width: 50, height: 14, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 16),
+                        Container(width: 50, height: 14, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 16),
+                        Container(width: 80, height: 14, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            width: double.infinity,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          const SizedBox(height: 28),
+          Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(child: Container(height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))))),
+              const SizedBox(width: 12),
+              Expanded(child: Container(height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0))))),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -381,4 +381,8 @@ router.put('/assessments/toggle-status', async (req, res) => {
 
 router.delete('/assessments/:id', teacherController.deleteAssessment);
 
+// Phil-IRI Form 1A/1B GST Submissions (accessible to Teachers & Admins)
+router.get('/phil-iri/gst-submission', adminController.getGstFormSubmission);
+router.post('/phil-iri/gst-submission', adminController.saveGstFormSubmission);
+
 module.exports = router;

@@ -64,6 +64,8 @@ router.get('/phil-iri/passages', adminController.getPassages);
 router.get('/phil-iri/assessments', adminController.getPhilIriAssessments);
 router.get('/phil-iri/periods', adminController.getPhilIriPeriods);
 router.post('/phil-iri/periods', adminController.updatePhilIriPeriods);
+// Read-only GST Form 1A/1B lookup for Admin Form 2 summary reports (saving is handled via /api/teacher/phil-iri/gst-submission)
+router.get('/phil-iri/gst-submission', adminController.getGstFormSubmission);
 
 // Account Requests Management
 router.get('/account-requests', teacherController.getAccountRequests);

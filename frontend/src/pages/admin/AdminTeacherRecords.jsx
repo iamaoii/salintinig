@@ -736,9 +736,9 @@ export default function AdminTeacherRecords() {
         {filteredTeachers.length > 0 && (
           <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
             <span>
-              {totalPages > 1
-                ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of ${filteredTeachers.length} teacher records`
-                : `Showing ${filteredTeachers.length} of ${filteredTeachers.length} teacher records`}
+              {filteredTeachers.length === 0
+                ? 'Showing 0 of 0 teacher records'
+                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredTeachers.length)} of ${filteredTeachers.length} teacher records`}
             </span>
             {totalPages > 1 && (
               <div className="flex items-center gap-1.5">

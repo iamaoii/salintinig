@@ -60,6 +60,7 @@ export default function SuperAdminSchools() {
     schoolId: '',
     schoolName: '',
     division: '',
+    district: '',
     region: '',
     officialEmail: '',
     principalName: '',
@@ -72,6 +73,7 @@ export default function SuperAdminSchools() {
   const [editFormData, setEditFormData] = useState({
     schoolName: '',
     division: '',
+    district: '',
     region: '',
     officialEmail: '',
     principalName: '',
@@ -140,6 +142,7 @@ export default function SuperAdminSchools() {
         schoolId: addFormData.schoolId.trim(),
         schoolName: addFormData.schoolName.trim(),
         division: addFormData.division.trim() || null,
+        district: addFormData.district.trim() || null,
         region: addFormData.region.trim() || null,
         officialEmail: addFormData.officialEmail.trim() || null,
         principalName: addFormData.principalName.trim() || null,
@@ -163,6 +166,7 @@ export default function SuperAdminSchools() {
           schoolId: '',
           schoolName: '',
           division: '',
+          district: '',
           region: '',
           officialEmail: '',
           principalName: '',
@@ -235,6 +239,7 @@ export default function SuperAdminSchools() {
     setEditFormData({
       schoolName: school.school_name || '',
       division: school.division || '',
+      district: school.district || '',
       region: school.region || '',
       officialEmail: school.official_email || '',
       principalName: school.principal_name || '',
@@ -415,7 +420,7 @@ export default function SuperAdminSchools() {
                       <td className="px-4 py-3 text-xs text-ink/70 overflow-hidden">
                         <div className="min-w-0">
                           <p className="font-medium text-ink leading-tight truncate" title={school.division || '—'}>
-                            {school.division || '—'}
+                            {school.division || '—'} {school.district ? `(${school.district})` : ''}
                           </p>
                           <p className="text-[11px] text-ink/50 mt-0.5 truncate" title={school.region || '—'}>
                             {school.region || '—'}
@@ -492,9 +497,9 @@ export default function SuperAdminSchools() {
           {filteredSchools.length > 0 && (
             <div className="px-5 py-3 flex items-center justify-between border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
               <span>
-                {totalPages > 1
-                  ? `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of ${filteredSchools.length} schools`
-                  : `Showing ${filteredSchools.length} of ${filteredSchools.length} schools`}
+                {filteredSchools.length === 0
+                  ? 'Showing 0 of 0 schools'
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSchools.length)} of ${filteredSchools.length} schools`}
               </span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1.5">
@@ -569,13 +574,22 @@ export default function SuperAdminSchools() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-ink mb-1">Division</label>
                   <input
                     type="text"
                     value={editFormData.division}
                     onChange={(e) => setEditFormData({ ...editFormData, division: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">District</label>
+                  <input
+                    type="text"
+                    value={editFormData.district}
+                    onChange={(e) => setEditFormData({ ...editFormData, district: e.target.value })}
                     className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-red"
                   />
                 </div>
@@ -690,14 +704,24 @@ export default function SuperAdminSchools() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-ink mb-1">Division</label>
                   <input
                     type="text"
-                    placeholder="e.g. Division of Mandaluyong"
+                    placeholder="e.g. Mandaluyong"
                     value={addFormData.division}
                     onChange={(e) => setAddFormData({ ...addFormData, division: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">District</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. District I"
+                    value={addFormData.district}
+                    onChange={(e) => setAddFormData({ ...addFormData, district: e.target.value })}
                     className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                   />
                 </div>

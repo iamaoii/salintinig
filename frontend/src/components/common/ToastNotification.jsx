@@ -55,8 +55,6 @@ export default function ToastNotification({ message, type = 'success', onClose }
   const bgStyle =
     notificationType === 'error'
       ? 'bg-brand-red text-white'
-      : notificationType === 'info'
-      ? 'bg-brand-blue text-white'
       : 'bg-[#00a652] text-white';
 
   return createPortal(
@@ -78,9 +76,11 @@ export default function ToastNotification({ message, type = 'success', onClose }
         }}
         className={`flex items-center gap-3 rounded-2xl ${bgStyle} px-4 py-3 text-xs font-bold shadow-[0_10px_30px_-5px_rgba(0,0,0,0.25)] border border-white/20`}
       >
-        {notificationType === 'error' && <WarningCircle size={18} weight="fill" className="shrink-0" />}
-        {notificationType === 'info' && <Info size={18} weight="fill" className="shrink-0" />}
-        {notificationType === 'success' && <CheckCircle size={18} weight="fill" className="shrink-0" />}
+        {notificationType === 'error' ? (
+          <WarningCircle size={18} weight="fill" className="shrink-0" />
+        ) : (
+          <CheckCircle size={18} weight="fill" className="shrink-0" />
+        )}
         <span className="leading-tight">{visibleMessage || textContent}</span>
         {onClose && (
           <button

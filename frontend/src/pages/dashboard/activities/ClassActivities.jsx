@@ -342,50 +342,52 @@ export default function ClassActivities() {
               )}
 
               {/* Pagination Bar */}
-              {totalPages > 1 && (
+              {filteredActivities.length > 0 && (
                 <div className="mt-5 flex items-center justify-between border-t border-ink/10 pt-4">
                   <span className="text-xs font-medium text-ink/60">
                     Showing <strong className="text-ink">{startIndex + 1}</strong> to{' '}
                     <strong className="text-ink">
                       {Math.min(startIndex + pageSize, filteredActivities.length)}
                     </strong>{' '}
-                    of <strong className="text-ink">{filteredActivities.length}</strong> assessments
+                    of <strong className="text-ink">{filteredActivities.length}</strong> assessment records
                   </span>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      disabled={safePage === 1}
-                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                      className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-                    >
-                      <CaretLeft size={14} weight="bold" />
-                    </button>
-
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={pg}
                         type="button"
-                        onClick={() => setCurrentPage(pg)}
-                        className={`flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          safePage === pg
-                            ? 'bg-brand-red text-white shadow-2xs'
-                            : 'border border-ink/15 bg-white text-ink/70 hover:bg-ink/5'
-                        }`}
+                        disabled={safePage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
                       >
-                        {pg}
+                        <CaretLeft size={14} weight="bold" />
                       </button>
-                    ))}
 
-                    <button
-                      type="button"
-                      disabled={safePage === totalPages}
-                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                      className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
-                    >
-                      <CaretRight size={14} weight="bold" />
-                    </button>
-                  </div>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                        <button
+                          key={pg}
+                          type="button"
+                          onClick={() => setCurrentPage(pg)}
+                          className={`flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            safePage === pg
+                              ? 'bg-brand-red text-white shadow-2xs'
+                              : 'border border-ink/15 bg-white text-ink/70 hover:bg-ink/5'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        disabled={safePage === totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                        className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 cursor-pointer"
+                      >
+                        <CaretRight size={14} weight="bold" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </>

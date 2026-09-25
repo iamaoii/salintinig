@@ -51,6 +51,17 @@ export default function DashboardLayout() {
                 if (d?.success && Array.isArray(d.students)) {
                   cacheService.set('teacher_class_students', d.students);
                   cacheService.set('teacher_overview_students', d.students);
+
+                  if (d.sectionName && !d.sectionName.toLowerCase().includes('unassigned')) {
+                    const prefix = d.gradeLevel ? `Grade ${String(d.gradeLevel).replace(/^grade\s*/i, '')}` : '';
+                    const fullSec = prefix && !d.sectionName.toLowerCase().includes('grade') ? `${prefix} - ${d.sectionName}` : d.sectionName;
+                    const syText = `S.Y. ${String(d.schoolYear || '2026-2027').replace(/^S\.?Y\.?\s*/i, '')}`;
+                    cacheService.set('teacher_class_card_info', {
+                      sectionName: fullSec,
+                      schoolYear: syText,
+                      learnerCount: `${d.students.length} Enrolled Learners`,
+                    }, 300000);
+                  }
                 }
               }),
 

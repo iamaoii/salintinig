@@ -11,9 +11,11 @@ CREATE TABLE IF NOT EXISTS schools (
     school_id VARCHAR(50) PRIMARY KEY, -- DepEd School ID e.g. '109283'
     school_name VARCHAR(255) NOT NULL,
     division VARCHAR(150),
+    district VARCHAR(150),
     region VARCHAR(150),
     official_email VARCHAR(255) UNIQUE NOT NULL,
     principal_name VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -30,6 +32,8 @@ CREATE TABLE IF NOT EXISTS users (
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     must_change_password BOOLEAN DEFAULT FALSE,
     profile_image TEXT,
+    reset_code VARCHAR(10),
+    reset_code_expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -252,7 +256,9 @@ CREATE TABLE IF NOT EXISTS silent_reading_results (
     silent_result_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     assessment_attempt_id UUID REFERENCES assessment_attempts(attempt_id) ON DELETE CASCADE,
     reading_time_seconds INT,
-    comprehension_score DECIMAL(5,2)
+    comprehension_score DECIMAL(5,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS listening_reading_results (
@@ -282,6 +288,28 @@ CREATE TABLE IF NOT EXISTS teacher_feedback (
     feedback_text TEXT NOT NULL,
     recommendation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- -----------------------------------------------------------------------------
+-- 7B. PHIL-IRI FORM 1A / 1B GST RECORD SUBMISSIONS (Option B: Section JSON Storage)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS gst_form_submissions (
+    submission_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
+    school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE CASCADE,
+    class_id UUID REFERENCES classes(class_id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
+    section_name VARCHAR(100) NOT NULL,
+    grade_level VARCHAR(50) NOT NULL,
+    test_language VARCHAR(20) NOT NULL CHECK (test_language IN ('Tagalog', 'English')), -- 'Tagalog' (Form 1A) or 'English' (Form 1B)
+    form_code VARCHAR(20) NOT NULL, -- 'PHIL-IRI FORM 1A' or 'PHIL-IRI FORM 1B'
+    form_data JSONB NOT NULL DEFAULT '{}'::jsonb, -- Stores { maleRows: [...], femaleRows: [...] }
+    above_14_count INT DEFAULT 0,
+    below_14_count INT DEFAULT 0,
+    total_assessed INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_section_form_lang_sy UNIQUE (school_id, section_name, test_language, school_year_id)
 );
 
 

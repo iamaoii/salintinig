@@ -145,18 +145,18 @@ async function getTeacherById(req, res) {
              t.middle_name AS "middleName",
              t.last_name AS "lastName",
              CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
-             COALESCE(t.sex, 'Male') AS gender,
+             COALESCE(t.sex, 'Female') AS gender,
              COALESCE(u.email, '') AS email,
              COALESCE(
-               (SELECT c.grade_level FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.grade_level FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                'Unassigned'
              ) AS "gradeAssigned",
              COALESCE(
-               (SELECT c.section_name FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.section_name FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                'Unassigned'
              ) AS "sectionAssigned",
              COALESCE(
-               (SELECT c.class_id FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
+               (SELECT c.class_id FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                NULL
              ) AS "classId",
              EXISTS(
@@ -173,7 +173,15 @@ async function getTeacherById(req, res) {
 
         if (rows && rows.length > 0) {
           const teacherObj = rows[0];
-          const classId = teacherObj.classId;
+          let classId = teacherObj.classId;
+
+          if (!classId && teacherObj.sectionAssigned !== 'Unassigned') {
+            const { rows: cMatch } = await db.query(
+              `SELECT class_id FROM classes WHERE section_name = $1 LIMIT 1`,
+              [teacherObj.sectionAssigned]
+            );
+            if (cMatch.length > 0) classId = cMatch[0].class_id;
+          }
 
           // Fetch enrolled class roster if teacher has assigned section
           if (classId) {
@@ -192,7 +200,7 @@ async function getTeacherById(req, res) {
                  FROM assessments
                  ORDER BY student_id, created_at DESC
                ) a ON a.student_id = s.student_id
-               WHERE sgh.class_id = $1 AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+               WHERE sgh.class_id = $1 AND LOWER(COALESCE(sgh.promotion_status, '')) NOT IN ('dropped', 'transferred')
                ORDER BY s.last_name ASC`,
               [classId]
             );
@@ -204,8 +212,13 @@ async function getTeacherById(req, res) {
           // Count submissions created by teacher and fetch recent assessment activity logs
           try {
             const { rows: subRes } = await db.query(
-              `SELECT COUNT(*) FROM assessments WHERE assigned_by_teacher_id = $1`,
-              [teacherObj.id]
+              `SELECT COUNT(*) FROM assessments a 
+               WHERE a.assigned_by_teacher_id::text = $1 
+                  OR a.assigned_by_teacher_id::text = $2
+                  OR ($3::text IS NOT NULL AND a.student_id IN (
+                     SELECT sgh.student_id FROM student_grade_history sgh WHERE sgh.class_id::text = $3
+                  ))`,
+              [teacherObj.id, teacherObj.employeeId, classId]
             );
             teacherObj.submissionsCount = parseInt(subRes[0]?.count || 0, 10);
 
@@ -213,17 +226,25 @@ async function getTeacherById(req, res) {
               `SELECT 
                  a.assessment_id AS id,
                  CONCAT('Assigned ', UPPER(a.assessment_type), ' Assessment (', REPLACE(a.assessment_period, '_', ' '), ')') AS title,
-                 CONCAT('Material ID: ', COALESCE(rm.title, 'Phil-IRI Passage')) AS detail,
-                 TO_CHAR(a.date_assigned, 'Mon DD, YYYY "at" HH12:MI AM') AS time
+                 CONCAT('Material: ', COALESCE(p.title, 'Phil-IRI Passage'), COALESCE(' • Student: ' || s.first_name || ' ' || s.last_name, '')) AS detail,
+                 TO_CHAR(a.created_at, 'Mon DD, YYYY "at" HH12:MI AM') AS time,
+                 a.status,
+                 a.reading_level_result AS "readingLevelResult"
                FROM assessments a
-               LEFT JOIN reading_materials rm ON a.material_id = rm.material_id
-               WHERE a.assigned_by_teacher_id = $1
-               ORDER BY a.date_assigned DESC
-               LIMIT 10`,
-              [teacherObj.id]
+               LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
+               LEFT JOIN students s ON a.student_id = s.student_id
+               WHERE a.assigned_by_teacher_id::text = $1 
+                  OR a.assigned_by_teacher_id::text = $2
+                  OR ($3::text IS NOT NULL AND a.student_id IN (
+                     SELECT sgh.student_id FROM student_grade_history sgh WHERE sgh.class_id::text = $3
+                  ))
+               ORDER BY a.created_at DESC
+               LIMIT 20`,
+              [teacherObj.id, teacherObj.employeeId, classId]
             );
             teacherObj.activityLogs = logRows || [];
           } catch (e) {
+            console.error('Error fetching teacher activity logs:', e);
             teacherObj.submissionsCount = 0;
             teacherObj.activityLogs = [];
           }
@@ -995,6 +1016,7 @@ async function getPendingOralReviews(req, res) {
           orr.verified_miscues_json AS "verifiedMiscues",
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
+          orr.comprehension_score AS "comprehensionScore",
           orr.verification_status AS "verificationStatus",
           aa.completed_at AS "submittedAt"
         FROM assessments a
@@ -1076,10 +1098,12 @@ async function getOralReviewDetail(req, res) {
 async function verifyOralReadingResult(req, res) {
   try {
     const { attemptId } = req.params;
-    const { verifiedMiscues, verifiedWpm, verifiedAccuracyPct, comprehensionScore } = req.body;
+    const { verifiedMiscues, verifiedWpm, verifiedAccuracyPct, comprehensionScore, isDiscontinued, discontinuationReason, overallProfile } = req.body;
 
     const { getPhilIriProfile } = require('../services/miscueEngine.js');
-    const profileLabel = getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0);
+    const profileLabel = isDiscontinued
+      ? 'Frustration'
+      : (overallProfile || getPhilIriProfile(verifiedAccuracyPct || 0, comprehensionScore || 0));
 
     if (process.env.DATABASE_URL) {
       // 1. Resolve real attempt_id, assessment_id, and student_id
@@ -1163,7 +1187,9 @@ async function verifyOralReadingResult(req, res) {
       );
 
       // 4. Update main assessment record status, reading profile, and remarks
-      const remarksText = `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
+      const remarksText = isDiscontinued
+        ? `Verified Oral Reading Assessment Result - Frustration (Discontinued - Refusal to Read)`
+        : `Verified Oral Reading Assessment Result - ${profileLabel} (${verifiedAccuracyPct || 0}% Accuracy, ${verifiedWpm || 0} WPM)`;
       if (resolvedAssessmentId) {
         await db.query(
           `UPDATE assessments
@@ -1504,6 +1530,87 @@ async function getTeacherClassStudents(req, res) {
     const userId = req.user?.userId || req.user?.user_id || req.user?.id;
 
     if (process.env.DATABASE_URL) {
+      let sectionName = null;
+      let gradeLevel = null;
+      let schoolYear = null;
+      let schoolName = null;
+      let principalName = null;
+
+      // Query school metadata (school_name, principal_name) for teacher
+      try {
+        const schoolMeta = await db.query(
+          `SELECT sch.school_name, sch.principal_name
+           FROM users u
+           JOIN schools sch ON u.school_id = sch.school_id
+           WHERE u.user_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+        if (schoolMeta.rows && schoolMeta.rows.length > 0) {
+          schoolName = schoolMeta.rows[0].school_name;
+          principalName = schoolMeta.rows[0].principal_name;
+        } else {
+          // Fallback to first school record if user school_id is unlinked
+          const fallbackSch = await db.query(`SELECT school_name, principal_name FROM schools LIMIT 1`);
+          if (fallbackSch.rows && fallbackSch.rows.length > 0) {
+            schoolName = fallbackSch.rows[0].school_name;
+            principalName = fallbackSch.rows[0].principal_name;
+          }
+        }
+      } catch (sErr) {
+        console.warn('School metadata query notice:', sErr.message);
+      }
+
+      // Query section metadata directly for advisor teacher
+      try {
+        const metaRes = await db.query(
+          `SELECT c.section_name, c.grade_level, sy.school_year
+           FROM teachers t
+           JOIN classes c ON c.advisor_teacher_id = t.teacher_id
+           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+           WHERE t.user_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+        if (metaRes.rows && metaRes.rows.length > 0) {
+          sectionName = metaRes.rows[0].section_name;
+          gradeLevel = metaRes.rows[0].grade_level ? String(metaRes.rows[0].grade_level) : null;
+          schoolYear = metaRes.rows[0].school_year;
+        }
+      } catch (mErr) {
+        console.warn('Teacher section metadata query notice:', mErr.message);
+      }
+
+      // Fallback for active school year if not resolved yet
+      if (!schoolYear) {
+        try {
+          const syRes = await db.query(`SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`);
+          if (syRes.rows?.[0]?.school_year) {
+            schoolYear = syRes.rows[0].school_year;
+          }
+        } catch (syErr) {}
+      }
+
+      // Fallback for FIC metadata if teacher is FIC with no direct section advisory
+      if (!sectionName) {
+        try {
+          const ficMetaRes = await db.query(
+            `SELECT fic.grade_level, sy.school_year
+             FROM teachers t
+             JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id AND fic.status = 'active'
+             JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+             WHERE t.user_id = $1
+             LIMIT 1`,
+            [userId]
+          );
+          if (ficMetaRes.rows && ficMetaRes.rows.length > 0) {
+            gradeLevel = ficMetaRes.rows[0].grade_level ? String(ficMetaRes.rows[0].grade_level) : null;
+            sectionName = gradeLevel ? `Grade ${gradeLevel} (All Sections)` : 'Grade Level Mode';
+            schoolYear = ficMetaRes.rows[0].school_year;
+          }
+        } catch (fErr) {}
+      }
+
       // 1. Fetch students enrolled in the teacher's assigned section
       const sectionQuery = `
         SELECT 
@@ -1634,6 +1741,12 @@ async function getTeacherClassStudents(req, res) {
         students = ficRes.rows || [];
       }
 
+      // Extract section metadata from students list if available
+      if (!sectionName && students.length > 0 && students[0].sectionName) {
+        sectionName = students[0].sectionName;
+        gradeLevel = gradeLevel || (students[0].gradeLevel ? String(students[0].gradeLevel) : null);
+      }
+
       if (students.length > 0) {
         const studentIds = students.map((s) => String(s.id || s.studentId)).filter(Boolean);
         if (studentIds.length > 0) {
@@ -1666,7 +1779,16 @@ async function getTeacherClassStudents(req, res) {
         }
       }
 
-      return res.json({ success: true, students });
+      return res.json({
+        success: true,
+        students,
+        sectionName,
+        gradeLevel,
+        schoolYear: schoolYear || '2026-2027',
+        schoolName,
+        principalName,
+        totalStudents: students.length,
+      });
     }
 
     return res.json({ success: true, students: [] });

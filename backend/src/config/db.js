@@ -10,6 +10,10 @@ function getPool() {
     poolInstance = new Pool({
       connectionString: connStr,
       ssl: connStr ? { rejectUnauthorized: false } : false,
+      max: 20, // Max concurrent connections
+      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+      connectionTimeoutMillis: 5000, // Return an error after 5 seconds if connection could not be established
+      keepAlive: true,
     });
 
     poolInstance.on('error', (err) => {

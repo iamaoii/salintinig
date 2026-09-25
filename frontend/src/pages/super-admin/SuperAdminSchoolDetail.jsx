@@ -104,6 +104,7 @@ export default function SuperAdminSchoolDetail() {
         setEditFormData({
           schoolName: data.school.school_name || '',
           division: data.school.division || '',
+          district: data.school.district || '',
           region: data.school.region || '',
           officialEmail: data.school.official_email || '',
           principalName: data.school.principal_name || '',
@@ -194,6 +195,7 @@ export default function SuperAdminSchoolDetail() {
       setEditFormData({
         schoolName: school.school_name || '',
         division: school.division || '',
+        district: school.district || '',
         region: school.region || '',
         officialEmail: school.official_email || '',
         principalName: school.principal_name || '',
@@ -455,6 +457,10 @@ export default function SuperAdminSchoolDetail() {
                 <p className="font-semibold text-ink mt-0.5">{school.division || '—'}</p>
               </div>
               <div>
+                <span className="text-ink/40 font-semibold uppercase text-[10px]">District</span>
+                <p className="font-semibold text-ink mt-0.5">{school.district || '—'}</p>
+              </div>
+              <div>
                 <span className="text-ink/40 font-semibold uppercase text-[10px]">Region</span>
                 <p className="font-semibold text-ink mt-0.5">{school.region || '—'}</p>
               </div>
@@ -560,9 +566,12 @@ export default function SuperAdminSchoolDetail() {
       {/* Edit School Modal */}
       {isEditOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+          <div className="w-full max-w-lg rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between border-b border-ink/10 pb-3">
-              <h3 className="text-base font-bold text-ink">Edit School Details</h3>
+              <div>
+                <h3 className="text-base font-bold text-ink">Edit School Details</h3>
+                <p className="text-xs text-ink/50 mt-0.5">School ID: {school?.school_id}</p>
+              </div>
               <button
                 type="button"
                 onClick={handleCancelEdit}
@@ -572,65 +581,74 @@ export default function SuperAdminSchoolDetail() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveEdit} className="space-y-3.5">
               <div>
-                <label className="block font-semibold text-ink mb-1">School Name</label>
+                <label className="block text-xs font-semibold text-ink mb-1">School Name</label>
                 <input
                   type="text"
                   required
                   value={editFormData.schoolName}
                   onChange={(e) => setEditFormData({ ...editFormData, schoolName: e.target.value })}
-                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none focus:border-brand-blue"
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-ink mb-1">Division</label>
+                  <label className="block text-xs font-semibold text-ink mb-1">Division</label>
                   <input
                     type="text"
                     value={editFormData.division}
                     onChange={(e) => setEditFormData({ ...editFormData, division: e.target.value })}
-                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none focus:border-brand-blue"
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-ink mb-1">Region</label>
+                  <label className="block text-xs font-semibold text-ink mb-1">District</label>
+                  <input
+                    type="text"
+                    value={editFormData.district}
+                    onChange={(e) => setEditFormData({ ...editFormData, district: e.target.value })}
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink mb-1">Region</label>
                   <input
                     type="text"
                     value={editFormData.region}
                     onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
-                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none focus:border-brand-blue"
+                    className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-ink mb-1">Official Email</label>
+                <label className="block text-xs font-semibold text-ink mb-1">Official Email</label>
                 <input
                   type="email"
                   value={editFormData.officialEmail}
                   onChange={(e) => setEditFormData({ ...editFormData, officialEmail: e.target.value })}
-                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none focus:border-brand-blue"
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-ink mb-1">Principal Name</label>
+                <label className="block text-xs font-semibold text-ink mb-1">Principal Name</label>
                 <input
                   type="text"
                   value={editFormData.principalName}
                   onChange={(e) => setEditFormData({ ...editFormData, principalName: e.target.value })}
-                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none focus:border-brand-blue"
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-ink mb-1">Status</label>
+                <label className="block text-xs font-semibold text-ink mb-1">Status</label>
                 <select
                   value={editFormData.status}
                   onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-ink outline-none cursor-pointer focus:border-brand-blue"
+                  className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -641,14 +659,14 @@ export default function SuperAdminSchoolDetail() {
                 <button
                   type="button"
                   onClick={handleCancelEdit}
-                  className="rounded-full border border-ink/10 px-4 py-2 font-semibold text-ink/70 hover:bg-ink/5 cursor-pointer"
+                  className="rounded-full border border-ink/10 px-4 py-2 text-xs font-semibold text-ink/70 hover:bg-ink/5 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="rounded-full bg-brand-blue px-5 py-2 font-bold text-cream hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-bold text-cream hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   {savingEdit ? 'Saving...' : 'Save Changes'}
                 </button>

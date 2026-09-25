@@ -1,5 +1,5 @@
 import { getApiUrl } from '../../config/api.js';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import {
@@ -17,10 +17,13 @@ import {
   IdentificationCard,
   ChartLineUp,
   CaretDown,
+  CaretLeft,
+  CaretRight,
   X,
 } from '@phosphor-icons/react';
 import BackButton from '../../components/common/BackButton.jsx';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { StudentProfileSkeleton } from '../../components/common/Skeleton.jsx';
 import { getToken } from '../../lib/auth.js';
 import { decodeSecureToken } from '../../lib/securityToken.js';
 
@@ -34,14 +37,17 @@ import StoryRow from '../../components/dashboard/student/StoryRow.jsx';
 import { badgesByLrn, storiesByLrn, defaultBadges, defaultStories } from '../../data/studentAchievements.js';
 
 const LEVEL_BADGE = {
+  Frustration: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
   Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
+  Instruction: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
   Instructional: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
   Independent: 'bg-[#D1FAE5] text-[#047857] font-bold border border-[#047857]/20',
   Screening: 'bg-blue-100 text-blue-800 font-bold border border-blue-200',
+  Pending: 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
   'Pending Evaluation': 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
 };
 
-const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Activities', 'Badges', 'Stories'];
+const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Badges', 'Stories'];
 
 const BADGE_COLUMNS = 5;
 
@@ -56,20 +62,29 @@ function withPlaceholders(items) {
   return [...items, ...placeholders];
 }
 
+import { cacheService } from '../../services/cacheService.js';
+
 export default function AdminStudentProfile() {
   const { lrn: rawLrn } = useParams();
   const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
-  const [student, setStudent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  const cacheKey = `admin_student_profile_${lrn || rawLrn}`;
+  const cachedData = cacheService.get(cacheKey);
+
+  const [student, setStudent] = useState(cachedData || null);
+  const [loading, setLoading] = useState(!cachedData);
   const [achievementTab, setAchievementTab] = useState('Phil-IRI Records');
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchStudentDetail = async () => {
       try {
         const token = getToken();
         const targetId = lrn || rawLrn;
+        if (!cachedData) setLoading(true);
+
         let res = await fetch(getApiUrl(`/api/admin/students/${targetId}`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -82,17 +97,19 @@ export default function AdminStudentProfile() {
           data = await res.json();
         }
 
-        if (res.ok && data.success && data.student) {
+        if (isMounted && res.ok && data.success && data.student) {
           setStudent(data.student);
+          cacheService.set(cacheKey, data.student, 120000); // 2 min TTL
         }
       } catch (err) {
         console.warn('Failed to fetch student details:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchStudentDetail();
-  }, [lrn, rawLrn]);
+    return () => { isMounted = false; };
+  }, [lrn, rawLrn, cacheKey]);
 
   const std = student || {
     id: lrn || '',
@@ -106,9 +123,62 @@ export default function AdminStudentProfile() {
     status: 'N/A',
   };
 
-  const rawBadges = std.badges || [];
-  const badges = withPlaceholders(rawBadges);
-  const stories = std.stories || [];
+  const rawBadges = (std.badges && std.badges.length > 0)
+    ? std.badges.map((b) => {
+        const found = defaultBadges.find(
+          (db) => db.name?.toLowerCase() === (b.badgeName || b.name || '').toLowerCase() ||
+                  db.id === (b.id || b.badge_id)
+        );
+        return {
+          id: b.id || b.badge_id || b.badgeName,
+          name: b.badgeName || b.name,
+          image: b.iconPath ? getApiUrl(b.iconPath) : (found?.image || defaultBadges[0]?.image),
+          description: b.description || found?.description,
+        };
+      })
+    : [];
+  const badges = rawBadges;
+
+  const stories = (std.stories && std.stories.length > 0) ? std.stories : [];
+
+  const allPhilIriRecords = (std.activities || [])
+    .filter((act) => ['done', 'completed', 'finished'].includes(String(act.status || '').toLowerCase()))
+    .map((act) => ({
+      ...act,
+      onAction: (a) => {
+        if (a.attemptId) {
+          navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
+        } else if (a.id) {
+          navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+        }
+      },
+    }));
+
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [storiesPage, setStoriesPage] = useState(1);
+  const [badgesPage, setBadgesPage] = useState(1);
+
+  const RECORDS_PAGE_SIZE = 5;
+  const STORIES_PAGE_SIZE = 10;
+  const BADGES_PAGE_SIZE = 10;
+
+  const totalRecordsPages = Math.ceil(allPhilIriRecords.length / RECORDS_PAGE_SIZE) || 1;
+  const paginatedPhilIriRecords = useMemo(() => {
+    const start = (recordsPage - 1) * RECORDS_PAGE_SIZE;
+    return allPhilIriRecords.slice(start, start + RECORDS_PAGE_SIZE);
+  }, [allPhilIriRecords, recordsPage]);
+
+  const totalStoriesPages = Math.ceil(stories.length / STORIES_PAGE_SIZE) || 1;
+  const paginatedStories = useMemo(() => {
+    const start = (storiesPage - 1) * STORIES_PAGE_SIZE;
+    return stories.slice(start, start + STORIES_PAGE_SIZE);
+  }, [stories, storiesPage]);
+
+  const totalBadgesPages = Math.ceil(badges.length / BADGES_PAGE_SIZE) || 1;
+  const paginatedBadges = useMemo(() => {
+    const start = (badgesPage - 1) * BADGES_PAGE_SIZE;
+    return badges.slice(start, start + BADGES_PAGE_SIZE);
+  }, [badges, badgesPage]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -142,39 +212,19 @@ export default function AdminStudentProfile() {
         <BackButton to="/admin/students" size={20} />
       </div>
 
-      {/* Profile Header Banner with Clean Action Buttons */}
-      <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-        {loading ? (
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-pulse">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-              <div className="size-[88px] rounded-full bg-ink/10 shrink-0" />
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="h-7 w-48 rounded-lg bg-ink/10" />
-                  <div className="h-6 w-24 rounded-lg bg-ink/10" />
-                  <div className="h-6 w-24 rounded-full bg-ink/10" />
-                </div>
-                <div className="h-4 w-32 rounded bg-ink/10" />
-                <div className="flex items-center gap-4 pt-1">
-                  <div className="h-4 w-28 rounded bg-ink/10" />
-                  <div className="h-4 w-40 rounded bg-ink/10" />
-                  <div className="h-4 w-20 rounded bg-ink/10" />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-32 rounded-full bg-ink/10" />
-              <div className="h-9 w-36 rounded-full bg-ink/10" />
-            </div>
-          </div>
-        ) : (
+      {loading ? (
+        <StudentProfileSkeleton />
+      ) : (
+        <>
+          {/* Profile Header Banner with Clean Action Buttons */}
+          <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
               <Avatar name={std.name} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={88} className="text-2xl font-bold shrink-0" />
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-bold text-ink">{std.name}</h1>
-                  <span className={`rounded-lg px-2.5 py-0.5 text-xs ${LEVEL_BADGE[std.level || 'Pending Evaluation'] || 'bg-slate-100 text-slate-700 font-bold border border-slate-300'}`}>
+                  <span className={`rounded-lg px-2.5 py-0.5 text-xs ${LEVEL_BADGE[std.level] || (String(std.level || '').toLowerCase().includes('frustrat') ? 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20' : 'bg-slate-100 text-slate-700 font-bold border border-slate-300')}`}>
                     {std.level || 'Pending Evaluation'}
                   </span>
                   <span
@@ -197,7 +247,7 @@ export default function AdminStudentProfile() {
                 <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
                   <div>
                     <span className="text-ink/50">Grade & Section: </span>
-                    <span className="font-bold text-ink">{std.grade || 'Grade 4'} - {std.section || 'Fyang'}</span>
+                    <span className="font-bold text-ink">{std.grade ? (std.grade.startsWith('Grade') ? std.grade : `Grade ${std.grade}`) : 'Unassigned'} - {std.section || 'Unassigned'}</span>
                   </div>
                   <div>
                     <span className="text-ink/50">Email: </span>
@@ -205,7 +255,7 @@ export default function AdminStudentProfile() {
                   </div>
                   <div>
                     <span className="text-ink/50">Gender: </span>
-                    <span className="font-semibold text-ink">{std.gender || 'Male'}</span>
+                    <span className="font-semibold text-ink">{std.gender || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -269,8 +319,7 @@ export default function AdminStudentProfile() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
       {/* Main 2-Column Section: Left Accuracy Chart, Right Phil-IRI Records & Student Progress */}
       <div className="flex flex-col gap-6 xl:flex-row">
@@ -282,7 +331,7 @@ export default function AdminStudentProfile() {
           </div>
           <div className="rounded-[10px] border border-ink/10 bg-cream p-3 shadow-xs">
             <AccuracyTrendChart
-              sessions={std.sessions || ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']}
+              sessions={std.sessions || []}
               accuracy={std.accuracyTrend || []}
               comprehension={std.comprehensionTrend || []}
             />
@@ -338,63 +387,65 @@ export default function AdminStudentProfile() {
           <div className="mt-4">
             <div key={achievementTab} className="animate-fadeIn">
               {achievementTab === 'Phil-IRI Records' && (
-                <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-xs">
-                      <thead>
-                        <tr className="text-ink/70">
-                          <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Form Name</th>
-                          <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Score & Details</th>
-                          <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Level</th>
-                          <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-right">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {std.assessments && std.assessments.length > 0 ? (
-                          std.assessments.map((item) => (
-                            <tr key={item.id} className="hover:bg-ink/[0.02] transition-colors">
-                              <td className="border border-ink/10 p-2.5 font-bold text-ink">{item.form}</td>
-                              <td className="border border-ink/10 p-2.5 text-ink/70">{item.score}</td>
-                              <td className="border border-ink/10 p-2.5">
-                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
-                                  {item.level}
-                                </span>
-                              </td>
-                              <td className="border border-ink/10 p-2.5 text-right text-ink/50">{item.date}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} className="border border-ink/10 p-6 text-center text-ink/50">
-                              <div className="flex flex-col items-center justify-center space-y-1">
-                                <Clock size={28} className="text-ink/30 mb-1" />
-                                <span className="text-xs font-bold text-ink">No Assessment Records Yet</span>
-                                <span className="text-[11px] text-ink/60">This student has not taken any Phil-IRI reading assessment tests yet.</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {achievementTab === 'Activities' && (
                 <div>
-                  {std.activities && std.activities.length > 0 ? (
-                    <div className="flex flex-col gap-3">
-                      {std.activities.map((activity) => (
-                        <AchievementActivityRow key={activity.id} activity={activity} />
-                      ))}
+                  {allPhilIriRecords.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-3">
+                        {paginatedPhilIriRecords.map((activity) => (
+                          <AchievementActivityRow key={activity.id} activity={activity} />
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 text-xs text-ink/60 border-t border-ink/5 mt-3">
+                        <span>
+                          Showing {(recordsPage - 1) * RECORDS_PAGE_SIZE + 1} to {Math.min(recordsPage * RECORDS_PAGE_SIZE, allPhilIriRecords.length)} of {allPhilIriRecords.length} records
+                        </span>
+                        {totalRecordsPages > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={recordsPage === 1}
+                              onClick={() => setRecordsPage((p) => Math.max(p - 1, 1))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              <CaretLeft size={14} /> Previous
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: totalRecordsPages }, (_, i) => i + 1).map((pg) => (
+                                <button
+                                  key={pg}
+                                  type="button"
+                                  onClick={() => setRecordsPage(pg)}
+                                  className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    recordsPage === pg
+                                      ? 'bg-brand-blue text-white shadow-xs'
+                                      : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                                  }`}
+                                >
+                                  {pg}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={recordsPage === totalRecordsPages}
+                              onClick={() => setRecordsPage((p) => Math.min(p + 1, totalRecordsPages))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              Next <CaretRight size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
                       <div className="flex flex-col items-center justify-center space-y-1.5">
-                        <Icon icon="ph:article-bold" className="size-8 text-ink/30 mb-1" />
-                        <span className="text-xs font-bold text-ink">No Activities Assigned Yet</span>
+                        <Clock size={32} className="text-ink/30 mb-1" />
+                        <span className="text-xs font-bold text-ink">No Assessment Records Yet</span>
                         <span className="text-[11px] text-ink/60 max-w-sm leading-relaxed">
-                          This student has not been assigned any class reading activities.
+                          This student has not taken any Phil-IRI reading assessment tests yet.
                         </span>
                       </div>
                     </div>
@@ -405,10 +456,55 @@ export default function AdminStudentProfile() {
               {achievementTab === 'Badges' && (
                 <div>
                   {rawBadges.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-                      {badges.map((badge, idx) => (
-                        <BadgeCard key={badge.id ?? idx} badge={badge} />
-                      ))}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                        {paginatedBadges.map((badge, idx) => (
+                          <BadgeCard key={badge.id ?? idx} badge={badge} />
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 text-xs text-ink/60 border-t border-ink/5 mt-3">
+                        <span>
+                          Showing {(badgesPage - 1) * BADGES_PAGE_SIZE + 1} to {Math.min(badgesPage * BADGES_PAGE_SIZE, badges.length)} of {badges.length} badges
+                        </span>
+                        {totalBadgesPages > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={badgesPage === 1}
+                              onClick={() => setBadgesPage((p) => Math.max(p - 1, 1))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              <CaretLeft size={14} /> Previous
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: totalBadgesPages }, (_, i) => i + 1).map((pg) => (
+                                <button
+                                  key={pg}
+                                  type="button"
+                                  onClick={() => setBadgesPage(pg)}
+                                  className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    badgesPage === pg
+                                      ? 'bg-brand-blue text-white shadow-xs'
+                                      : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                                  }`}
+                                >
+                                  {pg}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={badgesPage === totalBadgesPages}
+                              onClick={() => setBadgesPage((p) => Math.min(p + 1, totalBadgesPages))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              Next <CaretRight size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
@@ -427,10 +523,55 @@ export default function AdminStudentProfile() {
               {achievementTab === 'Stories' && (
                 <div>
                   {stories.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {stories.map((story) => (
-                        <StoryRow key={story.id} story={story} />
-                      ))}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-5">
+                        {paginatedStories.map((story) => (
+                          <StoryRow key={story.id} story={story} />
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 text-xs text-ink/60 border-t border-ink/5 mt-3">
+                        <span>
+                          Showing {(storiesPage - 1) * STORIES_PAGE_SIZE + 1} to {Math.min(storiesPage * STORIES_PAGE_SIZE, stories.length)} of {stories.length} stories
+                        </span>
+                        {totalStoriesPages > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={storiesPage === 1}
+                              onClick={() => setStoriesPage((p) => Math.max(p - 1, 1))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              <CaretLeft size={14} /> Previous
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: totalStoriesPages }, (_, i) => i + 1).map((pg) => (
+                                <button
+                                  key={pg}
+                                  type="button"
+                                  onClick={() => setStoriesPage(pg)}
+                                  className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    storiesPage === pg
+                                      ? 'bg-brand-blue text-white shadow-xs'
+                                      : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                                  }`}
+                                >
+                                  {pg}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={storiesPage === totalStoriesPages}
+                              onClick={() => setStoriesPage((p) => Math.min(p + 1, totalStoriesPages))}
+                              className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                            >
+                              Next <CaretRight size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-ink/10 bg-cream p-8 text-center text-ink/50 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
@@ -449,6 +590,8 @@ export default function AdminStudentProfile() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
     </>
   );

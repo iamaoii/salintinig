@@ -1,143 +1,494 @@
-import { useState } from 'react';
-import { CheckCircle } from '@phosphor-icons/react';
-import RecordActions from '../../../components/dashboard/records/RecordActions.jsx';
-import { schoolInfo, form2Rows, form2Total } from '../../../data/philIriRecords.js';
+import React, { useState, useMemo, useEffect } from 'react';
+import { DownloadSimple } from '@phosphor-icons/react';
+import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import { PhilIriForm2Skeleton } from '../../../components/common/Skeleton.jsx';
+import { getApiUrl } from '../../../config/api.js';
+import { getToken } from '../../../lib/auth.js';
+import cacheService from '../../../services/cacheService.js';
+import * as XLSX from 'xlsx';
 
 export default function PhilIriForm2() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [rowsData, setRowsData] = useState(form2Rows);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [rowsData, setRowsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [schoolYears, setSchoolYears] = useState([]);
+  const [selectedSyId, setSelectedSyId] = useState('');
+  const [dbSchoolInfo, setDbSchoolInfo] = useState({
+    school: '',
+    division: '',
+    district: '',
+    region: '',
+    principalName: '',
+  });
 
-  const handleCellChange = (index, field, value) => {
-    setRowsData((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: Number(value) || value };
-      return next;
+  const triggerToast = (msg, type = 'success') => {
+    setToastMessage({ message: msg, type });
+  };
+
+  // Fetch school years list on mount with caching
+  useEffect(() => {
+    const fetchSchoolYears = async () => {
+      try {
+        const token = getToken();
+        const cacheKey = 'form2_school_years';
+        let data = cacheService.get(cacheKey);
+
+        if (!data) {
+          const res = await fetch(getApiUrl('/api/admin/school-years'), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          data = await res.json();
+          if (res.ok && data.success) {
+            cacheService.set(cacheKey, data, 300000); // 5 mins TTL
+          }
+        }
+
+        if (data && data.success && Array.isArray(data.schoolYears)) {
+          setSchoolYears(data.schoolYears);
+          const activeSy = data.schoolYears.find((sy) => sy.is_active || sy.isActive) || data.schoolYears[0];
+          if (activeSy) {
+            setSelectedSyId(activeSy.id || activeSy.school_year_id);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch school years:', e);
+      }
+    };
+    fetchSchoolYears();
+  }, []);
+
+  // Fetch school info, principal, and all registered sections across Grade IV, V, VI from backend DB
+  useEffect(() => {
+    const fetchForm2Data = async () => {
+      try {
+        setLoading(true);
+        const token = getToken();
+
+        // 1 & 2. Fetch Students & Sections in Parallel for Maximum Speed
+        const stdCacheKey = 'form2_admin_students';
+        const secCacheKey = 'form2_admin_sections';
+
+        let stdData = cacheService.get(stdCacheKey);
+        let secData = cacheService.get(secCacheKey);
+
+        const fetchPromises = [];
+        if (!stdData) {
+          fetchPromises.push(
+            fetch(getApiUrl('/api/admin/students'), {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d && d.success) cacheService.set(stdCacheKey, d, 180000);
+                return d;
+              })
+          );
+        } else {
+          fetchPromises.push(Promise.resolve(stdData));
+        }
+
+        if (!secData) {
+          fetchPromises.push(
+            fetch(getApiUrl('/api/admin/sections'), {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+              .then((r) => r.json())
+              .then((d) => {
+                if (d && d.success) cacheService.set(secCacheKey, d, 180000);
+                return d;
+              })
+          );
+        } else {
+          fetchPromises.push(Promise.resolve(secData));
+        }
+
+        const [resolvedStdData, resolvedSecData] = await Promise.all(fetchPromises);
+        stdData = resolvedStdData;
+        secData = resolvedSecData;
+
+        if (stdData && stdData.success) {
+          setDbSchoolInfo({
+            school: stdData.schoolName || stdData.school_name || '',
+            division: stdData.division || '',
+            district: stdData.district || '',
+            region: stdData.region || '',
+            principalName: stdData.principalName || stdData.principal_name || '',
+          });
+        }
+
+        const sectionsList = secData && secData.success && Array.isArray(secData.sections) ? secData.sections : [];
+        const studentsList = stdData?.students || [];
+
+        // Build Grade Groups (IV, V, VI) for ALL registered sections
+        const gradeGroups = {
+          'IV': {},
+          'V': {},
+          'VI': {},
+        };
+
+        // Initialize registered sections first
+        sectionsList.forEach((sec) => {
+          const gName = sec.gradeLevel || sec.grade_level || '';
+          let gKey = 'IV';
+          if (gName.includes('5')) gKey = 'V';
+          else if (gName.includes('6')) gKey = 'VI';
+
+          const sName = sec.sectionName || sec.section_name || sec.name;
+          if (sName) {
+            gradeGroups[gKey][sName] = { enrolment: 0, above14: 0, below14: 0 };
+          }
+        });
+
+        // Count actual enrolled students per section
+        studentsList.forEach((s) => {
+          const grade = s.grade || s.gradeLevel || '';
+          const section = s.section || s.sectionName || '';
+          if (!grade || !section) return;
+
+          let gradeKey = 'IV';
+          if (grade.includes('5')) gradeKey = 'V';
+          else if (grade.includes('6')) gradeKey = 'VI';
+
+          if (!gradeGroups[gradeKey]) gradeGroups[gradeKey] = {};
+          if (!gradeGroups[gradeKey][section]) {
+            gradeGroups[gradeKey][section] = { enrolment: 0, above14: 0, below14: 0 };
+          }
+
+          gradeGroups[gradeKey][section].enrolment += 1;
+        });
+
+        // Fetch saved GST submission scores concurrently using Promise.all
+        try {
+          const allSections = [];
+          Object.keys(gradeGroups).forEach((gK) => {
+            Object.keys(gradeGroups[gK]).forEach((sec) => allSections.push({ gradeKey: gK, section: sec }));
+          });
+
+          await Promise.all(
+            allSections.map(async (item) => {
+              let subUrl = `/api/admin/phil-iri/gst-submission?sectionName=${encodeURIComponent(item.section)}&language=Tagalog`;
+              if (selectedSyId) subUrl += `&schoolYearId=${selectedSyId}`;
+
+              const subCacheKey = `form2_gst_sub_${item.section}_${selectedSyId || 'default'}`;
+              let subData = cacheService.get(subCacheKey);
+              if (!subData) {
+                const subRes = await fetch(getApiUrl(subUrl), {
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                subData = await subRes.json();
+                if (subRes.ok && subData.success) {
+                  cacheService.set(subCacheKey, subData, 180000);
+                }
+              }
+
+              if (subData && subData.success && subData.submission) {
+                const sub = subData.submission;
+                gradeGroups[item.gradeKey][item.section].above14 = sub.above_14_count || 0;
+                gradeGroups[item.gradeKey][item.section].below14 = sub.below_14_count || 0;
+              }
+            })
+          );
+        } catch (e) {
+          console.warn('Error fetching GST submissions for Form 2:', e);
+        }
+
+        // Build structured grade sections ensuring Grade IV, V, VI each have exactly 3 slots minimum
+        const targetGrades = ['IV', 'V', 'VI'];
+        const gradeBlocks = [];
+
+        targetGrades.forEach((gKey) => {
+          const secEntries = Object.entries(gradeGroups[gKey] || {}).sort((a, b) =>
+            a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
+          );
+          const sectionRows = secEntries.map(([secName, secData]) => ({
+            section: secName,
+            enrolment: secData.enrolment,
+            above14: secData.above14,
+            below14: secData.below14,
+            isEmpty: false,
+          }));
+
+          // Pad up to 3 slots minimum if fewer registered sections exist
+          while (sectionRows.length < 3) {
+            sectionRows.push({ section: '', enrolment: '', above14: '', below14: '', isEmpty: true });
+          }
+
+          // Calculate Grade summary totals
+          const gradeEnrolment = sectionRows.reduce((sum, r) => sum + (Number(r.enrolment) || 0), 0);
+          const gradeAbove14 = sectionRows.reduce((sum, r) => sum + (Number(r.above14) || 0), 0);
+          const gradeBelow14 = sectionRows.reduce((sum, r) => sum + (Number(r.below14) || 0), 0);
+
+          gradeBlocks.push({
+            grade: gKey,
+            total: { enrolment: gradeEnrolment, above14: gradeAbove14, below14: gradeBelow14 },
+            sections: sectionRows,
+          });
+        });
+
+        setRowsData(gradeBlocks);
+      } catch (err) {
+        console.warn('Failed to fetch Form 2 live data:', err);
+        setRowsData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchForm2Data();
+  }, [selectedSyId]);
+
+  // Dynamic calculation for overall school totals
+  const calculatedTotals = useMemo(() => {
+    let totalEnrolment = 0;
+    let totalAbove14 = 0;
+    let totalBelow14 = 0;
+
+    rowsData.forEach((block) => {
+      totalEnrolment += Number(block.total?.enrolment) || 0;
+      totalAbove14 += Number(block.total?.above14) || 0;
+      totalBelow14 += Number(block.total?.below14) || 0;
     });
+
+    return { enrolment: totalEnrolment, above14: totalAbove14, below14: totalBelow14 };
+  }, [rowsData]);
+
+  // Export official DepEd .xlsx file
+  const handleExportXLSX = () => {
+    const exportData = [];
+
+    rowsData.forEach((block) => {
+      exportData.push({
+        Grade: block.grade,
+        Sections: 'GRADE TOTAL',
+        Enrolment: block.total.enrolment,
+        'Markang >= 14': block.total.above14,
+        'Markang <= 14': block.total.below14,
+      });
+
+      block.sections.forEach((sec) => {
+        if (!sec.isEmpty) {
+          exportData.push({
+            Grade: '',
+            Sections: sec.section,
+            Enrolment: sec.enrolment,
+            'Markang >= 14': sec.above14,
+            'Markang <= 14': sec.below14,
+          });
+        }
+      });
+    });
+
+    exportData.push({
+      Grade: 'TOTAL',
+      Sections: '',
+      Enrolment: calculatedTotals.enrolment,
+      'Markang >= 14': calculatedTotals.above14,
+      'Markang <= 14': calculatedTotals.below14,
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Phil-IRI Form 2');
+    XLSX.writeFile(workbook, `Phil-IRI_Form_2_School_Reading_Profile.xlsx`);
+    triggerToast('Downloaded DepEd Phil-IRI Form 2 (.XLSX)!');
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3500);
-  };
+  if (loading) {
+    return <PhilIriForm2Skeleton rows={6} />;
+  }
 
   return (
-    <div className="relative rounded-[10px] border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
-      {showToast && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl bg-[#00a652]/15 px-4 py-3 text-xs font-semibold text-[#00a652]">
-          <CheckCircle size={18} weight="fill" />
-          <span>Form 2 record updated and saved successfully!</span>
+    <div className="relative font-sans text-xs">
+      <ToastNotification message={toastMessage} onClose={() => setToastMessage(null)} />
+
+      {/* Top Action Bar for Exporting & Filtering */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-bold text-ink">
+          PHIL-IRI FORM 2 — School Reading Profile (SRP) / Talaan ng Paaralan sa Pagbabasa (TPP)
+        </h3>
+        <div className="flex items-center gap-3">
+          {/* School Year Selector Dropdown */}
+          {schoolYears.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-ink/70">School Year:</span>
+              <select
+                value={selectedSyId}
+                onChange={(e) => setSelectedSyId(e.target.value)}
+                className="rounded-lg border border-ink/20 bg-white px-3 py-1.5 text-xs font-bold text-ink focus:border-[#107c41] focus:outline-none shadow-2xs"
+              >
+                {schoolYears.map((sy) => {
+                  const syId = sy.id || sy.school_year_id;
+                  const label = sy.schoolYear || sy.school_year || sy.yearLabel || sy.label;
+                  const isActive = sy.is_active || sy.isActive;
+                  return (
+                    <option key={syId} value={syId}>
+                      SY {label} {isActive ? '(Active)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleExportXLSX}
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
+          >
+            <DownloadSimple size={16} weight="bold" className="text-[#107c41]" />
+            <span>Export .XLSX</span>
+          </button>
         </div>
-      )}
-
-
-
-      <div className="flex justify-end">
-        <p className="text-xs text-ink/40">Phil-IRI FORM 2</p>
-      </div>
-      <h2 className="-mt-4 text-center text-lg font-semibold text-ink">
-        Talaan ng Paaralan sa Pagbabasa (TPP) / School Reading Profile (SRP)
-      </h2>
-
-      <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-ink">
-        <p>
-          <span className="font-semibold">School:</span> {schoolInfo.school}
-        </p>
-        <p>
-          <span className="font-semibold">Division:</span> {schoolInfo.division}
-        </p>
-        <p>
-          <span className="font-semibold">District:</span> {schoolInfo.district}
-        </p>
-      </div>
-      <p className="mt-2 text-sm text-ink">
-        <span className="font-semibold">Region:</span> {schoolInfo.region}
-      </p>
-
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[560px] border-collapse text-sm">
-          <thead>
-            <tr className="text-xs text-ink/70">
-              <th rowSpan={2} className="border border-ink/10 bg-ink/[0.03] p-2 align-bottom">
-                Grade
-              </th>
-              <th rowSpan={2} className="border border-ink/10 bg-ink/[0.03] p-2 align-bottom">
-                Sections
-              </th>
-              <th rowSpan={2} className="border border-ink/10 bg-ink/[0.03] p-2 align-bottom">
-                Enrolment
-              </th>
-              <th colSpan={2} className="border border-ink/10 bg-ink/[0.03] p-2">
-                Score (Marka)
-              </th>
-            </tr>
-            <tr className="text-xs text-ink/70">
-              <th className="border border-ink/10 bg-ink/[0.03] p-2">Markang &gt;= 14</th>
-              <th className="border border-ink/10 bg-ink/[0.03] p-2">Markang &lt;= 14</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rowsData.map((row, i) => (
-              <tr key={i} className={row.isGradeTotal ? 'font-semibold text-ink' : 'text-ink/70'}>
-                <td className="border border-ink/10 p-2">{row.grade}</td>
-                <td className="border border-ink/10 p-2">{row.section}</td>
-                <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={row.enrolment}
-                      onChange={(e) => handleCellChange(i, 'enrolment', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
-                    />
-                  ) : (
-                    row.enrolment
-                  )}
-                </td>
-                <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={row.above14}
-                      onChange={(e) => handleCellChange(i, 'above14', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
-                    />
-                  ) : (
-                    row.above14
-                  )}
-                </td>
-                <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={row.below14}
-                      onChange={(e) => handleCellChange(i, 'below14', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
-                    />
-                  ) : (
-                    row.below14
-                  )}
-                </td>
-              </tr>
-            ))}
-            <tr className="font-semibold text-ink">
-              <td colSpan={2} className="border border-ink/10 p-2">
-                TOTAL
-              </td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.enrolment}</td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.above14}</td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.below14}</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
 
-      <RecordActions
-        isEditing={isEditing}
-        onEdit={() => setIsEditing(true)}
-        onSave={handleSave}
-        onCancel={() => setIsEditing(false)}
-      />
+      {/* ── CLEAN OFFICIAL DEPED EXCEL FORM TABLE UI ── */}
+      <div className="overflow-x-auto rounded-lg border border-ink/20 bg-white p-6 shadow-xs">
+        <div className="min-w-[850px]">
+          {/* Sheet Header Information */}
+          <div className="text-center space-y-0.5 mb-4">
+            <p className="text-right text-[11px] font-bold text-ink/70">PHIL-IRI FORM 2</p>
+            <h2 className="text-sm font-bold text-ink uppercase tracking-wide">
+              TALAAN NG PAARALAN SA PAGBABASA (TPP) /
+            </h2>
+            <h2 className="text-sm font-bold text-ink uppercase tracking-wide">
+              SCHOOL READING PROFILE (SRP)
+            </h2>
+          </div>
+
+          {/* Form Header Information Grid */}
+          <div className="text-xs text-ink font-semibold mb-6 space-y-2.5 px-1">
+            <div className="grid grid-cols-2 gap-x-12">
+              <div className="flex items-center">
+                <span>School:</span>
+                <strong className="grow border-b border-ink font-bold px-3 ml-2 text-ink">
+                  {dbSchoolInfo.school || '\u00A0'}
+                </strong>
+              </div>
+              <div className="flex items-center">
+                <span>Division:</span>
+                <strong className="grow border-b border-ink font-bold px-3 ml-2 text-ink">
+                  {dbSchoolInfo.division || '\u00A0'}
+                </strong>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-12">
+              <div className="flex items-center">
+                <span>District:</span>
+                <strong className="grow border-b border-ink font-bold px-3 ml-2 text-ink">
+                  {dbSchoolInfo.district || '\u00A0'}
+                </strong>
+              </div>
+              <div className="flex items-center">
+                <span>Region:</span>
+                <strong className="grow border-b border-ink font-bold px-3 ml-2 text-ink">
+                  {dbSchoolInfo.region || '\u00A0'}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Clean Form Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-center text-xs font-sans border border-gray-400">
+              <thead>
+                <tr className="bg-[#e2e2e2] font-bold text-gray-900 uppercase border border-gray-400">
+                  <th rowSpan={2} className="w-[15%] border border-gray-400 p-2.5 bg-[#d4d4d4]">Grade</th>
+                  <th rowSpan={2} className="w-[30%] border border-gray-400 p-2.5 text-left">Sections</th>
+                  <th rowSpan={2} className="w-[20%] border border-gray-400 p-2.5 bg-[#d4d4d4]">Enrolment</th>
+                  <th colSpan={2} className="border border-gray-400 p-2">Score (Marka)</th>
+                </tr>
+                <tr className="bg-[#e2e2e2] font-bold text-gray-900 uppercase border border-gray-400">
+                  <th className="w-[17.5%] border border-gray-400 p-2 text-xs">Markang &ge; 14</th>
+                  <th className="w-[17.5%] border border-gray-400 p-2 text-xs">Markang &le; 14</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowsData.map((block, bIdx) => {
+                  return (
+                    <React.Fragment key={bIdx}>
+                      {/* Yellow Grade Total Row */}
+                      <tr className="font-bold text-gray-900 bg-[#fef08a]">
+                        <td className="border border-gray-400 p-2 font-bold text-gray-900 bg-[#d4d4d4] text-center">
+                          {block.grade}
+                        </td>
+                        <td className="border border-gray-400 p-2 text-left font-semibold text-gray-900">
+                          {'\u00A0'}
+                        </td>
+                        <td className="border border-gray-400 p-2 font-bold text-gray-900 text-right">
+                          {block.total.enrolment}
+                        </td>
+                        <td className="border border-gray-400 p-2 font-bold text-black text-right">
+                          {block.total.above14}
+                        </td>
+                        <td className="border border-gray-400 p-2 font-bold text-black text-right">
+                          {block.total.below14}
+                        </td>
+                      </tr>
+
+                      {/* Section Rows under Grade */}
+                      {block.sections.map((secRow, sIdx) => (
+                        <tr key={sIdx} className="hover:bg-[#f5faf6] transition-colors">
+                          <td className="border border-gray-400 p-2 font-bold text-gray-900 bg-[#d4d4d4] text-center">
+                            {'\u00A0'}
+                          </td>
+                          <td className="border border-gray-400 p-2 text-left font-semibold text-gray-900">
+                            {secRow.section || '\u00A0'}
+                          </td>
+                          <td className="border border-gray-400 p-2 font-bold text-gray-900 text-center bg-[#eaeaea]">
+                            {secRow.enrolment}
+                          </td>
+                          <td className="border border-gray-400 p-2 font-bold text-black text-center">
+                            {secRow.above14}
+                          </td>
+                          <td className="border border-gray-400 p-2 font-bold text-black text-center">
+                            {secRow.below14}
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* Grand Total Summary Row */}
+                <tr className="bg-[#107c41] text-white font-extrabold text-xs">
+                  <td colSpan={2} className="p-3 text-left uppercase tracking-wider">
+                    TOTAL (KABUUANG PAARALAN)
+                  </td>
+                  <td className="p-3 text-center font-mono text-sm">{calculatedTotals.enrolment}</td>
+                  <td className="p-3 text-center font-mono text-sm text-white">{calculatedTotals.above14}</td>
+                  <td className="p-3 text-center font-mono text-sm text-white">{calculatedTotals.below14}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer Note & Signatures Section */}
+          <div className="mt-10 pt-4 flex justify-between items-end text-xs px-8 max-w-4xl mx-auto">
+            {/* Left Side: Prepared by / Phil-IRI Coordinator */}
+            <div className="flex items-end gap-3">
+              <span className="text-ink/70 font-normal pb-5">Inihanda ni (Prepared):</span>
+              <div className="flex flex-col items-center">
+                <div className="w-56 border-b border-ink font-bold text-center pb-0.5 text-ink">
+                  {'\u00A0'}
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-ink/80">Phil-IRI Coordinator</p>
+              </div>
+            </div>
+
+            {/* Right Side: Noted by / School Principal */}
+            <div className="flex items-end gap-3">
+              <span className="text-ink/70 font-normal pb-5">Binigyang-pansin (Noted):</span>
+              <div className="flex flex-col items-center">
+                <div className="w-56 border-b border-ink font-bold text-center pb-0.5 text-ink">
+                  {dbSchoolInfo.principalName || '\u00A0'}
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-ink/80">Punong-guro (School Principal)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+

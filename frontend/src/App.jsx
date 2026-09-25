@@ -119,6 +119,7 @@ export default function App() {
           <Route path="assessment" element={<AdminPhilIriAssessment />} />
           <Route path="passages" element={<AdminPhilIriPassages />} />
           <Route path="reports" element={<AdminPhilIriReports />} />
+          <Route path="form-2" element={<PhilIriForm2 />} />
         </Route>
 
         {/* Other */}
@@ -204,7 +205,6 @@ export default function App() {
           <Route index element={<Navigate to="form-1a" replace />} />
           <Route path="form-1a" element={<PhilIriForm1 language="fil" />} />
           <Route path="form-1b" element={<PhilIriForm1 language="en" />} />
-          <Route path="form-2" element={<PhilIriForm2 />} />
           <Route path="form-3a" element={<PhilIriForm3List formKey="form-3a" label="FORM 3A" />} />
           <Route path="form-3b" element={<PhilIriForm3List formKey="form-3b" label="FORM 3B" />} />
           <Route path="form-4" element={<PhilIriForm3List formKey="form-4" label="FORM 4" />} />

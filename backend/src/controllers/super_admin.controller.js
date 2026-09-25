@@ -128,6 +128,7 @@ async function getSchools(req, res) {
         s.school_id,
         s.school_name,
         s.division,
+        s.district,
         s.region,
         s.official_email,
         s.principal_name,
@@ -166,6 +167,7 @@ async function getSchoolById(req, res) {
           s.school_id,
           s.school_name,
           s.division,
+          s.district,
           s.region,
           s.official_email,
           s.principal_name,
@@ -212,6 +214,7 @@ async function createSchool(req, res) {
       school_id, schoolId,
       school_name, schoolName,
       division,
+      district,
       region,
       official_email, officialEmail,
       principal_name, principalName,
@@ -222,6 +225,7 @@ async function createSchool(req, res) {
     const targetSchoolId = (schoolId || school_id || '').trim();
     const targetSchoolName = (schoolName || school_name || '').trim();
     const targetDivision = (division || '').trim() || null;
+    const targetDistrict = (district || '').trim() || null;
     const targetRegion = (region || '').trim() || null;
     const targetOfficialEmail = (officialEmail || official_email || '').trim() || null;
     const targetPrincipalName = (principalName || principal_name || '').trim() || null;
@@ -237,17 +241,18 @@ async function createSchool(req, res) {
 
     // Insert school
     const schoolRes = await db.query(`
-      INSERT INTO schools (school_id, school_name, division, region, official_email, principal_name, status)
-      VALUES ($1, $2, $3, $4, $5, $6, 'active')
+      INSERT INTO schools (school_id, school_name, division, district, region, official_email, principal_name, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
       ON CONFLICT (school_id) DO UPDATE SET
         school_name = EXCLUDED.school_name,
         division = EXCLUDED.division,
+        district = EXCLUDED.district,
         region = EXCLUDED.region,
         official_email = EXCLUDED.official_email,
         principal_name = EXCLUDED.principal_name,
         status = 'active'
-      RETURNING school_id, school_name, division, region, official_email, principal_name, status
-    `, [targetSchoolId, targetSchoolName, targetDivision, targetRegion, targetOfficialEmail, targetPrincipalName]);
+      RETURNING school_id, school_name, division, district, region, official_email, principal_name, status
+    `, [targetSchoolId, targetSchoolName, targetDivision, targetDistrict, targetRegion, targetOfficialEmail, targetPrincipalName]);
 
     let createdAdmin = null;
     if (targetAdminEmail) {
@@ -281,6 +286,7 @@ async function createSchool(req, res) {
       school_id: targetSchoolId,
       school_name: targetSchoolName,
       division: targetDivision,
+      district: targetDistrict,
       region: targetRegion,
       official_email: targetOfficialEmail,
       principal_name: targetPrincipalName,
@@ -313,6 +319,7 @@ async function updateSchool(req, res) {
 
     const school_name = body.school_name || body.schoolName;
     const division = body.division;
+    const district = body.district;
     const region = body.region;
     const official_email = body.official_email || body.officialEmail;
     const principal_name = body.principal_name || body.principalName;
@@ -321,19 +328,24 @@ async function updateSchool(req, res) {
     await db.query(`
       ALTER TABLE schools ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
     `).catch(() => {});
+    await db.query(`
+      ALTER TABLE schools ADD COLUMN IF NOT EXISTS district VARCHAR(150)
+    `).catch(() => {});
 
     await db.query(`
       UPDATE schools
       SET school_name = COALESCE($1, school_name),
           division = COALESCE($2, division),
-          region = COALESCE($3, region),
-          official_email = COALESCE($4, official_email),
-          principal_name = COALESCE($5, principal_name),
-          status = COALESCE($6, status)
-      WHERE school_id = $7
+          district = COALESCE($3, district),
+          region = COALESCE($4, region),
+          official_email = COALESCE($5, official_email),
+          principal_name = COALESCE($6, principal_name),
+          status = COALESCE($7, status)
+      WHERE school_id = $8
     `, [
       school_name !== undefined ? school_name : null,
       division !== undefined ? division : null,
+      district !== undefined ? district : null,
       region !== undefined ? region : null,
       official_email !== undefined ? official_email : null,
       principal_name !== undefined ? principal_name : null,
