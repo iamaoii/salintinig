@@ -756,103 +756,103 @@ export function PhilIriForm1Skeleton({ rows = 6 }) {
 
           {/* DepEd Table Grid Skeleton (Matches exact 2-row table header layout) */}
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-center text-xs font-sans border border-ink/40">
+            <table className="w-full border-collapse text-center text-xs font-sans border border-gray-400">
               <thead>
-                <tr className="bg-[#f0f4f1] font-bold text-ink uppercase border border-ink/40">
-                  <th rowSpan={2} className="w-11 min-w-[40px] border border-ink/40 p-2 bg-[#e2ece4]">
+                <tr className="bg-[#e2e2e2] font-bold text-gray-900 uppercase border border-gray-400">
+                  <th rowSpan={2} className="w-11 min-w-[40px] border border-gray-400 p-2 bg-[#d4d4d4]">
                     <SkeletonBlock className="h-3.5 w-3 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 text-left w-[26%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 text-left w-[26%]">
                     <SkeletonBlock className="h-3.5 w-24" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[7%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[7%]">
                     <SkeletonBlock className="h-3.5 w-12 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[8%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">
                     <SkeletonBlock className="h-3.5 w-16 mx-auto" />
                   </th>
-                  <th colSpan={3} className="border border-ink/40 p-1.5">
+                  <th colSpan={3} className="border border-gray-400 p-1.5">
                     <SkeletonBlock className="h-3.5 w-48 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[9%] bg-[#d2e8d8]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[9%] bg-[#d4d4d4]">
                     <SkeletonBlock className="h-3.5 w-20 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[8%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">
                     <SkeletonBlock className="h-3.5 w-16 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[15%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[15%]">
                     <SkeletonBlock className="h-3.5 w-28 mx-auto" />
                   </th>
-                  <th rowSpan={2} className="border border-ink/40 p-2 w-[8%]">
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">
                     <SkeletonBlock className="h-3.5 w-16 mx-auto" />
                   </th>
                 </tr>
-                <tr className="bg-[#f0f4f1] font-bold text-ink uppercase border border-ink/40">
-                  <th className="border border-ink/40 p-1.5 w-[7%]">
+                <tr className="bg-[#e2e2e2] font-bold text-gray-900 uppercase border border-gray-400">
+                  <th className="border border-gray-400 p-1.5 w-[7%]">
                     <SkeletonBlock className="h-3 w-10 mx-auto" />
                   </th>
-                  <th className="border border-ink/40 p-1.5 w-[7%]">
+                  <th className="border border-gray-400 p-1.5 w-[7%]">
                     <SkeletonBlock className="h-3 w-12 mx-auto" />
                   </th>
-                  <th className="border border-ink/40 p-1.5 w-[7%]">
+                  <th className="border border-gray-400 p-1.5 w-[7%]">
                     <SkeletonBlock className="h-3 w-10 mx-auto" />
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: rows }).map((_, i) => (
+                {Array.from({ length: 4 }).map((_, i) => (
                   <tr key={i} className="hover:bg-[#f5faf6]">
-                    <td className="border border-ink/30 p-2 bg-cream/20">
+                    <td className="border border-gray-400 p-1 bg-[#d4d4d4]">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1 bg-[#eaeaea]">
                       <SkeletonBlock className="h-3.5 w-40" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2 bg-[#eef7f1]">
+                    <td className="border border-gray-400 p-1 bg-[#eaeaea]">
                       <SkeletonBlock className="h-3.5 w-8 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-24 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
                   </tr>
                 ))}
 
                 {/* Male Summary Yellow Highlight Bar Skeleton */}
-                <tr className="bg-[#fef08a] border-2 border-ink/60">
-                  <td colSpan={2} className="border border-ink/50 p-2 text-left">
+                <tr className="bg-[#fef08a]">
+                  <td colSpan={2} className="border border-gray-400 p-2 text-left">
                     <SkeletonBlock className="h-3.5 w-44 bg-amber-400/50" />
                   </td>
-                  <td className="border border-ink/50 p-2">
+                  <td className="border border-gray-400 p-2">
                     <SkeletonBlock className="h-3.5 w-4 mx-auto bg-amber-400/50" />
                   </td>
-                  <td className="border border-ink/50 p-2">
+                  <td className="border border-gray-400 p-2">
                     <SkeletonBlock className="h-3.5 w-6 mx-auto bg-amber-400/50" />
                   </td>
-                  <td colSpan={5} className="border border-ink/50 p-2 text-right">
+                  <td colSpan={5} className="border border-gray-400 p-2 text-right">
                     <SkeletonBlock className="h-3.5 w-28 ml-auto bg-amber-400/50" />
                   </td>
-                  <td colSpan={2} className="border border-ink/50 p-2 text-right">
+                  <td colSpan={2} className="border border-gray-400 p-2 text-right">
                     <SkeletonBlock className="h-3.5 w-20 ml-auto bg-amber-400/50" />
                   </td>
                 </tr>
@@ -860,77 +860,225 @@ export function PhilIriForm1Skeleton({ rows = 6 }) {
                 {/* Female Section Skeleton Rows */}
                 {Array.from({ length: 4 }).map((_, i) => (
                   <tr key={`f-${i}`} className="hover:bg-[#f5faf6]">
-                    <td className="border border-ink/30 p-2 bg-cream/20">
+                    <td className="border border-gray-400 p-1 bg-[#d4d4d4]">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1 bg-[#eaeaea]">
                       <SkeletonBlock className="h-3.5 w-36" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-6 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2 bg-[#eef7f1]">
+                    <td className="border border-gray-400 p-1 bg-[#eaeaea]">
                       <SkeletonBlock className="h-3.5 w-8 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-24 mx-auto" />
                     </td>
-                    <td className="border border-ink/30 p-2">
+                    <td className="border border-gray-400 p-1">
                       <SkeletonBlock className="h-3.5 w-4 mx-auto" />
                     </td>
                   </tr>
                 ))}
 
                 {/* Female Summary Yellow Highlight Bar Skeleton */}
-                <tr className="bg-[#fef08a] border-2 border-ink/60">
-                  <td colSpan={2} className="border border-ink/50 p-2 text-left">
+                <tr className="bg-[#fef08a]">
+                  <td colSpan={2} className="border border-gray-400 p-2 text-left">
                     <SkeletonBlock className="h-3.5 w-44 bg-amber-400/50" />
                   </td>
-                  <td className="border border-ink/50 p-2">
+                  <td className="border border-gray-400 p-2">
                     <SkeletonBlock className="h-3.5 w-4 mx-auto bg-amber-400/50" />
                   </td>
-                  <td className="border border-ink/50 p-2">
+                  <td className="border border-gray-400 p-2">
                     <SkeletonBlock className="h-3.5 w-6 mx-auto bg-amber-400/50" />
                   </td>
-                  <td colSpan={5} className="border border-ink/50 p-2 text-right">
+                  <td colSpan={5} className="border border-gray-400 p-2 text-right">
                     <SkeletonBlock className="h-3.5 w-28 ml-auto bg-amber-400/50" />
                   </td>
-                  <td colSpan={2} className="border border-ink/50 p-2 text-right">
+                  <td colSpan={2} className="border border-gray-400 p-2 text-right">
                     <SkeletonBlock className="h-3.5 w-20 ml-auto bg-amber-400/50" />
                   </td>
                 </tr>
 
                 {/* Grand Total Green Summary Bar Skeleton */}
                 <tr className="bg-[#107c41]">
-                  <td colSpan={2} className="p-2.5 text-left">
+                  <td colSpan={2} className="p-2.5 text-left border border-gray-400">
                     <SkeletonBlock className="h-4 w-56 bg-white/30" />
                   </td>
-                  <td className="p-2.5">
+                  <td className="p-2.5 border border-gray-400">
                     <SkeletonBlock className="h-4 w-6 mx-auto bg-white/30" />
                   </td>
-                  <td className="p-2.5">
+                  <td className="p-2.5 border border-gray-400">
                     <SkeletonBlock className="h-4 w-6 mx-auto bg-white/30" />
                   </td>
-                  <td colSpan={5} className="p-2.5 text-right">
+                  <td colSpan={5} className="p-2.5 text-right border border-gray-400">
                     <SkeletonBlock className="h-4 w-32 ml-auto bg-white/30" />
                   </td>
-                  <td colSpan={2} className="p-2.5 text-right">
+                  <td colSpan={2} className="p-2.5 text-right border border-gray-400">
                     <SkeletonBlock className="h-4 w-28 ml-auto bg-white/30" />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PhilIriForm2Skeleton
+ * Matches Phil-IRI Form 2 layout: Top toolbar + Excel Form 2 table grid
+ */
+export function PhilIriForm2Skeleton({ rows = 6 }) {
+  return (
+    <div className="relative font-sans text-xs">
+      {/* Top Action Bar Skeleton */}
+      <div className="mb-4 flex items-center justify-between">
+        <SkeletonBlock className="h-6 w-96 max-w-full rounded-md" />
+        <div className="flex items-center gap-2">
+          <SkeletonBlock className="h-8 w-28 rounded-lg" />
+          <SkeletonBlock className="h-8 w-28 rounded-lg" />
+        </div>
+      </div>
+
+      {/* Main Form 2 Document Paper Skeleton */}
+      <div className="overflow-x-auto rounded-lg border border-ink/20 bg-white p-6 shadow-xs">
+        <div className="min-w-[850px]">
+          {/* Header Titles */}
+          <div className="text-center space-y-1 mb-4">
+            <div className="flex justify-end">
+              <SkeletonBlock className="h-3.5 w-28 rounded-md" />
+            </div>
+            <SkeletonBlock className="h-4 w-80 rounded-md mx-auto" />
+            <SkeletonBlock className="h-4 w-64 rounded-md mx-auto" />
+          </div>
+
+          {/* Form Header Info Grid (School, Division, District, Region) */}
+          <div className="space-y-2.5 text-xs font-semibold mb-6 px-1">
+            <div className="grid grid-cols-2 gap-x-12">
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-12" />
+                <SkeletonBlock className="h-4 grow rounded-none border-b border-ink/20" />
+              </div>
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-14" />
+                <SkeletonBlock className="h-4 grow rounded-none border-b border-ink/20" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-12">
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-12" />
+                <SkeletonBlock className="h-4 grow rounded-none border-b border-ink/20" />
+              </div>
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-12" />
+                <SkeletonBlock className="h-4 grow rounded-none border-b border-ink/20" />
+              </div>
+            </div>
+          </div>
+
+          {/* Form 2 Table Grid Skeleton */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-center text-xs font-sans border border-gray-400">
+              <thead>
+                <tr className="bg-[#e2e2e2] font-bold uppercase border border-gray-400">
+                  <th rowSpan={2} className="w-[15%] border border-gray-400 p-2.5 bg-[#d4d4d4]">
+                    <SkeletonBlock className="h-3.5 w-12 mx-auto" />
+                  </th>
+                  <th rowSpan={2} className="w-[30%] border border-gray-400 p-2.5 text-left">
+                    <SkeletonBlock className="h-3.5 w-24" />
+                  </th>
+                  <th rowSpan={2} className="w-[20%] border border-gray-400 p-2.5 bg-[#d4d4d4]">
+                    <SkeletonBlock className="h-3.5 w-20 mx-auto" />
+                  </th>
+                  <th colSpan={2} className="border border-gray-400 p-2">
+                    <SkeletonBlock className="h-3.5 w-28 mx-auto" />
+                  </th>
+                </tr>
+                <tr className="bg-[#e2e2e2] font-bold uppercase border border-gray-400">
+                  <th className="w-[17.5%] border border-gray-400 p-2">
+                    <SkeletonBlock className="h-3 w-20 mx-auto" />
+                  </th>
+                  <th className="w-[17.5%] border border-gray-400 p-2">
+                    <SkeletonBlock className="h-3 w-20 mx-auto" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {['IV', 'V', 'VI'].map((gradeLabel, gIdx) => (
+                  <React.Fragment key={gIdx}>
+                    {/* Yellow Grade Total Row Skeleton */}
+                    <tr className="bg-[#fef08a] font-bold">
+                      <td className="border border-gray-400 p-2 bg-[#d4d4d4]">
+                        <SkeletonBlock className="h-3.5 w-6 mx-auto" />
+                      </td>
+                      <td className="border border-gray-400 p-2 text-left font-semibold">
+                        <SkeletonBlock className="h-3.5 w-24" />
+                      </td>
+                      <td className="border border-gray-400 p-2 text-right">
+                        <SkeletonBlock className="h-3.5 w-8 ml-auto" />
+                      </td>
+                      <td className="border border-gray-400 p-2 text-right">
+                        <SkeletonBlock className="h-3.5 w-8 ml-auto" />
+                      </td>
+                      <td className="border border-gray-400 p-2 text-right">
+                        <SkeletonBlock className="h-3.5 w-8 ml-auto" />
+                      </td>
+                    </tr>
+
+                    {/* 3 Section Rows under Grade */}
+                    {Array.from({ length: 3 }).map((_, sIdx) => (
+                      <tr key={sIdx} className="hover:bg-[#f5faf6]">
+                        <td className="border border-gray-400 p-2 bg-[#d4d4d4]">
+                          {'\u00A0'}
+                        </td>
+                        <td className="border border-gray-400 p-2 text-left">
+                          <SkeletonBlock className="h-3.5 w-28" />
+                        </td>
+                        <td className="border border-gray-400 p-2 bg-[#eaeaea]">
+                          <SkeletonBlock className="h-3.5 w-8 mx-auto" />
+                        </td>
+                        <td className="border border-gray-400 p-2">
+                          <SkeletonBlock className="h-3.5 w-8 mx-auto" />
+                        </td>
+                        <td className="border border-gray-400 p-2">
+                          <SkeletonBlock className="h-3.5 w-8 mx-auto" />
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+
+                {/* Grand Total Row Skeleton */}
+                <tr className="bg-[#107c41]">
+                  <td colSpan={2} className="p-3 text-left border border-gray-400">
+                    <SkeletonBlock className="h-4 w-52 bg-white/30" />
+                  </td>
+                  <td className="p-3 border border-gray-400">
+                    <SkeletonBlock className="h-4 w-8 mx-auto bg-white/30" />
+                  </td>
+                  <td className="p-3 border border-gray-400">
+                    <SkeletonBlock className="h-4 w-8 mx-auto bg-white/30" />
+                  </td>
+                  <td className="p-3 border border-gray-400">
+                    <SkeletonBlock className="h-4 w-8 mx-auto bg-white/30" />
                   </td>
                 </tr>
               </tbody>

@@ -75,8 +75,8 @@ async function getStudents(req, res) {
             s.middle_name AS "middleName",
             s.last_name AS "lastName",
             CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-            COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade,
-            COALESCE(c.section_name, 'Unassigned') AS section,
+            COALESCE(c.grade_level, sgh.grade_level) AS grade,
+            c.section_name AS section,
             COALESCE(s.sex, 'Male') AS gender,
             COALESCE(sp.access_code, 'N/A') AS "parentAccessCode",
             COALESCE(sp.is_active, TRUE) AS "parentAccessActive",
@@ -136,7 +136,26 @@ async function getStudents(req, res) {
 
         const { rows } = await db.query(query, params);
 
-        return res.json({ success: true, students: rows || [] });
+        const schoolInfoResult = adminSchoolId
+          ? await db.query(
+            `SELECT school_name, division, district, region, principal_name
+             FROM schools
+             WHERE school_id = $1
+             LIMIT 1`,
+            [adminSchoolId]
+          )
+          : { rows: [] };
+        const school = schoolInfoResult.rows[0] || {};
+
+        return res.json({
+          success: true,
+          students: rows || [],
+          schoolName: school.school_name || '',
+          division: school.division || '',
+          district: school.district || '',
+          region: school.region || '',
+          principalName: school.principal_name || '',
+        });
       } catch (dbErr) {
         console.warn('DB fetch students notice:', dbErr.message);
       }
@@ -870,7 +889,7 @@ async function deleteStudent(req, res) {
             );
             if (!stillLinked || stillLinked.length === 0) {
               await db.query(`DELETE FROM parents WHERE parent_id = $1`, [pid]);
-              console.log(`âœ… Deleted orphan parent record: ${pid}`);
+              console.log(`Deleted orphan parent record: ${pid}`);
             }
           }
 
@@ -4263,7 +4282,5 @@ module.exports = {
   getStudentAnalytics,
   updateStudentStreakInDb,
 };
-
-
 
 

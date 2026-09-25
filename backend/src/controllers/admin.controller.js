@@ -345,7 +345,29 @@ async function getStudents(req, res) {
           ORDER BY s.student_id, s.created_at DESC
         `, [schoolId]);
 
-        return res.json({ success: true, students: rows || [] });
+        let schoolObj = {};
+        try {
+          await db.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS district VARCHAR(150)`).catch(() => {});
+          const schoolInfoRes = await db.query(`
+            SELECT school_name, division, district, region, principal_name
+            FROM schools
+            WHERE school_id = $1
+            LIMIT 1
+          `, [schoolId]);
+          schoolObj = schoolInfoRes.rows[0] || {};
+        } catch (sErr) {
+          console.warn('School query fallback notice:', sErr.message);
+        }
+
+        return res.json({
+          success: true,
+          students: rows || [],
+          schoolName: schoolObj.school_name || '',
+          division: schoolObj.division || '',
+          district: schoolObj.district || 'District I',
+          region: schoolObj.region || '',
+          principalName: schoolObj.principal_name || '',
+        });
       } catch (dbErr) {
         console.warn('DB fetch students notice:', dbErr.message);
       }
@@ -2465,7 +2487,7 @@ async function getPhilIriPeriods(req, res) {
 }
 
 /**
- * POST /api/admin/phil-iri/periods — Update active screening period per grade
+ * POST /api/admin/phil-iri/gst-submissions — Update active screening period per grade
  */
 async function updatePhilIriPeriods(req, res) {
   try {
@@ -2476,6 +2498,169 @@ async function updatePhilIriPeriods(req, res) {
     return res.json({ success: true, message: `${grade} active period updated to ${period}.`, periods: memoryPeriods });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Failed to update screening period.' });
+  }
+}
+
+/**
+ * GET /api/admin/phil-iri/gst-submission — Fetch saved GST Form 1A/1B submission for section
+ */
+async function getGstFormSubmission(req, res) {
+  try {
+    const schoolId = await getAdminSchoolId(req);
+    const { sectionName, language, schoolYearId } = req.query;
+
+    if (!sectionName || !language) {
+      return res.status(400).json({ success: false, error: 'sectionName and language parameters are required.' });
+    }
+
+    if (process.env.DATABASE_URL) {
+      // Resolve active school_year_id if not provided
+      let syId = schoolYearId;
+      if (!syId) {
+        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        syId = syRes.rows[0]?.school_year_id;
+      }
+
+      // Resolve teacher_id if logged in user is a teacher
+      let teacherId = null;
+      const uId = req.user?.id || req.user?.userId || req.user?.user_id;
+      const uEmail = req.user?.email || req.user?.username;
+
+      if (uId || uEmail) {
+        const tRes = await db.query(
+          `SELECT t.teacher_id 
+           FROM teachers t
+           JOIN users u ON t.user_id = u.user_id
+           WHERE u.user_id = $1 OR ($2::text IS NOT NULL AND LOWER(u.email) = LOWER($2))
+           LIMIT 1`,
+          [uId || '00000000-0000-0000-0000-000000000000', uEmail || null]
+        );
+        if (tRes.rows && tRes.rows[0]) teacherId = tRes.rows[0].teacher_id;
+      }
+
+      let query = `
+        SELECT submission_id, school_year_id, class_id, teacher_id, section_name, grade_level, test_language, form_code, form_data, above_14_count, below_14_count, total_assessed, updated_at
+        FROM gst_form_submissions
+        WHERE school_id = $1 AND LOWER(section_name) = LOWER($2) AND LOWER(test_language) = LOWER($3)
+      `;
+      const params = [schoolId, sectionName, language];
+
+      if (syId) {
+        params.push(syId);
+        query += ` AND school_year_id = $${params.length}`;
+      }
+
+      if (teacherId) {
+        params.push(teacherId);
+        query += ` AND (teacher_id = $${params.length} OR teacher_id IS NULL)`;
+      }
+
+      query += ` LIMIT 1`;
+
+      const { rows } = await db.query(query, params);
+
+      if (rows && rows[0]) {
+        return res.json({ success: true, submission: rows[0] });
+      }
+    }
+
+    return res.json({ success: true, submission: null });
+  } catch (error) {
+    console.error('Error fetching GST form submission:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch GST submission.' });
+  }
+}
+
+/**
+ * POST /api/admin/phil-iri/gst-submission — Save / Upsert GST Form 1A/1B section submission
+ */
+async function saveGstFormSubmission(req, res) {
+  try {
+    const schoolId = await getAdminSchoolId(req);
+    const { sectionName, gradeLevel, language, formCode, formData, above14Count, below14Count, totalAssessed, schoolYearId } = req.body;
+
+    if (!sectionName || !language || !formData) {
+      return res.status(400).json({ success: false, error: 'sectionName, language, and formData are required.' });
+    }
+
+    const testLang = language.toLowerCase() === 'english' ? 'English' : 'Tagalog';
+    const fCode = formCode || (testLang === 'Tagalog' ? 'PHIL-IRI FORM 1A' : 'PHIL-IRI FORM 1B');
+    const gLevel = gradeLevel || 'Grade 4';
+
+    if (process.env.DATABASE_URL) {
+      // Resolve active school_year_id if not provided
+      let syId = schoolYearId;
+      if (!syId) {
+        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        syId = syRes.rows[0]?.school_year_id;
+      }
+
+      // Resolve teacher_id from logged-in user (check user_id, id, email)
+      let teacherId = null;
+      const uId = req.user?.id || req.user?.userId || req.user?.user_id;
+      const uEmail = req.user?.email || req.user?.username;
+
+      if (uId || uEmail) {
+        const tRes = await db.query(
+          `SELECT t.teacher_id 
+           FROM teachers t
+           JOIN users u ON t.user_id = u.user_id
+           WHERE u.user_id = $1 OR ($2::text IS NOT NULL AND LOWER(u.email) = LOWER($2))
+           LIMIT 1`,
+          [uId || '00000000-0000-0000-0000-000000000000', uEmail || null]
+        );
+        if (tRes.rows && tRes.rows[0]) teacherId = tRes.rows[0].teacher_id;
+      }
+
+      // Resolve class_id from classes table using school_id, section_name, and school_year_id
+      let classId = null;
+      const cRes = await db.query(
+        `SELECT class_id FROM classes WHERE school_id = $1 AND LOWER(section_name) = LOWER($2) AND (school_year_id = $3 OR $3::uuid IS NULL) LIMIT 1`,
+        [schoolId, sectionName, syId || null]
+      );
+      if (cRes.rows && cRes.rows[0]) classId = cRes.rows[0].class_id;
+
+      const query = `
+        INSERT INTO gst_form_submissions (
+          school_id, school_year_id, class_id, teacher_id, section_name, grade_level, test_language, form_code, form_data, above_14_count, below_14_count, total_assessed, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        ON CONFLICT (school_id, section_name, test_language, school_year_id)
+        DO UPDATE SET
+          class_id = COALESCE(EXCLUDED.class_id, gst_form_submissions.class_id),
+          teacher_id = COALESCE(EXCLUDED.teacher_id, gst_form_submissions.teacher_id),
+          grade_level = EXCLUDED.grade_level,
+          form_code = EXCLUDED.form_code,
+          form_data = EXCLUDED.form_data,
+          above_14_count = EXCLUDED.above_14_count,
+          below_14_count = EXCLUDED.below_14_count,
+          total_assessed = EXCLUDED.total_assessed,
+          updated_at = NOW()
+        RETURNING submission_id, school_year_id, class_id, teacher_id, updated_at;
+      `;
+
+      const values = [
+        schoolId,
+        syId,
+        classId,
+        teacherId,
+        sectionName,
+        gLevel,
+        testLang,
+        fCode,
+        JSON.stringify(formData),
+        above14Count || 0,
+        below14Count || 0,
+        totalAssessed || 0
+      ];
+
+      const { rows } = await db.query(query, values);
+      return res.json({ success: true, message: `${fCode} records saved successfully!`, submission: rows[0] });
+    }
+
+    return res.json({ success: true, message: 'Saved successfully in-memory.' });
+  } catch (error) {
+    console.error('Error saving GST form submission:', error);
+    return res.status(500).json({ success: false, error: 'Failed to save GST form records.' });
   }
 }
 
@@ -2506,4 +2691,6 @@ module.exports = {
   getPhilIriAssessments,
   getPhilIriPeriods,
   updatePhilIriPeriods,
+  getGstFormSubmission,
+  saveGstFormSubmission,
 };

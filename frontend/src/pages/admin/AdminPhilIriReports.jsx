@@ -236,6 +236,13 @@ export default function AdminPhilIriReports() {
               <DownloadSimple size={15} />
               <span>Form 1</span>
             </button>
+            <a
+              href="/admin/phil-iri/form-2"
+              className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+            >
+              <DownloadSimple size={15} />
+              <span>Form 2</span>
+            </a>
             <button
               type="button"
               onClick={() => handleExportCSV('Form 3')}

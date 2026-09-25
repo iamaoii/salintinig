@@ -16,6 +16,7 @@ import { getApiUrl } from '../../../config/api.js';
 import { getToken, getUser } from '../../../lib/auth.js';
 import { PhilIriForm1Skeleton } from '../../../components/common/Skeleton.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import cacheService from '../../../services/cacheService.js';
 import * as XLSX from 'xlsx';
 
 const EXCEL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
@@ -125,10 +126,11 @@ export default function PhilIriForm1({ language }) {
     }));
   }, [isTagalog]);
 
-  // Fetch real database enrolled students and auto-fill the DepEd Excel Form!
+  // Fetch real database enrolled students and auto-fill saved GST scores
   useEffect(() => {
     const fetchClassData = async () => {
       try {
+        setIsLoading(true);
         const user = getUser();
         if (user) {
           const teacherName = user.name || (user.firstName ? `${user.firstName} ${user.lastName}` : '');
@@ -142,37 +144,91 @@ export default function PhilIriForm1({ language }) {
         }
 
         const token = getToken();
-        const res = await fetch(getApiUrl('/api/teacher/class-students'), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (res.ok && data.success && Array.isArray(data.students) && data.students.length > 0) {
+        const currentLang = isTagalog ? 'Tagalog' : 'English';
+        const cacheKey = `form1_class_students_${language}`;
+        
+        let data = cacheService.get(cacheKey);
+
+        if (!data) {
+          const res = await fetch(getApiUrl('/api/teacher/class-students'), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          data = await res.json();
+          if (res.ok && data.success) {
+            cacheService.set(cacheKey, data, 180000); // 3 mins TTL
+          }
+        }
+
+        if (data && data.success && Array.isArray(data.students) && data.students.length > 0) {
           const sample = data.students[0];
+          const currentSection = sample.sectionName || sample.section_name || data.sectionName || dbClassInfo.section;
+          const currentGrade = sample.gradeLevel || sample.grade_level || data.gradeLevel || dbClassInfo.grade;
+
           setDbClassInfo((prev) => ({
             ...prev,
-            section: sample.sectionName || sample.section_name || data.sectionName || prev.section,
-            grade: sample.gradeLevel || sample.grade_level || data.gradeLevel || prev.grade,
+            section: currentSection,
+            grade: currentGrade,
             school: data.schoolName || sample.schoolName || sample.school_name || data.school_name || prev.school,
             principalName: data.principalName || data.principal_name || sample.principalName || prev.principalName || '',
             date: formatDateString(),
           }));
 
+          // Check if there is a saved GST Submission for this section & language (Option B) with caching
+          const subCacheKey = `form1_gst_sub_${currentSection}_${currentLang}`;
+          let savedSubmissionMap = {};
+
+          try {
+            let subData = cacheService.get(subCacheKey);
+            if (!subData) {
+              const subRes = await fetch(getApiUrl(`/api/teacher/phil-iri/gst-submission?sectionName=${encodeURIComponent(currentSection)}&language=${currentLang}`), {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              subData = await subRes.json();
+              if (subRes.ok && subData.success) {
+                cacheService.set(subCacheKey, subData, 180000);
+              }
+            }
+
+            if (subData && subData.success && subData.submission && subData.submission.form_data) {
+              const fData = subData.submission.form_data;
+              const savedRows = [...(fData.maleRows || []), ...(fData.femaleRows || [])];
+              savedRows.forEach((r) => {
+                if (r.name) savedSubmissionMap[r.name.trim().toLowerCase()] = r;
+                if (r.lrn) savedSubmissionMap[r.lrn] = r;
+              });
+            }
+          } catch (e) {
+            console.warn('Could not fetch saved submission:', e);
+          }
+
+          // Build roster from current DB students and merge any saved scores
           const males = [];
           const females = [];
 
           data.students.forEach((std) => {
             const mapped = mapStudentToRow(std);
             if (mapped.name && mapped.name.trim() !== '') {
+              const normName = mapped.name.trim().toLowerCase();
+              const savedScore = savedSubmissionMap[mapped.lrn] || savedSubmissionMap[normName];
+              if (savedScore) {
+                mapped.testTaken = savedScore.testTaken || '';
+                mapped.literalNum = savedScore.literalNum ?? '';
+                mapped.inferentialNum = savedScore.inferentialNum ?? '';
+                mapped.criticalNum = savedScore.criticalNum ?? '';
+                mapped.totalNum = savedScore.totalNum ?? '';
+                mapped.below14 = savedScore.below14 || '';
+                mapped.above14 = savedScore.above14 || '';
+                mapped.startingPoint = savedScore.startingPoint || '';
+              }
               if (mapped.gender === 'F') females.push(mapped);
               else males.push(mapped);
             }
           });
 
-          // Sort alphabetically A-Z by LAST NAME, FIRST NAME
           males.sort((a, b) => a.name.localeCompare(b.name));
           females.sort((a, b) => a.name.localeCompare(b.name));
 
-          // Ensure exactly 10 initial slots minimum per section like DepEd printed forms
+          // Smart UI Padding: Always render at least 10 UI slots per gender section for DepEd aesthetic
           while (males.length < 10) {
             males.push(mapStudentToRow({ lrn: '', name: '', gender: 'M' }, 'M'));
           }
@@ -183,7 +239,6 @@ export default function PhilIriForm1({ language }) {
           setMaleRows(males);
           setFemaleRows(females);
         } else {
-          // 10 initial empty rows for Male & Female
           const emptyMales = Array.from({ length: 10 }, () => mapStudentToRow({ name: '' }, 'M'));
           const emptyFemales = Array.from({ length: 10 }, () => mapStudentToRow({ name: '' }, 'F'));
 
@@ -253,8 +308,7 @@ export default function PhilIriForm1({ language }) {
       const current = next[index].testTaken || '';
       let updated = '';
       if (current === '') updated = '✓';
-      else if (current === '✓') updated = 'O';
-      else if (current === 'O') updated = 'X';
+      else if (current === '✓') updated = 'X';
       else updated = '';
 
       next[index] = { ...next[index], testTaken: updated };
@@ -324,6 +378,57 @@ export default function PhilIriForm1({ language }) {
     triggerToast('Downloaded DepEd Phil-IRI Form 1B (.XLSX)!');
   };
 
+  // Save GST submission to backend database (Option B)
+  const handleSaveRecord = async () => {
+    try {
+      const token = getToken();
+      const currentLang = isTagalog ? 'Tagalog' : 'English';
+      const above14Count = maleTotals.above14 + femaleTotals.above14;
+      const below14Count = maleTotals.below14 + femaleTotals.below14;
+      const totalAssessed = maleTotals.count + femaleTotals.count;
+
+      // Filter out empty UI padding rows so only actual student score records are stored in DB
+      const cleanMaleRows = maleRows.filter((r) => r.name && r.name.trim() !== '');
+      const cleanFemaleRows = femaleRows.filter((r) => r.name && r.name.trim() !== '');
+
+      const payload = {
+        sectionName: dbClassInfo.section || 'Unassigned',
+        gradeLevel: dbClassInfo.grade || 'Grade 4',
+        language: currentLang,
+        formCode,
+        formData: {
+          maleRows: cleanMaleRows,
+          femaleRows: cleanFemaleRows,
+        },
+        above14Count,
+        below14Count,
+        totalAssessed,
+      };
+
+      const res = await fetch(getApiUrl('/api/teacher/phil-iri/gst-submission'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Invalidate Form 1 & Form 2 cache so updated scores reflect immediately
+        cacheService.invalidate('form1_');
+        cacheService.invalidate('form2_');
+        triggerToast(`${formCode} saved to database successfully!`, 'success');
+      } else {
+        triggerToast(data.error || 'Failed to save GST form records.', 'error');
+      }
+    } catch (err) {
+      console.error('Save GST Form Error:', err);
+      triggerToast('Network error saving records.', 'error');
+    }
+  };
+
   if (isLoading) {
     return <PhilIriForm1Skeleton rows={8} />;
   }
@@ -349,7 +454,7 @@ export default function PhilIriForm1({ language }) {
           </button>
           <button
             type="button"
-            onClick={() => triggerToast('Phil-IRI Form 1B saved to database!')}
+            onClick={handleSaveRecord}
             className="flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs"
           >
             <FloppyDisk size={15} weight="bold" />
@@ -429,7 +534,7 @@ export default function PhilIriForm1({ language }) {
                   <th rowSpan={2} className="w-11 min-w-[40px] border border-gray-400 p-2 bg-[#d4d4d4]">#</th>
                   <th rowSpan={2} className="border border-gray-400 p-2 text-left w-[26%]">{isTagalog ? 'Pangalan' : 'NAME'}</th>
                   <th rowSpan={2} className="border border-gray-400 p-2 w-[7%]">{isTagalog ? 'Kasarian' : 'Gender'}<br/><span className="text-[10px] font-normal">{isTagalog ? 'M o F' : 'M or F'}</span></th>
-                  <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">{isTagalog ? 'Nakuha ang pagtatasa' : 'TEST TAKEN'}<br/><span className="text-[10px] font-normal">✓ O X</span></th>
+                  <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">{isTagalog ? 'Nakuha ang pagtatasa' : 'TEST TAKEN'}<br/><span className="text-[10px] font-normal">{isTagalog ? '✓ o X' : '✓ or X'}</span></th>
                   <th colSpan={3} className="border border-gray-400 p-1.5">{isTagalog ? 'Bilang ng Tamang Sagot (Ayon sa Uri ng Tanong)' : 'NUMBER OF CORRECT RESPONSES'}</th>
                   <th rowSpan={2} className="border border-gray-400 p-2 w-[9%] bg-[#d4d4d4] text-gray-900">{isTagalog ? 'Kabuuang Marka' : 'TOTAL SCORE'}</th>
                   <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">{isTagalog ? 'Markang < 14' : 'SCORE < 14'}</th>
@@ -473,7 +578,7 @@ export default function PhilIriForm1({ language }) {
                             type="button"
                             onClick={() => cycleTestTaken('M', i)}
                             className="w-full text-center font-bold text-xs hover:bg-[#d8d8d8] py-0.5 rounded transition-colors cursor-pointer outline-none select-none"
-                            title="Click to toggle (✓ / O / X / Blank)"
+                            title="Click to toggle (✓ / X / Blank)"
                           >
                             {row.testTaken ? (
                               <span className="text-gray-900 font-bold">{row.testTaken}</span>
@@ -491,7 +596,7 @@ export default function PhilIriForm1({ language }) {
                             max={7}
                             value={row.literalNum}
                             onChange={(e) => handleScoreChange('M', i, 'literalNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -503,7 +608,7 @@ export default function PhilIriForm1({ language }) {
                             max={7}
                             value={row.inferentialNum}
                             onChange={(e) => handleScoreChange('M', i, 'inferentialNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -515,7 +620,7 @@ export default function PhilIriForm1({ language }) {
                             max={6}
                             value={row.criticalNum}
                             onChange={(e) => handleScoreChange('M', i, 'criticalNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -530,7 +635,7 @@ export default function PhilIriForm1({ language }) {
                 })}
 
                 {/* Male Summary Yellow Highlight Bar */}
-                <tr className="bg-[#fef08a] font-extrabold text-gray-900 border-2 border-gray-500 text-xs">
+                <tr className="bg-[#fef08a] font-extrabold text-gray-900 text-xs">
                   <td colSpan={2} className="border border-gray-400 p-2 text-left tracking-wide">
                     {isTagalog ? 'KABUUANG BILANG NG LALAKI' : 'TOTAL NUMBER OF MALE'}
                   </td>
@@ -574,7 +679,7 @@ export default function PhilIriForm1({ language }) {
                             type="button"
                             onClick={() => cycleTestTaken('F', i)}
                             className="w-full text-center font-bold text-xs hover:bg-[#d8d8d8] py-0.5 rounded transition-colors cursor-pointer outline-none select-none"
-                            title="Click to toggle (✓ / O / X / Blank)"
+                            title="Click to toggle (✓ / X / Blank)"
                           >
                             {row.testTaken ? (
                               <span className="text-gray-900 font-bold">{row.testTaken}</span>
@@ -592,7 +697,7 @@ export default function PhilIriForm1({ language }) {
                             max={7}
                             value={row.literalNum}
                             onChange={(e) => handleScoreChange('F', i, 'literalNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -604,7 +709,7 @@ export default function PhilIriForm1({ language }) {
                             max={7}
                             value={row.inferentialNum}
                             onChange={(e) => handleScoreChange('F', i, 'inferentialNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -616,7 +721,7 @@ export default function PhilIriForm1({ language }) {
                             max={6}
                             value={row.criticalNum}
                             onChange={(e) => handleScoreChange('F', i, 'criticalNum', e.target.value)}
-                            className="w-10 text-center mx-auto bg-transparent font-bold text-gray-900 outline-none text-xs"
+                            className="w-full text-center pl-3 bg-transparent font-bold text-gray-900 outline-none text-xs"
                           />
                         ) : ''}
                       </td>
@@ -631,7 +736,7 @@ export default function PhilIriForm1({ language }) {
                 })}
 
                 {/* Female Summary Yellow Highlight Bar */}
-                <tr className="bg-[#fef08a] font-extrabold text-gray-900 border-2 border-gray-500 text-xs">
+                <tr className="bg-[#fef08a] font-extrabold text-gray-900 text-xs">
                   <td colSpan={2} className="border border-gray-400 p-2 text-left tracking-wide">
                     {isTagalog ? 'KABUUANG BILANG NG BABAE' : 'TOTAL NUMBER OF FEMALE'}
                   </td>
