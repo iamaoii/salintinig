@@ -342,34 +342,35 @@ export default function PhilIriForm1({ language }) {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet(formCode);
 
-      // Set exact column widths matching DepEd Form 1 official template & Web UI layout
+      // Set exact column widths matching DepEd Form 1 official template & Web UI layout (prevent text cuts)
       worksheet.columns = [
         { key: 'no', width: 6 },
         { key: 'name', width: 32 },
-        { key: 'kasarian', width: 10 },
-        { key: 'testTaken', width: 14 },
-        { key: 'literal', width: 10 },
-        { key: 'inferential', width: 16 },
-        { key: 'critical', width: 10 },
-        { key: 'totalMarka', width: 12 },
+        { key: 'kasarian', width: 14 },
+        { key: 'testTaken', width: 16 },
+        { key: 'literal', width: 12 },
+        { key: 'inferential', width: 22 },
+        { key: 'critical', width: 12 },
+        { key: 'totalMarka', width: 14 },
         { key: 'markangBelow14', width: 14 },
-        { key: 'startingPoint', width: 24 },
+        { key: 'startingPoint', width: 28 },
         { key: 'markangAbove14', width: 14 },
       ];
 
       // Row 1: Blank
       worksheet.addRow([]);
 
-      // Row 2: Right-aligned Form Code
+      // Row 2: Right-aligned Form Code (Merged I2:K2 so text never cuts off)
       const r2 = worksheet.addRow(['', '', '', '', '', '', '', '', '', '', formCode]);
+      worksheet.mergeCells(`I2:K2`);
       r2.getCell(11).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF333333' } };
       r2.getCell(11).alignment = { horizontal: 'right' };
 
-      // Row 3: Title Header (Centered)
-      const r3 = worksheet.addRow(['', '', '', 'TALAAN NG PANGKATANG PAGTATASA NG KLASE (TPPK)']);
-      worksheet.mergeCells('D3:H3');
-      r3.getCell(4).font = { name: 'Arial', size: 12, bold: true };
-      r3.getCell(4).alignment = { horizontal: 'center' };
+      // Row 3: Title Header (Centered across entire table width A3:K3)
+      const r3 = worksheet.addRow(['TALAAN NG PANGKATANG PAGTATASA NG KLASE (TPPK)']);
+      worksheet.mergeCells('A3:K3');
+      r3.getCell(1).font = { name: 'Arial', size: 12, bold: true };
+      r3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
       // Row 4: Blank
       worksheet.addRow([]);
@@ -430,7 +431,7 @@ export default function PhilIriForm1({ language }) {
         'PANIMULANG SANGGUNIANG ANTAS',
         'MARKANG ≥ 14',
       ]);
-      h1.height = 26;
+      h1.height = 36; // Sufficient height for multi-line headers
 
       const h2 = worksheet.addRow([
         '',
@@ -445,7 +446,7 @@ export default function PhilIriForm1({ language }) {
         '',
         '',
       ]);
-      h2.height = 20;
+      h2.height = 28; // Sufficient height for multi-line subheaders
 
       worksheet.mergeCells('A9:A10');
       worksheet.mergeCells('B9:B10');
@@ -509,8 +510,6 @@ export default function PhilIriForm1({ language }) {
             cell.font = { name: 'Arial', size: 9, bold: true };
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNumber === 2) {
-            cell.fill = totalColFill;
-            cell.font = { name: 'Arial', size: 9, bold: true };
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
           } else if (colNumber === 8) {
             cell.fill = totalColFill;
@@ -522,21 +521,21 @@ export default function PhilIriForm1({ language }) {
         });
       });
 
-      // Yellow Male Subtotal Row
+      // Yellow Male Subtotal Row (Note: Top-left cell of E:I merge is Col E [index 4], top-left of J:K merge is Col J [index 9])
       const mSubRow = worksheet.addRow([
         'KABUUANG BILANG NG LALAKI',
         '',
         maleTotals.count,
         '',
-        '',
-        '',
-        '',
-        '',
         `Mababa sa 14:  ${maleTotals.below14}`,
         '',
-        `≥ 14:  ${maleTotals.above14}`
+        '',
+        '',
+        '',
+        `≥ 14:  ${maleTotals.above14}`,
+        ''
       ]);
-      mSubRow.height = 22;
+      mSubRow.height = 24;
 
       worksheet.mergeCells(`A${mSubRow.number}:B${mSubRow.number}`);
       worksheet.mergeCells(`E${mSubRow.number}:I${mSubRow.number}`);
@@ -549,8 +548,8 @@ export default function PhilIriForm1({ language }) {
         cell.border = borderThin;
         if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
         else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 5) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10) cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
 
       // Render Female Rows (Exact 10 slots)
@@ -584,8 +583,6 @@ export default function PhilIriForm1({ language }) {
             cell.font = { name: 'Arial', size: 9, bold: true };
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNumber === 2) {
-            cell.fill = totalColFill;
-            cell.font = { name: 'Arial', size: 9, bold: true };
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
           } else if (colNumber === 8) {
             cell.fill = totalColFill;
@@ -603,15 +600,15 @@ export default function PhilIriForm1({ language }) {
         '',
         femaleTotals.count,
         '',
-        '',
-        '',
-        '',
-        '',
         `Mababa sa 14:  ${femaleTotals.below14}`,
         '',
-        `≥ 14:  ${femaleTotals.above14}`
+        '',
+        '',
+        '',
+        `≥ 14:  ${femaleTotals.above14}`,
+        ''
       ]);
-      fSubRow.height = 22;
+      fSubRow.height = 24;
 
       worksheet.mergeCells(`A${fSubRow.number}:B${fSubRow.number}`);
       worksheet.mergeCells(`E${fSubRow.number}:I${fSubRow.number}`);
@@ -623,8 +620,8 @@ export default function PhilIriForm1({ language }) {
         cell.border = borderThin;
         if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
         else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 5) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10) cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
 
       // Green Class Grand Total Row
@@ -637,13 +634,13 @@ export default function PhilIriForm1({ language }) {
         '',
         grandTotalCount,
         '',
-        '',
-        '',
-        '',
-        '',
         `Kabuuan < 14:  ${grandBelow14}`,
         '',
-        `Kabuuan ≥ 14:  ${grandAbove14}`
+        '',
+        '',
+        '',
+        `Kabuuan ≥ 14:  ${grandAbove14}`,
+        ''
       ]);
       gRow.height = 24;
 
@@ -658,35 +655,53 @@ export default function PhilIriForm1({ language }) {
         cell.border = borderThin;
         if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
         else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 5) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10) cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
 
-      // Footnote
+      // Footnote (Merged across full width A:K)
       worksheet.addRow([]);
       const noteRow = worksheet.addRow(['*Ang mag-aaral na nagtamo ng kabuuang marka na ≥ 14/20 ay hindi na kailangang kumuha ng Phil-IRI.']);
       worksheet.mergeCells(`A${noteRow.number}:K${noteRow.number}`);
+      noteRow.height = 20;
       noteRow.getCell(1).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF555555' } };
+      noteRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
 
       // Signatures Block
       worksheet.addRow([]);
       worksheet.addRow([]);
-      const s1 = worksheet.addRow(['Binigyang-pansin:', '', dbClassInfo.principalName || '', '', '', '', 'Inihanda ni:', '', dbClassInfo.teacher || '']);
-      worksheet.mergeCells(`C${s1.number}:E${s1.number}`);
-      worksheet.mergeCells(`I${s1.number}:K${s1.number}`);
 
-      s1.font = { name: 'Arial', size: 9 };
-      s1.getCell(3).font = { name: 'Arial', size: 10, bold: true };
-      s1.getCell(9).font = { name: 'Arial', size: 10, bold: true };
-      s1.getCell(3).alignment = { horizontal: 'center' };
-      s1.getCell(9).alignment = { horizontal: 'center' };
+      const s1 = worksheet.addRow(['Binigyang-pansin:', '', '', dbClassInfo.principalName || '', '', '', 'Inihanda ni:', '', '', dbClassInfo.teacher || '', '']);
+      s1.height = 22;
+      worksheet.mergeCells(`A${s1.number}:B${s1.number}`);
+      worksheet.mergeCells(`D${s1.number}:F${s1.number}`);
+      worksheet.mergeCells(`G${s1.number}:H${s1.number}`);
+      worksheet.mergeCells(`J${s1.number}:K${s1.number}`);
 
-      const s2 = worksheet.addRow(['', '', 'Punong-guro', '', '', '', '', '', 'Guro / Tagapayo']);
-      worksheet.mergeCells(`C${s2.number}:E${s2.number}`);
-      worksheet.mergeCells(`I${s2.number}:K${s2.number}`);
+      s1.getCell(1).font = { name: 'Arial', size: 9 };
+      s1.getCell(1).alignment = { horizontal: 'left', vertical: 'bottom' };
+
+      s1.getCell(4).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(4).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(4).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      s1.getCell(5).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      s1.getCell(6).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+
+      s1.getCell(7).font = { name: 'Arial', size: 9 };
+      s1.getCell(7).alignment = { horizontal: 'left', vertical: 'bottom' };
+
+      s1.getCell(10).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(10).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(10).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      s1.getCell(11).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+
+      const s2 = worksheet.addRow(['', '', '', 'Punong-guro', '', '', '', '', '', 'Guro / Tagapayo', '']);
+      s2.height = 20;
+      worksheet.mergeCells(`D${s2.number}:F${s2.number}`);
+      worksheet.mergeCells(`J${s2.number}:K${s2.number}`);
       s2.font = { name: 'Arial', size: 9, bold: true };
-      s2.getCell(3).alignment = { horizontal: 'center' };
-      s2.getCell(9).alignment = { horizontal: 'center' };
+      s2.getCell(4).alignment = { horizontal: 'center', vertical: 'top' };
+      s2.getCell(10).alignment = { horizontal: 'center', vertical: 'top' };
 
       // Write to Buffer & Trigger Download
       const buffer = await workbook.xlsx.writeBuffer();
