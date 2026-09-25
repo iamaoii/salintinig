@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { CheckCircle } from '@phosphor-icons/react';
+import { useState, useMemo } from 'react';
+import { CheckCircle, Table } from '@phosphor-icons/react';
 import RecordActions from '../../../components/dashboard/records/RecordActions.jsx';
-import { schoolInfo, form2Rows, form2Total } from '../../../data/philIriRecords.js';
+import { schoolInfo, form2Rows } from '../../../data/philIriRecords.js';
 
 export default function PhilIriForm2() {
   const [isEditing, setIsEditing] = useState(false);
@@ -11,7 +11,7 @@ export default function PhilIriForm2() {
   const handleCellChange = (index, field, value) => {
     setRowsData((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: Number(value) || value };
+      next[index] = { ...next[index], [field]: Math.max(0, Number(value) || 0) };
       return next;
     });
   };
@@ -22,6 +22,16 @@ export default function PhilIriForm2() {
     setTimeout(() => setShowToast(false), 3500);
   };
 
+  // Excel SUM formula calculation for totals
+  const calculatedTotals = useMemo(() => {
+    const sectionRows = rowsData.filter((r) => !r.isGradeTotal);
+    return {
+      enrolment: sectionRows.reduce((sum, r) => sum + (Number(r.enrolment) || 0), 0),
+      above14: sectionRows.reduce((sum, r) => sum + (Number(r.above14) || 0), 0),
+      below14: sectionRows.reduce((sum, r) => sum + (Number(r.below14) || 0), 0),
+    };
+  }, [rowsData]);
+
   return (
     <div className="relative rounded-[10px] border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.1)]">
       {showToast && (
@@ -31,7 +41,16 @@ export default function PhilIriForm2() {
         </div>
       )}
 
-
+      {/* Excel Edit Mode Interactive Banner */}
+      {isEditing && (
+        <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-brand-blue/30 bg-brand-blue/10 px-4 py-3 text-xs text-brand-blue animate-in fade-in">
+          <Table size={20} weight="fill" className="text-brand-blue shrink-0" />
+          <div>
+            <span className="font-bold">Excel Live Mode Active:</span> Edit section enrolments and scores directly.
+            School-wide totals calculate automatically like spreadsheet formulas.
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <p className="text-xs text-ink/40">Phil-IRI FORM 2</p>
@@ -79,40 +98,43 @@ export default function PhilIriForm2() {
           </thead>
           <tbody>
             {rowsData.map((row, i) => (
-              <tr key={i} className={row.isGradeTotal ? 'font-semibold text-ink' : 'text-ink/70'}>
-                <td className="border border-ink/10 p-2">{row.grade}</td>
+              <tr key={i} className={row.isGradeTotal ? 'font-semibold text-ink bg-ink/[0.02]' : isEditing ? 'bg-blue-50/20 hover:bg-blue-50/40 transition-colors' : 'text-ink/70'}>
+                <td className="border border-ink/10 p-2 font-bold">{row.grade}</td>
                 <td className="border border-ink/10 p-2">{row.section}</td>
                 <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
+                  {isEditing && !row.isGradeTotal ? (
                     <input
                       type="number"
+                      min={0}
                       value={row.enrolment}
                       onChange={(e) => handleCellChange(i, 'enrolment', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
+                      className="w-20 ml-auto rounded-md border border-brand-blue/30 bg-white px-2 py-1 text-right text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                     />
                   ) : (
                     row.enrolment
                   )}
                 </td>
                 <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
+                  {isEditing && !row.isGradeTotal ? (
                     <input
                       type="number"
+                      min={0}
                       value={row.above14}
                       onChange={(e) => handleCellChange(i, 'above14', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
+                      className="w-20 ml-auto rounded-md border border-brand-blue/30 bg-white px-2 py-1 text-right text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                     />
                   ) : (
                     row.above14
                   )}
                 </td>
                 <td className="border border-ink/10 p-2 text-right">
-                  {isEditing ? (
+                  {isEditing && !row.isGradeTotal ? (
                     <input
                       type="number"
+                      min={0}
                       value={row.below14}
                       onChange={(e) => handleCellChange(i, 'below14', e.target.value)}
-                      className="w-full bg-transparent text-right text-xs font-semibold text-ink outline-none border-b border-dashed border-ink/30 focus:border-brand-blue"
+                      className="w-20 ml-auto rounded-md border border-brand-blue/30 bg-white px-2 py-1 text-right text-xs font-bold text-ink outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                     />
                   ) : (
                     row.below14
@@ -120,13 +142,13 @@ export default function PhilIriForm2() {
                 </td>
               </tr>
             ))}
-            <tr className="font-semibold text-ink">
+            <tr className="font-extrabold text-ink bg-ink/[0.05] border-t-2 border-ink/20">
               <td colSpan={2} className="border border-ink/10 p-2">
                 TOTAL
               </td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.enrolment}</td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.above14}</td>
-              <td className="border border-ink/10 p-2 text-right">{form2Total.below14}</td>
+              <td className="border border-ink/10 p-2 text-right text-brand-blue">{calculatedTotals.enrolment}</td>
+              <td className="border border-ink/10 p-2 text-right text-emerald-800">{calculatedTotals.above14}</td>
+              <td className="border border-ink/10 p-2 text-right text-amber-800">{calculatedTotals.below14}</td>
             </tr>
           </tbody>
         </table>

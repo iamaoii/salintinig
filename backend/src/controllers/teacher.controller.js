@@ -1533,6 +1533,33 @@ async function getTeacherClassStudents(req, res) {
       let sectionName = null;
       let gradeLevel = null;
       let schoolYear = null;
+      let schoolName = null;
+      let principalName = null;
+
+      // Query school metadata (school_name, principal_name) for teacher
+      try {
+        const schoolMeta = await db.query(
+          `SELECT sch.school_name, sch.principal_name
+           FROM users u
+           JOIN schools sch ON u.school_id = sch.school_id
+           WHERE u.user_id = $1
+           LIMIT 1`,
+          [userId]
+        );
+        if (schoolMeta.rows && schoolMeta.rows.length > 0) {
+          schoolName = schoolMeta.rows[0].school_name;
+          principalName = schoolMeta.rows[0].principal_name;
+        } else {
+          // Fallback to first school record if user school_id is unlinked
+          const fallbackSch = await db.query(`SELECT school_name, principal_name FROM schools LIMIT 1`);
+          if (fallbackSch.rows && fallbackSch.rows.length > 0) {
+            schoolName = fallbackSch.rows[0].school_name;
+            principalName = fallbackSch.rows[0].principal_name;
+          }
+        }
+      } catch (sErr) {
+        console.warn('School metadata query notice:', sErr.message);
+      }
 
       // Query section metadata directly for advisor teacher
       try {
@@ -1758,6 +1785,8 @@ async function getTeacherClassStudents(req, res) {
         sectionName,
         gradeLevel,
         schoolYear: schoolYear || '2026-2027',
+        schoolName,
+        principalName,
         totalStudents: students.length,
       });
     }
