@@ -335,47 +335,374 @@ export default function PhilIriForm1({ language }) {
     };
   }, [femaleRows]);
 
-  // Export official DepEd .xlsx file
-  const handleExportXLSX = () => {
-    const exportData = [];
+  // Export official DepEd styled .xlsx file matching the EXACT DepEd Form 1 template layout 100%
+  const handleExportXLSX = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(formCode);
 
-    maleRows.filter((r) => r.name).forEach((r, i) => {
-      exportData.push({
-        'No.': i + 1,
-        'Name of Learner': r.name,
-        'Gender': 'M',
-        'Test Taken': r.testTaken,
-        'Literal (/7)': r.literalNum,
-        'Inferential (/7)': r.inferentialNum,
-        'Critical (/6)': r.criticalNum,
-        'Total Score (/20)': r.totalNum,
-        'Score < 14': r.below14,
-        'Starting Point': r.startingPoint,
-        'Score >= 14': r.above14,
+      // Set exact column widths matching DepEd Form 1 official template & Web UI layout
+      worksheet.columns = [
+        { key: 'no', width: 6 },
+        { key: 'name', width: 32 },
+        { key: 'kasarian', width: 10 },
+        { key: 'testTaken', width: 14 },
+        { key: 'literal', width: 10 },
+        { key: 'inferential', width: 16 },
+        { key: 'critical', width: 10 },
+        { key: 'totalMarka', width: 12 },
+        { key: 'markangBelow14', width: 14 },
+        { key: 'startingPoint', width: 24 },
+        { key: 'markangAbove14', width: 14 },
+      ];
+
+      // Row 1: Blank
+      worksheet.addRow([]);
+
+      // Row 2: Right-aligned Form Code
+      const r2 = worksheet.addRow(['', '', '', '', '', '', '', '', '', '', formCode]);
+      r2.getCell(11).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF333333' } };
+      r2.getCell(11).alignment = { horizontal: 'right' };
+
+      // Row 3: Title Header (Centered)
+      const r3 = worksheet.addRow(['', '', '', 'TALAAN NG PANGKATANG PAGTATASA NG KLASE (TPPK)']);
+      worksheet.mergeCells('D3:H3');
+      r3.getCell(4).font = { name: 'Arial', size: 12, bold: true };
+      r3.getCell(4).alignment = { horizontal: 'center' };
+
+      // Row 4: Blank
+      worksheet.addRow([]);
+
+      // Row 5 & 6: Header Metadata Block
+      const r5 = worksheet.addRow([
+        `Baitang:  ${String(dbClassInfo.grade || '').replace(/grade/gi, '').trim()}`,
+        '',
+        `Seksiyon:  ${dbClassInfo.section || ''}`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        `Guro:  ${dbClassInfo.teacher || ''}`,
+      ]);
+      worksheet.mergeCells('A5:B5');
+      worksheet.mergeCells('C5:E5');
+      worksheet.mergeCells('J5:K5');
+
+      const r6 = worksheet.addRow([
+        `Paaralan:  ${dbClassInfo.school || ''}`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        `Petsa:  ${dbClassInfo.date || ''}`,
+      ]);
+      worksheet.mergeCells('A6:E6');
+      worksheet.mergeCells('J6:K6');
+
+      const r7 = worksheet.addRow([`Antas ng Pangkatang Pagtatasa:  ${String(dbClassInfo.grade || '').replace(/grade/gi, '').trim()}`]);
+      worksheet.mergeCells('A7:D7');
+
+      [r5, r6, r7].forEach((row) => {
+        row.font = { name: 'Arial', size: 10, bold: true };
       });
-    });
 
-    femaleRows.filter((r) => r.name).forEach((r, i) => {
-      exportData.push({
-        'No.': i + 1,
-        'Name of Learner': r.name,
-        'Gender': 'F',
-        'Test Taken': r.testTaken,
-        'Literal (/7)': r.literalNum,
-        'Inferential (/7)': r.inferentialNum,
-        'Critical (/6)': r.criticalNum,
-        'Total Score (/20)': r.totalNum,
-        'Score < 14': r.below14,
-        'Starting Point': r.startingPoint,
-        'Score >= 14': r.above14,
+      // Row 8: Blank
+      worksheet.addRow([]);
+
+      // Row 9-10: Table Header Grid Layout (Exact DepEd Template)
+      const h1 = worksheet.addRow([
+        '#',
+        'PANGALAN',
+        'KASARIAN\nM o F',
+        'NAKUHA ANG PAGTATASA\n✓ o X',
+        'BILANG NG TAMANG SAGOT (AYON SA URI NG TANONG)',
+        '',
+        '',
+        'KABUUANG MARKA',
+        'MARKANG < 14',
+        'PANIMULANG SANGGUNIANG ANTAS',
+        'MARKANG ≥ 14',
+      ]);
+      h1.height = 26;
+
+      const h2 = worksheet.addRow([
+        '',
+        '',
+        '',
+        '',
+        'LITERAL',
+        'PAGHIHINUHA (INFERENTIAL)',
+        'KRITIKAL',
+        '',
+        '',
+        '',
+        '',
+      ]);
+      h2.height = 20;
+
+      worksheet.mergeCells('A9:A10');
+      worksheet.mergeCells('B9:B10');
+      worksheet.mergeCells('C9:C10');
+      worksheet.mergeCells('D9:D10');
+      worksheet.mergeCells('E9:G9');
+      worksheet.mergeCells('H9:H10');
+      worksheet.mergeCells('I9:I10');
+      worksheet.mergeCells('J9:J10');
+      worksheet.mergeCells('K9:K10');
+
+      const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E2E2' } };
+      const col1Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
+      const borderThin = {
+        top: { style: 'thin', color: { argb: 'FF999999' } },
+        left: { style: 'thin', color: { argb: 'FF999999' } },
+        bottom: { style: 'thin', color: { argb: 'FF999999' } },
+        right: { style: 'thin', color: { argb: 'FF999999' } },
+      };
+
+      [h1, h2].forEach((row) => {
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.fill = (colNumber === 1 || colNumber === 8) ? col1Fill : headerFill;
+          cell.font = { name: 'Arial', size: 9, bold: true };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = borderThin;
+        });
       });
-    });
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'form 1B');
-    XLSX.writeFile(workbook, `Phil-IRI_Form_1B_${dbClassInfo.section || 'Class'}.xlsx`);
-    triggerToast('Downloaded DepEd Phil-IRI Form 1B (.XLSX)!');
+      // Render Male Rows (Exact 10 slots)
+      const renderMaleRows = [...maleRows];
+      while (renderMaleRows.length < 10) {
+        renderMaleRows.push({ lrn: '', name: '', gender: 'M', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
+      }
+
+      const numFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
+      const totalColFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
+
+      renderMaleRows.slice(0, 10).forEach((r, i) => {
+        const row = worksheet.addRow([
+          i + 1,
+          r.name,
+          r.name ? 'M' : '',
+          r.testTaken,
+          r.literalNum,
+          r.inferentialNum,
+          r.criticalNum,
+          r.totalNum,
+          r.below14 === '/' ? '/' : r.below14 === '-' ? '—' : r.below14,
+          r.startingPoint,
+          r.above14 === '/' ? '/' : r.above14 === '-' ? '—' : r.above14,
+        ]);
+        row.height = 20;
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = borderThin;
+          cell.font = { name: 'Arial', size: 9 };
+
+          if (colNumber === 1) {
+            cell.fill = numFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNumber === 2) {
+            cell.fill = totalColFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          } else if (colNumber === 8) {
+            cell.fill = totalColFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        });
+      });
+
+      // Yellow Male Subtotal Row
+      const mSubRow = worksheet.addRow([
+        'KABUUANG BILANG NG LALAKI',
+        '',
+        maleTotals.count,
+        '',
+        '',
+        '',
+        '',
+        '',
+        `Mababa sa 14:  ${maleTotals.below14}`,
+        '',
+        `≥ 14:  ${maleTotals.above14}`
+      ]);
+      mSubRow.height = 22;
+
+      worksheet.mergeCells(`A${mSubRow.number}:B${mSubRow.number}`);
+      worksheet.mergeCells(`E${mSubRow.number}:I${mSubRow.number}`);
+      worksheet.mergeCells(`J${mSubRow.number}:K${mSubRow.number}`);
+
+      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+      mSubRow.eachCell({ includeEmpty: true }, (cell, colIndex) => {
+        cell.fill = yellowFill;
+        cell.font = { name: 'Arial', size: 9, bold: true };
+        cell.border = borderThin;
+        if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+
+      // Render Female Rows (Exact 10 slots)
+      const renderFemaleRows = [...femaleRows];
+      while (renderFemaleRows.length < 10) {
+        renderFemaleRows.push({ lrn: '', name: '', gender: 'F', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
+      }
+
+      renderFemaleRows.slice(0, 10).forEach((r, i) => {
+        const row = worksheet.addRow([
+          i + 1,
+          r.name,
+          r.name ? 'F' : '',
+          r.testTaken,
+          r.literalNum,
+          r.inferentialNum,
+          r.criticalNum,
+          r.totalNum,
+          r.below14 === '/' ? '/' : r.below14 === '-' ? '—' : r.below14,
+          r.startingPoint,
+          r.above14 === '/' ? '/' : r.above14 === '-' ? '—' : r.above14,
+        ]);
+        row.height = 20;
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = borderThin;
+          cell.font = { name: 'Arial', size: 9 };
+
+          if (colNumber === 1) {
+            cell.fill = numFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNumber === 2) {
+            cell.fill = totalColFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          } else if (colNumber === 8) {
+            cell.fill = totalColFill;
+            cell.font = { name: 'Arial', size: 9, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        });
+      });
+
+      // Yellow Female Subtotal Row
+      const fSubRow = worksheet.addRow([
+        'KABUUANG BILANG NG BABAE',
+        '',
+        femaleTotals.count,
+        '',
+        '',
+        '',
+        '',
+        '',
+        `Mababa sa 14:  ${femaleTotals.below14}`,
+        '',
+        `≥ 14:  ${femaleTotals.above14}`
+      ]);
+      fSubRow.height = 22;
+
+      worksheet.mergeCells(`A${fSubRow.number}:B${fSubRow.number}`);
+      worksheet.mergeCells(`E${fSubRow.number}:I${fSubRow.number}`);
+      worksheet.mergeCells(`J${fSubRow.number}:K${fSubRow.number}`);
+
+      fSubRow.eachCell({ includeEmpty: true }, (cell, colIndex) => {
+        cell.fill = yellowFill;
+        cell.font = { name: 'Arial', size: 9, bold: true };
+        cell.border = borderThin;
+        if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+
+      // Green Class Grand Total Row
+      const grandTotalCount = maleTotals.count + femaleTotals.count;
+      const grandBelow14 = maleTotals.below14 + femaleTotals.below14;
+      const grandAbove14 = maleTotals.above14 + femaleTotals.above14;
+
+      const gRow = worksheet.addRow([
+        'KABUUANG BILANG NG KLASE (GRAND TOTAL)',
+        '',
+        grandTotalCount,
+        '',
+        '',
+        '',
+        '',
+        '',
+        `Kabuuan < 14:  ${grandBelow14}`,
+        '',
+        `Kabuuan ≥ 14:  ${grandAbove14}`
+      ]);
+      gRow.height = 24;
+
+      worksheet.mergeCells(`A${gRow.number}:B${gRow.number}`);
+      worksheet.mergeCells(`E${gRow.number}:I${gRow.number}`);
+      worksheet.mergeCells(`J${gRow.number}:K${gRow.number}`);
+
+      const greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF107C41' } };
+      gRow.eachCell({ includeEmpty: true }, (cell, colIndex) => {
+        cell.fill = greenFill;
+        cell.font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.border = borderThin;
+        if (colIndex === 1) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        else if (colIndex === 3) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colIndex === 5 || colIndex === 9) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        else if (colIndex === 10 || colIndex === 11) cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+
+      // Footnote
+      worksheet.addRow([]);
+      const noteRow = worksheet.addRow(['*Ang mag-aaral na nagtamo ng kabuuang marka na ≥ 14/20 ay hindi na kailangang kumuha ng Phil-IRI.']);
+      worksheet.mergeCells(`A${noteRow.number}:K${noteRow.number}`);
+      noteRow.getCell(1).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF555555' } };
+
+      // Signatures Block
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      const s1 = worksheet.addRow(['Binigyang-pansin:', '', dbClassInfo.principalName || '', '', '', '', 'Inihanda ni:', '', dbClassInfo.teacher || '']);
+      worksheet.mergeCells(`C${s1.number}:E${s1.number}`);
+      worksheet.mergeCells(`I${s1.number}:K${s1.number}`);
+
+      s1.font = { name: 'Arial', size: 9 };
+      s1.getCell(3).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(9).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(3).alignment = { horizontal: 'center' };
+      s1.getCell(9).alignment = { horizontal: 'center' };
+
+      const s2 = worksheet.addRow(['', '', 'Punong-guro', '', '', '', '', '', 'Guro / Tagapayo']);
+      worksheet.mergeCells(`C${s2.number}:E${s2.number}`);
+      worksheet.mergeCells(`I${s2.number}:K${s2.number}`);
+      s2.font = { name: 'Arial', size: 9, bold: true };
+      s2.getCell(3).alignment = { horizontal: 'center' };
+      s2.getCell(9).alignment = { horizontal: 'center' };
+
+      // Write to Buffer & Trigger Download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${formCode}_${dbClassInfo.section || 'Record'}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      triggerToast(`Downloaded Exact DepEd Template ${formCode} (.XLSX)!`);
+    } catch (err) {
+      console.error('Failed to export styled Excel file:', err);
+      triggerToast('Failed to export Excel file.', 'error');
+    }
   };
 
   // Save GST submission to backend database (Option B)

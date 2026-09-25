@@ -251,45 +251,165 @@ export default function PhilIriForm2() {
     return { enrolment: totalEnrolment, above14: totalAbove14, below14: totalBelow14 };
   }, [rowsData]);
 
-  // Export official DepEd .xlsx file
-  const handleExportXLSX = () => {
-    const exportData = [];
+  // Export official DepEd styled .xlsx file using ExcelJS
+  const handleExportXLSX = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Phil-IRI Form 2');
 
-    rowsData.forEach((block) => {
-      exportData.push({
-        Grade: block.grade,
-        Sections: 'GRADE TOTAL',
-        Enrolment: block.total.enrolment,
-        'Markang >= 14': block.total.above14,
-        'Markang <= 14': block.total.below14,
+      // Set default column widths
+      worksheet.columns = [
+        { key: 'grade', width: 16 },
+        { key: 'section', width: 32 },
+        { key: 'enrolment', width: 22 },
+        { key: 'above14', width: 22 },
+        { key: 'below14', width: 22 },
+      ];
+
+      // 1. Header Information Block
+      worksheet.addRow([]);
+      const r2 = worksheet.addRow(['', '', '', '', 'PHIL-IRI FORM 2']);
+      r2.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF555555' } };
+      r2.getCell(5).alignment = { horizontal: 'right' };
+
+      const r3 = worksheet.addRow(['TALAAN NG PAARALAN SA PAGBABASA (TPP) /']);
+      worksheet.mergeCells('A3:E3');
+      r3.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+      r3.getCell(1).alignment = { horizontal: 'center' };
+
+      const r4 = worksheet.addRow(['SCHOOL READING PROFILE (SRP)']);
+      worksheet.mergeCells('A4:E4');
+      r4.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+      r4.getCell(1).alignment = { horizontal: 'center' };
+
+      worksheet.addRow([]);
+
+      // 2. School Info Grid
+      const info1 = worksheet.addRow([`School: ${dbSchoolInfo.school || ''}`, '', '', `Division: ${dbSchoolInfo.division || ''}`, '']);
+      const info2 = worksheet.addRow([`District: ${dbSchoolInfo.district || ''}`, '', '', `Region: ${dbSchoolInfo.region || ''}`, '']);
+
+      [info1, info2].forEach((row) => {
+        row.font = { name: 'Arial', size: 10, bold: true };
       });
 
-      block.sections.forEach((sec) => {
-        if (!sec.isEmpty) {
-          exportData.push({
-            Grade: '',
-            Sections: sec.section,
-            Enrolment: sec.enrolment,
-            'Markang >= 14': sec.above14,
-            'Markang <= 14': sec.below14,
+      worksheet.addRow([]);
+
+      // 3. Table Headers
+      const h1 = worksheet.addRow(['GRADE', 'SECTIONS', 'ENROLMENT', 'SCORE (MARKA)', '']);
+      const h2 = worksheet.addRow(['', '', '', 'MARKANG >= 14', 'MARKANG <= 14']);
+
+      worksheet.mergeCells('A9:A10');
+      worksheet.mergeCells('B9:B10');
+      worksheet.mergeCells('C9:C10');
+      worksheet.mergeCells('D9:E9');
+
+      const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E2E2' } };
+      const gradeHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
+      const borderThin = {
+        top: { style: 'thin', color: { argb: 'FF999999' } },
+        left: { style: 'thin', color: { argb: 'FF999999' } },
+        bottom: { style: 'thin', color: { argb: 'FF999999' } },
+        right: { style: 'thin', color: { argb: 'FF999999' } },
+      };
+
+      [h1, h2].forEach((row) => {
+        row.eachCell((cell) => {
+          cell.fill = headerFill;
+          cell.font = { name: 'Arial', size: 10, bold: true };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = borderThin;
+        });
+      });
+      h1.getCell(1).fill = gradeHeaderFill;
+      h1.getCell(3).fill = gradeHeaderFill;
+
+      // 4. Populate Table Data Rows with exact Styles
+      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE08B' } };
+      const rowGrayBg = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
+
+      rowsData.forEach((block) => {
+        // Yellow Grade Summary Row
+        const sumRow = worksheet.addRow([block.grade, '', block.total.enrolment, block.total.above14, block.total.below14]);
+        sumRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.fill = yellowFill;
+          cell.font = { name: 'Arial', size: 10, bold: true };
+          cell.border = borderThin;
+          if (colNumber === 1) {
+            cell.fill = gradeHeaderFill;
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNumber >= 3) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          }
+        });
+
+        // Section rows under Grade
+        block.sections.forEach((sec) => {
+          const secRow = worksheet.addRow(['', sec.section, sec.enrolment, sec.above14, sec.below14]);
+          secRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.border = borderThin;
+            cell.font = { name: 'Arial', size: 10 };
+            if (colNumber === 1) {
+              cell.fill = gradeHeaderFill;
+            } else if (colNumber === 2) {
+              cell.alignment = { horizontal: 'left', vertical: 'middle' };
+              cell.font = { name: 'Arial', size: 10, bold: true };
+            } else if (colNumber === 3) {
+              cell.fill = rowGrayBg;
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.font = { name: 'Arial', size: 10, bold: true };
+            } else {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.font = { name: 'Arial', size: 10, bold: true };
+            }
           });
+        });
+      });
+
+      // 5. Grand Total Row (Green Bar)
+      const totalRow = worksheet.addRow(['TOTAL (KABUUANG PAARALAN)', '', calculatedTotals.enrolment, calculatedTotals.above14, calculatedTotals.below14]);
+      const lastRowIndex = worksheet.rowCount;
+      worksheet.mergeCells(`A${lastRowIndex}:B${lastRowIndex}`);
+
+      const greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF107C41' } };
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cell.fill = greenFill;
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.border = borderThin;
+        if (colNumber === 1) {
+          cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        } else {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
       });
-    });
 
-    exportData.push({
-      Grade: 'TOTAL',
-      Sections: '',
-      Enrolment: calculatedTotals.enrolment,
-      'Markang >= 14': calculatedTotals.above14,
-      'Markang <= 14': calculatedTotals.below14,
-    });
+      // 6. Footer Signatures Block
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      const sigRow = worksheet.addRow(['Inihanda ni (Prepared):', '', '', 'Binigyang-pansin (Noted):', '']);
+      sigRow.font = { name: 'Arial', size: 9, italic: true };
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Phil-IRI Form 2');
-    XLSX.writeFile(workbook, `Phil-IRI_Form_2_School_Reading_Profile.xlsx`);
-    triggerToast('Downloaded DepEd Phil-IRI Form 2 (.XLSX)!');
+      const sigNames = worksheet.addRow(['___________________________', '', '', dbSchoolInfo.principalName || '___________________________', '']);
+      sigNames.font = { name: 'Arial', size: 10, bold: true };
+
+      const sigTitles = worksheet.addRow(['Phil-IRI Coordinator', '', '', 'Punong-guro (School Principal)', '']);
+      sigTitles.font = { name: 'Arial', size: 9, bold: true };
+
+      // Write to Buffer & Trigger Download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Phil-IRI_Form_2_School_Reading_Profile.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      triggerToast('Downloaded Styled DepEd Phil-IRI Form 2 (.XLSX)!');
+    } catch (err) {
+      console.error('Failed to export styled Excel file:', err);
+      triggerToast('Failed to export Excel file.', 'error');
+    }
   };
 
   if (loading) {
