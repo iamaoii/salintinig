@@ -345,7 +345,7 @@ export default function PhilIriForm1({ language }) {
       // Set exact column widths matching DepEd Form 1 official template & Web UI layout (prevent text cuts)
       worksheet.columns = [
         { key: 'no', width: 6 },
-        { key: 'name', width: 32 },
+        { key: 'name', width: 40 },
         { key: 'kasarian', width: 14 },
         { key: 'testTaken', width: 16 },
         { key: 'literal', width: 12 },
@@ -360,11 +360,11 @@ export default function PhilIriForm1({ language }) {
       // Row 1: Blank
       worksheet.addRow([]);
 
-      // Row 2: Right-aligned Form Code (Merged I2:K2 so text never cuts off)
-      const r2 = worksheet.addRow(['', '', '', '', '', '', '', '', '', '', formCode]);
+      // Row 2: Right-aligned Form Code (Placed at index 8 [Cell I2] so merge I2:K2 displays formCode)
+      const r2 = worksheet.addRow(['', '', '', '', '', '', '', '', formCode, '', '']);
       worksheet.mergeCells(`I2:K2`);
-      r2.getCell(11).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF333333' } };
-      r2.getCell(11).alignment = { horizontal: 'right' };
+      r2.getCell(9).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF333333' } };
+      r2.getCell(9).alignment = { horizontal: 'right', vertical: 'middle' };
 
       // Row 3: Title Header (Centered across entire table width A3:K3)
       const r3 = worksheet.addRow(['TALAAN NG PANGKATANG PAGTATASA NG KLASE (TPPK)']);
@@ -375,44 +375,62 @@ export default function PhilIriForm1({ language }) {
       // Row 4: Blank
       worksheet.addRow([]);
 
-      // Row 5 & 6: Header Metadata Block
-      const r5 = worksheet.addRow([
-        `Baitang:  ${String(dbClassInfo.grade || '').replace(/grade/gi, '').trim()}`,
-        '',
-        `Seksiyon:  ${dbClassInfo.section || ''}`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        `Guro:  ${dbClassInfo.teacher || ''}`,
-      ]);
+      // Row 5, 6, 7: Header Metadata Block with underlined inputs (matching Web UI)
+      const gradeVal = String(dbClassInfo.grade || '').replace(/grade/gi, '').trim();
+      const sectionVal = dbClassInfo.section || '';
+      const teacherVal = dbClassInfo.teacher || '';
+      const schoolVal = dbClassInfo.school || '';
+      const dateVal = dbClassInfo.date || '';
+
+      const r5 = worksheet.addRow(['', '', '', '', '', '', '', '', '', '']);
       worksheet.mergeCells('A5:B5');
       worksheet.mergeCells('C5:E5');
       worksheet.mergeCells('J5:K5');
 
-      const r6 = worksheet.addRow([
-        `Paaralan:  ${dbClassInfo.school || ''}`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        `Petsa:  ${dbClassInfo.date || ''}`,
-      ]);
+      r5.getCell(1).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Baitang:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: gradeVal || '    ' },
+        ],
+      };
+      r5.getCell(3).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Seksiyon:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: sectionVal || '            ' },
+        ],
+      };
+      r5.getCell(10).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Guro:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: teacherVal || '                ' },
+        ],
+      };
+
+      const r6 = worksheet.addRow(['', '', '', '', '', '', '', '', '', '']);
       worksheet.mergeCells('A6:E6');
       worksheet.mergeCells('J6:K6');
 
-      const r7 = worksheet.addRow([`Antas ng Pangkatang Pagtatasa:  ${String(dbClassInfo.grade || '').replace(/grade/gi, '').trim()}`]);
-      worksheet.mergeCells('A7:D7');
+      r6.getCell(1).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Paaralan:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: schoolVal || '                        ' },
+        ],
+      };
+      r6.getCell(10).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Petsa:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: dateVal || '              ' },
+        ],
+      };
 
-      [r5, r6, r7].forEach((row) => {
-        row.font = { name: 'Arial', size: 10, bold: true };
-      });
+      const r7 = worksheet.addRow(['']);
+      worksheet.mergeCells('A7:E7');
+      r7.getCell(1).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Antas ng Pangkatang Pagtatasa:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: gradeVal || '    ' },
+        ],
+      };
 
       // Row 8: Blank
       worksheet.addRow([]);
@@ -667,41 +685,42 @@ export default function PhilIriForm1({ language }) {
       noteRow.getCell(1).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF555555' } };
       noteRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
 
-      // Signatures Block
+      // Signatures Block (Centered nicely under the table)
       worksheet.addRow([]);
       worksheet.addRow([]);
 
-      const s1 = worksheet.addRow(['Binigyang-pansin:', '', '', dbClassInfo.principalName || '', '', '', 'Inihanda ni:', '', '', dbClassInfo.teacher || '', '']);
+      const s1 = worksheet.addRow(['', 'Binigyang-pansin:', dbClassInfo.principalName || '', '', '', 'Inihanda ni:', dbClassInfo.teacher || '', '', '', '', '']);
       s1.height = 22;
-      worksheet.mergeCells(`A${s1.number}:B${s1.number}`);
-      worksheet.mergeCells(`D${s1.number}:F${s1.number}`);
-      worksheet.mergeCells(`G${s1.number}:H${s1.number}`);
-      worksheet.mergeCells(`J${s1.number}:K${s1.number}`);
+      worksheet.mergeCells(`B${s1.number}:B${s1.number}`);
+      worksheet.mergeCells(`C${s1.number}:D${s1.number}`);
+      worksheet.mergeCells(`F${s1.number}:F${s1.number}`);
+      worksheet.mergeCells(`G${s1.number}:J${s1.number}`);
 
-      s1.getCell(1).font = { name: 'Arial', size: 9 };
-      s1.getCell(1).alignment = { horizontal: 'left', vertical: 'bottom' };
+      s1.getCell(2).font = { name: 'Arial', size: 9 };
+      s1.getCell(2).alignment = { horizontal: 'right', vertical: 'bottom' };
 
-      s1.getCell(4).font = { name: 'Arial', size: 10, bold: true };
-      s1.getCell(4).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(3).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(3).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(3).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
       s1.getCell(4).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
-      s1.getCell(5).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
-      s1.getCell(6).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
 
-      s1.getCell(7).font = { name: 'Arial', size: 9 };
-      s1.getCell(7).alignment = { horizontal: 'left', vertical: 'bottom' };
+      s1.getCell(6).font = { name: 'Arial', size: 9 };
+      s1.getCell(6).alignment = { horizontal: 'right', vertical: 'bottom' };
 
-      s1.getCell(10).font = { name: 'Arial', size: 10, bold: true };
-      s1.getCell(10).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(7).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(7).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(7).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      s1.getCell(8).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      s1.getCell(9).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
       s1.getCell(10).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
-      s1.getCell(11).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
 
-      const s2 = worksheet.addRow(['', '', '', 'Punong-guro', '', '', '', '', '', 'Guro / Tagapayo', '']);
+      const s2 = worksheet.addRow(['', '', 'Punong-guro', '', '', '', 'Guro / Tagapayo', '', '', '', '']);
       s2.height = 20;
-      worksheet.mergeCells(`D${s2.number}:F${s2.number}`);
-      worksheet.mergeCells(`J${s2.number}:K${s2.number}`);
+      worksheet.mergeCells(`C${s2.number}:D${s2.number}`);
+      worksheet.mergeCells(`G${s2.number}:J${s2.number}`);
       s2.font = { name: 'Arial', size: 9, bold: true };
-      s2.getCell(4).alignment = { horizontal: 'center', vertical: 'top' };
-      s2.getCell(10).alignment = { horizontal: 'center', vertical: 'top' };
+      s2.getCell(3).alignment = { horizontal: 'center', vertical: 'top' };
+      s2.getCell(7).alignment = { horizontal: 'center', vertical: 'top' };
 
       // Write to Buffer & Trigger Download
       const buffer = await workbook.xlsx.writeBuffer();

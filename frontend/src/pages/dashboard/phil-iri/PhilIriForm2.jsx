@@ -251,53 +251,83 @@ export default function PhilIriForm2() {
     return { enrolment: totalEnrolment, above14: totalAbove14, below14: totalBelow14 };
   }, [rowsData]);
 
-  // Export official DepEd styled .xlsx file using ExcelJS
+  // Export official DepEd styled .xlsx file using ExcelJS (100% match with Web UI)
   const handleExportXLSX = async () => {
     try {
       const ExcelJS = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Phil-IRI Form 2');
 
-      // Set default column widths
+      // Set default column widths matching Web UI layout (prevent text cuts)
       worksheet.columns = [
-        { key: 'grade', width: 16 },
-        { key: 'section', width: 32 },
-        { key: 'enrolment', width: 22 },
-        { key: 'above14', width: 22 },
-        { key: 'below14', width: 22 },
+        { key: 'grade', width: 24 },
+        { key: 'section', width: 36 },
+        { key: 'enrolment', width: 20 },
+        { key: 'above14', width: 26 },
+        { key: 'below14', width: 32 },
       ];
 
       // 1. Header Information Block
       worksheet.addRow([]);
       const r2 = worksheet.addRow(['', '', '', '', 'PHIL-IRI FORM 2']);
       r2.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF555555' } };
-      r2.getCell(5).alignment = { horizontal: 'right' };
+      r2.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
 
       const r3 = worksheet.addRow(['TALAAN NG PAARALAN SA PAGBABASA (TPP) /']);
       worksheet.mergeCells('A3:E3');
       r3.getCell(1).font = { name: 'Arial', size: 11, bold: true };
-      r3.getCell(1).alignment = { horizontal: 'center' };
+      r3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
       const r4 = worksheet.addRow(['SCHOOL READING PROFILE (SRP)']);
       worksheet.mergeCells('A4:E4');
       r4.getCell(1).font = { name: 'Arial', size: 11, bold: true };
-      r4.getCell(1).alignment = { horizontal: 'center' };
+      r4.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
       worksheet.addRow([]);
 
-      // 2. School Info Grid
-      const info1 = worksheet.addRow([`School: ${dbSchoolInfo.school || ''}`, '', '', `Division: ${dbSchoolInfo.division || ''}`, '']);
-      const info2 = worksheet.addRow([`District: ${dbSchoolInfo.district || ''}`, '', '', `Region: ${dbSchoolInfo.region || ''}`, '']);
+      // 2. School Info Grid with Underlines (matching Web UI)
+      const info1 = worksheet.addRow(['', '', '', '', '']);
+      worksheet.mergeCells('A6:C6');
+      worksheet.mergeCells('D6:E6');
 
-      [info1, info2].forEach((row) => {
-        row.font = { name: 'Arial', size: 10, bold: true };
-      });
+      info1.getCell(1).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'School:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: dbSchoolInfo.school || '                        ' },
+        ],
+      };
+      info1.getCell(4).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Division:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: dbSchoolInfo.division || '                    ' },
+        ],
+      };
+
+      const info2 = worksheet.addRow(['', '', '', '', '']);
+      worksheet.mergeCells('A7:C7');
+      worksheet.mergeCells('D7:E7');
+
+      info2.getCell(1).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'District:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: dbSchoolInfo.district || '                        ' },
+        ],
+      };
+      info2.getCell(4).value = {
+        richText: [
+          { font: { name: 'Arial', size: 10, bold: true }, text: 'Region:  ' },
+          { font: { name: 'Arial', size: 10, bold: true, underline: true }, text: dbSchoolInfo.region || '        ' },
+        ],
+      };
 
       worksheet.addRow([]);
 
-      // 3. Table Headers
+      // 3. Table Headers Grid Layout
       const h1 = worksheet.addRow(['GRADE', 'SECTIONS', 'ENROLMENT', 'SCORE (MARKA)', '']);
-      const h2 = worksheet.addRow(['', '', '', 'MARKANG >= 14', 'MARKANG <= 14']);
+      h1.height = 24;
+
+      const h2 = worksheet.addRow(['', '', '', 'MARKANG ≥ 14', 'MARKANG ≤ 14']);
+      h2.height = 22;
 
       worksheet.mergeCells('A9:A10');
       worksheet.mergeCells('B9:B10');
@@ -325,12 +355,14 @@ export default function PhilIriForm2() {
       h1.getCell(3).fill = gradeHeaderFill;
 
       // 4. Populate Table Data Rows with exact Styles
-      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE08B' } };
+      const yellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
       const rowGrayBg = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
 
       rowsData.forEach((block) => {
         // Yellow Grade Summary Row
         const sumRow = worksheet.addRow([block.grade, '', block.total.enrolment, block.total.above14, block.total.below14]);
+        sumRow.height = 22;
+
         sumRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
           cell.fill = yellowFill;
           cell.font = { name: 'Arial', size: 10, bold: true };
@@ -339,13 +371,15 @@ export default function PhilIriForm2() {
             cell.fill = gradeHeaderFill;
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNumber >= 3) {
-            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
           }
         });
 
         // Section rows under Grade
         block.sections.forEach((sec) => {
           const secRow = worksheet.addRow(['', sec.section, sec.enrolment, sec.above14, sec.below14]);
+          secRow.height = 20;
+
           secRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
             cell.border = borderThin;
             cell.font = { name: 'Arial', size: 10 };
@@ -368,6 +402,7 @@ export default function PhilIriForm2() {
 
       // 5. Grand Total Row (Green Bar)
       const totalRow = worksheet.addRow(['TOTAL (KABUUANG PAARALAN)', '', calculatedTotals.enrolment, calculatedTotals.above14, calculatedTotals.below14]);
+      totalRow.height = 24;
       const lastRowIndex = worksheet.rowCount;
       worksheet.mergeCells(`A${lastRowIndex}:B${lastRowIndex}`);
 
@@ -383,17 +418,32 @@ export default function PhilIriForm2() {
         }
       });
 
-      // 6. Footer Signatures Block
+      // 6. Footer Signatures Block (Matching Form 2 Web UI)
       worksheet.addRow([]);
       worksheet.addRow([]);
-      const sigRow = worksheet.addRow(['Inihanda ni (Prepared):', '', '', 'Binigyang-pansin (Noted):', '']);
-      sigRow.font = { name: 'Arial', size: 9, italic: true };
 
-      const sigNames = worksheet.addRow(['___________________________', '', '', dbSchoolInfo.principalName || '___________________________', '']);
-      sigNames.font = { name: 'Arial', size: 10, bold: true };
+      const s1 = worksheet.addRow(['Inihanda ni (Prepared):', '', '', 'Binigyang-pansin (Noted):', dbSchoolInfo.principalName || '']);
+      s1.height = 22;
 
-      const sigTitles = worksheet.addRow(['Phil-IRI Coordinator', '', '', 'Punong-guro (School Principal)', '']);
-      sigTitles.font = { name: 'Arial', size: 9, bold: true };
+      s1.getCell(1).font = { name: 'Arial', size: 9 };
+      s1.getCell(1).alignment = { horizontal: 'right', vertical: 'bottom' };
+
+      s1.getCell(2).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+
+      s1.getCell(4).font = { name: 'Arial', size: 9 };
+      s1.getCell(4).alignment = { horizontal: 'right', vertical: 'bottom' };
+
+      s1.getCell(5).font = { name: 'Arial', size: 10, bold: true };
+      s1.getCell(5).alignment = { horizontal: 'center', vertical: 'bottom' };
+      s1.getCell(5).border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+
+      const s2 = worksheet.addRow(['', 'Phil-IRI Coordinator', '', '', 'Punong-guro (School Principal)']);
+      s2.height = 20;
+      s2.getCell(2).font = { name: 'Arial', size: 9, bold: true };
+      s2.getCell(2).alignment = { horizontal: 'center', vertical: 'top' };
+
+      s2.getCell(5).font = { name: 'Arial', size: 9, bold: true };
+      s2.getCell(5).alignment = { horizontal: 'center', vertical: 'top' };
 
       // Write to Buffer & Trigger Download
       const buffer = await workbook.xlsx.writeBuffer();
