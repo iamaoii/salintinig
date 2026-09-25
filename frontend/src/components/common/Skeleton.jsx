@@ -1087,3 +1087,160 @@ export function PhilIriForm2Skeleton({ rows = 6 }) {
   );
 }
 
+/**
+ * GradeLevelSkeleton
+ * Matches: Faculty in Charge / Grade Overview page layout
+ * Includes Top Header, 3 Metric Summary Cards, Tab Navigation, Section Cards layout, Faculty table layout, and Student masterlist table layout
+ */
+export function GradeLevelSkeleton({ activeTab = 'sections' }) {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* 3 Metric Cards Banner Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between"
+          >
+            <div className="space-y-2">
+              <SkeletonBlock className="h-3 w-28 rounded-md" />
+              <SkeletonBlock className="h-7 w-12 rounded-lg" />
+            </div>
+            <SkeletonBlock className="size-11 rounded-xl shrink-0" />
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content Area based on Tab */}
+      {activeTab === 'sections' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex flex-col justify-between space-y-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+                  <div className="space-y-1.5">
+                    <SkeletonBlock className="h-4 w-14 rounded-full" />
+                    <SkeletonBlock className="h-5 w-28 rounded-md" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <SkeletonBlock className="size-7 rounded-full" />
+                    <SkeletonBlock className="size-7 rounded-full" />
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <SkeletonBlock className="h-3.5 w-20" />
+                    <SkeletonBlock className="h-3.5 w-32" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <SkeletonBlock className="h-3.5 w-24" />
+                    <SkeletonBlock className="h-3.5 w-16" />
+                  </div>
+
+                  <div className="pt-3 border-t border-ink/10 space-y-2">
+                    <SkeletonBlock className="h-3 w-32" />
+                    <SkeletonBlock className="h-2 w-full rounded-full" />
+                    <div className="flex justify-between pt-1">
+                      <SkeletonBlock className="h-3 w-10" />
+                      <SkeletonBlock className="h-3 w-10" />
+                      <SkeletonBlock className="h-3 w-10" />
+                      <SkeletonBlock className="h-3 w-14" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'faculty' && (
+        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] border-collapse text-sm">
+              <thead>
+                <tr className="text-xs text-ink/70">
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Emp ID</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Teacher Name</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Email Address</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Assigned Section</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Account Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-ink/5">
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-16" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-36" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-40" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-24" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-5 w-16 rounded-full" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'students' && (
+        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] border-collapse text-sm">
+              <thead>
+                <tr className="text-xs text-ink/70">
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Learner Name</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">LRN</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Section</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Gender</th>
+                  <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Phil-IRI Reading Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-ink/5">
+                    <td className="border border-ink/10 p-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <SkeletonBlock className="size-7 rounded-full shrink-0" />
+                        <SkeletonBlock className="h-3.5 w-36" />
+                      </div>
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-24" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-20" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-3.5 w-10" />
+                    </td>
+                    <td className="border border-ink/10 p-2.5">
+                      <SkeletonBlock className="h-5 w-24 rounded-full" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+

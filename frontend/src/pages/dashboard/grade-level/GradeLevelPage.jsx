@@ -15,9 +15,12 @@ import {
   WarningCircle,
   Calendar,
   Eye,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import { GradeLevelSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 const TABS = [
@@ -102,6 +105,30 @@ export default function GradeLevelPage() {
       return matchesSearch && matchesSection;
     });
   }, [data.students, searchQuery, sectionFilter]);
+
+  // Pagination state
+  const [facultyPage, setFacultyPage] = useState(1);
+  const [studentPage, setStudentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
+
+  useEffect(() => {
+    setFacultyPage(1);
+    setStudentPage(1);
+  }, [activeTab, searchQuery, sectionFilter]);
+
+  const paginatedFaculty = useMemo(() => {
+    const start = (facultyPage - 1) * ITEMS_PER_PAGE;
+    return (data.teachers || []).slice(start, start + ITEMS_PER_PAGE);
+  }, [data.teachers, facultyPage]);
+
+  const totalFacultyPages = Math.ceil((data.teachers?.length || 0) / ITEMS_PER_PAGE);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (studentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStudents, studentPage]);
+
+  const totalStudentPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
 
   // Available teachers for Section Adviser assignment (filters out teachers who advise another section)
   const availableAdviserTeachers = useMemo(() => {
@@ -190,16 +217,17 @@ export default function GradeLevelPage() {
   };
 
   const getReadingBadgeClass = (level) => {
-    switch (level) {
-      case 'Independent':
-        return 'bg-[#00a652]/15 text-[#00a652] border border-[#00a652]/20';
-      case 'Instructional':
-        return 'bg-amber-500/15 text-amber-600 border border-amber-500/20';
-      case 'Frustrational':
-        return 'bg-brand-red/15 text-brand-red border border-brand-red/20';
-      default:
-        return 'bg-purple-500/15 text-purple-600 border border-purple-500/20';
+    const lvl = (level || '').toLowerCase();
+    if (lvl.includes('independent')) {
+      return 'bg-emerald-100 border border-emerald-200 text-emerald-900';
     }
+    if (lvl.includes('instructional')) {
+      return 'bg-amber-100 border border-amber-200 text-amber-900';
+    }
+    if (lvl.includes('frustration')) {
+      return 'bg-rose-100 border border-rose-200 text-rose-900';
+    }
+    return 'bg-slate-100 border border-slate-200 text-slate-700';
   };
 
   return (
@@ -234,100 +262,93 @@ export default function GradeLevelPage() {
         </div>
       </div>
 
-      {/* Metric Cards Banner matching Admin style */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-medium text-ink/50 block">Total Class Sections</span>
-            <p className="text-2xl font-bold text-ink mt-0.5">{data.sections?.length || 0}</p>
-          </div>
-          <div className="flex size-11 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue">
-            <UsersThree size={22} weight="bold" />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-medium text-ink/50 block">Assigned Faculty</span>
-            <p className="text-2xl font-bold text-ink mt-0.5">{data.teachers?.length || 0}</p>
-          </div>
-          <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <ChalkboardTeacher size={22} weight="bold" />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-medium text-ink/50 block">Total Enrolled Learners</span>
-            <p className="text-2xl font-bold text-ink mt-0.5">{data.students?.length || 0}</p>
-          </div>
-          <div className="flex size-11 items-center justify-center rounded-xl bg-[#00a652]/10 text-[#00a652]">
-            <Student size={22} weight="bold" />
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs Bar matching picture 2 style */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ink/10">
-        <div className="flex items-center gap-6 overflow-x-auto">
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.key}
-              to={tab.to}
-              className={({ isActive }) =>
-                `shrink-0 border-b-2 pb-3 text-sm font-medium transition-colors cursor-pointer ${
-                  isActive
-                    ? 'border-brand-red text-brand-red'
-                    : 'border-transparent text-ink/60 hover:text-ink'
-                }`
-              }
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </div>
-
-        {/* Filter Controls when in Students Tab */}
-        {activeTab === 'students' && (
-          <div className="flex flex-wrap items-center gap-2.5 pb-2 sm:pb-0">
-            <select
-              value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
-              className="rounded-full border border-ink/20 bg-cream px-3 py-1.5 text-xs font-medium text-ink focus:border-brand-blue outline-none"
-            >
-              <option value="All">All Sections</option>
-              {(data.sections || []).map((sec) => (
-                <option key={sec.id} value={sec.sectionName}>
-                  {sec.sectionName}
-                </option>
-              ))}
-            </select>
-
-            <div className="relative">
-              <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" />
-              <input
-                type="text"
-                placeholder="Search student or LRN..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-full border border-ink/20 bg-cream pl-9 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue w-56"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Content Area */}
+      {/* Metric Cards Banner & Tab Content Loading */}
       {loading ? (
-        <div className="rounded-2xl border border-ink/10 bg-cream p-12 text-center shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-          <div className="flex flex-col items-center justify-center gap-2">
-            <div className="size-6 rounded-full border-2 border-brand-blue border-t-transparent animate-spin" />
-            <span className="text-xs font-semibold text-ink/60">Loading grade level overview...</span>
-          </div>
-        </div>
+        <GradeLevelSkeleton activeTab={activeTab} />
       ) : (
         <>
-          {/* TAB 1: SECTIONS CARDS GRID */}
+          {/* Metric Cards Banner matching Admin style */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-medium text-ink/50 block">Total Class Sections</span>
+                <p className="text-2xl font-bold text-ink mt-0.5">{data.sections?.length || 0}</p>
+              </div>
+              <div className="flex size-11 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue">
+                <UsersThree size={22} weight="bold" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-medium text-ink/50 block">Assigned Faculty</span>
+                <p className="text-2xl font-bold text-ink mt-0.5">{data.teachers?.length || 0}</p>
+              </div>
+              <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+                <ChalkboardTeacher size={22} weight="bold" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-medium text-ink/50 block">Total Enrolled Learners</span>
+                <p className="text-2xl font-bold text-ink mt-0.5">{data.students?.length || 0}</p>
+              </div>
+              <div className="flex size-11 items-center justify-center rounded-xl bg-[#00a652]/10 text-[#00a652]">
+                <Student size={22} weight="bold" />
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs Bar matching picture 2 style */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ink/10">
+            <div className="flex items-center gap-6 overflow-x-auto">
+              {TABS.map((tab) => (
+                <NavLink
+                  key={tab.key}
+                  to={tab.to}
+                  className={({ isActive }) =>
+                    `shrink-0 border-b-2 pb-3 text-sm font-medium transition-colors cursor-pointer ${
+                      isActive
+                        ? 'border-brand-red text-brand-red'
+                        : 'border-transparent text-ink/60 hover:text-ink'
+                    }`
+                  }
+                >
+                  {tab.label}
+                </NavLink>
+              ))}
+            </div>
+
+            {/* Filter Controls when in Students Tab */}
+            {activeTab === 'students' && (
+              <div className="flex flex-wrap items-center gap-2.5 pb-2 sm:pb-0">
+                <select
+                  value={sectionFilter}
+                  onChange={(e) => setSectionFilter(e.target.value)}
+                  className="rounded-full border border-ink/20 bg-cream px-3 py-1.5 text-xs font-medium text-ink focus:border-brand-blue outline-none"
+                >
+                  <option value="All">All Sections</option>
+                  {(data.sections || []).map((sec) => (
+                    <option key={sec.id} value={sec.sectionName}>
+                      {sec.sectionName}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="relative">
+                  <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" />
+                  <input
+                    type="text"
+                    placeholder="Search student or LRN..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="rounded-full border border-ink/20 bg-cream pl-9 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue w-56"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           {activeTab === 'sections' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {data.sections?.length === 0 ? (
@@ -451,41 +472,41 @@ export default function GradeLevelPage() {
 
           {/* TAB 2: FACULTY LIST TABLE */}
           {activeTab === 'faculty' && (
-            <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+            <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-sm">
+                <table className="w-full min-w-[700px] text-xs">
                   <thead>
-                    <tr className="text-xs text-ink/70">
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Emp ID</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Teacher Name</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Email Address</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Assigned Section</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Account Status</th>
+                    <tr className="border-b border-ink/10 bg-ink/[0.02]">
+                      <th className="px-5 py-3 text-left font-bold text-ink/50">Emp ID</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Teacher Name</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Email Address</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Assigned Section</th>
+                      <th className="px-4 py-3 text-center font-bold text-ink/50">Account Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-ink/10">
                     {data.teachers?.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
+                        <td colSpan={5} className="p-8 text-center text-xs text-ink/50">
                           No faculty assigned to sections in {data.gradeLevel} yet.
                         </td>
                       </tr>
                     ) : (
-                      data.teachers.map((tc) => (
+                      paginatedFaculty.map((tc) => (
                         <tr
                           key={tc.id}
                           onClick={() => navigate(`/teacher/grade-level/faculty/${tc.employeeId || tc.id}`)}
-                          className="group hover:bg-ink/[0.02] transition-colors text-xs cursor-pointer"
+                          className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
                         >
-                          <td className="border border-ink/10 p-2.5 font-mono text-ink/70">{tc.employeeId || 'N/A'}</td>
-                          <td className="border border-ink/10 p-2.5 font-bold text-ink group-hover:text-brand-blue transition-colors">
+                          <td className="px-5 py-3 font-mono text-ink/70">{tc.employeeId || 'N/A'}</td>
+                          <td className="px-4 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors">
                             {tc.name}
                           </td>
-                          <td className="border border-ink/10 p-2.5 text-ink/70">{tc.email || 'N/A'}</td>
-                          <td className="border border-ink/10 p-2.5 font-semibold text-ink">
+                          <td className="px-4 py-3 text-ink/70">{tc.email || 'N/A'}</td>
+                          <td className="px-4 py-3 font-semibold text-ink">
                             {tc.sectionAssigned || 'Unassigned'}
                           </td>
-                          <td className="border border-ink/10 p-2.5">
+                          <td className="px-4 py-3 text-center">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                                 tc.status === 'Active'
@@ -502,45 +523,94 @@ export default function GradeLevelPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Table Footer / Pagination */}
+              {data.teachers?.length > 0 && (
+                <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+                  <span>
+                    Showing {(facultyPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+                    {Math.min(facultyPage * ITEMS_PER_PAGE, data.teachers.length)} of{' '}
+                    {data.teachers.length} faculty records
+                  </span>
+                  {totalFacultyPages > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={facultyPage === 1}
+                        onClick={() => setFacultyPage((p) => Math.max(p - 1, 1))}
+                        className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                      >
+                        <CaretLeft size={14} /> Previous
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalFacultyPages }, (_, i) => i + 1).map((pg) => (
+                          <button
+                            key={pg}
+                            type="button"
+                            onClick={() => setFacultyPage(pg)}
+                            className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              facultyPage === pg
+                                ? 'bg-brand-blue text-white shadow-xs'
+                                : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                            }`}
+                          >
+                            {pg}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={facultyPage === totalFacultyPages}
+                        onClick={() => setFacultyPage((p) => Math.min(p + 1, totalFacultyPages))}
+                        className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                      >
+                        Next <CaretRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* TAB 3: STUDENT MASTERLIST TABLE */}
           {activeTab === 'students' && (
-            <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+            <div className="rounded-2xl border border-ink/10 bg-cream shadow-[0px_2px_8px_rgba(26,24,22,0.06)] overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-sm">
+                <table className="w-full min-w-[700px] text-xs">
                   <thead>
-                    <tr className="text-xs text-ink/70">
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Learner Name</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">LRN</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Section</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Gender</th>
-                      <th className="border border-ink/10 bg-ink/[0.03] p-2.5 text-left">Phil-IRI Reading Status</th>
+                    <tr className="border-b border-ink/10 bg-ink/[0.02]">
+                      <th className="px-5 py-3 text-left font-bold text-ink/50">Learner Name</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">LRN</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Section</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Gender</th>
+                      <th className="px-4 py-3 text-left font-bold text-ink/50">Phil-IRI Reading Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-ink/10">
                     {filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="border border-ink/10 p-8 text-center text-xs text-ink/50">
+                        <td colSpan={5} className="p-8 text-center text-xs text-ink/50">
                           No student records found matching search filters.
                         </td>
                       </tr>
                     ) : (
-                      filteredStudents.map((st) => (
+                      paginatedStudents.map((st) => (
                         <tr
                           key={st.id}
                           onClick={() => navigate(`/teacher/grade-level/students/${st.lrn}`)}
-                          className="group hover:bg-ink/[0.02] transition-colors text-xs cursor-pointer"
+                          className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
                         >
-                          <td className="border border-ink/10 p-2.5 font-bold text-ink group-hover:text-brand-blue transition-colors flex items-center gap-2.5">
+                          <td className="px-5 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors flex items-center gap-2.5">
                             <Avatar name={st.name} src={st.profileImage} size={28} />
                             <span>{st.name}</span>
                           </td>
-                          <td className="border border-ink/10 p-2.5 font-mono text-ink/70">{st.lrn}</td>
-                          <td className="border border-ink/10 p-2.5 font-medium text-ink">{st.sectionName}</td>
-                          <td className="border border-ink/10 p-2.5 text-ink/70">{st.gender || 'N/A'}</td>
-                          <td className="border border-ink/10 p-2.5">
+                          <td className="px-4 py-3 font-mono text-ink/70">{st.lrn}</td>
+                          <td className="px-4 py-3 font-medium text-ink">{st.sectionName}</td>
+                          <td className="px-4 py-3 text-ink/70">{st.gender || 'N/A'}</td>
+                          <td className="px-4 py-3">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${getReadingBadgeClass(
                                 st.readingLevel
@@ -555,6 +625,55 @@ export default function GradeLevelPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Table Footer / Pagination */}
+              {filteredStudents.length > 0 && (
+                <div className="px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-ink/10 text-xs text-ink/60 bg-ink/[0.01]">
+                  <span>
+                    Showing {(studentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+                    {Math.min(studentPage * ITEMS_PER_PAGE, filteredStudents.length)} of{' '}
+                    {filteredStudents.length} student records
+                  </span>
+                  {totalStudentPages > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={studentPage === 1}
+                        onClick={() => setStudentPage((p) => Math.max(p - 1, 1))}
+                        className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                      >
+                        <CaretLeft size={14} /> Previous
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalStudentPages }, (_, i) => i + 1).map((pg) => (
+                          <button
+                            key={pg}
+                            type="button"
+                            onClick={() => setStudentPage(pg)}
+                            className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              studentPage === pg
+                                ? 'bg-brand-blue text-white shadow-xs'
+                                : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
+                            }`}
+                          >
+                            {pg}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={studentPage === totalStudentPages}
+                        onClick={() => setStudentPage((p) => Math.min(p + 1, totalStudentPages))}
+                        className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                      >
+                        Next <CaretRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
