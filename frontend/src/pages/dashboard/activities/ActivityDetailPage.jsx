@@ -389,6 +389,7 @@ export default function ActivityDetailPage() {
                                     wpm: std.wpm,
                                     accuracyPct: std.accuracyPct,
                                     comprehensionScore: std.comprehensionScore,
+                                    totalQuestions: std.totalQuestions,
                                     verificationStatus: std.verificationStatus,
                                   })
                                 }

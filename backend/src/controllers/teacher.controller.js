@@ -1070,6 +1070,7 @@ async function getOralReviewDetail(req, res) {
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
           orr.comprehension_score AS "comprehensionScore",
+          (SELECT COUNT(*)::int FROM phil_iri_questions q WHERE q.passage_id = p.passage_id) AS "totalQuestions",
           orr.verification_status AS "verificationStatus",
           aa.completed_at AS "submittedAt"
         FROM assessment_attempts aa
@@ -2330,6 +2331,7 @@ async function getActivityDetail(req, res) {
           orr.reading_rate_wpm AS "wpm",
           orr.accuracy_percentage AS "accuracyPct",
           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
+          (SELECT COUNT(*)::int FROM phil_iri_questions q WHERE q.passage_id = p.passage_id) AS "totalQuestions",
           orr.verification_status AS "verificationStatus",
           COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds"
         FROM assessments a

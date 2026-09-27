@@ -1,13 +1,17 @@
+import cacheService from '../../../services/cacheService.js';
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Clock, Microphone, WarningCircle, DownloadSimple, FloppyDisk } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
-import { decodeSecureToken } from '../../../lib/securityToken.js';
+import ToastNotification from '../../../components/common/ToastNotification.jsx';
+import { PhilIriForm3DetailSkeleton } from '../../../components/common/Skeleton.jsx';
+import { encodeSecureToken, decodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken } from '../../../lib/auth.js';
 import { getApiUrl } from '../../../config/api.js';
 
 export default function PhilIriForm3Detail({ formKey, label, backTo }) {
   const { lrn: rawLrn } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isTagalog = formKey === 'form-3a';
   const langCode = isTagalog ? 'fil' : 'en';
 
@@ -32,8 +36,33 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
 
   useEffect(() => {
     const fetchAttempts = async () => {
-      try {
+      const cacheKey = `form3_attempts_${rawLrn}_${langCode}`;
+      const cached = cacheService.get(cacheKey);
+
+      if (cached && cached.success && Array.isArray(cached.attempts) && cached.attempts.length > 0) {
+        setStudentInfo(cached.student);
+        setAttempts(cached.attempts);
+
+        const paramAttToken = searchParams.get('att') || searchParams.get('attemptId');
+        const decodedAttId = decodeSecureToken('ATT', paramAttToken);
+        const paramAttemptNum = searchParams.get('attempt');
+
+        let initialIdx = 0;
+        if (decodedAttId && cached.attempts.length > 0) {
+          const foundIdx = cached.attempts.findIndex((a) => String(a.attempt_id) === String(decodedAttId));
+          if (foundIdx >= 0) initialIdx = foundIdx;
+        } else if (paramAttemptNum && !isNaN(paramAttemptNum)) {
+          const numIdx = Number(paramAttemptNum) - 1;
+          if (numIdx >= 0 && numIdx < cached.attempts.length) initialIdx = numIdx;
+        }
+
+        setSelectedAttemptIndex(initialIdx);
+        setLoading(false);
+      } else {
         setLoading(true);
+      }
+
+      try {
         const token = getToken();
         const res = await fetch(
           getApiUrl(`/api/teacher/phil-iri/form3-attempts/${encodeURIComponent(rawLrn)}?language=${langCode}`),
@@ -43,9 +72,25 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         );
         const data = await res.json();
         if (res.ok && data.success) {
+          cacheService.set(cacheKey, data, 300000); // 5 mins TTL
           setStudentInfo(data.student);
-          setAttempts(data.attempts || []);
-          setSelectedAttemptIndex(0);
+          const atts = data.attempts || [];
+          setAttempts(atts);
+
+          const paramAttToken = searchParams.get('att') || searchParams.get('attemptId');
+          const decodedAttId = decodeSecureToken('ATT', paramAttToken);
+          const paramAttemptNum = searchParams.get('attempt');
+
+          let initialIdx = 0;
+          if (decodedAttId && atts.length > 0) {
+            const foundIdx = atts.findIndex((a) => String(a.attempt_id) === String(decodedAttId));
+            if (foundIdx >= 0) initialIdx = foundIdx;
+          } else if (paramAttemptNum && !isNaN(paramAttemptNum)) {
+            const numIdx = Number(paramAttemptNum) - 1;
+            if (numIdx >= 0 && numIdx < atts.length) initialIdx = numIdx;
+          }
+
+          setSelectedAttemptIndex(initialIdx);
         }
       } catch (err) {
         console.warn('Error fetching Form 3 attempts:', err);
@@ -57,6 +102,28 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
     fetchAttempts();
   }, [rawLrn, langCode]);
 
+  // Sync state changes back to URL search params using secured token
+  const handleSelectAttempt = (index) => {
+    setSelectedAttemptIndex(index);
+    const targetAttempt = attempts[index];
+    if (targetAttempt) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('attemptId');
+          next.delete('attempt');
+          if (targetAttempt.attempt_id) {
+            next.set('att', encodeSecureToken('ATT', targetAttempt.attempt_id));
+          } else {
+            next.set('attempt', String(index + 1));
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  };
+
   useEffect(() => {
     if (attempts.length > 0 && attempts[selectedAttemptIndex]) {
       const att = attempts[selectedAttemptIndex];
@@ -67,10 +134,23 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
 
       const readTimeSec = Number(att.reading_time_seconds || 0);
       const readTimeMin = readTimeSec > 0 ? (readTimeSec / 60).toFixed(2) : '0.00';
+      const readTimeDisplay = readTimeSec > 0 ? `${readTimeMin} minuto (${readTimeSec} segundo)` : '0.00 minuto';
 
-      const rawComp = Number(att.comprehension_score || 0);
-      const compMarka = rawComp > 7 ? Math.round((rawComp / 100) * 7) : Math.round(rawComp);
-      const compPct = Math.round(Number(att.comprehension_percentage || (rawComp > 7 ? rawComp : (rawComp / 7) * 100) || 0));
+      const rawComp = att.comprehension_raw_score !== undefined && att.comprehension_raw_score !== null
+        ? Number(att.comprehension_raw_score)
+        : Number(att.comprehension_score || 0);
+      const totalItems = att.comprehension_total_items || (att.answers && att.answers.length > 0 ? att.answers.length : 7);
+      const compMarka = rawComp > totalItems ? Math.round((rawComp / 100) * totalItems) : Math.round(rawComp);
+      const compPct = Math.round(
+        Number(
+          att.comprehension_percentage !== undefined && att.comprehension_percentage !== null
+            ? att.comprehension_percentage
+            : (totalItems > 0 ? (compMarka / totalItems) * 100 : 0)
+        )
+      );
+
+      const rawSet = (att.passage_set || 'A').toString().trim();
+      const cleanSet = rawSet.replace(/^set\s+/i, '');
 
       setRecord({
         passageTitle: att.passage_title ? `"${att.passage_title}"` : '"Pangalan ng Teksto"',
@@ -78,32 +158,38 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         level: att.passage_grade_level || 'Grade Level',
         wordCount: Number(att.word_count || 0),
         testType: (att.assessment_period || 'pre_test').toLowerCase().includes('post') ? 'Post-Test' : 'Pre-Test',
-        set: att.passage_set || 'A',
+        set: cleanSet || 'A',
         date: formattedDate,
         readingTimeMinutes: readTimeMin,
         readingRateWpm: String(Math.round(Number(att.words_per_minute || att.reading_rate_wpm || 0))),
         compMarka: compMarka,
+        compTotal: totalItems,
         compPercentage: compPct,
         compLevel: att.comprehension_level || (compPct >= 80 ? 'Independent' : compPct >= 59 ? 'Instructional' : 'Frustration'),
+        answers: att.answers || [],
         miscues: buildDefaultMiscues(att),
+        rawMiscues: att.rawMiscues || att.verified_miscues_json || att.ai_miscues_json || [],
         overallProfile: att.overall_profile || 'Pending',
         stepNumber: att.adaptive_step_number || (selectedAttemptIndex + 1),
       });
     } else {
       setRecord({
-        passageTitle: '"Walang Assessment Attempt"',
-        passageText: 'Wala pang nakatalang nakumpletong oral reading assessment attempt para sa estudyanteng ito.',
+        passageTitle: '',
+        passageText: '',
         level: '—',
         wordCount: 0,
         testType: 'Pre-Test',
-        set: 'A',
+        set: '—',
         date: '—',
         readingTimeMinutes: '0.00',
         readingRateWpm: '0',
         compMarka: 0,
+        compTotal: 7,
         compPercentage: 0,
         compLevel: '—',
+        answers: [],
         miscues: buildDefaultMiscues(null),
+        rawMiscues: [],
         overallProfile: '—',
         stepNumber: 1,
       });
@@ -157,15 +243,19 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
     teacher: '—',
   };
 
-  // Export to Excel (.xlsx) using ExcelJS matching Form 1A/1B & Form 2
+  // Export to Excel (.xlsx) using ExcelJS matching Web UI exact layout
   const handleExportXLSX = async () => {
     if (!record) return;
     try {
       const ExcelJS = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
       const sheetName = isTagalog ? 'Phil-IRI Form 3A' : 'Phil-IRI Form 3B';
-      const worksheet = workbook.addWorksheet(sheetName);
+      const worksheet = workbook.addWorksheet(sheetName, {
+        views: [{ showGridLines: true }],
+        pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+      });
 
+      // Borders & Color Fills matching Web UI
       const borderThin = {
         top: { style: 'thin', color: { argb: 'FF9CA3AF' } },
         left: { style: 'thin', color: { argb: 'FF9CA3AF' } },
@@ -173,145 +263,671 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         right: { style: 'thin', color: { argb: 'FF9CA3AF' } },
       };
 
+      const borderUnderline = {
+        bottom: { style: 'thin', color: { argb: 'FF374151' } },
+      };
+
+      const fillHeaderBanner = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } }; // #d4d4d4
+      const fillSubHeader = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E2E2' } };    // #e2e2e2
+      const fillLightGray = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };    // #f0f0f0
+      const fillDarkGrayNumber = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };// #eaeaea
+
+      // Level Profile colors
+      let levelFillColor = 'FF107C41'; // Green default
+      if (wordReadingLevel === 'INSTRUCTIONAL') levelFillColor = 'D97706'; // Amber-600
+      else if (wordReadingLevel === 'FRUSTRATION') levelFillColor = 'BE123C'; // Rose-700
+      const fillLevelBadge = { type: 'pattern', pattern: 'solid', fgColor: { argb: levelFillColor } };
+
+      let compLevelFill = 'D1FAE5'; // Emerald-100
+      let compLevelText = '065F46'; // Emerald-800
+      if (record.compLevel === 'Instructional') {
+        compLevelFill = 'FEF3C7'; // Amber-100
+        compLevelText = '92400E'; // Amber-800
+      } else if (record.compLevel === 'Frustration') {
+        compLevelFill = 'FFE4E6'; // Rose-100
+        compLevelText = '9F1239'; // Rose-800
+      }
+
+      // Column widths (Proportionately balanced to match web grid)
+      // A: Label (Pangalan/Paaralan/Pre-Test)
+      // B: Name/School
+      // C: Label (Edad/Level)
+      // D: Value (Age/Level)
+      // E: Label (Baitang/Guro/Set)
+      // F: Value (Set) or merged with G/H
+      // ── CLEAN 13-COLUMN DEPED GRID ──
+      // Completely isolates every label and value into its own dedicated column
+      // A (10) : Label (Pangalan: / Paaralan: / Pre-Test)
+      // B (18) : Value 1 (Name part 1 / School part 1)
+      // C (18) : Value 2 (Name part 2 / School part 2)
+      // D (8)  : Label (Edad:)
+      // E (12) : Value (Age / Level value)
+      // F (8)  : Label (Level:)
+      // G (12) : Value (Level)
+      // H (16) : Label (Baitang/Seksiyon: / Guro:)
+      // I (12) : Section / Teacher
+      // J (8)  : Label (Set:) -> completely isolated!
+      // K (10) : Value (Set) -> completely isolated!
+      // L (8)  : Label (Petsa:) -> completely isolated!
+      // M (20) : Value (Date) -> completely isolated!
       worksheet.columns = [
-        { width: 12 },
-        { width: 32 },
-        { width: 20 },
-        { width: 22 },
-        { width: 22 },
+        { width: 11 }, // A - Pangalan: / Paaralan: / Pre-Test:
+        { width: 18 }, // B - Pangalan / Paaralan
+        { width: 18 }, // C - Pangalan / Paaralan
+        { width: 8 },  // D - Edad:
+        { width: 12 }, // E - Edad value
+        { width: 8 },  // F - Level:
+        { width: 12 }, // G - Level value
+        { width: 16 }, // H - Baitang/Seksiyon: / Guro:
+        { width: 12 }, // I - Section / Teacher
+        { width: 8 },  // J - Set:
+        { width: 10 }, // K - Set value
+        { width: 8 },  // L - Petsa:
+        { width: 22 }, // M - Petsa value / Top Form Code / Miscues count
       ];
 
-      // Row 1: Code Right Aligned
-      const r1 = worksheet.addRow(['', '', '', '', pageFormCode]);
-      r1.getCell(5).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF4B5563' } };
-      r1.getCell(5).alignment = { horizontal: 'right' };
+      // ── TOP MARGIN SPACING ──
+      const rTopSpacer = worksheet.addRow([]);
+      rTopSpacer.height = 14;
 
-      // Row 2: Title
-      const r2 = worksheet.addRow([formTitle.toUpperCase()]);
-      worksheet.mergeCells(`A2:E2`);
-      r2.getCell(1).font = { name: 'Arial', size: 12, bold: true };
-      r2.getCell(1).alignment = { horizontal: 'center' };
+      // ── TOP BAR: ATTEMPT (LEFT) & FORM CODE PAHINA 1 (RIGHT) ──
+      const attemptText = `ATTEMPT ${selectedAttemptIndex + 1} NG ${Math.max(1, attempts.length)}`;
+      const page1Text = `${pageFormCode}, Pahina 1`;
 
-      // Row 3: Subtitle
-      const r3 = worksheet.addRow([isTagalog ? 'Panimulang Pagtatasa sa Filipino' : 'Pre-Test Assessment in English']);
-      worksheet.mergeCells(`A3:E3`);
-      r3.getCell(1).font = { name: 'Arial', size: 10, italic: true };
-      r3.getCell(1).alignment = { horizontal: 'center' };
+      // Col 1 (A..E) for attemptText, Col 8 (H..M) for page1Text
+      const rTopBar = worksheet.addRow([attemptText, '', '', '', '', '', '', page1Text, '', '', '', '', '']);
+      worksheet.mergeCells(`A${rTopBar.number}:E${rTopBar.number}`);
+      worksheet.mergeCells(`H${rTopBar.number}:M${rTopBar.number}`);
+      rTopBar.height = 22;
 
-      // Row 4: Attempt & Set
-      const r4 = worksheet.addRow([`Attempt ${selectedAttemptIndex + 1} — Set ${record.set} (${record.level})`]);
-      worksheet.mergeCells(`A4:E4`);
-      r4.getCell(1).font = { name: 'Arial', size: 10, bold: true };
-      r4.getCell(1).alignment = { horizontal: 'center' };
+      rTopBar.getCell(1).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF107C41' } };
+      rTopBar.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
 
-      worksheet.addRow([]); // Blank row 5
+      rTopBar.getCell(8).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF374151' } };
+      rTopBar.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
 
-      // Row 6-8: Student Metadata
-      worksheet.addRow(['Pangalan:', studentDisplay.name, '', 'Baitang/Seksiyon:', `${studentDisplay.grade}-${studentDisplay.section}`]);
-      worksheet.addRow(['Paaralan:', studentDisplay.school, '', 'Guro:', studentDisplay.teacher]);
-      worksheet.addRow(['Petsa:', record.date, '', 'Antas ng Pagbasa:', wordReadingLevel]);
+      const rPostTopSpacer = worksheet.addRow([]);
+      rPostTopSpacer.height = 10;
 
-      worksheet.addRow([]); // Blank row 10
+      // ── TITLES ──
+      const rTitle = worksheet.addRow([isTagalog ? 'MARKAHANG PAPEL NG PANGGRADONG LEBEL NA TEKSTO' : 'GRADED PASSAGE RATING SHEET']);
+      worksheet.mergeCells(`A${rTitle.number}:M${rTitle.number}`);
+      rTitle.height = 24;
+      rTitle.getCell(1).font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF111827' } };
+      rTitle.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-      // Passage Content
-      const rPassageHead = worksheet.addRow([`Seleksyon: ${record.passageTitle}`]);
-      worksheet.mergeCells(`A${rPassageHead.number}:E${rPassageHead.number}`);
-      rPassageHead.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+      const rSub = worksheet.addRow([isTagalog ? 'Panimulang Pagtatasa sa Filipino' : 'Pre-Test Assessment in English']);
+      worksheet.mergeCells(`A${rSub.number}:M${rSub.number}`);
+      rSub.height = 20;
+      rSub.getCell(1).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF4B5563' } };
+      rSub.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-      const rPassageText = worksheet.addRow([record.passageText]);
-      worksheet.mergeCells(`A${rPassageText.number}:E${rPassageText.number}`);
-      rPassageText.getCell(1).alignment = { wrapText: true };
-      rPassageText.height = 100;
+      const rSet = worksheet.addRow([`Set ${record.set} (${record.level})`]);
+      worksheet.mergeCells(`A${rSet.number}:M${rSet.number}`);
+      rSet.height = 20;
+      rSet.getCell(1).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF111827' } };
+      rSet.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-      worksheet.addRow([]);
+      const rMetaPreSpacer = worksheet.addRow([]);
+      rMetaPreSpacer.height = 14;
 
-      // PART A Header
-      const rPartA = worksheet.addRow(['PART A: PAGTATASA SA PAG-UNAWA (COMPREHENSION)']);
-      worksheet.mergeCells(`A${rPartA.number}:E${rPartA.number}`);
-      rPartA.getCell(1).font = { name: 'Arial', size: 10, bold: true };
-      rPartA.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
-
-      const rPartAHeaders = worksheet.addRow(['Oras ng Pagbasa', 'Bilis (WPM)', 'Marka sa Pag-unawa', 'Antas ng Pag-unawa', 'Overall Profile']);
-      rPartAHeaders.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 9, bold: true };
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center' };
-      });
-
-      const rPartAData = worksheet.addRow([
-        `${record.readingTimeMinutes} min`,
-        `${record.readingRateWpm} WPM`,
-        `${record.compMarka} / 7 (${record.compPercentage}%)`,
-        record.compLevel,
-        record.overallProfile,
+      // ── OFFICIAL DEPED HEADER METADATA GRID (With Underlines matching Web) ──
+      // Row 1:
+      // A: "Pangalan:"
+      // B..C: Student Name (Merged) -> underline
+      // D: "Edad:"
+      // E: Age -> underline
+      // F..G: blank
+      // H: "Baitang/Seksiyon:"
+      // I..M: Section (Merged) -> underline
+      const mRow1 = worksheet.addRow([
+        'Pangalan:',
+        studentDisplay.name,
+        '',
+        'Edad:',
+        studentDisplay.age || '—',
+        '',
+        '',
+        'Baitang/Seksiyon:',
+        `${studentDisplay.grade}-${studentDisplay.section}`,
+        '',
+        '',
+        '',
+        ''
       ]);
-      rPartAData.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 10, bold: true };
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center' };
-      });
+      worksheet.mergeCells(`B${mRow1.number}:C${mRow1.number}`);
+      worksheet.mergeCells(`I${mRow1.number}:M${mRow1.number}`);
+      mRow1.height = 22;
 
-      worksheet.addRow([]);
+      // Row 2:
+      // A: "Paaralan:"
+      // B..E: School (Merged) -> underline
+      // F..G: blank
+      // H: "Guro:"
+      // I..M: Teacher (Merged) -> underline
+      const mRow2 = worksheet.addRow([
+        'Paaralan:',
+        studentDisplay.school,
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Guro:',
+        studentDisplay.teacher,
+        '',
+        '',
+        '',
+        ''
+      ]);
+      worksheet.mergeCells(`B${mRow2.number}:E${mRow2.number}`);
+      worksheet.mergeCells(`I${mRow2.number}:M${mRow2.number}`);
+      mRow2.height = 22;
 
-      // PART B Header
-      const rPartB = worksheet.addRow(['PART B: WORD READING (PAGBASA) — URI AT BILANG NG MALI (MISCUES)']);
-      worksheet.mergeCells(`A${rPartB.number}:E${rPartB.number}`);
-      rPartB.getCell(1).font = { name: 'Arial', size: 10, bold: true };
-      rPartB.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
+      // Row 3:
+      // A..D: Pre-Test: [✓] Post test: [ ] (Merged A..D)
+      // E: "Level:" (Col 5)
+      // F..G: Level Value (Cols 6..7 merged) -> underline
+      // H: "Set:" (Col 8)
+      // I: Set Value (Col 9) -> underline
+      // J: "Petsa:" (Col 10)
+      // K..M: Date Value (Cols 11..13 merged) -> underline
+      const isPre = (record.testType || 'Pre-Test').toLowerCase().includes('pre');
+      const testCheckStr = isPre ? 'Pre-Test: [✓]   Post test: [ ]' : 'Pre-Test: [ ]   Post test: [✓]';
 
-      const rMiscueHeader = worksheet.addRow(['#', 'Uri ng Mali (Miscue Type)', '', 'Bilang ng Mali (Miscue Count)', '']);
-      worksheet.mergeCells(`B${rMiscueHeader.number}:C${rMiscueHeader.number}`);
-      worksheet.mergeCells(`D${rMiscueHeader.number}:E${rMiscueHeader.number}`);
-      rMiscueHeader.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 9, bold: true };
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center' };
-      });
+      const mRow3 = worksheet.addRow([
+        testCheckStr,
+        '',
+        '',
+        '',
+        'Level:',
+        record.level,
+        '',
+        'Set:',
+        record.set,
+        'Petsa:',
+        record.date,
+        '',
+        ''
+      ]);
+      worksheet.mergeCells(`A${mRow3.number}:D${mRow3.number}`);
+      worksheet.mergeCells(`F${mRow3.number}:G${mRow3.number}`);
+      worksheet.mergeCells(`K${mRow3.number}:M${mRow3.number}`);
+      mRow3.height = 22;
 
-      record.miscues.forEach((m) => {
-        const row = worksheet.addRow([m.id, `${m.nameEn} (${m.nameFil})`, '', m.count, '']);
-        worksheet.mergeCells(`B${row.number}:C${row.number}`);
-        worksheet.mergeCells(`D${row.number}:E${row.number}`);
-        row.eachCell({ includeEmpty: true }, (c, col) => {
+      // Clean styling matching web typography
+      [mRow1, mRow2, mRow3].forEach((r) => {
+        r.eachCell({ includeEmpty: true }, (c) => {
           c.font = { name: 'Arial', size: 9 };
-          c.border = borderThin;
-          if (col === 1 || col >= 4) c.alignment = { horizontal: 'center' };
+          c.alignment = { vertical: 'middle' };
         });
       });
 
-      // Total Miscues Row
-      const rTotal = worksheet.addRow(['KABUUAN (TOTAL MISCUES)', '', '', totalMiscues, '']);
-      worksheet.mergeCells(`A${rTotal.number}:C${rTotal.number}`);
-      worksheet.mergeCells(`D${rTotal.number}:E${rTotal.number}`);
-      rTotal.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 10, bold: true };
-        c.border = borderThin;
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      // ── LABELS FORMATTING ──
+      // Row 1 Labels
+      mRow1.getCell(1).font = { name: 'Arial', size: 9, bold: true };
+      mRow1.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+
+      mRow1.getCell(4).font = { name: 'Arial', size: 9, bold: true };
+      mRow1.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      mRow1.getCell(8).font = { name: 'Arial', size: 9, bold: true };
+      mRow1.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      // Row 2 Labels
+      mRow2.getCell(1).font = { name: 'Arial', size: 9, bold: true };
+      mRow2.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+
+      mRow2.getCell(8).font = { name: 'Arial', size: 9, bold: true };
+      mRow2.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      // Row 3 Labels
+      mRow3.getCell(1).font = { name: 'Arial', size: 9, bold: true };
+      mRow3.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+
+      mRow3.getCell(5).font = { name: 'Arial', size: 9, bold: true };
+      mRow3.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      mRow3.getCell(8).font = { name: 'Arial', size: 9, bold: true };
+      mRow3.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      mRow3.getCell(10).font = { name: 'Arial', size: 9, bold: true };
+      mRow3.getCell(10).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      // ── VALUES WITH CLEAN SEPARATE UNDERLINE BORDERS ──
+      // Row 1: Name (B..C)
+      mRow1.getCell(2).border = borderUnderline;
+      mRow1.getCell(3).border = borderUnderline;
+      mRow1.getCell(2).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow1.getCell(2).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Row 1: Age (E)
+      mRow1.getCell(5).border = borderUnderline;
+      mRow1.getCell(5).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow1.getCell(5).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Row 1: Section (I..M)
+      [9, 10, 11, 12, 13].forEach((col) => {
+        mRow1.getCell(col).border = borderUnderline;
+      });
+      mRow1.getCell(9).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow1.getCell(9).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Row 2: School (B..E)
+      [2, 3, 4, 5].forEach((col) => {
+        mRow2.getCell(col).border = borderUnderline;
+      });
+      mRow2.getCell(2).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow2.getCell(2).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Row 2: Teacher (I..M)
+      [9, 10, 11, 12, 13].forEach((col) => {
+        mRow2.getCell(col).border = borderUnderline;
+      });
+      mRow2.getCell(9).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow2.getCell(9).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+
+      // Row 3: Level Value (F..G)
+      mRow3.getCell(6).border = borderUnderline;
+      mRow3.getCell(7).border = borderUnderline;
+      mRow3.getCell(6).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow3.getCell(6).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Row 3: Set Value (I)
+      mRow3.getCell(9).border = borderUnderline;
+      mRow3.getCell(9).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow3.getCell(9).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Row 3: Petsa Value (K..M)
+      [11, 12, 13].forEach((col) => {
+        mRow3.getCell(col).border = borderUnderline;
+      });
+      mRow3.getCell(11).font = { name: 'Arial', size: 9.5, bold: true };
+      mRow3.getCell(11).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // ── PASSAGE BOX: OPTION 2 (NATIVE EXCEL RICHTEXT WITH INLINE MISCUE COLOR TAGS) ──
+      const rPassTitle = worksheet.addRow([record.passageTitle]);
+      worksheet.mergeCells(`A${rPassTitle.number}:M${rPassTitle.number}`);
+      rPassTitle.height = 28;
+      rPassTitle.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+      rPassTitle.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const startPassageRow = rPassTitle.number;
+      const rawMiscueList = record.rawMiscues || [];
+      const passageLines = (record.passageText || '').split('\n').filter((l) => l.trim().length > 0);
+
+      // Color palette for ExcelJS RichText (ARGB)
+      const MISCUE_COLORS = {
+        omission: { color: { argb: 'FFE11D48' }, code: 'OMI' }, // Rose / Red
+        substitution: { color: { argb: 'FFD97706' }, code: 'SUB' }, // Amber
+        mispronunciation: { color: { argb: 'FFEA580C' }, code: 'MIS' }, // Orange
+        insertion: { color: { argb: 'FF2563EB' }, code: 'INS' }, // Blue
+        repetition: { color: { argb: 'FF4F46E5' }, code: 'REP' }, // Indigo
+        transposition: { color: { argb: 'FF0D9488' }, code: 'TRA' }, // Teal
+        reversal: { color: { argb: 'FF7C3AED' }, code: 'REV' }, // Violet
+        self_correction: { color: { argb: 'FF059669' }, code: 'SC' }, // Emerald
+      };
+
+      let globalWordIndex = 0;
+
+      passageLines.forEach((line) => {
+        const rLine = worksheet.addRow([]);
+        worksheet.mergeCells(`A${rLine.number}:M${rLine.number}`);
+        const cell = rLine.getCell(1);
+
+        const tokens = line.split(/(\s+)/);
+        const richTextSegments = [];
+
+        tokens.forEach((token) => {
+          if (/^\s+$/.test(token)) {
+            richTextSegments.push({
+              text: token,
+              font: { name: 'Arial', size: 10, color: { argb: 'FF1F2937' } },
+            });
+            return;
+          }
+
+          const currentWordPos = ++globalWordIndex;
+          const miscueTag = rawMiscueList.find((m) => Number(m.word_position) === currentWordPos);
+
+          if (!miscueTag) {
+            richTextSegments.push({
+              text: token,
+              font: { name: 'Arial', size: 10, color: { argb: 'FF1F2937' } },
+            });
+          } else {
+            const mType = (miscueTag.miscue_type || miscueTag.type || '').toLowerCase();
+            const config = MISCUE_COLORS[mType] || MISCUE_COLORS.omission;
+            const spoken = miscueTag.spoken_word ? ` "${miscueTag.spoken_word}"` : '';
+
+            // Tagged word with bold & miscue color
+            richTextSegments.push({
+              text: token,
+              font: { name: 'Arial', size: 10.5, bold: true, color: config.color, underline: mType === 'omission' },
+            });
+
+            // Inline miscue code badge & spoken word tag [CODE: "spoken"]
+            richTextSegments.push({
+              text: ` [${config.code}${spoken}]`,
+              font: { name: 'Arial', size: 9, bold: true, color: config.color },
+            });
+          }
+        });
+
+        cell.value = { richText: richTextSegments };
+
+        const lineLen = (line || '').length;
+        const estLines = Math.max(1, Math.ceil(lineLen / 115));
+        rLine.height = Math.max(24, estLines * 20);
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
       });
 
-      // Word Reading Score
-      const rScore = worksheet.addRow(['Word Reading Score (% ng Pagbasa)', '', '', `${wordReadingScore}%`, '']);
-      worksheet.mergeCells(`A${rScore.number}:C${rScore.number}`);
-      worksheet.mergeCells(`D${rScore.number}:E${rScore.number}`);
-      rScore.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 10, bold: true };
+      // Footer Stats inside Passage Box (Level & Word Count)
+      const rPassStats1 = worksheet.addRow(['', '', '', '', '', '', '', `Level: ${record.level}`, '', '', '', '', '']);
+      worksheet.mergeCells(`H${rPassStats1.number}:M${rPassStats1.number}`);
+      rPassStats1.height = 20;
+      rPassStats1.getCell(8).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF1F2937' } };
+      rPassStats1.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      const rPassStats2 = worksheet.addRow(['', '', '', '', '', '', '', `Bilang ng mga salita: ${record.wordCount}`, '', '', '', '', '']);
+      worksheet.mergeCells(`H${rPassStats2.number}:M${rPassStats2.number}`);
+      rPassStats2.height = 20;
+      rPassStats2.getCell(8).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF1F2937' } };
+      rPassStats2.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      const endPassageRow = rPassStats2.number;
+
+      // Draw Passage Box Outer Medium Border
+      for (let rowIdx = startPassageRow; rowIdx <= endPassageRow; rowIdx++) {
+        const currR = worksheet.getRow(rowIdx);
+        for (let c = 1; c <= 13; c++) {
+          const cell = currR.getCell(c);
+          cell.border = {
+            top: rowIdx === startPassageRow ? { style: 'medium', color: { argb: 'FF9CA3AF' } } : undefined,
+            bottom: rowIdx === endPassageRow ? { style: 'medium', color: { argb: 'FF9CA3AF' } } : undefined,
+            left: c === 1 ? { style: 'medium', color: { argb: 'FF9CA3AF' } } : undefined,
+            right: c === 13 ? { style: 'medium', color: { argb: 'FF9CA3AF' } } : undefined,
+          };
+        }
+      }
+
+      // ── PAGE BREAK & PROPER SPACING BETWEEN PAHINA 1 AND PAHINA 2 ──
+      const rPageBreakSpacer2 = worksheet.addRow([]);
+      rPageBreakSpacer2.height = 16;
+      rPageBreakSpacer2.pageBreak = true; // Clean printable page separation
+
+      // ── TOP BAR OF PAHINA 2 ──
+      const page2Text = `${pageFormCode}, Pahina 2`;
+      // Col 8 (H..M) for page2Text
+      const rPahina2Bar = worksheet.addRow(['', '', '', '', '', '', '', page2Text, '', '', '', '', '']);
+      worksheet.mergeCells(`H${rPahina2Bar.number}:M${rPahina2Bar.number}`);
+      rPahina2Bar.height = 22;
+      rPahina2Bar.getCell(8).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF374151' } };
+      rPahina2Bar.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
+
+      const rPartAPreSpacer = worksheet.addRow([]);
+      rPartAPreSpacer.height = 10;
+
+      // ── PART A: PAGTATASA SA PAG-UNAWA & RATE NG PAGBASA ──
+      const rPartAHeader = worksheet.addRow(['PART A: PAGTATASA SA PAG-UNAWA (COMPREHENSION) & RATE NG PAGBASA']);
+      worksheet.mergeCells(`A${rPartAHeader.number}:M${rPartAHeader.number}`);
+      rPartAHeader.height = 22;
+      rPartAHeader.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
+      rPartAHeader.getCell(1).fill = fillHeaderBanner;
+      rPartAHeader.getCell(1).alignment = { vertical: 'middle', indent: 1 };
+      for (let c = 1; c <= 13; c++) rPartAHeader.getCell(c).border = borderThin;
+
+      // Part A Table Column Headers (Merged across A..C, D..F, G..I, J..M)
+      const rPartAColHead = worksheet.addRow([
+        'Kabuuang Oras ng Pagbasa', '', '',
+        'Rate ng Pagbasa (WPM)', '', '',
+        'Marka sa Pag-unawa', '', '',
+        'Antas ng Pag-unawa', '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rPartAColHead.number}:C${rPartAColHead.number}`);
+      worksheet.mergeCells(`D${rPartAColHead.number}:F${rPartAColHead.number}`);
+      worksheet.mergeCells(`G${rPartAColHead.number}:I${rPartAColHead.number}`);
+      worksheet.mergeCells(`J${rPartAColHead.number}:M${rPartAColHead.number}`);
+      rPartAColHead.height = 22;
+
+      rPartAColHead.eachCell({ includeEmpty: true }, (c) => {
+        c.font = { name: 'Arial', size: 9, bold: true };
+        c.fill = fillLightGray;
         c.border = borderThin;
+        c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
 
-      // Word Reading Level
-      const rLevel = worksheet.addRow(['Word Reading Level (Antas ng Pagbasa)', '', '', wordReadingLevel, '']);
-      worksheet.mergeCells(`A${rLevel.number}:C${rLevel.number}`);
-      worksheet.mergeCells(`D${rLevel.number}:E${rLevel.number}`);
-      rLevel.eachCell({ includeEmpty: true }, (c) => {
+      // Part A Table Data
+      const rPartAData = worksheet.addRow([
+        `${record.readingTimeMinutes} minuto`, '', '',
+        `${record.readingRateWpm} salita / minuto`, '', '',
+        `${record.compMarka} / ${record.compTotal || 7} (${record.compPercentage}%)`, '', '',
+        record.compLevel, '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rPartAData.number}:C${rPartAData.number}`);
+      worksheet.mergeCells(`D${rPartAData.number}:F${rPartAData.number}`);
+      worksheet.mergeCells(`G${rPartAData.number}:I${rPartAData.number}`);
+      worksheet.mergeCells(`J${rPartAData.number}:M${rPartAData.number}`);
+      rPartAData.height = 26;
+
+      rPartAData.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.font = { name: 'Arial', size: 9.5, bold: true };
+        c.border = borderThin;
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Color cell for Antas ng Pag-unawa
+        if (colIdx >= 10) {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: compLevelFill } };
+          c.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: compLevelText } };
+        }
+      });
+
+      // Student Comprehension Answers (Below Part A Table - matching Web UI)
+      const ansList = record.answers || [];
+      const totalQuestions = record.compTotal || (ansList.length > 0 ? ansList.length : 0);
+
+      if (totalQuestions > 0) {
+        worksheet.addRow([]); // Blank spacer inside Part A
+        const leftLimit = totalQuestions > 4 ? 4 : totalQuestions;
+        const leftColItems = Array.from({ length: leftLimit }, (_, i) => i + 1).map((num) => {
+          const found = ansList.find((a) => a.number === num);
+          const letter = found?.letter || (found?.answer_text && found.answer_text.length === 1 ? found.answer_text.toLowerCase() : '');
+          return { num, letter: letter || '' };
+        });
+
+        const rightColItems =
+          totalQuestions > 4
+            ? Array.from({ length: totalQuestions - 4 }, (_, i) => i + 5).map((num) => {
+                const found = ansList.find((a) => a.number === num);
+                const letter = found?.letter || (found?.answer_text && found.answer_text.length === 1 ? found.answer_text.toLowerCase() : '');
+                return { num, letter: letter || '' };
+              })
+            : [];
+
+        const maxRows = Math.max(leftColItems.length, rightColItems.length);
+        for (let i = 0; i < maxRows; i++) {
+          const left = leftColItems[i];
+          const right = rightColItems[i];
+
+          const rAns = worksheet.addRow([
+            left ? `${left.num}.` : '',
+            left ? (left.letter || '') : '',
+            '',
+            '',
+            '',
+            '',
+            right ? `${right.num}.` : '',
+            right ? (right.letter || '') : '',
+            '',
+            '',
+            '',
+            '',
+            ''
+          ]);
+
+          worksheet.mergeCells(`B${rAns.number}:C${rAns.number}`);
+          worksheet.mergeCells(`H${rAns.number}:I${rAns.number}`);
+          rAns.height = 20;
+
+          // Left answer item
+          if (left) {
+            rAns.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
+            rAns.getCell(1).alignment = { horizontal: 'right', vertical: 'bottom' };
+
+            rAns.getCell(2).font = { name: 'Arial', size: 9.5, bold: true };
+            rAns.getCell(2).alignment = { horizontal: 'center', vertical: 'bottom' };
+            rAns.getCell(2).border = borderUnderline;
+            rAns.getCell(3).border = borderUnderline;
+          }
+
+          // Right answer item
+          if (right) {
+            rAns.getCell(7).font = { name: 'Arial', size: 9.5, bold: true };
+            rAns.getCell(7).alignment = { horizontal: 'right', vertical: 'bottom' };
+
+            rAns.getCell(8).font = { name: 'Arial', size: 9.5, bold: true };
+            rAns.getCell(8).alignment = { horizontal: 'center', vertical: 'bottom' };
+            rAns.getCell(8).border = borderUnderline;
+            rAns.getCell(9).border = borderUnderline;
+          }
+        }
+      }
+
+      worksheet.addRow([]); // Blank spacer
+
+      // ── PART B: WORD READING (PAGBASA) — URI AT BILANG NG MALI (MISCUES) ──
+      const rPartBHeader = worksheet.addRow(['PART B: WORD READING (PAGBASA) — URI AT BILANG NG MALI (MISCUES)']);
+      worksheet.mergeCells(`A${rPartBHeader.number}:M${rPartBHeader.number}`);
+      rPartBHeader.height = 22;
+      rPartBHeader.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
+      rPartBHeader.getCell(1).fill = fillHeaderBanner;
+      rPartBHeader.getCell(1).alignment = { vertical: 'middle', indent: 1 };
+      for (let c = 1; c <= 13; c++) rPartBHeader.getCell(c).border = borderThin;
+
+      // Part B Col Headers (A: #, B..I: Types of Miscues, J..M: Number of Miscues)
+      const rMiscueHeader = worksheet.addRow([
+        '#',
+        'Types of Miscues (Uri ng Mali)', '', '', '', '', '', '', '',
+        'Number of Miscues\n(Bilang ng Salitang mali ang basa)', '', '', ''
+      ]);
+      worksheet.mergeCells(`B${rMiscueHeader.number}:I${rMiscueHeader.number}`);
+      worksheet.mergeCells(`J${rMiscueHeader.number}:M${rMiscueHeader.number}`);
+      rMiscueHeader.height = 42;
+
+      rMiscueHeader.getCell(1).fill = fillHeaderBanner;
+      rMiscueHeader.getCell(2).fill = fillSubHeader;
+      rMiscueHeader.getCell(10).fill = fillSubHeader;
+
+      rMiscueHeader.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.font = { name: 'Arial', size: 9, bold: true };
+        c.border = borderThin;
+        c.alignment = { horizontal: colIdx === 2 ? 'left' : 'center', vertical: 'middle', wrapText: true };
+      });
+
+      // Miscue Rows (1 to 7)
+      record.miscues.forEach((m) => {
+        const row = worksheet.addRow([
+          m.id,
+          `${m.nameEn} (${m.nameFil})`, '', '', '', '', '', '', '',
+          Number(m.count) || 0, '', '', ''
+        ]);
+        worksheet.mergeCells(`B${row.number}:I${row.number}`);
+        worksheet.mergeCells(`J${row.number}:M${row.number}`);
+        row.height = 21;
+
+        row.eachCell({ includeEmpty: true }, (c, colIdx) => {
+          c.border = borderThin;
+          if (colIdx === 1) {
+            c.fill = fillDarkGrayNumber;
+            c.font = { name: 'Arial', size: 9, bold: true };
+            c.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colIdx >= 2 && colIdx <= 9) {
+            c.font = { name: 'Arial', size: 9.5 };
+            c.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+          } else if (colIdx >= 10) {
+            c.font = { name: 'Arial', size: 9.5, bold: true };
+            c.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        });
+      });
+
+      // Total Miscues Row (Cols A..I merged, Cols J..M for number)
+      const rTotal = worksheet.addRow([
+        'Total Miscues (Kabuuan):', '', '', '', '', '', '', '', '',
+        totalMiscues, '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rTotal.number}:I${rTotal.number}`);
+      worksheet.mergeCells(`J${rTotal.number}:M${rTotal.number}`);
+      rTotal.height = 22;
+      rTotal.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.border = borderThin;
+        c.font = { name: 'Arial', size: 9.5, bold: true };
+        if (colIdx <= 9) {
+          c.fill = fillLightGray;
+          c.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+        } else if (colIdx >= 10) {
+          c.fill = fillLightGray;
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      });
+
+      // Number of Words in Passage Row (Cols A..I merged, Cols J..M for count)
+      const rWords = worksheet.addRow([
+        'Number of Words in the Passage (Bilang ng Salita):', '', '', '', '', '', '', '', '',
+        record.wordCount, '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rWords.number}:I${rWords.number}`);
+      worksheet.mergeCells(`J${rWords.number}:M${rWords.number}`);
+      rWords.height = 22;
+      rWords.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.border = borderThin;
+        c.font = { name: 'Arial', size: 9.5, bold: true };
+        if (colIdx <= 9) {
+          c.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+        } else if (colIdx >= 10) {
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      });
+
+      // Word Reading Score Row (Cols A..I merged, Cols J..M for percentage)
+      const rScore = worksheet.addRow([
+        'Word Reading Score (% ng Pagbasa):', '', '', '', '', '', '', '', '',
+        `${wordReadingScore}%`, '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rScore.number}:I${rScore.number}`);
+      worksheet.mergeCells(`J${rScore.number}:M${rScore.number}`);
+      rScore.height = 22;
+      rScore.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.border = borderThin;
+        c.font = { name: 'Arial', size: 9.5, bold: true };
+        if (colIdx <= 9) {
+          c.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+        } else if (colIdx >= 10) {
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      });
+
+      // Word Reading Level Badge (Cols A..I merged, Cols J..M for Level)
+      const rLevel = worksheet.addRow([
+        'Word Reading Level (Antas ng Pagbasa):', '', '', '', '', '', '', '', '',
+        wordReadingLevel, '', '', ''
+      ]);
+      worksheet.mergeCells(`A${rLevel.number}:I${rLevel.number}`);
+      worksheet.mergeCells(`J${rLevel.number}:M${rLevel.number}`);
+      rLevel.height = 26;
+
+      rLevel.eachCell({ includeEmpty: true }, (c, colIdx) => {
+        c.fill = fillLevelBadge;
+        c.border = borderThin;
         c.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF107C41' } };
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center' };
+        if (colIdx <= 9) {
+          c.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+        } else if (colIdx >= 10) {
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
       });
 
-      // Write and download
+      // Write and download `.xlsx` file
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
@@ -338,15 +954,20 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
           <h3 className="text-base font-bold text-ink">
             {pageFormCode} - {formTitle.toUpperCase()}
           </h3>
-          <p className="text-xs text-ink/60">
-            {studentDisplay.name} ({studentDisplay.lrn}) — {attempts.length} Oral Assessment Attempt(s)
-          </p>
+          {loading ? (
+            <div className="h-4 w-72 rounded bg-gray-200 animate-pulse mt-1" />
+          ) : (
+            <p className="text-xs text-ink/60">
+              {studentDisplay.name} ({studentDisplay.lrn}) — {attempts.length} Oral Assessment Attempt(s)
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleExportXLSX}
-            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
           >
             <DownloadSimple size={15} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
@@ -354,7 +975,8 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs"
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
           >
             <FloppyDisk size={15} weight="bold" />
             <span>Save Record</span>
@@ -362,70 +984,111 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         </div>
       </div>
 
-      {/* Attempts Stepper / Selector Pills Bar */}
-      {attempts.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-ink/10 pb-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-ink/50 mr-1 flex items-center gap-1">
-            <Microphone size={14} weight="bold" /> Oral Attempts:
-          </span>
-          {attempts.map((att, idx) => {
-            const isSelected = selectedAttemptIndex === idx;
-            const levelLabel = att.passage_grade_level || `Attempt ${idx + 1}`;
-            const profile = att.overall_profile || 'Pending';
-            return (
-              <button
-                key={att.attempt_id || idx}
-                type="button"
-                onClick={() => {
-                  setSelectedAttemptIndex(idx);
-                }}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer border ${
-                  isSelected
-                    ? 'bg-[#107c41] text-white border-[#107c41] shadow-2xs'
-                    : 'bg-white border-ink/20 text-ink/70 hover:bg-ink/5 hover:text-ink'
+      {/* Attempt Selector Skeleton / Bar */}
+      {loading ? (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-ink/15 bg-white px-4 py-2.5 shadow-2xs animate-pulse">
+          <div className="flex items-center gap-3 grow max-w-xl">
+            <div className="h-4 w-40 rounded bg-gray-200" />
+            <div className="h-8 grow rounded-lg bg-gray-200" />
+          </div>
+          <div className="h-6 w-32 rounded-full bg-gray-200" />
+        </div>
+      ) : (() => {
+        const currentAtt = attempts.length > 0 ? attempts[selectedAttemptIndex] : null;
+        const profile = currentAtt?.overall_profile || record?.overallProfile || '—';
+
+        const preTestAttempts = attempts
+          .map((att, originalIndex) => ({ ...att, originalIndex }))
+          .filter((att) => !(att.assessment_period || '').toLowerCase().includes('post'));
+
+        const postTestAttempts = attempts
+          .map((att, originalIndex) => ({ ...att, originalIndex }))
+          .filter((att) => (att.assessment_period || '').toLowerCase().includes('post'));
+
+        return (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/15 bg-white px-4 py-2.5 shadow-2xs">
+            <div className="flex items-center gap-3 grow max-w-xl">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink/60 flex items-center gap-1.5 shrink-0">
+                <Microphone size={16} weight="bold" className="text-[#107c41]" /> Select Assessment Attempt:
+              </span>
+              <select
+                id="attempt-select"
+                value={attempts.length > 0 ? selectedAttemptIndex : 0}
+                onChange={(e) => handleSelectAttempt(Number(e.target.value))}
+                disabled={attempts.length === 0}
+                className="grow rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-900 shadow-2xs focus:border-[#107c41] focus:outline-none focus:ring-1 focus:ring-[#107c41] cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                {attempts.length === 0 ? (
+                  <option value={0}>Wala pang Attempt (Malinis na Sheet)</option>
+                ) : (
+                  <>
+                    {preTestAttempts.length > 0 && (
+                      <optgroup label="── PRE-TEST ATTEMPTS ──">
+                        {preTestAttempts.map((att, idx) => {
+                          const rawSet = (att.passage_set || 'A').toString().trim();
+                          const cleanSet = rawSet.replace(/^set\s+/i, '');
+                          return (
+                            <option key={att.attempt_id || att.originalIndex} value={att.originalIndex}>
+                              Pre-Test (Attempt {idx + 1}: {att.passage_grade_level || 'Grade Level'}
+                              {cleanSet ? `, Set ${cleanSet}` : ''}
+                              {att.overall_profile ? ` — ${att.overall_profile}` : ''})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+
+                    {postTestAttempts.length > 0 && (
+                      <optgroup label="── POST-TEST ATTEMPTS ──">
+                        {postTestAttempts.map((att, idx) => {
+                          const rawSet = (att.passage_set || 'A').toString().trim();
+                          const cleanSet = rawSet.replace(/^set\s+/i, '');
+                          return (
+                            <option key={att.attempt_id || att.originalIndex} value={att.originalIndex}>
+                              Post-Test (Attempt {idx + 1}: {att.passage_grade_level || 'Grade Level'}
+                              {cleanSet ? `, Set ${cleanSet}` : ''}
+                              {att.overall_profile ? ` — ${att.overall_profile}` : ''})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                  </>
+                )}
+              </select>
+            </div>
+
+            {/* Status Badge */}
+            <div className="flex items-center gap-2 text-xs shrink-0">
+              <span className="font-semibold text-gray-500">Overall Level Profile:</span>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase ${
+                  profile === 'Independent'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : profile === 'Instructional'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : profile === 'Frustration'
+                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                    : 'bg-ink/10 text-ink/60'
                 }`}
               >
-                <span>
-                  Attempt {idx + 1}: {levelLabel}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
-                    isSelected
-                      ? 'bg-white/20 text-white'
-                      : profile === 'Independent'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : profile === 'Instructional'
-                      ? 'bg-amber-100 text-amber-800'
-                      : profile === 'Frustration'
-                      ? 'bg-rose-100 text-rose-800'
-                      : 'bg-ink/10 text-ink/60'
-                  }`}
-                >
-                  {profile}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+                {profile}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {showToast && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-[#00a652]/15 px-4 py-3 text-xs font-semibold text-[#00a652] border border-[#00a652]/30">
-          <CheckCircle size={18} weight="fill" />
-          <span>{toastMessage}</span>
-        </div>
+        <ToastNotification
+          message={toastMessage}
+          type="success"
+          onClose={() => setShowToast(false)}
+        />
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-400 bg-white p-12 text-center shadow-xs">
-          <Clock size={32} className="animate-spin text-[#107c41] mb-3" />
-          <p className="text-sm font-bold text-ink">Loading Form 3 Assessment Attempts...</p>
-        </div>
-      ) : !record ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-400 bg-white p-12 text-center">
-          <WarningCircle size={32} className="text-ink/40 mb-2" />
-          <p className="text-sm font-semibold text-ink/70">Wala pang nakatalang oral reading attempt para sa estudyanteng ito.</p>
-        </div>
+        <PhilIriForm3DetailSkeleton />
       ) : (
         /* CLEAN OFFICIAL DEPED EXCEL FORM TABLE UI CONTAINER */
         <div className="overflow-x-auto rounded-lg border border-gray-400 bg-white p-6 shadow-xs space-y-6">
@@ -434,7 +1097,9 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
             <div className="text-center space-y-0.5 mb-4">
               <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
                 <span className="font-bold text-[#107c41]">
-                  ATTEMPT {selectedAttemptIndex + 1} NG {Math.max(1, attempts.length)}
+                  {attempts.length > 0
+                    ? `ATTEMPT ${selectedAttemptIndex + 1} NG ${attempts.length}`
+                    : 'ATTEMPT 0 NG 0'}
                 </span>
                 <span>{pageFormCode}, Pahina 1</span>
               </div>
@@ -444,13 +1109,15 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
               <p className="text-xs font-semibold text-gray-700">
                 {isTagalog ? 'Panimulang Pagtatasa sa Filipino' : 'Pre-Test Assessment in English'}
               </p>
-              <p className="text-xs font-bold text-gray-900">
-                Set {record.set} ({record.level})
-              </p>
+              {record.set !== '—' && record.level !== '—' && (
+                <p className="text-xs font-bold text-gray-900">
+                  Set {record.set} ({record.level})
+                </p>
+              )}
             </div>
 
             {/* Official DepEd Header Metadata Grid (Matching Form 1 & Form 2) */}
-            <div className="space-y-2 text-xs text-gray-900 font-semibold mb-6 px-1 border-t border-b border-gray-300 py-3 bg-gray-50/50">
+            <div className="space-y-2 text-xs text-gray-900 font-semibold mb-6 px-1 border-t border-b border-gray-300 py-3 bg-white">
               <div className="grid grid-cols-3 gap-4">
                 <div className="flex items-center">
                   <span>Pangalan:</span>
@@ -488,25 +1155,23 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
               </div>
 
               <div className="grid grid-cols-4 gap-4 pt-1">
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 cursor-pointer font-bold">
-                    <input
-                      type="radio"
-                      checked={record.testType === 'Pre-Test'}
-                      onChange={() => setRecord((r) => ({ ...r, testType: 'Pre-Test' }))}
-                      className="accent-[#107c41]"
-                    />
-                    <span>Pre-Test</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-bold">
-                    <input
-                      type="radio"
-                      checked={record.testType === 'Post-Test'}
-                      onChange={() => setRecord((r) => ({ ...r, testType: 'Post-Test' }))}
-                      className="accent-[#107c41]"
-                    />
-                    <span>Post-Test</span>
-                  </label>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-gray-900">Pre-Test:</span>
+                  <button
+                    type="button"
+                    onClick={() => setRecord((r) => ({ ...r, testType: 'Pre-Test' }))}
+                    className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs cursor-pointer bg-white"
+                  >
+                    {record.testType === 'Pre-Test' ? '✓' : ''}
+                  </button>
+                  <span className="font-bold text-gray-900 ml-1">Post test:</span>
+                  <button
+                    type="button"
+                    onClick={() => setRecord((r) => ({ ...r, testType: 'Post-Test' }))}
+                    className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs cursor-pointer bg-white"
+                  >
+                    {record.testType === 'Post-Test' ? '✓' : ''}
+                  </button>
                 </div>
                 <div className="flex items-center">
                   <span>Level:</span>
@@ -529,17 +1194,123 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
               </div>
             </div>
 
-            {/* Passage Box styled cleanly like Form 1/2 DepEd Worksheet */}
-            <div className="mb-6 rounded border border-gray-400 bg-white p-5">
+            {/* Passage Box styled cleanly with Digital Miscue Badges (Matching Picture 2) */}
+            <div id="form3-passage-box" className="mb-6 rounded border border-gray-400 bg-white p-5">
               <h5 className="text-center text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">
                 {record.passageTitle}
               </h5>
-              <div className="text-xs leading-relaxed text-gray-900 whitespace-pre-line space-y-2.5 font-serif px-2">
-                {record.passageText}
-              </div>
-              <div className="mt-4 flex justify-between items-center text-[11px] font-bold text-gray-700 pt-2 border-t border-gray-300">
-                <span>Antas: {record.level}</span>
-                <span>Bilang ng mga Salita: {record.wordCount}</span>
+
+              {/* Tagged Passage Text Container matching Review Page layout */}
+              {(() => {
+                const text = record.passageText || '';
+                const lines = text.split('\n');
+                const rawMiscueList = record.rawMiscues || [];
+
+                const getChipStyles = (type) => {
+                  switch (type) {
+                    case 'omission':
+                      return { chip: 'border-rose-300 bg-rose-50/70 text-rose-950', badge: 'bg-rose-50 text-rose-600 border-rose-300', annotation: 'text-rose-600 font-bold', code: 'OMI' };
+                    case 'substitution':
+                      return { chip: 'border-amber-300 bg-amber-50/70 text-amber-950', badge: 'bg-amber-50 text-amber-700 border-amber-300', annotation: 'text-amber-800 font-serif italic font-bold', code: 'SUB' };
+                    case 'mispronunciation':
+                      return { chip: 'border-orange-300 bg-orange-50/70 text-orange-950', badge: 'bg-orange-50 text-orange-700 border-orange-300', annotation: 'text-orange-800 font-serif italic font-bold', code: 'MIS' };
+                    case 'insertion':
+                      return { chip: 'border-blue-300 bg-blue-50/70 text-blue-950', badge: 'bg-blue-50 text-blue-600 border-blue-300', annotation: 'text-blue-700 font-serif font-bold', code: 'INS' };
+                    case 'repetition':
+                      return { chip: 'border-indigo-300 bg-indigo-50/70 text-indigo-950', badge: 'bg-indigo-50 text-indigo-600 border-indigo-300', annotation: 'text-indigo-700 font-bold', code: 'REP' };
+                    case 'transposition':
+                      return { chip: 'border-teal-300 bg-teal-50/70 text-teal-950', badge: 'bg-teal-50 text-teal-700 border-teal-300', annotation: 'text-teal-700 font-bold', code: 'TRA' };
+                    case 'reversal':
+                      return { chip: 'border-violet-300 bg-violet-50/70 text-violet-950', badge: 'bg-violet-50 text-violet-700 border-violet-300', annotation: 'text-violet-800 font-serif italic font-bold', code: 'REV' };
+                    case 'self_correction':
+                      return { chip: 'border-emerald-300 bg-emerald-50/70 text-emerald-950', badge: 'bg-emerald-50 text-emerald-700 border-emerald-300', annotation: 'text-emerald-700 font-bold font-serif', code: 'SC' };
+                    default:
+                      return { chip: 'border-rose-300 bg-rose-50/70 text-rose-950', badge: 'bg-rose-50 text-rose-600 border-rose-300', annotation: 'text-rose-600 font-bold', code: 'OMI' };
+                  }
+                };
+
+                const getAnnotation = (miscue) => {
+                  const spoken = miscue?.spoken_word || '';
+                  const mType = (miscue?.miscue_type || miscue?.type || '').toLowerCase();
+                  switch (mType) {
+                    case 'mispronunciation': return spoken || null;
+                    case 'substitution':     return spoken || null;
+                    case 'reversal':         return spoken || null;
+                    case 'self_correction':  return 'SC';
+                    case 'insertion':        return spoken ? `^ ${spoken}` : '^';
+                    case 'repetition':       return '↩';
+                    case 'transposition':    return '⌢';
+                    default: return null;
+                  }
+                };
+
+                let globalWordIndex = 0;
+
+                return (
+                  <div className="text-[14px] leading-[3.4] text-gray-900 font-sans px-2 py-2 select-none">
+                    {lines.map((line, lineIdx) => {
+                      if (!line.trim()) return <div key={lineIdx} className="h-3" />;
+                      const tokens = line.split(/(\s+)/);
+
+                      return (
+                        <p key={lineIdx} className="leading-[3.4]">
+                          {tokens.map((token, tokenIdx) => {
+                            if (/^\s+$/.test(token)) {
+                              return <span key={tokenIdx}>{token}</span>;
+                            }
+
+                            const currentWordPos = ++globalWordIndex;
+                            const miscueTag = rawMiscueList.find((m) => Number(m.word_position) === currentWordPos);
+
+                            if (!miscueTag) {
+                              return <span key={tokenIdx}>{token}</span>;
+                            }
+
+                            const mType = (miscueTag.miscue_type || miscueTag.type || '').toLowerCase();
+                            const theme = getChipStyles(mType);
+                            const annotationText = getAnnotation(miscueTag);
+
+                            return (
+                              <span
+                                key={tokenIdx}
+                                className={`relative inline-flex items-center align-baseline px-2 py-0.5 mx-0.5 rounded-lg border text-sm font-medium ${theme.chip}`}
+                                style={{
+                                  verticalAlign: 'baseline',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                }}
+                                title={`${mType.toUpperCase()}${miscueTag.spoken_word ? `: "${miscueTag.spoken_word}"` : ''}`}
+                              >
+                                {/* Annotation Text Positioned Above Word (Spoken Word or Symbol) */}
+                                {annotationText && (
+                                  <span
+                                    className={`absolute -top-5 left-1/2 -translate-x-1/2 text-[10.5px] whitespace-nowrap leading-none pointer-events-none font-semibold ${theme.annotation}`}
+                                  >
+                                    {annotationText}
+                                  </span>
+                                )}
+
+                                <span className="inline-block leading-tight">{token}</span>
+
+                                {/* Miscue Code Badge (OMI, MIS, SUB, INS, etc.) */}
+                                <span
+                                  className={`ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase border leading-none inline-flex items-center justify-center shrink-0 ${theme.badge}`}
+                                >
+                                  {theme.code}
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </p>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              <div className="mt-4 flex flex-col items-end text-xs font-semibold text-gray-800 pt-2 border-t border-gray-300 space-y-0.5">
+                <span>Level: {record.level}</span>
+                <span>Bilang ng mga salita: {record.wordCount}</span>
               </div>
             </div>
 
@@ -549,31 +1320,32 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                 {pageFormCode}, Pahina 2
               </div>
 
-              {/* PART A: COMPREHENSION & READING RATE TABLE (EXCEL GRID LOOK) */}
-              <div className="mb-6">
-                <table className="w-full border-collapse border border-gray-400 text-xs font-sans mb-3">
+              {/* PART A: COMPREHENSION & READING RATE TABLE WITH STUDENT ANSWERS BELOW TABLE */}
+              <div className="mb-6 border border-gray-400 bg-white">
+                {/* PART A Header Banner */}
+                <div className="bg-[#d4d4d4] text-gray-900 font-bold p-2 text-left uppercase border-b border-gray-400">
+                  PART A: Pagtatasa sa Pag-unawa (Comprehension) & Rate ng Pagbasa
+                </div>
+
+                {/* Part A Metrics Table (ON TOP) */}
+                <table className="w-full border-collapse text-xs font-sans border-b border-gray-400">
                   <thead>
-                    <tr className="bg-[#e2e2e2] text-gray-900 font-bold border border-gray-400">
-                      <th colSpan={4} className="border border-gray-400 p-2 text-left uppercase bg-[#d4d4d4]">
-                        PART A: Pagtatasa sa Pag-unawa (Comprehension) & Rate ng Pagbasa
-                      </th>
-                    </tr>
-                    <tr className="bg-[#f0f0f0] text-gray-800 font-semibold border border-gray-400 text-center">
-                      <th className="border border-gray-400 p-2 w-1/4">Kabuuang Oras ng Pagbasa</th>
-                      <th className="border border-gray-400 p-2 w-1/4">Rate ng Pagbasa (WPM)</th>
-                      <th className="border border-gray-400 p-2 w-1/4">Marka sa Pag-unawa</th>
-                      <th className="border border-gray-400 p-2 w-1/4">Antas ng Pag-unawa</th>
+                    <tr className="bg-[#f0f0f0] text-gray-800 font-semibold text-center border-b border-gray-400">
+                      <th className="border-r border-gray-400 p-2 w-1/4">Kabuuang Oras ng Pagbasa</th>
+                      <th className="border-r border-gray-400 p-2 w-1/4">Rate ng Pagbasa (WPM)</th>
+                      <th className="border-r border-gray-400 p-2 w-1/4">Marka sa Pag-unawa</th>
+                      <th className="p-2 w-1/4">Antas ng Pag-unawa</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr className="text-center font-bold text-gray-900 bg-white">
-                      <td className="border border-gray-400 p-2.5">{record.readingTimeMinutes} minuto</td>
-                      <td className="border border-gray-400 p-2.5">{record.readingRateWpm} salita / minuto</td>
-                      <td className="border border-gray-400 p-2.5">
-                        {record.compMarka} / 7 ({record.compPercentage}%)
+                      <td className="border-r border-gray-400 p-2.5">{record.readingTimeMinutes} minuto</td>
+                      <td className="border-r border-gray-400 p-2.5">{record.readingRateWpm} salita / minuto</td>
+                      <td className="border-r border-gray-400 p-2.5">
+                        {record.compMarka} / {record.compTotal || 7} ({record.compPercentage}%)
                       </td>
                       <td
-                        className={`border border-gray-400 p-2.5 uppercase font-black ${
+                        className={`p-2.5 uppercase font-black ${
                           record.compLevel === 'Independent'
                             ? 'bg-emerald-100 text-emerald-800'
                             : record.compLevel === 'Instructional'
@@ -586,6 +1358,58 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                     </tr>
                   </tbody>
                 </table>
+
+                {/* Answers Section (BELOW THE TABLE) */}
+                {(() => {
+                  const totalQuestions = record.compTotal || (record.answers && record.answers.length > 0 ? record.answers.length : 0);
+                  if (totalQuestions <= 0) return null;
+
+                  const leftColLimit = totalQuestions > 4 ? 4 : totalQuestions;
+                  const leftNums = Array.from({ length: leftColLimit }, (_, i) => i + 1);
+                  const rightNums = totalQuestions > 4
+                    ? Array.from({ length: totalQuestions - 4 }, (_, i) => i + 5)
+                    : [];
+
+                  return (
+                    <div className="p-4 bg-white">
+                      <div className={`grid ${rightNums.length > 0 ? 'grid-cols-2 gap-x-12' : 'grid-cols-1'} max-w-sm ml-4 text-xs font-sans`}>
+                        {/* Left Column */}
+                        <div className="space-y-2.5">
+                          {leftNums.map((num) => {
+                            const ansItem = (record.answers || []).find((a) => a.number === num);
+                            const letter = ansItem?.letter || (ansItem?.answer_text && ansItem.answer_text.length === 1 ? ansItem.answer_text.toLowerCase() : '');
+                            return (
+                              <div key={num} className="flex items-end gap-2">
+                                <span className="text-gray-900 font-bold text-xs w-4">{num}.</span>
+                                <div className="w-28 border-b border-gray-800 text-center font-bold text-xs text-gray-900 pb-0.5 min-h-[18px]">
+                                  {letter || '\u00A0'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Right Column */}
+                        {rightNums.length > 0 && (
+                          <div className="space-y-2.5">
+                            {rightNums.map((num) => {
+                              const ansItem = (record.answers || []).find((a) => a.number === num);
+                              const letter = ansItem?.letter || (ansItem?.answer_text && ansItem.answer_text.length === 1 ? ansItem.answer_text.toLowerCase() : '');
+                              return (
+                                <div key={num} className="flex items-end gap-2">
+                                  <span className="text-gray-900 font-bold text-xs w-4">{num}.</span>
+                                  <div className="w-28 border-b border-gray-800 text-center font-bold text-xs text-gray-900 pb-0.5 min-h-[18px]">
+                                    {letter || '\u00A0'}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* PART B: WORD READING & MISCUES EXCEL TABLE */}
@@ -618,12 +1442,14 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                           {m.nameEn} <span className="italic text-gray-600">({m.nameFil})</span>
                         </td>
                         <td className="border border-gray-400 p-1.5 text-center font-bold text-gray-900">
-                          <input
-                            type="number"
-                            value={m.count}
-                            onChange={(e) => handleMiscueChange(m.id - 1, e.target.value)}
-                            className="w-16 border-b border-gray-400 text-center font-bold text-gray-900 outline-none"
-                          />
+                          <div className="flex items-center justify-center w-full">
+                            <input
+                              type="number"
+                              value={m.count}
+                              onChange={(e) => handleMiscueChange(m.id - 1, e.target.value)}
+                              className="w-20 border-b border-gray-400 text-center font-bold text-gray-900 outline-none bg-transparent pl-3"
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))}

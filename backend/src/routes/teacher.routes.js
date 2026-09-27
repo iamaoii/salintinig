@@ -464,6 +464,80 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
     );
 
     // Process attempts to calculate miscues counts and comprehension stats
+    const attemptIds = (attemptsRes.rows || []).map(r => r.attempt_id).filter(Boolean);
+    const passageIds = [...new Set((attemptsRes.rows || []).map(r => r.passage_id).filter(Boolean))];
+
+    const passagesQuestions = {};
+    const questionsMap = {};
+    const latestAnswersByAttemptAndQ = {};
+
+    // Run passage choices query and student answers query in parallel (Promise.all)
+    await Promise.all([
+      passageIds.length > 0
+        ? db.query(
+            `SELECT 
+               q.question_id, 
+               q.passage_id, 
+               q.question_text,
+               c.choice_id, 
+               c.choice_text,
+               c.is_correct
+             FROM phil_iri_questions q
+             JOIN phil_iri_question_choices c ON c.question_id = q.question_id
+             WHERE q.passage_id = ANY($1)
+             ORDER BY q.created_at ASC, q.ctid ASC, c.ctid ASC`,
+            [passageIds]
+          ).then((qRes) => {
+            for (const row of qRes.rows) {
+              if (!passagesQuestions[row.passage_id]) {
+                passagesQuestions[row.passage_id] = [];
+              }
+              if (!passagesQuestions[row.passage_id].some(item => item.question_id === row.question_id)) {
+                passagesQuestions[row.passage_id].push({
+                  question_id: row.question_id,
+                  question_text: row.question_text,
+                });
+              }
+              if (!questionsMap[row.question_id]) {
+                questionsMap[row.question_id] = { choices: [] };
+              }
+              questionsMap[row.question_id].choices.push(row);
+            }
+          }).catch((qErr) => {
+            console.warn('Notice fetching questions choices for Form 3:', qErr.message);
+          })
+        : Promise.resolve(),
+
+      attemptIds.length > 0
+        ? db.query(
+            `SELECT 
+               ans.answer_id,
+               ans.assessment_attempt_id,
+               ans.phil_iri_question_id,
+               ans.selected_choice_id,
+               ans.answer_text,
+               ans.is_correct,
+               ans.answered_at
+             FROM assessment_answers ans
+             WHERE ans.assessment_attempt_id = ANY($1)
+             ORDER BY ans.answered_at DESC`,
+            [attemptIds]
+          ).then((ansRes) => {
+            for (const ans of ansRes.rows) {
+              const aId = ans.assessment_attempt_id;
+              if (!latestAnswersByAttemptAndQ[aId]) latestAnswersByAttemptAndQ[aId] = {};
+              if (!latestAnswersByAttemptAndQ[aId][ans.phil_iri_question_id]) {
+                latestAnswersByAttemptAndQ[aId][ans.phil_iri_question_id] = ans;
+              }
+            }
+          }).catch((ansErr) => {
+            console.warn('Notice fetching answers for Form 3:', ansErr.message);
+          })
+        : Promise.resolve(),
+    ]);
+
+    const letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+
     const attempts = (attemptsRes.rows || []).map((row) => {
       let mispronunciation = 0;
       let omission = 0;
@@ -473,7 +547,9 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
       let transposition = 0;
       let reversal = 0;
 
-      const rawMiscues = (Array.isArray(row.verified_miscues_json) && row.verified_miscues_json.length > 0)
+      // Use teacher verified miscues if available (even if empty array, which means teacher marked 0 miscues).
+      // Fallback to ai_miscues_json only if verified_miscues_json is strictly null/undefined.
+      const rawMiscues = Array.isArray(row.verified_miscues_json)
         ? row.verified_miscues_json
         : (Array.isArray(row.ai_miscues_json) ? row.ai_miscues_json : []);
 
@@ -490,8 +566,47 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
       });
 
       const totalMiscues = mispronunciation + omission + substitution + insertion + repetition + transposition + reversal;
-      const compScore = Number(row.comprehension_score || 0);
-      const compPct = compScore > 0 && compScore <= 7 ? Math.round((compScore / 7) * 100) : Math.round(compScore);
+
+      // Map answers aligned strictly with passage question order
+      const pQuestions = passagesQuestions[row.passage_id] || [];
+      const answersForAttempt = latestAnswersByAttemptAndQ[row.attempt_id] || {};
+      const attAnswers = [];
+      let rawCorrectAnswersCount = 0;
+
+      pQuestions.forEach((q, idx) => {
+        const ans = answersForAttempt[q.question_id];
+        let letter = '';
+        const qData = questionsMap[q.question_id];
+        if (ans && qData) {
+          const choiceIdx = qData.choices.findIndex(c => 
+            (ans.selected_choice_id && c.choice_id === ans.selected_choice_id) ||
+            (ans.answer_text && c.choice_text && c.choice_text.trim().toLowerCase() === ans.answer_text.trim().toLowerCase())
+          );
+          if (choiceIdx >= 0) {
+            letter = letters[choiceIdx] || '';
+          }
+        }
+
+        const isCorrect = ans ? ans.is_correct === true : false;
+        if (isCorrect) rawCorrectAnswersCount++;
+
+        attAnswers.push({
+          number: idx + 1,
+          letter: letter || (ans?.answer_text && ans.answer_text.length === 1 ? ans.answer_text.toLowerCase() : '') || '',
+          answer_text: ans?.answer_text || '',
+          is_correct: isCorrect,
+        });
+      });
+
+      const totalQuestionsCount = pQuestions.length > 0 ? pQuestions.length : (attAnswers.length > 0 ? attAnswers.length : 7);
+      
+      // Determine actual raw score and percentage
+      let finalRawScore = rawCorrectAnswersCount;
+      if (attAnswers.length === 0 && row.comprehension_score !== null && row.comprehension_score !== undefined) {
+        finalRawScore = Number(row.comprehension_score);
+      }
+
+      const compPct = totalQuestionsCount > 0 ? Math.round((finalRawScore / totalQuestionsCount) * 100) : 0;
       const compLevel = compPct >= 80 ? 'Independent' : compPct >= 59 ? 'Instructional' : 'Frustration';
 
       return {
@@ -504,8 +619,12 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
         repetition_count: repetition,
         transposition_count: transposition,
         reversal_count: reversal,
+        comprehension_raw_score: finalRawScore,
+        comprehension_total_items: totalQuestionsCount,
         comprehension_percentage: compPct,
         comprehension_level: compLevel,
+        answers: attAnswers,
+        rawMiscues: rawMiscues,
       };
     });
 

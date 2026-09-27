@@ -1,9 +1,10 @@
+import cacheService from '../../../services/cacheService.js';
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UsersThree, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
-import { PhilIriForm3Skeleton } from '../../../components/common/Skeleton.jsx';
+import { PhilIriForm3ListSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 
 export default function PhilIriForm3List({ formKey, label }) {
@@ -15,8 +16,17 @@ export default function PhilIriForm3List({ formKey, label }) {
 
   useEffect(() => {
     const fetchStudents = async () => {
-      try {
+      const cacheKey = 'form3_class_students';
+      const cached = cacheService.get(cacheKey);
+
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setStudents(cached);
+        setLoading(false);
+      } else {
         setLoading(true);
+      }
+
+      try {
         const token = getToken();
         const res = await fetch(getApiUrl('/api/teacher/class-students'), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -24,6 +34,7 @@ export default function PhilIriForm3List({ formKey, label }) {
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.students)) {
           setStudents(data.students);
+          cacheService.set(cacheKey, data.students, 300000); // 5 mins TTL
         }
       } catch (err) {
         console.warn('Fetch Form 3 students error:', err);
@@ -73,7 +84,7 @@ export default function PhilIriForm3List({ formKey, label }) {
           </thead>
           <tbody>
             {loading ? (
-              <PhilIriForm3Skeleton rows={5} />
+              <PhilIriForm3ListSkeleton rows={5} />
             ) : students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-5 py-8 text-center text-ink/50 font-medium">
