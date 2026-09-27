@@ -255,10 +255,35 @@ export default function AdminPhilIriPassages() {
 
     const finalStatus = statusOverride || formData.status || 'Published';
     const wordsCount = formData.text.trim().split(/\s+/).filter(Boolean).length;
+    const sanitizedQuestions = (formData.questions || [])
+      .filter((q) => q && (q.question || '').trim().length > 0)
+      .map((q) => {
+        const rawOpts = (q.options || []).map((opt) => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+        const correctIdx = Number(q.correctAnswer ?? 0);
+        const correctText = (!isNaN(correctIdx) && correctIdx >= 0 && correctIdx < rawOpts.length)
+          ? rawOpts[correctIdx]
+          : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+        const validOpts = rawOpts.filter((opt) => opt.length > 0);
+        let finalCorrectIdx = 0;
+        if (correctText) {
+          const found = validOpts.findIndex((opt) => opt.toLowerCase() === correctText.toLowerCase());
+          finalCorrectIdx = found >= 0 ? found : 0;
+        }
+
+        return {
+          ...q,
+          question: q.question.trim(),
+          options: validOpts.length > 0 ? validOpts : ['Oo', 'Hindi'],
+          correctAnswer: finalCorrectIdx,
+        };
+      });
+
     const passagePayload = {
       ...formData,
       status: finalStatus,
       words: wordsCount,
+      questions: sanitizedQuestions,
     };
 
     try {

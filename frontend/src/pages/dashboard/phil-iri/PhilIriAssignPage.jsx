@@ -75,10 +75,12 @@ export default function PhilIriAssignPage() {
   const [students, setStudents] = useState([]);
   const [passages, setPassages] = useState([]);
   const [selectedPassages, setSelectedPassages] = useState({});
+  const [selectedStudentGrades, setSelectedStudentGrades] = useState({});
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewPassage, setPreviewPassage] = useState(null);
+  const [pickingStudentForPassage, setPickingStudentForPassage] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -90,19 +92,13 @@ export default function PhilIriAssignPage() {
 
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
-      // Grade filter
-      if (selectedGrade !== 'all') {
-        const pGrade = (p.grade_level || '').toLowerCase();
-        const target = selectedGrade.toLowerCase();
-        if (!pGrade.includes(target)) return false;
-      }
       // Language filter
       const lang = (p.language || '').toLowerCase();
       if (selectedLanguage === 'fil') return lang === 'fil' || lang === 'filipino';
       if (selectedLanguage === 'en') return lang === 'en' || lang === 'eng' || lang === 'english';
       return true;
     });
-  }, [passages, selectedLanguage, selectedGrade]);
+  }, [passages, selectedLanguage]);
 
   useEffect(() => {
     const token = getToken();
@@ -195,14 +191,87 @@ export default function PhilIriAssignPage() {
     }
   }, [editId]);
 
-  const initStudents = (stdList) => {
-    setStudents(stdList);
+  const initStudents = async (stdList) => {
+    if (!Array.isArray(stdList) || stdList.length === 0) {
+      setStudents([]);
+      setSelectedStudents(new Set());
+      return;
+    }
+
+    const token = getToken();
+    const sectionName = stdList[0]?.sectionName || stdList[0]?.section_name || stdList[0]?.section || '';
+
+    let filSubmission = null;
+    let engSubmission = null;
+
+    if (sectionName) {
+      try {
+        const [filRes, engRes] = await Promise.all([
+          fetch(getApiUrl(`/api/teacher/phil-iri/gst-submission?sectionName=${encodeURIComponent(sectionName)}&language=Tagalog`), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }).then((r) => r.json()).catch(() => ({})),
+          fetch(getApiUrl(`/api/teacher/phil-iri/gst-submission?sectionName=${encodeURIComponent(sectionName)}&language=English`), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }).then((r) => r.json()).catch(() => ({})),
+        ]);
+
+        if (filRes.success && filRes.submission?.form_data) {
+          filSubmission = filRes.submission.form_data;
+        }
+        if (engRes.success && engRes.submission?.form_data) {
+          engSubmission = engRes.submission.form_data;
+        }
+      } catch (e) {
+        console.warn('Could not fetch GST submissions for section:', e);
+      }
+    }
+
+    // Build lookup maps by LRN and normalized student names
+    const filMap = {};
+    const engMap = {};
+
+    if (filSubmission) {
+      const rows = [...(filSubmission.maleRows || []), ...(filSubmission.femaleRows || [])];
+      rows.forEach((r) => {
+        if (r.lrn) filMap[String(r.lrn).trim()] = r;
+        if (r.name) filMap[r.name.trim().toLowerCase()] = r;
+      });
+    }
+
+    if (engSubmission) {
+      const rows = [...(engSubmission.maleRows || []), ...(engSubmission.femaleRows || [])];
+      rows.forEach((r) => {
+        if (r.lrn) engMap[String(r.lrn).trim()] = r;
+        if (r.name) engMap[r.name.trim().toLowerCase()] = r;
+      });
+    }
+
+    const enriched = stdList.map((std) => {
+      const lrn = std.lrn ? String(std.lrn).trim() : '';
+      const stdName = (std.name || `${std.firstName || ''} ${std.lastName || ''}`).trim().toLowerCase();
+      const lName = (std.lastName || std.last_name || '').trim();
+      const fName = (std.firstName || std.first_name || '').trim();
+      const lastFirst = lName && fName ? `${lName}, ${fName}`.toLowerCase() : '';
+
+      const filRecord = filMap[lrn] || filMap[stdName] || filMap[lastFirst];
+      const engRecord = engMap[lrn] || engMap[stdName] || engMap[lastFirst];
+
+      return {
+        ...std,
+        gstScoreFil: filRecord?.totalNum ?? filRecord?.score ?? null,
+        gstScoreEng: engRecord?.totalNum ?? engRecord?.score ?? null,
+        startingPointFil: filRecord?.startingPoint || null,
+        startingPointEng: engRecord?.startingPoint || null,
+      };
+    });
+
+    setStudents(enriched);
     setSelectedStudents(new Set());
   };
 
-  // Lock body and html scroll when preview modal is open
+  // Lock body and html scroll when any modal is open
   useEffect(() => {
-    if (previewPassage) {
+    if (previewPassage || pickingStudentForPassage) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
     } else {
@@ -213,7 +282,7 @@ export default function PhilIriAssignPage() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [previewPassage]);
+  }, [previewPassage, pickingStudentForPassage]);
 
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
@@ -271,38 +340,95 @@ export default function PhilIriAssignPage() {
     }
   };
 
-  const handleAutoDistributeSets = () => {
+  // Helper to compute DepEd Table 3 GST starting passage recommendation
+  const computeGstRecommendation = (student, langKey) => {
+    const isTagalog = langKey === 'fil';
+    const score = isTagalog ? student.gstScoreFil : student.gstScoreEng;
+    const startingPointText = isTagalog ? student.startingPointFil : student.startingPointEng;
+    const currentGrade = parseInt(String(student.gradeLevel || student.grade || selectedGrade || '4').replace(/\D/g, ''), 10) || 4;
+
+    if (score !== null && score !== undefined && score !== '') {
+      const numScore = Number(score);
+      if (numScore >= 14) {
+        return { label: 'Exempted (Score ≥ 14)', targetGrade: currentGrade, isExempt: true };
+      }
+      if (numScore >= 8) {
+        const targetGrade = Math.max(1, currentGrade - 2);
+        return { label: `Rec: Grade ${targetGrade} Passage`, targetGrade, isExempt: false };
+      }
+      const targetGrade = Math.max(1, currentGrade - 3);
+      return { label: `Rec: Grade ${targetGrade} Passage`, targetGrade, isExempt: false };
+    }
+
+    if (startingPointText) {
+      if (startingPointText.toLowerCase().includes('exempt')) {
+        return { label: 'Exempted (Discontinue)', targetGrade: currentGrade, isExempt: true };
+      }
+      const matchGrade = parseInt(String(startingPointText).replace(/\D/g, ''), 10);
+      if (matchGrade) {
+        return { label: `Rec: Grade ${matchGrade} Passage`, targetGrade: matchGrade, isExempt: false };
+      }
+    }
+
+    const defaultTarget = Math.max(1, currentGrade - 2);
+    return { label: `Grade ${defaultTarget} (Default)`, targetGrade: defaultTarget, isExempt: false };
+  };
+
+  const handleAutoAssignGstRecommended = () => {
     if (!selectedLanguage) {
       setToastMessage({ text: 'Please select an Assessment Language (Filipino or English) first.', type: 'warning' });
       return;
     }
 
-    const availablePassages = filteredPassages.length > 0 ? filteredPassages : passages;
-    if (availablePassages.length === 0) {
-      setToastMessage({ text: 'No passages available for the selected criteria.', type: 'warning' });
-      return;
-    }
-
     if (selectedStudents.size === 0) {
-      setToastMessage({ text: 'Please select at least one student before auto-distributing passage sets.', type: 'warning' });
+      setToastMessage({ text: 'Please select at least one student first.', type: 'warning' });
       return;
     }
-
-    const targetStudentList = students.filter((s) => selectedStudents.has(s.student_id || s.id));
 
     const updated = { ...selectedPassages };
+    let assignedCount = 0;
+    const gradeSetCounters = {};
 
-    targetStudentList.forEach((std) => {
+    students.forEach((std) => {
       const stdId = std.student_id || std.id;
-      const randomPassage = availablePassages[Math.floor(Math.random() * availablePassages.length)];
+      if (!selectedStudents.has(stdId)) return;
 
-      if (randomPassage) {
-        updated[stdId] = randomPassage.passage_id;
+      const rec = computeGstRecommendation(std, selectedLanguage);
+      if (rec.isExempt) return;
+
+      // Find all passages matching recommended target grade and selected language
+      const matchingPassages = passages.filter((p) => {
+        const pGrade = parseInt(String(p.grade_level || '').replace(/\D/g, ''), 10);
+        const pLang = (p.language || '').toLowerCase();
+        const langMatch = selectedLanguage === 'fil' ? (pLang === 'fil' || pLang === 'filipino') : (pLang === 'en' || pLang === 'english');
+        return pGrade === rec.targetGrade && langMatch;
+      });
+
+      let match = null;
+      if (matchingPassages.length > 0) {
+        // Cycle through available sets (Set A, B, C, D) per grade level so students get varied sets
+        const counter = gradeSetCounters[rec.targetGrade] || 0;
+        match = matchingPassages[counter % matchingPassages.length];
+        gradeSetCounters[rec.targetGrade] = counter + 1;
+      } else {
+        // Smart Fallback: Pick first available passage in that language if exact grade level is missing
+        const langPassages = passages.filter((p) => {
+          const pLang = (p.language || '').toLowerCase();
+          return selectedLanguage === 'fil' ? (pLang === 'fil' || pLang === 'filipino') : (pLang === 'en' || pLang === 'english');
+        });
+        if (langPassages.length > 0) {
+          match = langPassages[0];
+        }
+      }
+
+      if (match) {
+        updated[stdId] = match.passage_id;
+        assignedCount++;
       }
     });
 
     setSelectedPassages(updated);
-    setToastMessage({ text: `Auto-distributed passage sets to ${targetStudentList.length} student(s).`, type: 'success' });
+    setToastMessage({ text: `Auto-assigned GST Table 3 recommended starting passages for ${assignedCount} student(s).`, type: 'success' });
   };
 
   const handleSetChange = (studentId, passageId) => {
@@ -334,7 +460,7 @@ export default function PhilIriAssignPage() {
 
     const unassignedStudentId = Array.from(selectedStudents).find((sId) => !selectedPassages[sId]);
     if (unassignedStudentId) {
-      setToastMessage({ text: 'Please select a passage set for all selected students (or click "Auto-Distribute Sets").', type: 'warning' });
+      setToastMessage({ text: 'Please select a passage set for all selected students (or click "Auto-Assign GST Level").', type: 'warning' });
       return;
     }
 
@@ -413,8 +539,8 @@ export default function PhilIriAssignPage() {
                   className="w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink outline-none focus:border-brand-blue"
                 >
                   <option value="" disabled>-- Select Assessment Period --</option>
-                  <option value="pre_test">Pre-Test (GST / Screening)</option>
-                  <option value="post_test">Post-Test (Year-End Evaluation)</option>
+                  <option value="pre_test">Pre-Test (Panimulang Pagtatasa)</option>
+                  <option value="post_test">Post-Test (Pangwakas na Pagtatasa)</option>
                 </select>
               </div>
 
@@ -485,77 +611,6 @@ export default function PhilIriAssignPage() {
                 </div>
               </div>
 
-              {/* Passage Set Reference Overview */}
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <label className="block text-xs sm:text-sm font-semibold text-ink/80">
-                    Available Phil-IRI Passage Sets ({filteredPassages.length})
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {/* Static Teacher Grade Badge */}
-                    <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-xs font-bold text-brand-blue">
-                      {selectedGrade}
-                    </span>
-
-                    <Link
-                      to="/teacher/phil-iri-passages"
-                      className="flex items-center gap-1 text-[11px] font-bold text-brand-blue hover:underline"
-                    >
-                      <span>Passage Bank</span>
-                      <ArrowSquareOut size={12} />
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ink/20 hover:scrollbar-thumb-ink/40">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {filteredPassages.length > 0 ? (
-                      filteredPassages.map((p, idx) => {
-                        const isFil = (p.language || '').toLowerCase().includes('fil');
-                        const setBadgeStyle = SET_COLORS[p.passage_set] || 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20';
-                        return (
-                          <div
-                            key={p.passage_id || `psg-${idx}`}
-                            onClick={() => setPreviewPassage(p)}
-                            className="group flex flex-col gap-1 rounded-xl border border-ink/10 bg-white p-3 shadow-2xs transition-all hover:border-brand-blue hover:shadow-sm cursor-pointer"
-                            title="Click to preview full passage text"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${setBadgeStyle}`}>
-                                  {p.passage_set || 'Set'}
-                                </span>
-                                <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ${
-                                  isFil
-                                    ? 'bg-emerald-100/90 text-emerald-900 border border-emerald-200/80'
-                                    : 'bg-blue-100/90 text-blue-900 border border-blue-200/80'
-                                }`}>
-                                  {isFil ? 'FIL' : 'ENG'}
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-semibold text-ink/50">
-                                {p.grade_level || 'Grade 4'}
-                              </span>
-                            </div>
-                            <h4 className="truncate text-xs font-bold text-ink group-hover:text-brand-blue transition-colors mt-0.5">{p.title}</h4>
-                            <div className="flex items-center justify-between text-[10px] text-ink/60">
-                              <span>{p.word_count ? `${p.word_count} words` : 'Passage text'}</span>
-                              <span className="flex items-center gap-0.5 font-bold text-brand-blue opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Eye size={12} /> Read
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="col-span-full py-6 text-center text-xs font-medium text-ink/40">
-                        No passages found for selected grade/language.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Optional Custom Instructions / Teacher Notes */}
               <div>
                 <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-ink/80">
@@ -582,22 +637,25 @@ export default function PhilIriAssignPage() {
                 !isLeftPanelComplete ? 'opacity-70 bg-cream/60' : ''
               }`}>
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold text-ink">Assigned Students</h2>
                     <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-xs font-bold text-brand-blue">
                       {selectedStudents.size}/{students.length}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!isLeftPanelComplete}
-                    onClick={handleAutoDistributeSets}
-                    className="flex items-center gap-1.5 rounded-lg bg-amber-100/70 px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-200/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    title="Distribute Set A, B, C, D evenly across roster"
-                  >
-                    <MagicWand size={14} weight="bold" /> Auto-Distribute Sets
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!isLeftPanelComplete}
+                      onClick={handleAutoAssignGstRecommended}
+                      className="flex items-center gap-1.5 rounded-lg border border-ink/15 bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:bg-ink/5 hover:border-ink/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      title="Auto-assign starting passage based on DepEd Table 3 GST score"
+                    >
+                      <MagicWand size={14} className="text-ink/60" /> Auto-Assign GST Level
+                    </button>
+                  </div>
                 </div>
 
                 {/* Search and Select All */}
@@ -633,6 +691,8 @@ export default function PhilIriAssignPage() {
                   const level = std.level || 'Pending Evaluation';
                   const badgeStyle = LEVEL_TAG[level] || LEVEL_TAG['Pending Evaluation'];
 
+                  const gstRec = computeGstRecommendation(std, selectedLanguage);
+
                   const existingRec = checkAlreadyHasAssessment(std, assessmentType, period, selectedLanguage);
                   const isAlreadyAssigned = Boolean(existingRec);
 
@@ -658,7 +718,7 @@ export default function PhilIriAssignPage() {
                               : 'border-ink/10 bg-white/40 opacity-50 hover:opacity-80 cursor-pointer'
                       }`}
                     >
-                      {/* Left: Avatar + Name + Level Badge / Locked Badge */}
+                      {/* Left: Avatar + Name + Level Badge + GST Table 3 Rec Badge */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar name={name} src={std.profileImage || std.profile_image} size={32} />
 
@@ -671,30 +731,50 @@ export default function PhilIriAssignPage() {
                               </span>
                             )}
                           </div>
-                          <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
-                            {level}
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
+                              {level}
+                            </span>
+                            {selectedLanguage && (
+                              <span className="inline-block rounded-md bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 text-[9px] font-bold">
+                                {gstRec.label}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Right: Phil-IRI Set Dropdown + Checkbox */}
+                      {/* Right: Popover Passage Picker Button + Checkbox */}
                       <div className="flex items-center gap-2 shrink-0">
                         {isChecked && !isAlreadyAssigned && (
-                          <select
-                            value={selectedPassages[stdId] || ''}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => handleSetChange(stdId, e.target.value)}
-                            className="w-44 truncate rounded-lg border border-ink/15 bg-cream px-2.5 py-1 text-xs font-bold text-ink outline-none focus:border-brand-blue focus:bg-white cursor-pointer"
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPickingStudentForPassage(std);
+                            }}
+                            className="flex items-center gap-2 rounded-xl border border-ink/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink hover:border-brand-blue hover:shadow-2xs cursor-pointer transition-all"
                           >
-                            <option value="" disabled>-- Select Set --</option>
-                            {filteredPassages.length > 0 &&
-                              filteredPassages.map((p) => (
-                                <option key={p.passage_id} value={p.passage_id}>
-                                  {p.passage_set ? `${p.passage_set}: ${p.title}` : p.title}
-                                </option>
-                              ))}
-                          </select>
+                            {selectedPassages[stdId] ? (
+                              (() => {
+                                const selectedPsg = passages.find((p) => String(p.passage_id) === String(selectedPassages[stdId]));
+                                const setBadgeColor = SET_COLORS[selectedPsg?.passage_set] || 'bg-brand-blue/10 text-brand-blue';
+                                return (
+                                  <div className="flex items-center gap-1.5 truncate max-w-[160px]">
+                                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${setBadgeColor}`}>
+                                      {selectedPsg?.passage_set || 'Set'}
+                                    </span>
+                                    <span className="truncate text-xs font-bold text-ink">{selectedPsg?.title || 'Selected'}</span>
+                                  </div>
+                                );
+                              })()
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-ink/50 hover:text-brand-blue font-medium">
+                                <BookOpen size={14} className="text-ink/40" />
+                                <span>Choose Passage...</span>
+                              </div>
+                            )}
+                          </button>
                         )}
 
                         {/* Selection Checkbox indicator */}
@@ -740,6 +820,99 @@ export default function PhilIriAssignPage() {
         );
       })()}
       </form>
+
+      {/* MODAL OPTION 3: Passage Card Picker Modal */}
+      {pickingStudentForPassage && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/40 backdrop-blur-xs p-4 animate-in fade-in duration-150 overscroll-none"
+          onClick={() => setPickingStudentForPassage(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-ink/10 bg-cream p-6 shadow-2xl animate-in fade-in max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-ink">
+                  Select Passage for <span className="text-brand-blue">{pickingStudentForPassage.name || 'Learner'}</span>
+                </h3>
+                <p className="text-xs text-ink/60">
+                  GST Recommended Level: <strong className="text-ink">{computeGstRecommendation(pickingStudentForPassage, selectedLanguage).label}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickingStudentForPassage(null)}
+                className="rounded-full p-1 text-ink/40 hover:bg-ink/10 hover:text-ink cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Passage Cards Grid */}
+            <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4">
+              {Object.entries(
+                filteredPassages.reduce((acc, p) => {
+                  const gr = p.grade_level || 'Other Grades';
+                  if (!acc[gr]) acc[gr] = [];
+                  acc[gr].push(p);
+                  return acc;
+                }, {})
+              )
+                .sort(([aGrade], [bGrade]) => {
+                  const numA = parseInt(String(aGrade).replace(/\D/g, ''), 10) || 99;
+                  const numB = parseInt(String(bGrade).replace(/\D/g, ''), 10) || 99;
+                  return numA - numB;
+                })
+                .map(([gradeLevel, psgs]) => {
+                  const sortedPsgs = [...psgs].sort((a, b) =>
+                    (a.passage_set || '').localeCompare(b.passage_set || '')
+                  );
+                  return (
+                    <div key={gradeLevel} className="space-y-2">
+                      <span className="text-xs font-bold text-ink/50 uppercase tracking-wider block border-b border-ink/10 pb-1">
+                        {gradeLevel}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {sortedPsgs.map((p) => {
+                          const stdId = pickingStudentForPassage.student_id || pickingStudentForPassage.id;
+                          const isSelectedPassage = String(selectedPassages[stdId]) === String(p.passage_id);
+                          const setStyle = SET_COLORS[p.passage_set] || 'bg-brand-blue/10 text-brand-blue';
+                          return (
+                            <div
+                              key={p.passage_id}
+                              onClick={() => {
+                                handleSetChange(stdId, p.passage_id);
+                                setPickingStudentForPassage(null);
+                              }}
+                              className={`flex flex-col justify-between rounded-xl border p-3 cursor-pointer transition-all ${
+                                isSelectedPassage
+                                  ? 'border-brand-blue bg-blue-50/50 shadow-xs ring-1 ring-brand-blue'
+                                  : 'border-ink/10 bg-white hover:border-ink/30 hover:shadow-xs'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${setStyle}`}>
+                                  {p.passage_set || 'Set'}
+                                </span>
+                                <span className="text-[10px] font-medium text-ink/50">
+                                  {p.word_count ? `${p.word_count} words` : 'Passage'}
+                                </span>
+                              </div>
+                              <h4 className="mt-2 text-xs font-bold text-ink truncate">{p.title}</h4>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Passage Text Preview Modal */}
       {previewPassage && createPortal(

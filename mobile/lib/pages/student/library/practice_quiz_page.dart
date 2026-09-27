@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/services/api_service.dart';
@@ -64,15 +65,92 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
     return false;
   }
 
+  late final List<Map<String, dynamic>> _questions;
+
   @override
   void initState() {
     super.initState();
     _startTime = DateTime.now();
-    _selectedAnswers = List<int?>.filled(widget.questions.length, null);
+
+    _questions = widget.questions.map((q) {
+      final int? parsedCIndex = int.tryParse(
+        q['correctAnswerIndex']?.toString() ??
+        q['correctIndex']?.toString() ??
+        q['correctChoiceIndex']?.toString() ?? ''
+      );
+
+      String? correctOptText;
+      final List<String> rawOptionsList = [];
+
+      if (q['choices'] is List) {
+        for (var choice in q['choices']) {
+          if (choice is Map) {
+            final txt = (choice['choice_text'] ?? choice['text'] ?? '').toString().trim();
+            if (txt.isNotEmpty) {
+              rawOptionsList.add(txt);
+              if (choice['is_correct'] == true || choice['isCorrect'] == true) {
+                correctOptText = txt;
+              }
+            }
+          } else if (choice != null) {
+            final txt = choice.toString().trim();
+            if (txt.isNotEmpty) rawOptionsList.add(txt);
+          }
+        }
+      }
+
+      if (rawOptionsList.isEmpty && q['options'] is List) {
+        for (var opt in q['options']) {
+          if (opt != null) {
+            final txt = opt.toString().trim();
+            if (txt.isNotEmpty) rawOptionsList.add(txt);
+          }
+        }
+      }
+
+      if ((correctOptText == null || correctOptText.isEmpty) && parsedCIndex != null && parsedCIndex >= 0) {
+        final rawOpts = q['options'] ?? q['choices'];
+        if (rawOpts is List && parsedCIndex < rawOpts.length) {
+          final item = rawOpts[parsedCIndex];
+          if (item is Map) {
+            correctOptText = (item['choice_text'] ?? item['text'] ?? '').toString().trim();
+          } else if (item != null) {
+            correctOptText = item.toString().trim();
+          }
+        }
+      }
+
+      if (correctOptText == null || correctOptText.isEmpty) {
+        final explicitText = (q['correctAnswer'] ?? q['correctText'] ?? q['correctChoice'] ?? '').toString().trim();
+        if (explicitText.isNotEmpty) {
+          correctOptText = explicitText;
+        }
+      }
+
+      if (rawOptionsList.length > 1) {
+        rawOptionsList.shuffle(Random());
+      }
+
+      int finalCorrectIndex = 0;
+      if (correctOptText != null && correctOptText.isNotEmpty && rawOptionsList.contains(correctOptText)) {
+        finalCorrectIndex = rawOptionsList.indexOf(correctOptText);
+      } else if (parsedCIndex != null && parsedCIndex >= 0 && parsedCIndex < rawOptionsList.length) {
+        finalCorrectIndex = parsedCIndex;
+      }
+
+      return {
+        ...q,
+        'options': rawOptionsList,
+        'correctAnswerIndex': finalCorrectIndex,
+        'correctAnswerText': correctOptText ?? '',
+      };
+    }).toList();
+
+    _selectedAnswers = List<int?>.filled(_questions.length, null);
 
     if (widget.initialQuestionIndex != null &&
         widget.initialQuestionIndex! >= 0 &&
-        widget.initialQuestionIndex! < widget.questions.length) {
+        widget.initialQuestionIndex! < _questions.length) {
       _currentQuestionIndex = widget.initialQuestionIndex!;
     }
     if (widget.initialSelectedAnswers != null) {
@@ -135,15 +213,23 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
 
   // ── Check if current answer is wrong ──────────────────────────────────────
   bool _isCurrentAnswerWrong() {
+    final q = _questions[_currentQuestionIndex];
     final selected = _selectedAnswers[_currentQuestionIndex];
     if (selected == null) return false;
-    final correct = widget.questions[_currentQuestionIndex]['correctAnswerIndex'] as int?;
-    return selected != correct;
+    final options = (q['options'] as List?) ?? [];
+    final selText = (selected >= 0 && selected < options.length) ? options[selected].toString().trim() : '';
+    final targetCorrectIndex = q['correctAnswerIndex'] ?? q['correctIndex'];
+    final targetCorrectText = (q['correctAnswerText'] ?? q['correctText'] ?? '').toString().trim();
+
+    if (targetCorrectText.isNotEmpty && selText.isNotEmpty) {
+      return selText.toLowerCase() != targetCorrectText.toLowerCase();
+    }
+    return selected != targetCorrectIndex;
   }
 
   // ── Fetch remedial question from GROQ AI backend ───────────────────────────
   Future<void> _fetchRemedialQuestion() async {
-    final currentQuestion = widget.questions[_currentQuestionIndex];
+    final currentQuestion = _questions[_currentQuestionIndex];
     final selectedOptionIndex = _selectedAnswers[_currentQuestionIndex]!;
     final correctOptionIndex = (currentQuestion['correctAnswerIndex'] as int?) ?? 0;
     final rawOptions = currentQuestion['options'] as List?;
@@ -680,12 +766,26 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
     int correctCount = 0;
     final List<Map<String, dynamic>> detailedAnswers = [];
 
-    for (int i = 0; i < widget.questions.length; i++) {
-      final q = widget.questions[i];
+    for (int i = 0; i < _questions.length; i++) {
+      final q = _questions[i];
       final qText = (q['questionText'] ?? q['question'] ?? '').toString();
       final selectedOpt = _selectedAnswers[i];
-      final correctOpt = (q['correctAnswerIndex'] as int?) ?? 0;
-      final isCorrect = selectedOpt == correctOpt;
+      final options = (q['options'] as List?) ?? [];
+      final selText = (selectedOpt != null && selectedOpt >= 0 && selectedOpt < options.length)
+          ? options[selectedOpt].toString().trim()
+          : '';
+
+      final targetCorrectIndex = q['correctAnswerIndex'] ?? q['correctIndex'];
+      final targetCorrectText = (q['correctAnswerText'] ?? q['correctText'] ?? '').toString().trim();
+
+      bool isCorrect = false;
+      if (selectedOpt != null && selectedOpt >= 0) {
+        if (targetCorrectText.isNotEmpty && selText.isNotEmpty) {
+          isCorrect = (selText.toLowerCase() == targetCorrectText.toLowerCase());
+        } else if (targetCorrectIndex != null) {
+          isCorrect = (selectedOpt == targetCorrectIndex);
+        }
+      }
 
       if (isCorrect) {
         correctCount++;
@@ -710,7 +810,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
         'question_index': i,
         'question_text': qText,
         'selected_option_index': selectedOpt,
-        'correct_option_index': correctOpt,
+        'correct_option_index': targetCorrectIndex ?? 0,
         'is_correct': isCorrect,
         'remedial_attempt': remedialObj,
       });
@@ -845,7 +945,7 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
     const primaryBlue = Color(0xFF1B64D8);
     const softCreamBg = Color(0xFFFCFAF7);
 
-    final currentQuestion = widget.questions[_currentQuestionIndex];
+    final currentQuestion = _questions[_currentQuestionIndex];
     final selectedAnswerIndex = _selectedAnswers[_currentQuestionIndex];
 
     return Scaffold(

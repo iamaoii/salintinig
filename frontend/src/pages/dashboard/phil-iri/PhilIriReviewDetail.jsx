@@ -302,22 +302,12 @@ function getDraftKey(id) {
 }
 
 function saveDraftMiscues(id, data) {
-  const key = getDraftKey(id);
-  if (key) {
-    try {
-      localStorage.setItem(key, JSON.stringify(data));
-    } catch (_) {}
-  }
+  // No-op: Do not auto-save unverified edits to localStorage so that leaving/reloading without clicking Save
+  // will strictly fetch and display the official database version.
 }
 
 function loadDraftMiscues(id) {
-  const key = getDraftKey(id);
-  if (key) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) return parseMiscues(raw);
-    } catch (_) {}
-  }
+  // No-op: Always load official database version
   return null;
 }
 
@@ -342,8 +332,6 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   const attemptId = reviewData?.attemptId || reviewData?.assessmentId;
 
   const [miscues, setMiscues] = useState(() => {
-    const draft = loadDraftMiscues(attemptId);
-    if (draft) return draft;
     if (reviewData?.verifiedMiscues !== undefined && reviewData?.verifiedMiscues !== null) {
       return parseMiscues(reviewData.verifiedMiscues);
     }
@@ -362,7 +350,7 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   });
 
   // Comprehension state (Image 2, 3, Table 6)
-  const defaultTotalQuestions = Number(reviewData?.totalQuestions) || 7;
+  const defaultTotalQuestions = Number(reviewData?.totalQuestions || reviewData?.comprehension_total_items) || (reviewData?.answers && reviewData.answers.length > 0 ? reviewData.answers.length : 5);
   const initialCorrect = reviewData?.comprehensionScore != null
     ? Math.min(defaultTotalQuestions, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 57) / 100) * defaultTotalQuestions)))
     : 4;
@@ -373,11 +361,14 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
   const audioUrl = reviewData?.audioUrl || reviewData?.audio_recording_url || reviewData?.audio || null;
 
   useEffect(() => {
-    const draft = loadDraftMiscues(attemptId);
-    if (draft) {
-      setMiscues(draft);
-      return;
+    const totalQ = Number(reviewData?.totalQuestions || reviewData?.comprehension_total_items) || (reviewData?.answers && reviewData.answers.length > 0 ? reviewData.answers.length : 5);
+    setCompTotal(totalQ);
+
+    if (reviewData?.comprehensionScore != null) {
+      const calcCorr = Math.min(totalQ, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 57) / 100) * totalQ)));
+      setCompCorrect(calcCorr);
     }
+
     if (reviewData?.verifiedMiscues !== undefined && reviewData?.verifiedMiscues !== null) {
       setMiscues(parseMiscues(reviewData.verifiedMiscues));
       return;
@@ -732,7 +723,29 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
       if (data.success) {
         setIsSuccessSaved(true);
         saveDraftMiscues(attemptId, miscues);
-        setToastMsg({ text: 'Phil-IRI oral reading result saved & verified successfully!', type: 'success' });
+
+        if (data.adaptiveProgression) {
+          const prog = data.adaptiveProgression;
+          if (prog.nextAction === 'complete') {
+            setToastMsg({
+              text: `Verified! Adaptive Level-Finding Complete: ${prog.finalInstructionalLevel || prog.passageGradeLevel} confirmed as Instructional Level!`,
+              type: 'success',
+            });
+          } else if (prog.assignedNextPassage) {
+            setToastMsg({
+              text: `Verified as ${data.profileLabel}! Automatically assigned next level: ${prog.assignedNextPassage.title} (${prog.assignedNextPassage.gradeLevel}).`,
+              type: 'success',
+            });
+          } else {
+            setToastMsg({
+              text: `Verified as ${data.profileLabel}! Adaptive progression: ${prog.nextAction} to ${prog.nextGradeLevel}.`,
+              type: 'success',
+            });
+          }
+        } else {
+          setToastMsg({ text: 'Phil-IRI oral reading result saved & verified successfully!', type: 'success' });
+        }
+
         if (onVerified) onVerified();
       } else {
         setToastMsg({ text: data.error || 'Failed to save verification result.', type: 'error' });

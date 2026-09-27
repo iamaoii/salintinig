@@ -200,6 +200,61 @@ class _OralReadingAssessmentCongratulationsPageState
                                     ),
                                   ),
                                   const SizedBox(height: 20),
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                                    padding: const EdgeInsets.all(18),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.08),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF0FDF4),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+                                          ),
+                                          child: const Icon(
+                                            Icons.assignment_turned_in_rounded,
+                                            color: Color(0xFF16A34A),
+                                            size: 32,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Naipasa Na ang Pagtatasa!',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFF1E293B),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Ang iyong audio recording at mga sagot ay naitala na at susuriin ng iyong guro.',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            color: const Color(0xFF64748B),
+                                            height: 1.4,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
                                 ],
                               ),
                             ),

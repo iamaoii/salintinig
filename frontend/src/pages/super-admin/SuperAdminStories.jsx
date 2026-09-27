@@ -272,7 +272,33 @@ export default function SuperAdminStories() {
 
     try {
       setSavingStory(true);
-      const token = getToken();
+      const sanitizedQuestions = (formData.quizQuestions || [])
+        .filter((q) => q && (q.question || q.questionText || '').trim().length > 0)
+        .map((q) => {
+          const rawOpts = (q.options || []).map((opt) => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+          const correctIdx = Number(q.correctAnswer ?? q.correctAnswerIndex ?? 0);
+          const correctText = (!isNaN(correctIdx) && correctIdx >= 0 && correctIdx < rawOpts.length)
+            ? rawOpts[correctIdx]
+            : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+          const validOpts = rawOpts.filter((opt) => opt.length > 0);
+          let finalCorrectIdx = 0;
+          if (correctText) {
+            const found = validOpts.findIndex((opt) => opt.toLowerCase() === correctText.toLowerCase());
+            finalCorrectIdx = found >= 0 ? found : 0;
+          }
+
+          const qText = (q.question || q.questionText || '').trim();
+          return {
+            ...q,
+            question: qText,
+            questionText: qText,
+            options: validOpts.length > 0 ? validOpts : ['Oo', 'Hindi'],
+            correctAnswer: finalCorrectIdx,
+            correctAnswerIndex: finalCorrectIdx,
+          };
+        });
+
       const payload = {
         title: formData.title.trim(),
         author: formData.author.trim() || 'Unknown',
@@ -281,7 +307,7 @@ export default function SuperAdminStories() {
         language: formData.language,
         category: formData.category,
         difficulty_level: formData.difficultyLevel,
-        quiz_questions: formData.quizQuestions || [],
+        quiz_questions: sanitizedQuestions,
       };
 
       const endpoint = editingStoryId

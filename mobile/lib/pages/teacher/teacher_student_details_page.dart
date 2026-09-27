@@ -65,6 +65,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
     final targetLrn = (_resolvedData?['lrn'] ?? widget.lrn).toString().replaceAll(' ', '').trim();
     if (targetLrn.isEmpty) return;
 
+    if (mounted) setState(() => _isLoadingApi = true);
     try {
       final res = await ApiService.get('/api/teacher/students/$targetLrn');
       if (res.success && res.data != null && res.data['student'] != null) {
@@ -76,6 +77,8 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
       }
     } catch (e) {
       debugPrint('[TeacherStudentDetailsPage] API fetch error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingApi = false);
     }
   }
 

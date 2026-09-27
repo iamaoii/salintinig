@@ -11,4 +11,24 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    target: 'esnext',
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/exceljs') || id.includes('node_modules/xlsx')) {
+            return 'excel';
+          }
+          if (id.includes('node_modules/@phosphor-icons') || id.includes('node_modules/@iconify')) {
+            return 'icons';
+          }
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router')) {
+            return 'vendor';
+          }
+        },
+      },
+    },
+  },
 });

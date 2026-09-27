@@ -228,6 +228,7 @@ export default function App() {
         {/* Class Activities Sub-System */}
         <Route path="class-activities" element={<Navigate to="phil-iri" replace />} />
         <Route path="class-activities/phil-iri" element={<ClassActivities />} />
+        <Route path="class-activities/adaptive" element={<ClassActivities />} />
         <Route path="class-activities/practice" element={<ClassActivities />} />
 
         {/* Phil-IRI Assessment Routes */}

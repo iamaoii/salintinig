@@ -203,18 +203,54 @@ CREATE TABLE IF NOT EXISTS phil_iri_question_choices (
 -- -----------------------------------------------------------------------------
 -- 6. PHIL-IRI ASSESSMENTS & RESULTS (Phil-IRI Assessment Only)
 -- -----------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
+-- 6A. PHIL-IRI ADAPTIVE SESSIONS (Phase 2 — Instructional Level Search)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS phil_iri_adaptive_sessions (
+    session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    language VARCHAR(20) NOT NULL DEFAULT 'fil',           -- 'fil' or 'en'
+    assessment_type VARCHAR(50) NOT NULL,                  -- 'oral', 'listening', 'silent'
+    baseline_grade_level VARCHAR(50) NOT NULL,             -- Student's enrolled grade level at start of Phase 2
+    baseline_profile_level VARCHAR(50),                    -- Phase 1 result that triggered Phase 2 ('Independent' or 'Frustration')
+    current_grade_level VARCHAR(50) NOT NULL,              -- Grade level of the most recent adaptive assessment
+    direction VARCHAR(20),                                 -- 'stepping_up' or 'stepping_down'
+    status VARCHAR(50) NOT NULL DEFAULT 'in_progress',     -- 'in_progress' or 'completed'
+    final_instructional_level VARCHAR(50),                 -- The identified instructional grade level (set on completion)
+    final_profile_level VARCHAR(50),                       -- Final profile at the identified level ('Instructional', 'Frustration' at boundary)
+    step_count INT DEFAULT 0,                              -- Number of adaptive steps taken
+    assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
+    school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE SET NULL,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Only one active (in_progress) adaptive session per student per language/type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_adaptive_session_active
+    ON phil_iri_adaptive_sessions(student_id, language, assessment_type)
+    WHERE status = 'in_progress';
+
+CREATE INDEX IF NOT EXISTS idx_adaptive_sessions_student ON phil_iri_adaptive_sessions(student_id);
+
+-- -----------------------------------------------------------------------------
+-- 6. PHIL-IRI ASSESSMENTS & RESULTS (Phil-IRI Assessment Only)
+-- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assessments (
     assessment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(student_id) ON DELETE CASCADE,
     passage_id UUID REFERENCES phil_iri_passages(passage_id) ON DELETE SET NULL,
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
-    assessment_type VARCHAR(50) NOT NULL, -- 'oral', 'silent', or 'listening'
-    assessment_period VARCHAR(50) NOT NULL, -- 'pre_test' or 'post_test'
+    adaptive_session_id UUID REFERENCES phil_iri_adaptive_sessions(session_id) ON DELETE SET NULL, -- NULL = Phase 1 screening; set = Phase 2 adaptive step
+    adaptive_step_number INT DEFAULT NULL,                 -- Step number within an adaptive session (1, 2, 3 ...)
+    assessment_type VARCHAR(50) NOT NULL,                  -- 'oral', 'silent', or 'listening'
+    assessment_period VARCHAR(50) NOT NULL,                -- 'pre_test' or 'post_test'
     date_assigned TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP WITH TIME ZONE,
     instructions TEXT,
-    status VARCHAR(50) DEFAULT 'open', -- 'open', 'in_progress', 'completed', or 'closed'
-    reading_level_result VARCHAR(50), -- 'Independent', 'Instructional', 'Frustration'
+    status VARCHAR(50) DEFAULT 'open',                     -- 'open', 'in_progress', 'completed', or 'closed'
+    reading_level_result VARCHAR(50),                      -- 'Independent', 'Instructional', 'Frustration'
     remarks TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -543,6 +579,7 @@ CREATE INDEX IF NOT EXISTS idx_classes_advisor ON classes(advisor_teacher_id);
 CREATE INDEX IF NOT EXISTS idx_classes_grade_section ON classes(grade_level, section_name);
 CREATE INDEX IF NOT EXISTS idx_student_grade_history_class ON student_grade_history(class_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id);
+CREATE INDEX IF NOT EXISTS idx_assessments_adaptive_session ON assessments(adaptive_session_id) WHERE adaptive_session_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_student_reading_profiles_student ON student_reading_profiles(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_student ON story_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_story_attempts_material ON story_attempts(material_id);
