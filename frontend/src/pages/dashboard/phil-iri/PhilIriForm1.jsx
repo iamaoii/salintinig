@@ -284,8 +284,21 @@ export default function PhilIriForm1({ language }) {
       row.totalNum = tot;
       row.below14 = tot !== '' && tot < 14 ? '/' : '';
       row.above14 = tot !== '' && tot >= 14 ? '/' : '';
-      const rawGrade = String(dbClassInfo.grade || '4').replace(/grade/gi, '').trim();
-      row.startingPoint = tot !== '' && tot < 14 ? `Grade ${rawGrade || '4'} Oral` : (tot !== '' ? 'Exempted' : '');
+
+      const currentGradeNum = parseInt(String(dbClassInfo.grade || '4').replace(/\D/g, ''), 10) || 4;
+
+      if (tot === '' || tot === null) {
+        row.startingPoint = '';
+      } else if (tot >= 14) {
+        row.startingPoint = isTagalog ? 'Exempted (Discontinue)' : 'Exempted (Discontinue)';
+      } else if (tot >= 8 && tot <= 13) {
+        const targetGrade = Math.max(1, currentGradeNum - 2);
+        row.startingPoint = isTagalog ? `Baitang ${targetGrade} na Teksto` : `Grade ${targetGrade} Passage`;
+      } else {
+        // tot is 0 to 7
+        const targetGrade = Math.max(1, currentGradeNum - 3);
+        row.startingPoint = isTagalog ? `Baitang ${targetGrade} na Teksto` : `Grade ${targetGrade} Passage`;
+      }
 
       next[index] = row;
       return next;

@@ -205,10 +205,6 @@ async function getSchoolById(req, res) {
  * Creates school + admin user in users table only.
  */
 async function createSchool(req, res) {
-  const client = await db.pool.connect().catch(async () => {
-    return null;
-  });
-
   try {
     const {
       school_id, schoolId,
@@ -304,8 +300,6 @@ async function createSchool(req, res) {
   } catch (err) {
     console.error('createSchool error:', err.message);
     return res.status(500).json({ success: false, error: 'Failed to create school: ' + err.message });
-  } finally {
-    if (client) client.release?.();
   }
 }
 
@@ -580,9 +574,10 @@ async function getPassages(req, res) {
 
     const questionsByPassage = {};
     for (const q of allQuestions) {
-      const cRows = choicesByQuestion[q.question_id] || [];
-      const options = cRows.map((c) => c.choice_text);
-      const correctIndex = cRows.findIndex((c) => c.is_correct);
+      const cRows = (choicesByQuestion[q.question_id] || [])
+        .filter((c) => c && c.choice_text && String(c.choice_text).trim().length > 0);
+      const options = cRows.map((c) => c.choice_text.trim());
+      const correctIndex = cRows.findIndex((c) => c.is_correct === true);
 
       const formattedQuestion = {
         id: q.question_id,
@@ -659,11 +654,23 @@ async function createPassage(req, res) {
 
         const qId = qRes.rows[0].question_id;
         if (Array.isArray(q.options)) {
-          for (let i = 0; i < q.options.length; i++) {
+          const rawOptions = q.options.map(opt => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+          const targetCorrectIdx = Number(q.correctAnswer);
+          const targetCorrectText = (!isNaN(targetCorrectIdx) && targetCorrectIdx >= 0 && targetCorrectIdx < rawOptions.length)
+            ? rawOptions[targetCorrectIdx]
+            : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+          const validOptions = rawOptions.filter(opt => opt.length > 0);
+          for (let i = 0; i < validOptions.length; i++) {
+            const optText = validOptions[i];
+            const isCorrect = targetCorrectText
+              ? optText.toLowerCase() === targetCorrectText.toLowerCase()
+              : i === 0;
+
             await db.query(`
               INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
               VALUES ($1, $2, $3)
-            `, [qId, q.options[i], i === (Number(q.correctAnswer) || 0)]);
+            `, [qId, optText, isCorrect]);
           }
         }
       }
@@ -715,11 +722,23 @@ async function updatePassage(req, res) {
 
         const qId = qRes.rows[0].question_id;
         if (Array.isArray(q.options)) {
-          for (let i = 0; i < q.options.length; i++) {
+          const rawOptions = q.options.map(opt => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+          const targetCorrectIdx = Number(q.correctAnswer);
+          const targetCorrectText = (!isNaN(targetCorrectIdx) && targetCorrectIdx >= 0 && targetCorrectIdx < rawOptions.length)
+            ? rawOptions[targetCorrectIdx]
+            : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+          const validOptions = rawOptions.filter(opt => opt.length > 0);
+          for (let i = 0; i < validOptions.length; i++) {
+            const optText = validOptions[i];
+            const isCorrect = targetCorrectText
+              ? optText.toLowerCase() === targetCorrectText.toLowerCase()
+              : i === 0;
+
             await db.query(`
               INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
               VALUES ($1, $2, $3)
-            `, [qId, q.options[i], i === (Number(q.correctAnswer) || 0)]);
+            `, [qId, optText, isCorrect]);
           }
         }
       }
@@ -859,13 +878,40 @@ async function getStories(req, res) {
 }
 
 /**
- * Helper to compute estimated reading time in minutes based on text word count.
- * Average reading speed: ~150 words per minute.
+ * Helper to sanitize story quiz questions: trims text, strips blank options,
+ * and maintains accurate correctAnswer index.
  */
-function calculateReadingTime(text) {
-  if (!text) return 1;
-  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(wordCount / 150));
+function sanitizeStoryQuizQuestions(questions) {
+  if (!Array.isArray(questions)) return [];
+  return questions
+    .filter((q) => q && (q.questionText || q.question || '').toString().trim().length > 0)
+    .map((q) => {
+      const qText = (q.questionText || q.question || '').toString().trim();
+      const rawOptions = Array.isArray(q.options)
+        ? q.options.map((opt) => (opt !== null && opt !== undefined) ? String(opt).trim() : '')
+        : [];
+      
+      const targetCorrectIdx = Number(q.correctAnswer ?? q.correctAnswerIndex ?? 0);
+      const targetCorrectText = (!isNaN(targetCorrectIdx) && targetCorrectIdx >= 0 && targetCorrectIdx < rawOptions.length)
+        ? rawOptions[targetCorrectIdx]
+        : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+      const validOptions = rawOptions.filter((opt) => opt.length > 0);
+      let finalCorrectIndex = 0;
+      if (targetCorrectText) {
+        const foundIdx = validOptions.findIndex((opt) => opt.toLowerCase() === targetCorrectText.toLowerCase());
+        finalCorrectIndex = foundIdx >= 0 ? foundIdx : 0;
+      }
+
+      return {
+        ...q,
+        question: qText,
+        questionText: qText,
+        options: validOptions.length > 0 ? validOptions : ['Oo', 'Hindi'],
+        correctAnswer: finalCorrectIndex,
+        correctAnswerIndex: finalCorrectIndex,
+      };
+    });
 }
 
 /**
@@ -881,6 +927,7 @@ async function createStory(req, res) {
     if (!title) return res.status(400).json({ success: false, error: 'Title is required.' });
 
     const computedReadingTime = calculateReadingTime(content_text);
+    const sanitizedQuiz = sanitizeStoryQuizQuestions(quiz_questions);
 
     const { rows } = await db.query(`
       INSERT INTO reading_materials
@@ -897,7 +944,7 @@ async function createStory(req, res) {
       category || null,
       difficulty_level || null,
       reading_time_minutes ? parseInt(reading_time_minutes) : computedReadingTime,
-      quiz_questions ? JSON.stringify(quiz_questions) : null,
+      JSON.stringify(sanitizedQuiz),
       (status || 'active').toLowerCase(),
     ]);
 
@@ -921,6 +968,7 @@ async function updateStory(req, res) {
 
     const computedReadingTime = content_text ? calculateReadingTime(content_text) : null;
     const finalReadingTime = reading_time_minutes ? parseInt(reading_time_minutes) : computedReadingTime;
+    const sanitizedQuiz = quiz_questions !== undefined ? JSON.stringify(sanitizeStoryQuizQuestions(quiz_questions)) : null;
 
     await db.query(`
       UPDATE reading_materials
@@ -939,7 +987,7 @@ async function updateStory(req, res) {
       title, author, description, content_text, language, category,
       difficulty_level,
       finalReadingTime,
-      quiz_questions ? JSON.stringify(quiz_questions) : null,
+      sanitizedQuiz,
       id,
     ]);
 

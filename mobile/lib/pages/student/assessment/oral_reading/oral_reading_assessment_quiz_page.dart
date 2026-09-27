@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_congratulations_page.dart';
@@ -94,20 +95,77 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
       for (final q in widget.dynamicQuestions!) {
         if (q == null) continue;
-        final cIndex = q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0;
-        final rawOpts = q['options'];
-        List<String> parsedOptions = [];
-        if (rawOpts is List) {
-          parsedOptions = rawOpts
-              .map((e) => e?.toString() ?? '')
-              .where((s) => s.isNotEmpty)
-              .toList();
+        final int? parsedCIndex = int.tryParse(
+          q['correctAnswerIndex']?.toString() ??
+          q['correctIndex']?.toString() ??
+          q['correctChoiceIndex']?.toString() ?? ''
+        );
+
+        String? correctOptText;
+        final List<String> rawOptionsList = [];
+
+        if (q['choices'] is List) {
+          for (var choice in q['choices']) {
+            if (choice is Map) {
+              final txt = (choice['choice_text'] ?? choice['text'] ?? '').toString().trim();
+              if (txt.isNotEmpty) {
+                rawOptionsList.add(txt);
+                if (choice['is_correct'] == true || choice['isCorrect'] == true) {
+                  correctOptText = txt;
+                }
+              }
+            } else if (choice != null) {
+              final txt = choice.toString().trim();
+              if (txt.isNotEmpty) rawOptionsList.add(txt);
+            }
+          }
         }
+
+        if (rawOptionsList.isEmpty && q['options'] is List) {
+          for (var opt in q['options']) {
+            if (opt != null) {
+              final txt = opt.toString().trim();
+              if (txt.isNotEmpty) rawOptionsList.add(txt);
+            }
+          }
+        }
+
+        if ((correctOptText == null || correctOptText.isEmpty) && parsedCIndex != null && parsedCIndex >= 0) {
+          final rawOpts = q['options'] ?? q['choices'];
+          if (rawOpts is List && parsedCIndex < rawOpts.length) {
+            final item = rawOpts[parsedCIndex];
+            if (item is Map) {
+              correctOptText = (item['choice_text'] ?? item['text'] ?? '').toString().trim();
+            } else if (item != null) {
+              correctOptText = item.toString().trim();
+            }
+          }
+        }
+
+        if (correctOptText == null || correctOptText.isEmpty) {
+          final explicitText = (q['correctAnswer'] ?? q['correctText'] ?? q['correctChoice'] ?? '').toString().trim();
+          if (explicitText.isNotEmpty) {
+            correctOptText = explicitText;
+          }
+        }
+
+        if (rawOptionsList.length > 1) {
+          rawOptionsList.shuffle(Random());
+        }
+
+        int finalCorrectIndex = 0;
+        if (correctOptText != null && correctOptText.isNotEmpty && rawOptionsList.contains(correctOptText)) {
+          finalCorrectIndex = rawOptionsList.indexOf(correctOptText);
+        } else if (parsedCIndex != null && parsedCIndex >= 0 && parsedCIndex < rawOptionsList.length) {
+          finalCorrectIndex = parsedCIndex;
+        }
+
         parsedList.add({
           'id': q['question_id'] ?? q['questionId'] ?? q['id'],
-          'questionText': (q['questionText'] ?? q['question'] ?? '').toString(),
-          'options': parsedOptions,
-          'correctIndex': cIndex is int ? cIndex : (int.tryParse(cIndex.toString()) ?? 0),
+          'questionText': (q['questionText'] ?? q['question'] ?? q['question_text'] ?? '').toString(),
+          'options': rawOptionsList,
+          'correctIndex': finalCorrectIndex,
+          'correctAnswerText': correctOptText ?? '',
         });
       }
     }
@@ -200,31 +258,39 @@ class _OralReadingAssessmentQuizPageState extends State<OralReadingAssessmentQui
       return;
     }
 
-    // Calculate score
+    // Calculate score & payload using text-based comparison with index fallback
     int correctCount = 0;
-    for (int i = 0; i < _questions.length; i++) {
-      final targetCorrect = _questions[i]['correctIndex'] ?? 0;
-      if (_selectedAnswers[i] == targetCorrect) {
-        correctCount++;
-      }
-    }
-
-    // Prepare answers payload
     final List<Map<String, dynamic>> answersPayload = [];
     for (int i = 0; i < _questions.length; i++) {
       final q = _questions[i];
       final selIdx = _selectedAnswers[i];
       final options = (q['options'] as List?) ?? [];
       final selText = (selIdx != null && selIdx >= 0 && selIdx < options.length)
-          ? options[selIdx].toString()
+          ? options[selIdx].toString().trim()
           : '';
-      final targetCorrect = q['correctIndex'] ?? 0;
+
+      final targetCorrectIndex = q['correctIndex'] ?? q['correctAnswerIndex'];
+      final targetCorrectText = (q['correctAnswerText'] ?? q['correctText'] ?? '').toString().trim();
+
+      bool isCorrect = false;
+      if (selIdx != null && selIdx >= 0) {
+        if (targetCorrectText.isNotEmpty && selText.isNotEmpty) {
+          isCorrect = (selText.toLowerCase() == targetCorrectText.toLowerCase());
+        } else if (targetCorrectIndex != null) {
+          isCorrect = (selIdx == targetCorrectIndex);
+        }
+      }
+
+      if (isCorrect) {
+        correctCount++;
+      }
+
       answersPayload.add({
         'questionId': q['id'],
         'questionIndex': i,
         'selectedChoiceIndex': selIdx,
         'selectedAnswerText': selText,
-        'isCorrect': selIdx == targetCorrect,
+        'isCorrect': isCorrect,
       });
     }
 

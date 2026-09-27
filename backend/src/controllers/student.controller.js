@@ -1342,7 +1342,7 @@ async function resolvePassageUuid(rawPassageId) {
 // ---------------------------------------------------------------------------
 async function submitPhilIriAssessment(req, res) {
   try {
-    const { studentId, lrn, assessmentType, score, maxScore, wordAccuracy, readingTimeSeconds, wordsRead } = req.body;
+    const { studentId, lrn, assessmentType, score, maxScore, wordAccuracy, readingTimeSeconds, wordsRead, adaptiveSessionId } = req.body;
 
     if (!studentId && !lrn) {
       return res.status(400).json({ success: false, error: 'Student ID or LRN is required.' });
@@ -1374,12 +1374,14 @@ async function submitPhilIriAssessment(req, res) {
         // Resolve valid UUID for passage_id
         const validPassageId = await resolvePassageUuid(req.body.passageId);
 
+        // Fetch passage language, word count & grade level
         let passageLang = 'fil';
         let passageWordCount = 0;
+        let passageGradeLevel = 'Grade 4';
         if (validPassageId) {
           try {
             const pRow = await db.query(
-              `SELECT language, word_count, content_text FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`,
+              `SELECT language, word_count, content_text, grade_level FROM phil_iri_passages WHERE passage_id = $1 LIMIT 1`,
               [validPassageId]
             );
             if (pRow.rows?.[0]) {
@@ -1390,6 +1392,9 @@ async function submitPhilIriAssessment(req, res) {
                 passageWordCount = Number(pRow.rows[0].word_count);
               } else if (pRow.rows[0].content_text) {
                 passageWordCount = pRow.rows[0].content_text.trim().split(/\s+/).filter(Boolean).length;
+              }
+              if (pRow.rows[0].grade_level) {
+                passageGradeLevel = pRow.rows[0].grade_level;
               }
             }
           } catch (_) {}
@@ -1413,7 +1418,7 @@ async function submitPhilIriAssessment(req, res) {
         } else if (aType === 'listening') {
           newLevel = getPhilIriListeningProfile(compPct);
         } else if (aType === 'silent') {
-          newLevel = getPhilIriSilentProfile(computedWpm, compPct, 'Grade 4', passageLang);
+          newLevel = getPhilIriSilentProfile(computedWpm, compPct, passageGradeLevel, passageLang);
         }
 
         // 1. Normalized table upsert (student_reading_profiles — Single Source of Truth)
@@ -1471,15 +1476,20 @@ async function submitPhilIriAssessment(req, res) {
 
         if (!assessmentId) {
           const aRes = await db.query(
-            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status, reading_level_result)
-             VALUES ($1, $2, $3, 'pre_test', $4, $5) RETURNING assessment_id`,
-            [resolvedStudentId, validPassageId, aType, targetStatus, newLevel]
+            `INSERT INTO assessments (student_id, passage_id, assessment_type, assessment_period, status, reading_level_result, adaptive_session_id, adaptive_step_number)
+             VALUES ($1, $2, $3, 'pre_test', $4, $5, $6, $7) RETURNING assessment_id`,
+            [resolvedStudentId, validPassageId, aType, targetStatus, newLevel,
+             adaptiveSessionId || null,
+             adaptiveSessionId ? null : null  // step number resolved below
+            ]
           );
           assessmentId = aRes.rows?.[0]?.assessment_id;
         } else {
           await db.query(
-            `UPDATE assessments SET assessment_type = $1, status = $2, reading_level_result = $3, updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $4`,
-            [aType, targetStatus, newLevel, assessmentId]
+            `UPDATE assessments SET assessment_type = $1, status = $2, reading_level_result = $3,
+             adaptive_session_id = COALESCE(adaptive_session_id, $4),
+             updated_at = CURRENT_TIMESTAMP WHERE assessment_id = $5`,
+            [aType, targetStatus, newLevel, adaptiveSessionId || null, assessmentId]
           );
         }
 
@@ -1636,10 +1646,20 @@ async function submitPhilIriAssessment(req, res) {
                 let selChoiceId = null;
                 if (ans.selectedChoiceId && isUuid(ans.selectedChoiceId)) {
                   selChoiceId = ans.selectedChoiceId;
+                } else if (ans.selectedAnswerText && String(ans.selectedAnswerText).trim().length > 0) {
+                  const cRes = await db.query(
+                    `SELECT choice_id FROM phil_iri_question_choices 
+                     WHERE question_id = $1 AND LOWER(TRIM(choice_text)) = LOWER(TRIM($2))
+                     LIMIT 1`,
+                    [qId, String(ans.selectedAnswerText).trim()]
+                  );
+                  if (cRes.rows?.[0]?.choice_id) {
+                    selChoiceId = cRes.rows[0].choice_id;
+                  }
                 } else if (ans.selectedChoiceIndex !== undefined && ans.selectedChoiceIndex !== null) {
                   const cRes = await db.query(
                     `SELECT choice_id FROM phil_iri_question_choices 
-                     WHERE question_id = $1 
+                     WHERE question_id = $1 AND choice_text IS NOT NULL AND TRIM(choice_text) != ''
                      ORDER BY choice_id ASC OFFSET $2 LIMIT 1`,
                     [qId, ans.selectedChoiceIndex]
                   );
@@ -1669,6 +1689,176 @@ async function submitPhilIriAssessment(req, res) {
           await badgeService.evaluateBadges(resolvedStudentId);
         } catch (badgeErr) {}
 
+        // ── Phase 2 Adaptive Session Update ──────────────────────────────────
+        // NOTE: For oral reading, adaptive progression is strictly deferred until the
+        // teacher reviews and verifies the audio recording & miscues via verifyOralReadingResult.
+        let adaptiveProgression = null;
+        let targetSessionId = adaptiveSessionId || null;
+        if (aType !== 'oral') {
+          if (!targetSessionId && assessmentId) {
+            try {
+              const aCheck = await db.query(`SELECT adaptive_session_id FROM assessments WHERE assessment_id = $1 LIMIT 1`, [assessmentId]);
+              if (aCheck.rows?.[0]?.adaptive_session_id) {
+                targetSessionId = aCheck.rows[0].adaptive_session_id;
+              }
+            } catch (_) {}
+          }
+          if (!targetSessionId && resolvedStudentId) {
+            try {
+              const sCheck = await db.query(
+                `SELECT session_id FROM phil_iri_adaptive_sessions
+                 WHERE student_id = $1 AND LOWER(assessment_type) = LOWER($2) AND LOWER(COALESCE(language, 'fil')) = LOWER($3) AND status = 'in_progress'
+                 ORDER BY started_at DESC LIMIT 1`,
+                [resolvedStudentId, aType, passageLang]
+              );
+              if (sCheck.rows?.[0]?.session_id) {
+                targetSessionId = sCheck.rows[0].session_id;
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (targetSessionId) {
+          try {
+            const { evaluateNextStep, buildSessionSummary } = require('../services/adaptiveEngine.js');
+
+            // Load current adaptive session
+            const sessRes = await db.query(
+              `SELECT * FROM phil_iri_adaptive_sessions WHERE session_id = $1 LIMIT 1`,
+              [targetSessionId]
+            );
+            const session = sessRes.rows?.[0];
+
+            if (session && session.status === 'in_progress') {
+              const progression = evaluateNextStep(passageGradeLevel, newLevel);
+              const newStepCount = (session.step_count || 0) + 1;
+
+              if (progression.action === 'complete') {
+                // ── Session COMPLETE ──
+                await db.query(
+                  `UPDATE phil_iri_adaptive_sessions SET
+                     current_grade_level = $1,
+                     status = 'completed',
+                     final_instructional_level = $2,
+                     final_profile_level = $3,
+                     step_count = $4,
+                     completed_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                   WHERE session_id = $5`,
+                  [
+                    passageGradeLevel,
+                    progression.finalLevel,
+                    progression.finalProfileLevel,
+                    newStepCount,
+                    targetSessionId,
+                  ]
+                );
+
+                // Update student_reading_profiles with the confirmed instructional level
+                try {
+                  await db.query(
+                    `INSERT INTO student_reading_profiles (
+                       student_id, language, assessment_type, assessment_period,
+                       profile_level, accuracy_rate, comprehension_rate, speed_wpm, updated_at
+                     )
+                     VALUES ($1, $2, $3, 'pre_test', $4, $5, $6, $7, CURRENT_TIMESTAMP)
+                     ON CONFLICT (student_id, language, assessment_type, assessment_period)
+                     DO UPDATE SET
+                       profile_level = $4,
+                       accuracy_rate = COALESCE($5, student_reading_profiles.accuracy_rate),
+                       comprehension_rate = COALESCE($6, student_reading_profiles.comprehension_rate),
+                       speed_wpm = COALESCE(NULLIF($7, 0), student_reading_profiles.speed_wpm),
+                       updated_at = CURRENT_TIMESTAMP`,
+                    [
+                      resolvedStudentId,
+                      passageLang || 'fil',
+                      aType,
+                      progression.finalProfileLevel || newLevel,
+                      aType === 'oral' ? accPct : null,
+                      compPct,
+                      (computedWpm || wordsRead || 0),
+                    ]
+                  );
+                } catch (profileErr) {
+                  console.warn('[submitPhilIriAssessment] pre_test profile upsert notice:', profileErr.message);
+                }
+
+                // Fetch suggested passages at final level for teacher reference
+                let suggestedPassages = [];
+                try {
+                  const spRes = await db.query(
+                    `SELECT passage_id AS id, title, grade_level AS "gradeLevel", passage_set AS set, language
+                     FROM phil_iri_passages
+                     WHERE LOWER(grade_level) = LOWER($1)
+                       AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+                       AND status != 'archived'
+                     LIMIT 5`,
+                    [progression.finalLevel || passageGradeLevel, passageLang]
+                  );
+                  suggestedPassages = spRes.rows;
+                } catch (_) {}
+
+                adaptiveProgression = {
+                  ...buildSessionSummary({ ...session, status: 'completed', final_instructional_level: progression.finalLevel, final_profile_level: progression.finalProfileLevel, step_count: newStepCount }),
+                  nextAction: 'complete',
+                  nextGradeLevel: null,
+                  currentResult: newLevel,
+                  passageGradeLevel,
+                  reason: progression.reason,
+                  atBoundary: progression.atBoundary,
+                  suggestedPassages,
+                };
+              } else {
+                // ── Session CONTINUES (stepUp or stepDown) ──
+                await db.query(
+                  `UPDATE phil_iri_adaptive_sessions SET
+                     current_grade_level = $1,
+                     direction = $2,
+                     step_count = $3,
+                     updated_at = CURRENT_TIMESTAMP
+                   WHERE session_id = $4`,
+                  [
+                    passageGradeLevel,
+                    session.direction || (progression.action === 'stepUp' ? 'stepping_up' : 'stepping_down'),
+                    newStepCount,
+                    targetSessionId,
+                  ]
+                );
+
+                // Fetch suggested passages at the next grade level
+                let suggestedPassages = [];
+                try {
+                  const spRes = await db.query(
+                    `SELECT passage_id AS id, title, grade_level AS "gradeLevel", passage_set AS set, language,
+                            word_count AS words
+                     FROM phil_iri_passages
+                     WHERE LOWER(grade_level) = LOWER($1)
+                       AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+                       AND status != 'archived'
+                     ORDER BY created_at DESC
+                     LIMIT 5`,
+                    [progression.nextGradeLevel, passageLang]
+                  );
+                  suggestedPassages = spRes.rows;
+                } catch (_) {}
+
+                adaptiveProgression = {
+                  ...buildSessionSummary({ ...session, current_grade_level: passageGradeLevel, step_count: newStepCount }),
+                  nextAction: progression.action,
+                  nextGradeLevel: progression.nextGradeLevel,
+                  currentResult: newLevel,
+                  passageGradeLevel,
+                  reason: progression.reason,
+                  atBoundary: progression.atBoundary,
+                  suggestedPassages,
+                };
+              }
+            }
+          } catch (adaptiveErr) {
+            console.warn('[submitPhilIriAssessment] adaptive session update error:', adaptiveErr.message);
+          }
+        }
+
         return res.json({
           success: true,
           message: 'Phil-IRI assessment submitted successfully.',
@@ -1677,6 +1867,7 @@ async function submitPhilIriAssessment(req, res) {
             comprehensionPercentage: compPct,
             accuracyPercentage: accPct,
           },
+          adaptiveProgression,
         });
       } catch (dbErr) {
         console.warn('DB Phil-IRI submission notice:', dbErr.message);
@@ -2017,6 +2208,7 @@ async function getStudentActiveAssignment(req, res) {
              LOWER(a.assessment_period) AS "period",
              a.due_date        AS "dueDate",
              a.instructions    AS "instructions",
+             a.adaptive_session_id AS "adaptiveSessionId",
              CASE WHEN LOWER(a.status) = 'completed' THEN 'completed' ELSE COALESCE(aa.status, a.status, 'open') END AS status,
              a.created_at      AS "assignedAt",
              p.title,
@@ -2112,9 +2304,10 @@ async function getStudentActiveAssignment(req, res) {
               if (!questionsByPassage[q.passage_id]) {
                 questionsByPassage[q.passage_id] = [];
               }
-              const cRows = choicesByQuestion[q.question_id] || [];
-              const options = cRows.map((c) => c.choice_text);
-              const correctIndex = cRows.findIndex((c) => c.is_correct);
+              const cRows = (choicesByQuestion[q.question_id] || [])
+                .filter((c) => c && c.choice_text && String(c.choice_text).trim().length > 0);
+              const options = cRows.map((c) => c.choice_text.trim());
+              const correctIndex = cRows.findIndex((c) => c.is_correct === true);
 
               questionsByPassage[q.passage_id].push({
                 id: q.question_id,
@@ -2845,9 +3038,10 @@ async function getStudentAssessmentResults(req, res) {
 
         if (passageQs.length > 0) {
           questions = passageQs.map((q, index) => {
-            const choicesForQ = allChoices.filter((c) => String(c.question_id) === String(q.question_id));
-            const choiceTexts = choicesForQ.map((c) => c.choice_text);
-            const correctChoice = choicesForQ.find((c) => c.is_correct);
+            const choicesForQ = allChoices
+              .filter((c) => String(c.question_id) === String(q.question_id) && c.choice_text && String(c.choice_text).trim().length > 0);
+            const choiceTexts = choicesForQ.map((c) => c.choice_text.trim());
+            const correctChoice = choicesForQ.find((c) => c.is_correct === true);
 
             let studentAnswer = '';
             let isCorrect = false;
@@ -2858,11 +3052,21 @@ async function getStudentAssessmentResults(req, res) {
               );
               if (studentAns) {
                 isCorrect = studentAns.is_correct === true;
-                if (studentAns.selected_choice_id) {
+                const rawAnswerText = (studentAns.answer_text || '').trim();
+                
+                // Prioritize matching text in choices
+                if (rawAnswerText) {
+                  const matchedChoiceByText = choicesForQ.find(
+                    (c) => c.choice_text.trim().toLowerCase() === rawAnswerText.toLowerCase()
+                  );
+                  if (matchedChoiceByText) {
+                    studentAnswer = matchedChoiceByText.choice_text;
+                  } else {
+                    studentAnswer = rawAnswerText;
+                  }
+                } else if (studentAns.selected_choice_id) {
                   const selChoice = choicesForQ.find((c) => String(c.choice_id) === String(studentAns.selected_choice_id));
-                  studentAnswer = selChoice?.choice_text || studentAns.answer_text || '';
-                } else {
-                  studentAnswer = studentAns.answer_text || '';
+                  studentAnswer = selChoice?.choice_text || '';
                 }
               }
             }
@@ -2889,17 +3093,19 @@ async function getStudentAssessmentResults(req, res) {
           if (directAnswers.length > 0) {
             questions = directAnswers.map((da, idx) => {
               const matchedQ = allQuestions.find((q) => String(q.question_id) === String(da.phil_iri_question_id));
-              const choicesForQ = da.phil_iri_question_id ? allChoices.filter((c) => String(c.question_id) === String(da.phil_iri_question_id)) : [];
-              const choiceTexts = choicesForQ.map((c) => c.choice_text);
-              const correctChoice = choicesForQ.find((c) => c.is_correct);
+              const choicesForQ = da.phil_iri_question_id
+                ? allChoices.filter((c) => String(c.question_id) === String(da.phil_iri_question_id) && c.choice_text && String(c.choice_text).trim().length > 0)
+                : [];
+              const choiceTexts = choicesForQ.map((c) => c.choice_text.trim());
+              const correctChoice = choicesForQ.find((c) => c.is_correct === true);
 
               return {
                 number: idx + 1,
                 question: matchedQ?.question_text || `Question ${idx + 1}`,
-                choices: choiceTexts.length > 0 ? choiceTexts : [da.answer_text || 'Option'],
+                choices: choiceTexts.length > 0 ? choiceTexts : [(da.answer_text || 'Option').trim()],
                 isCorrect: da.is_correct === true,
-                studentAnswer: da.answer_text || '',
-                correctAnswer: correctChoice?.choice_text || da.answer_text || '',
+                studentAnswer: (da.answer_text || '').trim(),
+                correctAnswer: correctChoice?.choice_text || (da.answer_text || '').trim(),
               };
             });
           }
@@ -4244,6 +4450,256 @@ async function getStudentAnalytics(req, res) {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// POST /api/student/assessment/adaptive/start — Initialize a Phase 2 Adaptive Session
+// Called by mobile app after Phase 1 results, or triggered by teacher-initiated assignment.
+// ---------------------------------------------------------------------------
+async function startAdaptiveSession(req, res) {
+  try {
+    const { studentId, lrn, language, assessmentType, baselineGradeLevel, baselineProfileLevel, assignedByTeacherId, schoolYearId } = req.body;
+
+    if (!assessmentType || !baselineGradeLevel || !baselineProfileLevel) {
+      return res.status(400).json({
+        success: false,
+        error: 'assessmentType, baselineGradeLevel, and baselineProfileLevel are required.',
+      });
+    }
+
+    const { computeInitialStep, buildSessionSummary } = require('../services/adaptiveEngine.js');
+
+    const initialStep = computeInitialStep(baselineGradeLevel, baselineProfileLevel);
+
+    if (initialStep.noPhase2Needed) {
+      return res.json({
+        success: true,
+        noPhase2Needed: true,
+        message: `Student is already Instructional at ${baselineGradeLevel}. Phase 2 adaptive assessment is not needed.`,
+        initialStep,
+      });
+    }
+
+    if (!process.env.DATABASE_URL) {
+      return res.json({
+        success: true,
+        noPhase2Needed: false,
+        message: 'Adaptive session initialized (local mode).',
+        initialStep,
+        session: null,
+      });
+    }
+
+    // Resolve student_id
+    let resolvedStudentId = null;
+    try {
+      if (studentId) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+          [String(studentId).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+      }
+      if (!resolvedStudentId && lrn) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+          [String(lrn).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+      }
+    } catch (_) {}
+
+    if (!resolvedStudentId) {
+      return res.status(400).json({ success: false, error: 'Could not resolve student.' });
+    }
+
+    const langCode = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    const aType = (assessmentType || 'oral').toLowerCase();
+
+    // Check for existing in-progress session
+    const existing = await db.query(
+      `SELECT session_id, status FROM phil_iri_adaptive_sessions
+       WHERE student_id = $1 AND language = $2 AND assessment_type = $3 AND status = 'in_progress'
+       LIMIT 1`,
+      [resolvedStudentId, langCode, aType]
+    );
+
+    if (existing.rows?.[0]) {
+      // Return existing active session
+      const sessRes = await db.query(
+        `SELECT * FROM phil_iri_adaptive_sessions WHERE session_id = $1 LIMIT 1`,
+        [existing.rows[0].session_id]
+      );
+      return res.json({
+        success: true,
+        noPhase2Needed: false,
+        message: 'Existing active adaptive session returned.',
+        initialStep,
+        session: buildSessionSummary(sessRes.rows[0]),
+        alreadyExists: true,
+      });
+    }
+
+    // Create new adaptive session
+    const insertRes = await db.query(
+      `INSERT INTO phil_iri_adaptive_sessions (
+         student_id, language, assessment_type,
+         baseline_grade_level, baseline_profile_level,
+         current_grade_level, direction,
+         assigned_by_teacher_id, school_year_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        resolvedStudentId,
+        langCode,
+        aType,
+        baselineGradeLevel,
+        baselineProfileLevel,
+        initialStep.firstGradeLevel,
+        initialStep.direction,
+        assignedByTeacherId || null,
+        schoolYearId || null,
+      ]
+    );
+
+    const session = insertRes.rows?.[0];
+
+    // Suggest passages for the first adaptive step
+    let suggestedPassages = [];
+    try {
+      const spRes = await db.query(
+        `SELECT passage_id AS id, title, grade_level AS "gradeLevel", passage_set AS set, language, word_count AS words
+         FROM phil_iri_passages
+         WHERE LOWER(grade_level) = LOWER($1)
+           AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+           AND status != 'archived'
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [initialStep.firstGradeLevel, langCode]
+      );
+      suggestedPassages = spRes.rows;
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      noPhase2Needed: false,
+      message: `Phase 2 adaptive session started. First assessment at ${initialStep.firstGradeLevel}.`,
+      initialStep,
+      session: buildSessionSummary(session),
+      suggestedPassages,
+    });
+  } catch (err) {
+    console.error('[startAdaptiveSession] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to start adaptive session.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/student/assessment/adaptive/status — Get current adaptive session status for a student
+// ---------------------------------------------------------------------------
+async function getAdaptiveSessionStatus(req, res) {
+  try {
+    const { studentId, lrn, language, assessmentType } = req.query;
+    const tokenUser = req.user || {};
+
+    const langCode = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    const aType = (assessmentType || 'oral').toLowerCase();
+
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, session: null, hasActiveSession: false });
+    }
+
+    // Resolve student_id from query or JWT token
+    let resolvedStudentId = null;
+    try {
+      const rawId = studentId || tokenUser.id || tokenUser.user_id || tokenUser.userId;
+      if (rawId) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
+          [String(rawId).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+      }
+      if (!resolvedStudentId && lrn) {
+        const sRes = await db.query(
+          `SELECT student_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+          [String(lrn).trim()]
+        );
+        if (sRes.rows?.[0]) resolvedStudentId = sRes.rows[0].student_id;
+      }
+    } catch (_) {}
+
+    if (!resolvedStudentId) {
+      return res.status(400).json({ success: false, error: 'Could not resolve student.' });
+    }
+
+    const { buildSessionSummary } = require('../services/adaptiveEngine.js');
+
+    // Fetch active session (in_progress)
+    const sessRes = await db.query(
+      `SELECT s.*,
+              a.assessment_id AS latest_assessment_id,
+              a.reading_level_result AS latest_result,
+              a.status AS latest_assessment_status,
+              p.title AS latest_passage_title,
+              p.grade_level AS latest_passage_grade
+       FROM phil_iri_adaptive_sessions s
+       LEFT JOIN LATERAL (
+         SELECT assessment_id, reading_level_result, status, passage_id
+         FROM assessments
+         WHERE adaptive_session_id = s.session_id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) a ON true
+       LEFT JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+       WHERE s.student_id = $1
+         AND ($2 = 'any' OR s.assessment_type = $2)
+         AND ($3 = 'any' OR s.language = $3)
+       ORDER BY s.status = 'in_progress' DESC, s.updated_at DESC
+       LIMIT 5`,
+      [resolvedStudentId, aType === 'any' ? 'any' : aType, langCode === 'any' ? 'any' : langCode]
+    );
+
+    const sessions = sessRes.rows.map((row) => ({
+      ...buildSessionSummary(row),
+      latestAssessmentId: row.latest_assessment_id,
+      latestResult: row.latest_result,
+      latestAssessmentStatus: row.latest_assessment_status,
+      latestPassageTitle: row.latest_passage_title,
+      latestPassageGrade: row.latest_passage_grade,
+    }));
+
+    const activeSession = sessions.find((s) => s.status === 'in_progress') || null;
+
+    // If there's an active session, also fetch suggested passages for next step
+    let suggestedPassages = [];
+    if (activeSession?.currentGradeLevel) {
+      try {
+        const spRes = await db.query(
+          `SELECT passage_id AS id, title, grade_level AS "gradeLevel", passage_set AS set, language, word_count AS words
+           FROM phil_iri_passages
+           WHERE LOWER(grade_level) = LOWER($1)
+             AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+             AND status != 'archived'
+           ORDER BY created_at DESC LIMIT 5`,
+          [activeSession.currentGradeLevel, langCode]
+        );
+        suggestedPassages = spRes.rows;
+      } catch (_) {}
+    }
+
+    return res.json({
+      success: true,
+      hasActiveSession: !!activeSession,
+      session: activeSession,
+      allSessions: sessions,
+      suggestedPassages,
+    });
+  } catch (err) {
+    console.error('[getAdaptiveSessionStatus] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch adaptive session status.' });
+  }
+}
+
 module.exports = {
   getStudents,
   getStudentByLrn,
@@ -4281,6 +4737,8 @@ module.exports = {
   getStudentBadges,
   getStudentAnalytics,
   updateStudentStreakInDb,
+  startAdaptiveSession,
+  getAdaptiveSessionStatus,
 };
 
 

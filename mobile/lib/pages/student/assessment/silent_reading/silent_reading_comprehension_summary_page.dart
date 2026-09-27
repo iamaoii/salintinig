@@ -114,12 +114,23 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
   }
 
   Widget _buildQuestionCard(Map<String, dynamic> item) {
-    final int number = item['number'];
-    final String question = item['question'];
-    final List<String> choices = List<String>.from(item['choices']);
-    final bool isCorrect = item['isCorrect'];
-    final String studentAnswer = item['studentAnswer'];
-    final String correctAnswer = item['correctAnswer'];
+    final int number = item['number'] is num ? (item['number'] as num).toInt() : 1;
+    final String question = (item['question'] ?? '').toString();
+    final List<dynamic> rawChoices = item['choices'] is List ? item['choices'] : [];
+    final List<String> choices = rawChoices
+        .map((c) => c?.toString().trim() ?? '')
+        .where((c) => c.isNotEmpty)
+        .toList();
+    final bool isCorrect = item['isCorrect'] == true;
+    final String studentAnswer = (item['studentAnswer'] ?? '').toString().trim();
+    final String correctAnswer = (item['correctAnswer'] ?? '').toString().trim();
+
+    final cleanStudentAnswer = studentAnswer.toLowerCase();
+    final cleanCorrectAnswer = correctAnswer.toLowerCase();
+
+    // Check if the student answer was actually correct based on match
+    final bool studentIsActuallyCorrect = isCorrect ||
+        (cleanStudentAnswer.isNotEmpty && cleanStudentAnswer == cleanCorrectAnswer);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20.0),
@@ -145,13 +156,13 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: isCorrect ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
+                  color: studentIsActuallyCorrect ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Icon(
-                  isCorrect ? Icons.check_rounded : Icons.close_rounded,
-                  color: isCorrect ? const Color(0xFF059669) : const Color(0xFFEF4444),
+                  studentIsActuallyCorrect ? Icons.check_rounded : Icons.close_rounded,
+                  color: studentIsActuallyCorrect ? const Color(0xFF059669) : const Color(0xFFEF4444),
                   size: 14,
                 ),
               ),
@@ -172,8 +183,9 @@ class SilentReadingComprehensionSummaryPage extends StatelessWidget {
           const SizedBox(height: 16),
 
           ...choices.map((choice) {
-            final isSelectedByStudent = choice == studentAnswer;
-            final isChoiceCorrect = choice == correctAnswer;
+            final cleanChoice = choice.trim().toLowerCase();
+            final isSelectedByStudent = cleanChoice.isNotEmpty && cleanChoice == cleanStudentAnswer;
+            final isChoiceCorrect = cleanChoice.isNotEmpty && cleanChoice == cleanCorrectAnswer;
 
             Color bgColor = Colors.white;
             Color borderColor = const Color(0xFFE2E8F0);

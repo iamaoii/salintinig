@@ -934,7 +934,10 @@ async function assignPhilIriToStudents(req, res) {
 
         if (dupCheck.rows && dupCheck.rows.length > 0) {
           const existingId = dupCheck.rows[0].assessment_id;
-          if (isEdit) {
+          // If this is an adaptive session assignment, allow it regardless of duplicates
+          if (item.adaptiveSessionId) {
+            // Just proceed to create a new assessment linked to the adaptive session (fall through)
+          } else if (isEdit) {
             await db.query(
               `UPDATE assessments 
                SET passage_id = $1, 
@@ -958,9 +961,9 @@ async function assignPhilIriToStudents(req, res) {
         }
 
         await db.query(
-          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, instructions, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'open')`,
-          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod, cleanDueDate, finalInstructions]
+          `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, instructions, status, adaptive_session_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8)`,
+          [item.studentId, item.passageId, teacherId, assessmentType, assessmentPeriod, cleanDueDate, finalInstructions, item.adaptiveSessionId || null]
         );
         successfulCount++;
       }
@@ -1203,26 +1206,33 @@ async function verifyOralReadingResult(req, res) {
       }
 
       // 5. Also update student's overall reading_profiles
+      let isEng = false;
+      let adaptiveProgression = null;
+
+      if (resolvedAssessmentId) {
+        try {
+          const passRow = await db.query(
+            `SELECT p.language FROM assessments a
+             JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+             WHERE a.assessment_id = $1
+             LIMIT 1`,
+            [resolvedAssessmentId]
+          );
+          if (passRow.rows?.[0]?.language) {
+            isEng = passRow.rows[0].language.toLowerCase().startsWith('en');
+          }
+        } catch (langErr) {
+          console.warn('[verifyOralReadingResult] Passage language lookup notice:', langErr.message);
+        }
+      }
+
+      const langCode = isEng ? 'en' : 'fil';
+      const accVal = Number(verifiedAccuracyPct) || 0;
+      const roundedWpm = Math.round(Number(verifiedWpm) || 0);
+
       if (resolvedStudentId) {
         try {
-          const accVal = Number(verifiedAccuracyPct) || 0;
-
-          // Check passage language
-          let isEng = false;
-          if (resolvedAssessmentId) {
-            const passRow = await db.query(
-              `SELECT p.language FROM assessments a
-               JOIN phil_iri_passages p ON p.passage_id = a.passage_id
-               WHERE a.assessment_id = $1
-               LIMIT 1`,
-              [resolvedAssessmentId]
-            );
-            if (passRow.rows?.[0]?.language) {
-              isEng = passRow.rows[0].language.toLowerCase().startsWith('en');
-            }
-          }
-
-          // 1. Normalized table upsert (student_reading_profiles — Single Source of Truth)
+          // Normalized table upsert (student_reading_profiles — Single Source of Truth)
           try {
             await db.query(
               `INSERT INTO student_reading_profiles (
@@ -1239,11 +1249,11 @@ async function verifyOralReadingResult(req, res) {
                  updated_at = CURRENT_TIMESTAMP`,
               [
                 resolvedStudentId,
-                isEng ? 'en' : 'fil',
+                langCode,
                 profileLabel,
                 accVal,
                 comprehensionScore ?? null,
-                verifiedWpm || 0
+                roundedWpm
               ]
             );
           } catch (normErr) {
@@ -1251,6 +1261,284 @@ async function verifyOralReadingResult(req, res) {
           }
         } catch (rpErr) {
           console.warn('[verifyOralReadingResult] Notice updating reading_profiles:', rpErr.message);
+        }
+
+        // 6. ── Phase 2 Adaptive Progression (Triggered strictly upon Teacher Verification) ──
+        try {
+          // Look up active adaptive session for this oral assessment
+          let targetSessionId = null;
+          if (resolvedAssessmentId) {
+            const aCheck = await db.query(
+              `SELECT adaptive_session_id FROM assessments WHERE assessment_id = $1 LIMIT 1`,
+              [resolvedAssessmentId]
+            );
+            if (aCheck.rows?.[0]?.adaptive_session_id) {
+              targetSessionId = aCheck.rows[0].adaptive_session_id;
+            }
+          }
+
+          if (!targetSessionId && resolvedStudentId) {
+            const sCheck = await db.query(
+              `SELECT session_id FROM phil_iri_adaptive_sessions
+               WHERE student_id = $1 AND assessment_type = 'oral' AND LOWER(COALESCE(language, 'fil')) = LOWER($2) AND status = 'in_progress'
+               ORDER BY started_at DESC LIMIT 1`,
+              [resolvedStudentId, langCode]
+            );
+            if (sCheck.rows?.[0]?.session_id) {
+              targetSessionId = sCheck.rows[0].session_id;
+            } else if (profileLabel === 'Frustration' || profileLabel === 'Independent') {
+              // Auto-initialize adaptive session from baseline result
+              const { computeInitialStep } = require('../services/adaptiveEngine.js');
+              let baselineGradeLevel = 'Grade 3';
+              
+              // Get passage grade level or student grade history
+              if (resolvedAssessmentId) {
+                const pGrade = await db.query(
+                  `SELECT p.grade_level FROM assessments a
+                   JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+                   WHERE a.assessment_id = $1 LIMIT 1`,
+                  [resolvedAssessmentId]
+                );
+                if (pGrade.rows?.[0]?.grade_level) {
+                  baselineGradeLevel = pGrade.rows[0].grade_level;
+                }
+              }
+
+              const initialStep = computeInitialStep(baselineGradeLevel, profileLabel);
+              if (!initialStep.noPhase2Needed) {
+                const syRes = await db.query(`SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1`);
+                const schoolYearId = syRes.rows?.[0]?.school_year_id || null;
+
+                // Find assigned teacher from assessment or current logged-in teacher
+                let assignedTeacherId = null;
+                if (resolvedAssessmentId) {
+                  const aTeacher = await db.query(
+                    `SELECT assigned_by_teacher_id FROM assessments WHERE assessment_id = $1 LIMIT 1`,
+                    [resolvedAssessmentId]
+                  );
+                  assignedTeacherId = aTeacher.rows?.[0]?.assigned_by_teacher_id || null;
+                }
+                if (!assignedTeacherId && req.user) {
+                  const reqUserVal = req.user.teacherId || req.user.teacher_id || req.user.userId || req.user.user_id || req.user.id;
+                  if (reqUserVal) {
+                    const tRes = await db.query(
+                      `SELECT teacher_id FROM teachers WHERE user_id::text = $1::text OR teacher_id::text = $1::text LIMIT 1`,
+                      [reqUserVal]
+                    );
+                    assignedTeacherId = tRes.rows?.[0]?.teacher_id || null;
+                  }
+                }
+
+                const sessInsert = await db.query(
+                  `INSERT INTO phil_iri_adaptive_sessions (
+                     student_id, language, assessment_type,
+                     baseline_grade_level, baseline_profile_level,
+                     current_grade_level, direction, school_year_id,
+                     assigned_by_teacher_id
+                   ) VALUES ($1, $2, 'oral', $3, $4, $5, $6, $7, $8)
+                   RETURNING session_id`,
+                  [
+                    resolvedStudentId, langCode,
+                    baselineGradeLevel, profileLabel,
+                    baselineGradeLevel, initialStep.direction,
+                    schoolYearId,
+                    assignedTeacherId,
+                  ]
+                );
+                targetSessionId = sessInsert.rows?.[0]?.session_id || null;
+
+                if (targetSessionId && resolvedAssessmentId) {
+                  await db.query(
+                    `UPDATE assessments SET adaptive_session_id = $1 WHERE assessment_id = $2`,
+                    [targetSessionId, resolvedAssessmentId]
+                  );
+                }
+              }
+            }
+          }
+
+          if (targetSessionId) {
+            const { evaluateNextStep, buildSessionSummary } = require('../services/adaptiveEngine.js');
+
+            const sessRes = await db.query(
+              `SELECT * FROM phil_iri_adaptive_sessions WHERE session_id = $1 LIMIT 1`,
+              [targetSessionId]
+            );
+            const session = sessRes.rows?.[0];
+
+            if (session && session.status === 'in_progress') {
+              // Fetch grade level of the passage that was just verified
+              let passageGradeLevel = session.current_grade_level || 'Grade 3';
+              if (resolvedAssessmentId) {
+                const pGrade = await db.query(
+                  `SELECT p.grade_level FROM assessments a
+                   JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+                   WHERE a.assessment_id = $1 LIMIT 1`,
+                  [resolvedAssessmentId]
+                );
+                if (pGrade.rows?.[0]?.grade_level) {
+                  passageGradeLevel = pGrade.rows[0].grade_level;
+                }
+              }
+
+              const progression = evaluateNextStep(passageGradeLevel, profileLabel);
+              const newStepCount = (session.step_count || 0) + 1;
+
+              if (progression.action === 'complete') {
+                // ── Session COMPLETE ──
+                await db.query(
+                  `UPDATE phil_iri_adaptive_sessions SET
+                     current_grade_level = $1,
+                     status = 'completed',
+                     final_instructional_level = $2,
+                     final_profile_level = $3,
+                     step_count = $4,
+                     completed_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                   WHERE session_id = $5`,
+                  [
+                    passageGradeLevel,
+                    progression.finalLevel,
+                    progression.finalProfileLevel,
+                    newStepCount,
+                    targetSessionId,
+                  ]
+                );
+
+                // Update student_reading_profiles with confirmed final instructional level
+                try {
+                  await db.query(
+                    `INSERT INTO student_reading_profiles (
+                       student_id, language, assessment_type, assessment_period,
+                       profile_level, accuracy_rate, comprehension_rate, speed_wpm, updated_at
+                     )
+                     VALUES ($1, $2, 'oral', 'pre_test', $3, $4, $5, $6, CURRENT_TIMESTAMP)
+                     ON CONFLICT (student_id, language, assessment_type, assessment_period)
+                     DO UPDATE SET
+                       profile_level = $3,
+                       accuracy_rate = $4,
+                       comprehension_rate = COALESCE($5, student_reading_profiles.comprehension_rate),
+                       speed_wpm = COALESCE(NULLIF($6, 0), student_reading_profiles.speed_wpm),
+                       updated_at = CURRENT_TIMESTAMP`,
+                    [
+                      resolvedStudentId,
+                      langCode,
+                      progression.finalProfileLevel || profileLabel,
+                      accVal,
+                      comprehensionScore ?? null,
+                      roundedWpm,
+                    ]
+                  );
+                } catch (profErr) {
+                  console.warn('[verifyOralReadingResult] pre_test profile upsert error:', profErr.message);
+                }
+
+                adaptiveProgression = {
+                  ...buildSessionSummary({ ...session, status: 'completed', final_instructional_level: progression.finalLevel, final_profile_level: progression.finalProfileLevel, step_count: newStepCount }),
+                  nextAction: 'complete',
+                  nextGradeLevel: null,
+                  currentResult: profileLabel,
+                  passageGradeLevel,
+                  reason: progression.reason,
+                  atBoundary: progression.atBoundary,
+                };
+              } else {
+                // ── Session CONTINUES (stepUp or stepDown) ──
+                await db.query(
+                  `UPDATE phil_iri_adaptive_sessions SET
+                     current_grade_level = $1,
+                     direction = $2,
+                     step_count = $3,
+                     updated_at = CURRENT_TIMESTAMP
+                   WHERE session_id = $4`,
+                  [
+                    passageGradeLevel,
+                    session.direction || (progression.action === 'stepUp' ? 'stepping_up' : 'stepping_down'),
+                    newStepCount,
+                    targetSessionId,
+                  ]
+                );
+
+                // Automatically find and assign a passage at progression.nextGradeLevel
+                let nextPassage = null;
+                const nextPassageRes = await db.query(
+                  `SELECT passage_id, title, grade_level, word_count
+                   FROM phil_iri_passages
+                   WHERE LOWER(grade_level) = LOWER($1)
+                     AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+                     AND status != 'archived'
+                     AND passage_id != (SELECT COALESCE(passage_id, '00000000-0000-0000-0000-000000000000') FROM assessments WHERE assessment_id = $3)
+                   ORDER BY created_at DESC LIMIT 1`,
+                  [progression.nextGradeLevel, langCode, resolvedAssessmentId || '00000000-0000-0000-0000-000000000000']
+                );
+
+                if (nextPassageRes.rows?.[0]) {
+                  nextPassage = nextPassageRes.rows[0];
+                  // Auto-create assessment assignment for the student
+                  let teacherId = session.assigned_by_teacher_id || null;
+                  if (!teacherId && resolvedAssessmentId) {
+                    const origAss = await db.query(
+                      `SELECT assigned_by_teacher_id FROM assessments WHERE assessment_id = $1 LIMIT 1`,
+                      [resolvedAssessmentId]
+                    );
+                    teacherId = origAss.rows?.[0]?.assigned_by_teacher_id || null;
+                  }
+                  if (!teacherId && req.user) {
+                    const reqUserVal = req.user.teacherId || req.user.teacher_id || req.user.userId || req.user.user_id || req.user.id;
+                    if (reqUserVal) {
+                      const tRes = await db.query(
+                        `SELECT teacher_id FROM teachers WHERE user_id::text = $1::text OR teacher_id::text = $1::text LIMIT 1`,
+                        [reqUserVal]
+                      );
+                      teacherId = tRes.rows?.[0]?.teacher_id || null;
+                    }
+                  }
+                  if (!teacherId && resolvedStudentId) {
+                    const sAdvisor = await db.query(
+                      `SELECT c.advisor_teacher_id
+                       FROM student_grade_history sgh
+                       JOIN classes c ON c.class_id = sgh.class_id
+                       WHERE sgh.student_id = $1
+                       ORDER BY sgh.created_at DESC LIMIT 1`,
+                      [resolvedStudentId]
+                    );
+                    teacherId = sAdvisor.rows?.[0]?.advisor_teacher_id || null;
+                  }
+                  await db.query(
+                    `INSERT INTO assessments (
+                       student_id, passage_id, assigned_by_teacher_id,
+                       assessment_type, assessment_period, status,
+                       adaptive_session_id, adaptive_step_number
+                     ) VALUES ($1, $2, $3, 'oral', 'pre_test', 'open', $4, $5)`,
+                    [
+                      resolvedStudentId,
+                      nextPassage.passage_id,
+                      teacherId,
+                      targetSessionId,
+                      newStepCount + 1,
+                    ]
+                  );
+                }
+
+                adaptiveProgression = {
+                  ...buildSessionSummary({ ...session, current_grade_level: passageGradeLevel, step_count: newStepCount }),
+                  nextAction: progression.action,
+                  nextGradeLevel: progression.nextGradeLevel,
+                  currentResult: profileLabel,
+                  passageGradeLevel,
+                  reason: progression.reason,
+                  atBoundary: progression.atBoundary,
+                  assignedNextPassage: nextPassage ? {
+                    id: nextPassage.passage_id,
+                    title: nextPassage.title,
+                    gradeLevel: nextPassage.grade_level,
+                  } : null,
+                };
+              }
+            }
+          }
+        } catch (adaptiveErr) {
+          console.warn('[verifyOralReadingResult] Adaptive progression notice:', adaptiveErr.message);
         }
       }
 
@@ -1261,6 +1549,7 @@ async function verifyOralReadingResult(req, res) {
         accuracyPct: verifiedAccuracyPct,
         wpm: verifiedWpm,
         attemptId: resolvedAttemptId,
+        adaptiveProgression,
       });
     }
 
@@ -1431,10 +1720,11 @@ async function getPhilIriPassages(req, res) {
 
     const questionsByPassage = {};
     for (const q of allQuestions) {
-      const cRows = choicesByQuestion[q.question_id] || [];
-      const options = cRows.map((c) => c.choice_text);
-      const correctIndex = cRows.findIndex((c) => c.is_correct);
-      const correctChoice = cRows.find((c) => c.is_correct);
+      const cRows = (choicesByQuestion[q.question_id] || [])
+        .filter((c) => c && c.choice_text && String(c.choice_text).trim().length > 0);
+      const options = cRows.map((c) => c.choice_text.trim());
+      const correctIndex = cRows.findIndex((c) => c.is_correct === true);
+      const correctChoice = cRows.find((c) => c.is_correct === true);
 
       const formattedQuestion = {
         id: q.question_id,
@@ -1490,7 +1780,26 @@ async function deleteAssessment(req, res) {
         whereClause += ` AND EXISTS (SELECT 1 FROM phil_iri_passages p WHERE p.passage_id = a.passage_id AND (LOWER(COALESCE(p.language, 'fil')) = LOWER($${params.length}) OR LOWER(COALESCE(p.language, 'fil')) LIKE LOWER($${params.length}) || '%'))`;
       }
 
-      // 1. Delete child records in oral_reading_results
+      // 1. Gather linked adaptive_session_ids and affected students before deletion
+      const linkedSessionsRes = await db.query(
+        `SELECT DISTINCT a.adaptive_session_id, a.student_id, LOWER(COALESCE(p.language, 'fil')) AS lang, LOWER(COALESCE(a.assessment_type, 'oral')) AS type, LOWER(COALESCE(a.assessment_period, 'pre_test')) AS period
+         FROM assessments a
+         LEFT JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+         WHERE ${whereClause}`,
+        params
+      );
+      const affectedRows = linkedSessionsRes.rows || [];
+      const linkedSessionIds = affectedRows.map((r) => r.adaptive_session_id).filter(Boolean);
+
+      // Unique student-language combinations affected
+      const affectedStudents = Array.from(
+        new Set(affectedRows.map((r) => `${r.student_id}:${r.lang.startsWith('en') ? 'en' : 'fil'}:${r.type}:${r.period}`))
+      ).map((item) => {
+        const [studentId, lang, type, period] = item.split(':');
+        return { studentId, lang, type, period };
+      });
+
+      // 2. Delete child records in oral_reading_results
       await db.query(
         `DELETE FROM oral_reading_results 
          WHERE assessment_attempt_id IN (
@@ -1501,20 +1810,104 @@ async function deleteAssessment(req, res) {
         params
       );
 
-      // 2. Delete child records in assessment_attempts
+      // 3. Delete child records in assessment_attempts
       await db.query(
         `DELETE FROM assessment_attempts 
          WHERE assessment_id IN (SELECT a.assessment_id FROM assessments a WHERE ${whereClause})`,
         params
       );
 
-      // 3. Delete target records from assessments
+      // 4. Delete target records from assessments (including linked adaptive steps)
+      let deleteWhere = whereClause;
+      if (linkedSessionIds.length > 0) {
+        deleteWhere = `(${whereClause}) OR (a.adaptive_session_id IN (${linkedSessionIds.map((_, i) => `$${params.length + i + 1}`).join(',')}))`;
+      }
+      const deleteParams = [...params, ...linkedSessionIds];
+
+      // Also clean up any assessment attempts / oral results for the linked adaptive step assessments
+      if (linkedSessionIds.length > 0) {
+        await db.query(
+          `DELETE FROM oral_reading_results 
+           WHERE assessment_attempt_id IN (
+             SELECT aa.attempt_id FROM assessment_attempts aa
+             JOIN assessments a ON aa.assessment_id = a.assessment_id
+             WHERE a.adaptive_session_id IN (${linkedSessionIds.map((_, i) => `$${i + 1}`).join(',')})
+           )`,
+          linkedSessionIds
+        );
+        await db.query(
+          `DELETE FROM assessment_attempts 
+           WHERE assessment_id IN (
+             SELECT a.assessment_id FROM assessments a
+             WHERE a.adaptive_session_id IN (${linkedSessionIds.map((_, i) => `$${i + 1}`).join(',')})
+           )`,
+          linkedSessionIds
+        );
+      }
+
       const result = await db.query(
-        `DELETE FROM assessments a WHERE ${whereClause}`,
-        params
+        `DELETE FROM assessments a WHERE ${deleteWhere}`,
+        deleteParams
       );
 
-      console.log(`Successfully deleted ${result.rowCount} assessment record(s) for query: ${id}`);
+      // 5. Clean up the linked adaptive sessions
+      if (linkedSessionIds.length > 0) {
+        await db.query(
+          `DELETE FROM phil_iri_adaptive_sessions
+           WHERE session_id IN (${linkedSessionIds.map((_, i) => `$${i + 1}`).join(',')})`,
+          linkedSessionIds
+        );
+      }
+
+      // 6. Recalculate or clean up student_reading_profiles for affected students
+      for (const { studentId, lang, type, period } of affectedStudents) {
+        try {
+          // Check if student has any remaining verified assessment for this type/period/language
+          const latestRes = await db.query(
+            `SELECT a.reading_level_result, ORR.word_accuracy_pct, ORR.words_per_minute, aa.score
+             FROM assessments a
+             JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
+             LEFT JOIN oral_reading_results ORR ON ORR.assessment_attempt_id = aa.attempt_id
+             LEFT JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+             WHERE a.student_id = $1
+               AND a.status = 'completed'
+               AND LOWER(COALESCE(a.assessment_type, 'oral')) = LOWER($2)
+               AND (LOWER(COALESCE(p.language, 'fil')) = LOWER($3) OR LOWER(COALESCE(p.language, 'fil')) LIKE LOWER($3) || '%')
+             ORDER BY aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
+             LIMIT 1`,
+            [studentId, type, lang]
+          );
+
+          if (latestRes.rows?.[0] && latestRes.rows[0].reading_level_result) {
+            // Update profile with the previous verified assessment result
+            const prev = latestRes.rows[0];
+            await db.query(
+              `UPDATE student_reading_profiles
+               SET profile_level = $1,
+                   accuracy_rate = COALESCE($2, accuracy_rate),
+                   speed_wpm = COALESCE($3, speed_wpm),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE student_id = $4
+                 AND LOWER(language) = LOWER($5)
+                 AND LOWER(assessment_type) = LOWER($6)`,
+              [prev.reading_level_result, prev.word_accuracy_pct, prev.words_per_minute, studentId, lang, type]
+            );
+          } else {
+            // No remaining verified assessments: delete the student reading profile entry
+            await db.query(
+              `DELETE FROM student_reading_profiles
+               WHERE student_id = $1
+                 AND LOWER(language) = LOWER($2)
+                 AND LOWER(assessment_type) = LOWER($3)`,
+              [studentId, lang, type]
+            );
+          }
+        } catch (profErr) {
+          console.warn('[deleteAssessment] Error recalculating student_reading_profiles:', profErr.message);
+        }
+      }
+
+      console.log(`Successfully deleted ${result.rowCount} assessment record(s), linked adaptive sessions, and updated reading profiles for query: ${id}`);
     }
 
     return res.json({ success: true, message: 'Assessment deleted successfully.' });
@@ -2048,6 +2441,238 @@ async function updateStudentPromotionByTeacher(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/teacher/assessments/start-adaptive-sessions — Teacher initiates Phase 2
+// for one or more students. Creates adaptive_sessions + assigns the first passage.
+// ---------------------------------------------------------------------------
+async function startStudentAdaptiveSessions(req, res) {
+  try {
+    const { students, assessmentType, language, passageId, assessmentPeriod, dueDate, instructions: customInstructions } = req.body;
+    // students = [{ studentId, baselineGradeLevel, baselineProfileLevel }]
+
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ success: false, error: 'students array is required.' });
+    }
+    if (!assessmentType) {
+      return res.status(400).json({ success: false, error: 'assessmentType is required.' });
+    }
+
+    const { computeInitialStep, buildSessionSummary } = require('../services/adaptiveEngine.js');
+
+    const teacherUserId = req.user?.teacherId || req.user?.teacher_id || req.user?.userId || req.user?.user_id || req.user?.id;
+    const langCode = (language || 'fil').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    const aType = (assessmentType || 'oral').toLowerCase();
+    const finalInstructions = (customInstructions || '').trim() || null;
+    const cleanDueDate = dueDate ? new Date(dueDate) : null;
+    const finalPeriod = assessmentPeriod || 'pre_test';
+
+    const results = [];
+    let successCount = 0;
+    let skippedCount = 0;
+
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, message: 'Phase 2 sessions initialized (local mode).', successCount: students.length, skippedCount: 0, results });
+    }
+
+    const tRes = await db.query(
+      `SELECT teacher_id FROM teachers WHERE user_id::text = $1::text OR teacher_id::text = $1::text LIMIT 1`,
+      [teacherUserId]
+    );
+    const teacherId = tRes.rows[0]?.teacher_id || null;
+
+    // Get active school_year_id
+    const syRes = await db.query(`SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1`);
+    const schoolYearId = syRes.rows[0]?.school_year_id || null;
+
+    for (const item of students) {
+      const { studentId, baselineGradeLevel, baselineProfileLevel } = item;
+      if (!studentId || !baselineGradeLevel || !baselineProfileLevel) {
+        skippedCount++;
+        results.push({ studentId, status: 'skipped', reason: 'Missing required fields.' });
+        continue;
+      }
+
+      const initialStep = computeInitialStep(baselineGradeLevel, baselineProfileLevel);
+
+      if (initialStep.noPhase2Needed) {
+        skippedCount++;
+        results.push({ studentId, status: 'skipped', reason: `Already Instructional at ${baselineGradeLevel}. Phase 2 not needed.` });
+        continue;
+      }
+
+      try {
+        // Check for existing in-progress session for this (student, lang, type)
+        const existingSess = await db.query(
+          `SELECT session_id FROM phil_iri_adaptive_sessions
+           WHERE student_id = $1 AND language = $2 AND assessment_type = $3 AND status = 'in_progress'
+           LIMIT 1`,
+          [studentId, langCode, aType]
+        );
+
+        let sessionId;
+        if (existingSess.rows?.[0]) {
+          sessionId = existingSess.rows[0].session_id;
+          results.push({ studentId, status: 'existing_session', sessionId, firstGradeLevel: initialStep.firstGradeLevel });
+        } else {
+          const sessInsert = await db.query(
+            `INSERT INTO phil_iri_adaptive_sessions (
+               student_id, language, assessment_type,
+               baseline_grade_level, baseline_profile_level,
+               current_grade_level, direction,
+               assigned_by_teacher_id, school_year_id
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING session_id`,
+            [
+              studentId, langCode, aType,
+              baselineGradeLevel, baselineProfileLevel,
+              initialStep.firstGradeLevel, initialStep.direction,
+              teacherId, schoolYearId,
+            ]
+          );
+          sessionId = sessInsert.rows?.[0]?.session_id;
+          results.push({ studentId, status: 'session_created', sessionId, firstGradeLevel: initialStep.firstGradeLevel });
+        }
+
+        // Assign the first passage if passageId provided or find one at the target grade level
+        let targetPassageId = passageId || null;
+        if (!targetPassageId) {
+          const pRes = await db.query(
+            `SELECT passage_id FROM phil_iri_passages
+             WHERE LOWER(grade_level) = LOWER($1)
+               AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+               AND status != 'archived'
+             ORDER BY created_at DESC LIMIT 1`,
+            [initialStep.firstGradeLevel, langCode]
+          );
+          targetPassageId = pRes.rows?.[0]?.passage_id || null;
+        }
+
+        if (targetPassageId && sessionId) {
+          await db.query(
+            `INSERT INTO assessments (student_id, passage_id, assigned_by_teacher_id, assessment_type, assessment_period, due_date, instructions, status, adaptive_session_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8)`,
+            [studentId, targetPassageId, teacherId, aType, finalPeriod, cleanDueDate, finalInstructions, sessionId]
+          );
+          successCount++;
+        } else {
+          skippedCount++;
+          const lastResult = results[results.length - 1];
+          if (lastResult) lastResult.warning = `No passage found at ${initialStep.firstGradeLevel} for ${langCode}. Session created but no assignment made.`;
+        }
+      } catch (studentErr) {
+        skippedCount++;
+        results.push({ studentId, status: 'error', reason: studentErr.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Phase 2 adaptive sessions started for ${successCount} student(s). ${skippedCount} skipped.`,
+      successCount,
+      skippedCount,
+      results,
+    });
+  } catch (err) {
+    console.error('[startStudentAdaptiveSessions] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to start adaptive sessions.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/teacher/assessments/adaptive-sessions — List Phase 2 sessions for teacher's class
+// ---------------------------------------------------------------------------
+async function getAdaptiveSessions(req, res) {
+  try {
+    const { status, assessmentType, language } = req.query;
+    const teacherUserId = req.user?.teacherId || req.user?.teacher_id || req.user?.userId || req.user?.user_id || req.user?.id;
+
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, sessions: [], count: 0 });
+    }
+
+    const params = [teacherUserId];
+    let filterClauses = '';
+
+    if (status && status !== 'all') {
+      params.push(status);
+      filterClauses += ` AND s.status = $${params.length}`;
+    }
+    if (assessmentType && assessmentType !== 'all') {
+      params.push(assessmentType.toLowerCase());
+      filterClauses += ` AND s.assessment_type = $${params.length}`;
+    }
+    if (language && language !== 'all') {
+      const lc = language.toLowerCase().startsWith('en') ? 'en' : 'fil';
+      params.push(lc);
+      filterClauses += ` AND s.language = $${params.length}`;
+    }
+
+    const query = `
+      SELECT
+        s.session_id                          AS "sessionId",
+        s.student_id                          AS "studentId",
+        CONCAT(st.first_name, ' ', COALESCE(st.middle_name || ' ', ''), st.last_name) AS "studentName",
+        st.lrn,
+        s.language,
+        s.assessment_type                     AS "assessmentType",
+        s.baseline_grade_level                AS "baselineGradeLevel",
+        s.baseline_profile_level              AS "baselineProfileLevel",
+        s.current_grade_level                 AS "currentGradeLevel",
+        s.direction,
+        s.status,
+        s.final_instructional_level           AS "finalInstructionalLevel",
+        s.final_profile_level                 AS "finalProfileLevel",
+        s.step_count                          AS "stepCount",
+        s.started_at                          AS "startedAt",
+        s.completed_at                        AS "completedAt",
+        -- Latest assessment linked to this session
+        la.assessment_id                      AS "latestAssessmentId",
+        la.reading_level_result               AS "latestResult",
+        la.status                             AS "latestAssessmentStatus",
+        lp.title                              AS "latestPassageTitle",
+        lp.grade_level                        AS "latestPassageGrade",
+        -- Class info
+        c.grade_level                         AS "gradeLevel",
+        c.section_name                        AS "sectionName"
+      FROM phil_iri_adaptive_sessions s
+      JOIN students st ON st.student_id = s.student_id
+      -- Restrict to teacher's class students
+      JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+      JOIN classes c ON c.class_id = sgh.class_id
+      JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+      LEFT JOIN teachers t ON (
+        c.advisor_teacher_id = t.teacher_id
+        OR t.teacher_id IN (
+          SELECT fic.teacher_id FROM faculty_in_charge fic
+          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
+        )
+      )
+      LEFT JOIN LATERAL (
+        SELECT assessment_id, reading_level_result, status, passage_id
+        FROM assessments
+        WHERE adaptive_session_id = s.session_id
+        ORDER BY created_at DESC LIMIT 1
+      ) la ON true
+      LEFT JOIN phil_iri_passages lp ON lp.passage_id = la.passage_id
+      WHERE (t.user_id::text = $1::text OR t.teacher_id::text = $1::text)
+        ${filterClauses}
+      ORDER BY s.status = 'in_progress' DESC, s.updated_at DESC
+      LIMIT 200
+    `;
+
+    const { rows } = await db.query(query, params);
+
+    return res.json({
+      success: true,
+      count: rows.length,
+      sessions: rows,
+    });
+  } catch (err) {
+    console.error('[getAdaptiveSessions] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch adaptive sessions.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,
@@ -2069,4 +2694,6 @@ module.exports = {
   getTeacherClassStudents,
   getActivityDetail,
   updateStudentPromotionByTeacher,
+  startStudentAdaptiveSessions,
+  getAdaptiveSessions,
 };

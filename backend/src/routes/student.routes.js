@@ -44,6 +44,8 @@ const {
   getStudentStreak,
   getStudentBadges,
   getStudentAnalytics,
+  startAdaptiveSession,
+  getAdaptiveSessionStatus,
 } = require('../controllers/student.controller.js');
 
 // ── GET /api/student/streak & /badges & /analytics ─────────────────────────
@@ -61,6 +63,13 @@ router.post('/assessment/start-progress', updateAssessmentStartProgress);
 router.post('/assessment/submit', submitPhilIriAssessment);
 router.post('/assessment/submit-oral-audio', upload.single('audio'), submitStudentOralAudio);
 router.post('/assessment/denoise-test-audio', upload.single('audio'), denoiseTestAudio);
+
+// ── Phase 2 Adaptive Assessment ─────────────────────────────────────────────
+// POST /api/student/assessment/adaptive/start   — Initialize a Phase 2 session
+// GET  /api/student/assessment/adaptive/status  — Get current session state
+router.post('/assessment/adaptive/start', verifyToken, startAdaptiveSession);
+router.get('/assessment/adaptive/status', verifyToken, getAdaptiveSessionStatus);
+
 router.post('/story/complete', verifyToken, completeStoryProgress);
 router.post('/activity/complete', verifyToken, completeActivityProgress);
 

@@ -732,7 +732,29 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
       if (data.success) {
         setIsSuccessSaved(true);
         saveDraftMiscues(attemptId, miscues);
-        setToastMsg({ text: 'Phil-IRI oral reading result saved & verified successfully!', type: 'success' });
+
+        if (data.adaptiveProgression) {
+          const prog = data.adaptiveProgression;
+          if (prog.nextAction === 'complete') {
+            setToastMsg({
+              text: `Verified! Adaptive Level-Finding Complete: ${prog.finalInstructionalLevel || prog.passageGradeLevel} confirmed as Instructional Level!`,
+              type: 'success',
+            });
+          } else if (prog.assignedNextPassage) {
+            setToastMsg({
+              text: `Verified as ${data.profileLabel}! Automatically assigned next level: ${prog.assignedNextPassage.title} (${prog.assignedNextPassage.gradeLevel}).`,
+              type: 'success',
+            });
+          } else {
+            setToastMsg({
+              text: `Verified as ${data.profileLabel}! Adaptive progression: ${prog.nextAction} to ${prog.nextGradeLevel}.`,
+              type: 'success',
+            });
+          }
+        } else {
+          setToastMsg({ text: 'Phil-IRI oral reading result saved & verified successfully!', type: 'success' });
+        }
+
         if (onVerified) onVerified();
       } else {
         setToastMsg({ text: data.error || 'Failed to save verification result.', type: 'error' });

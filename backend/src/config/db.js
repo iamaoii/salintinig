@@ -10,9 +10,9 @@ function getPool() {
     poolInstance = new Pool({
       connectionString: connStr,
       ssl: connStr ? { rejectUnauthorized: false } : false,
-      max: 20, // Max concurrent connections
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 5000, // Return an error after 5 seconds if connection could not be established
+      max: 10, // Max concurrent connections (safe limit for Supabase pooler)
+      idleTimeoutMillis: 10000, // Close idle clients after 10 seconds to free pool slots
+      connectionTimeoutMillis: 10000, // Allow up to 10s to acquire client under burst
       keepAlive: true,
     });
 

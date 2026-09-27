@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_congratulations_page.dart';
@@ -101,10 +102,79 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
     super.initState();
     debugPrint('[SilentReadingQuiz] initState passageId=${widget.passageId} currentQuestionIndex=${widget.currentQuestionIndex} initialAnswers=${widget.initialSelectedAnswers}');
     if (widget.dynamicQuestions != null && widget.dynamicQuestions!.isNotEmpty) {
-      _questions = widget.dynamicQuestions!.map((q) => {
-        'questionText': q['questionText'] ?? q['question'] ?? '',
-        'options': List<String>.from(q['options'] ?? []),
-        'correctAnswerIndex': q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0,
+      _questions = widget.dynamicQuestions!.map((q) {
+        final int? parsedCIndex = int.tryParse(
+          q['correctAnswerIndex']?.toString() ??
+          q['correctIndex']?.toString() ??
+          q['correctChoiceIndex']?.toString() ?? ''
+        );
+
+        String? correctOptText;
+        final List<String> rawOptionsList = [];
+
+        if (q['choices'] is List) {
+          for (var choice in q['choices']) {
+            if (choice is Map) {
+              final txt = (choice['choice_text'] ?? choice['text'] ?? '').toString().trim();
+              if (txt.isNotEmpty) {
+                rawOptionsList.add(txt);
+                if (choice['is_correct'] == true || choice['isCorrect'] == true) {
+                  correctOptText = txt;
+                }
+              }
+            } else if (choice != null) {
+              final txt = choice.toString().trim();
+              if (txt.isNotEmpty) rawOptionsList.add(txt);
+            }
+          }
+        }
+
+        if (rawOptionsList.isEmpty && q['options'] is List) {
+          for (var opt in q['options']) {
+            if (opt != null) {
+              final txt = opt.toString().trim();
+              if (txt.isNotEmpty) rawOptionsList.add(txt);
+            }
+          }
+        }
+
+        if ((correctOptText == null || correctOptText.isEmpty) && parsedCIndex != null && parsedCIndex >= 0) {
+          final rawOpts = q['options'] ?? q['choices'];
+          if (rawOpts is List && parsedCIndex < rawOpts.length) {
+            final item = rawOpts[parsedCIndex];
+            if (item is Map) {
+              correctOptText = (item['choice_text'] ?? item['text'] ?? '').toString().trim();
+            } else if (item != null) {
+              correctOptText = item.toString().trim();
+            }
+          }
+        }
+
+        if (correctOptText == null || correctOptText.isEmpty) {
+          final explicitText = (q['correctAnswer'] ?? q['correctText'] ?? q['correctChoice'] ?? '').toString().trim();
+          if (explicitText.isNotEmpty) {
+            correctOptText = explicitText;
+          }
+        }
+
+        if (rawOptionsList.length > 1) {
+          rawOptionsList.shuffle(Random());
+        }
+
+        int finalCorrectIndex = 0;
+        if (correctOptText != null && correctOptText.isNotEmpty && rawOptionsList.contains(correctOptText)) {
+          finalCorrectIndex = rawOptionsList.indexOf(correctOptText);
+        } else if (parsedCIndex != null && parsedCIndex >= 0 && parsedCIndex < rawOptionsList.length) {
+          finalCorrectIndex = parsedCIndex;
+        }
+
+        return {
+          'id': q['id'] ?? q['question_id'] ?? q['questionId'],
+          'questionText': q['questionText'] ?? q['question'] ?? q['question_text'] ?? '',
+          'options': rawOptionsList,
+          'correctAnswerIndex': finalCorrectIndex,
+          'correctAnswerText': correctOptText ?? '',
+        };
       }).toList();
     } else {
       _questions = _defaultQuestions;
@@ -255,10 +325,22 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       final selIdx = _selectedAnswers[i];
       final options = (q['options'] as List?) ?? [];
       final selText = (selIdx != null && selIdx >= 0 && selIdx < options.length)
-          ? options[selIdx].toString()
+          ? options[selIdx].toString().trim()
           : '';
-      final targetCorrect = q['correctAnswerIndex'] ?? q['correctIndex'] ?? 0;
-      if (selIdx == targetCorrect) {
+
+      final targetCorrectIndex = q['correctAnswerIndex'] ?? q['correctIndex'];
+      final targetCorrectText = (q['correctAnswerText'] ?? q['correctText'] ?? '').toString().trim();
+
+      bool isCorrect = false;
+      if (selIdx != null && selIdx >= 0) {
+        if (targetCorrectText.isNotEmpty && selText.isNotEmpty) {
+          isCorrect = (selText.toLowerCase() == targetCorrectText.toLowerCase());
+        } else if (targetCorrectIndex != null) {
+          isCorrect = (selIdx == targetCorrectIndex);
+        }
+      }
+
+      if (isCorrect) {
         correctCount++;
       }
       answersPayload.add({
@@ -266,7 +348,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
         'questionIndex': i,
         'selectedChoiceIndex': selIdx,
         'selectedAnswerText': selText,
-        'isCorrect': selIdx == targetCorrect,
+        'isCorrect': isCorrect,
       });
     }
 
@@ -297,7 +379,7 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       });
       debugPrint('[SilentQuiz] Submission result: ${res.success}, msg: ${res.message ?? res.error}');
 
-      await QuizProgressService.clearQuizDraft(widget.passageId, 'silent');
+      // Clear active quiz draft on successful completion
     } catch (e) {
       debugPrint('[SilentQuiz] submission error notice: $e');
     } finally {

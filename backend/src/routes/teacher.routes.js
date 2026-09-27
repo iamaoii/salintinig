@@ -330,6 +330,13 @@ router.get('/assessments/phil-iri-activities', teacherController.getPhilIriActiv
 router.get('/assessments/activity-detail/:id', teacherController.getActivityDetail);
 router.get('/assessments/passages', teacherController.getPhilIriPassages);
 
+// ── Phase 2 Adaptive Assessment ──────────────────────────────────────────────
+// POST /api/teacher/assessments/start-adaptive-sessions  — Teacher bulk-starts Phase 2 for students
+// GET  /api/teacher/assessments/adaptive-sessions        — List all Phase 2 sessions for teacher's class
+router.post('/assessments/start-adaptive-sessions', teacherController.startStudentAdaptiveSessions);
+router.get('/assessments/adaptive-sessions', teacherController.getAdaptiveSessions);
+
+
 router.put('/assessments/toggle-status', async (req, res) => {
   const db = require('../config/db.js');
   try {
@@ -384,5 +391,143 @@ router.delete('/assessments/:id', teacherController.deleteAssessment);
 // Phil-IRI Form 1A/1B GST Submissions (accessible to Teachers & Admins)
 router.get('/phil-iri/gst-submission', adminController.getGstFormSubmission);
 router.post('/phil-iri/gst-submission', adminController.saveGstFormSubmission);
+
+/**
+ * GET /api/teacher/phil-iri/form3-attempts/:lrn
+ * Returns all oral assessment attempt records for a student to populate Form 3A/3B with attempt history
+ */
+router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
+  const db = require('../config/db.js');
+  try {
+    const { lrn: rawLrn } = req.params;
+    const { language = 'fil' } = req.query;
+    const lrn = decodeSecureToken('st', rawLrn) || rawLrn;
+
+    // Resolve student_id and metadata
+    const stdRes = await db.query(
+      `SELECT s.student_id, s.lrn, CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
+              s.first_name, s.last_name, s.sex AS gender,
+              c.section_name, c.grade_level,
+              t.first_name AS t_first, t.last_name AS t_last,
+              sch.school_name
+       FROM students s
+       JOIN users u ON s.user_id = u.user_id
+       LEFT JOIN schools sch ON u.school_id = sch.school_id
+       LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+       LEFT JOIN classes c ON sgh.class_id = c.class_id
+       LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
+       WHERE TRIM(s.lrn) = $1 OR s.student_id::text = $1 OR TRIM(s.lrn) = $2 OR s.student_id::text = $2
+       LIMIT 1`,
+      [lrn, rawLrn]
+    );
+
+    if (!stdRes.rows || stdRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student not found.' });
+    }
+
+    const studentInfo = stdRes.rows[0];
+    const isEng = (language || 'fil').toLowerCase().startsWith('en');
+
+    // Fetch all completed/verified oral assessment attempts for this student matching language
+    const attemptsRes = await db.query(
+      `SELECT 
+         aa.attempt_id,
+         a.assessment_id,
+         a.assessment_period,
+         a.status AS assessment_status,
+         p.passage_id,
+         p.title AS passage_title,
+         p.content_text AS passage_text,
+         p.grade_level AS passage_grade_level,
+         p.word_count,
+         p.passage_set,
+         p.language AS passage_language,
+         aa.completed_at,
+         aa.created_at,
+         orr.accuracy_percentage,
+         orr.reading_rate_wpm,
+         orr.words_read,
+         orr.reading_time_seconds,
+         orr.comprehension_score,
+         orr.verified_miscues_json,
+         orr.ai_miscues_json,
+         a.reading_level_result AS overall_profile
+       FROM assessment_attempts aa
+       JOIN assessments a ON a.assessment_id = aa.assessment_id
+       JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+       LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+       WHERE a.student_id = $1
+         AND LOWER(COALESCE(a.assessment_type, 'oral')) LIKE 'oral%'
+         AND (LOWER(COALESCE(p.language, 'fil')) LIKE $2)
+       ORDER BY aa.completed_at ASC NULLS LAST, aa.created_at ASC`,
+      [studentInfo.student_id, isEng ? 'en%' : 'fil%']
+    );
+
+    // Process attempts to calculate miscues counts and comprehension stats
+    const attempts = (attemptsRes.rows || []).map((row) => {
+      let mispronunciation = 0;
+      let omission = 0;
+      let substitution = 0;
+      let insertion = 0;
+      let repetition = 0;
+      let transposition = 0;
+      let reversal = 0;
+
+      const rawMiscues = (Array.isArray(row.verified_miscues_json) && row.verified_miscues_json.length > 0)
+        ? row.verified_miscues_json
+        : (Array.isArray(row.ai_miscues_json) ? row.ai_miscues_json : []);
+
+      rawMiscues.forEach((m) => {
+        const type = (m.miscue_type || m.type || '').toLowerCase();
+        if (type.includes('mispron') || type.includes('bigkas')) mispronunciation++;
+        else if (type.includes('omiss') || type.includes('kaltas')) omission++;
+        else if (type.includes('substitut') || type.includes('palit') && !type.includes('lugar')) substitution++;
+        else if (type.includes('insert') || type.includes('siring')) insertion++;
+        else if (type.includes('repet') || type.includes('ulit')) repetition++;
+        else if (type.includes('transpos') || type.includes('lugar')) transposition++;
+        else if (type.includes('revers') || type.includes('lipat')) reversal++;
+        else omission++;
+      });
+
+      const totalMiscues = mispronunciation + omission + substitution + insertion + repetition + transposition + reversal;
+      const compScore = Number(row.comprehension_score || 0);
+      const compPct = compScore > 0 && compScore <= 7 ? Math.round((compScore / 7) * 100) : Math.round(compScore);
+      const compLevel = compPct >= 80 ? 'Independent' : compPct >= 59 ? 'Instructional' : 'Frustration';
+
+      return {
+        ...row,
+        total_miscues: totalMiscues,
+        mispronunciation_count: mispronunciation,
+        omission_count: omission,
+        substitution_count: substitution,
+        insertion_count: insertion,
+        repetition_count: repetition,
+        transposition_count: transposition,
+        reversal_count: reversal,
+        comprehension_percentage: compPct,
+        comprehension_level: compLevel,
+      };
+    });
+
+    return res.json({
+      success: true,
+      student: {
+        id: studentInfo.student_id,
+        lrn: studentInfo.lrn,
+        name: studentInfo.name,
+        gender: studentInfo.gender,
+        section: studentInfo.section_name || '—',
+        grade: studentInfo.grade_level || '—',
+        school: studentInfo.school_name || '—',
+        teacher: [studentInfo.t_first, studentInfo.t_last].filter(Boolean).join(' ') || '—',
+        dob: null,
+      },
+      attempts,
+    });
+  } catch (err) {
+    console.error('Error fetching Form 3 attempts:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch student attempts for Form 3.' });
+  }
+});
 
 module.exports = router;

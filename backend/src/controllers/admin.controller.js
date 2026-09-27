@@ -2267,9 +2267,10 @@ async function getPassages(req, res) {
 
     const questionsByPassage = {};
     for (const q of allQuestions) {
-      const cRows = choicesByQuestion[q.question_id] || [];
-      const options = cRows.map((c) => c.choice_text);
-      const correctIndex = cRows.findIndex((c) => c.is_correct);
+      const cRows = (choicesByQuestion[q.question_id] || [])
+        .filter((c) => c && c.choice_text && String(c.choice_text).trim().length > 0);
+      const options = cRows.map((c) => c.choice_text.trim());
+      const correctIndex = cRows.findIndex((c) => c.is_correct === true);
 
       const formattedQuestion = {
         id: q.question_id,
@@ -2345,11 +2346,20 @@ async function createPassage(req, res) {
         `, [materialId, q.question, q.type || 'Multiple Choice']);
 
         const qId = qRes.rows[0].question_id;
-
         if (Array.isArray(q.options)) {
-          for (let i = 0; i < q.options.length; i++) {
-            const optText = q.options[i];
-            const isCorrect = i === (Number(q.correctAnswer) || 0);
+          const rawOptions = q.options.map(opt => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+          const targetCorrectIdx = Number(q.correctAnswer);
+          const targetCorrectText = (!isNaN(targetCorrectIdx) && targetCorrectIdx >= 0 && targetCorrectIdx < rawOptions.length)
+            ? rawOptions[targetCorrectIdx]
+            : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+          const validOptions = rawOptions.filter(opt => opt.length > 0);
+          for (let i = 0; i < validOptions.length; i++) {
+            const optText = validOptions[i];
+            const isCorrect = targetCorrectText
+              ? optText.toLowerCase() === targetCorrectText.toLowerCase()
+              : i === 0;
+
             await db.query(`
               INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
               VALUES ($1, $2, $3)
@@ -2403,9 +2413,19 @@ async function updatePassage(req, res) {
 
         const qId = qRes.rows[0].question_id;
         if (Array.isArray(q.options)) {
-          for (let i = 0; i < q.options.length; i++) {
-            const optText = q.options[i];
-            const isCorrect = i === (Number(q.correctAnswer) || 0);
+          const rawOptions = q.options.map(opt => (opt !== null && opt !== undefined) ? String(opt).trim() : '');
+          const targetCorrectIdx = Number(q.correctAnswer);
+          const targetCorrectText = (!isNaN(targetCorrectIdx) && targetCorrectIdx >= 0 && targetCorrectIdx < rawOptions.length)
+            ? rawOptions[targetCorrectIdx]
+            : (typeof q.correctAnswer === 'string' ? q.correctAnswer.trim() : '');
+
+          const validOptions = rawOptions.filter(opt => opt.length > 0);
+          for (let i = 0; i < validOptions.length; i++) {
+            const optText = validOptions[i];
+            const isCorrect = targetCorrectText
+              ? optText.toLowerCase() === targetCorrectText.toLowerCase()
+              : i === 0;
+
             await db.query(`
               INSERT INTO phil_iri_question_choices (question_id, choice_text, is_correct)
               VALUES ($1, $2, $3)

@@ -900,6 +900,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                                               : Colors.white),
                                       languageBadge: langBadge,
                                       passageSetBadge: setBadge,
+                                      isAdaptive: item['adaptiveSessionId'] != null || item['adaptive_session_id'] != null,
                                       onPressed: () =>
                                           _handleAssessmentClick(item),
                                     );
@@ -1092,6 +1093,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
     Color cardBg = Colors.white,
     String? languageBadge,
     String? passageSetBadge,
+    bool isAdaptive = false,
     VoidCallback? onPressed,
   }) {
     final bool isFil = (languageBadge ?? 'FIL').toUpperCase() == 'FIL';
@@ -1187,6 +1189,29 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF52525B),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      // Adaptive Level-Finding Badge
+                      if (isAdaptive) ...[
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAF5FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFD8B4FE)),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            'Level-Finding',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF7E22CE),
                             ),
                           ),
                         ),

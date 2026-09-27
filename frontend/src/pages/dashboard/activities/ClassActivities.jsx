@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass, X } from '@phosphor-icons/react';
+import { FlagPennant, Plus, UserCheck, Microphone, BookOpen, WarningCircle, CaretLeft, CaretRight, MagnifyingGlass, X, Clock, TrendDown, TrendUp, Target } from '@phosphor-icons/react';
 import ActivityRow from '../../../components/dashboard/activity/ActivityRow.jsx';
 import ActivityDetailPanel from '../../../components/dashboard/activity/ActivityDetailPanel.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
@@ -46,7 +46,9 @@ function consolidateActivities(rawList) {
 
 export default function ClassActivities() {
   const navigate = useNavigate();
+  const location = useLocation();
 
+  const [assessmentFilter, setAssessmentFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const [students, setStudents] = useState([]);
   const [passages, setPassages] = useState([]);
@@ -58,9 +60,16 @@ export default function ClassActivities() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Adaptive Metrics State
+  const [adaptiveMetrics, setAdaptiveMetrics] = useState({
+    inProgress: 0,
+    steppingDown: 0,
+    steppingUp: 0,
+    completed: 0,
+  });
+
   // Pagination & Filtering state
   const [searchQuery, setSearchQuery] = useState('');
-  const [assessmentFilter, setAssessmentFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 6;
 
@@ -106,6 +115,24 @@ export default function ClassActivities() {
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  const fetchAdaptiveSessionsMetrics = () => {
+    const token = getToken();
+    fetch(getApiUrl('/api/teacher/assessments/adaptive-sessions'), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.sessions)) {
+          const s = data.sessions;
+          setAdaptiveMetrics({
+            inProgress: s.filter(x => x.status === 'in_progress').length,
+            steppingDown: s.filter(x => x.status === 'in_progress' && x.direction === 'stepping_down').length,
+            steppingUp: s.filter(x => x.status === 'in_progress' && x.direction === 'stepping_up').length,
+            completed: s.filter(x => x.status === 'completed').length,
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   const handleToggleActivityStatus = async (activity) => {
@@ -200,6 +227,7 @@ export default function ClassActivities() {
       .catch(() => {});
 
     fetchPhilIriActivities();
+    fetchAdaptiveSessionsMetrics();
   }, []);
 
   useEffect(() => {
@@ -216,58 +244,154 @@ export default function ClassActivities() {
     };
   }, [activeReviewData, showPendingListModal, deleteTargetId]);
 
-
-
   return (
     <div className="flex min-h-[calc(100vh-140px)] flex-col">
       <div className="border-b border-ink/10 pb-4">
         <div className="flex items-center gap-3">
           <FlagPennant size={28} className="text-brand-red" />
-          <h1 className="text-3xl font-bold text-ink">Phil-IRI Assessments</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-ink">Phil-IRI Assessments</h1>
+          </div>
         </div>
-      </div>
 
-      <div className="mt-6 flex flex-1 flex-col gap-8 xl:flex-row">
-        <div className="relative min-w-0 flex-1">
-          {/* Action Toolbar */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  if (pendingReviews.length > 0) setShowPendingListModal(true);
-                }}
-                disabled={pendingReviews.length === 0}
-                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
-                  pendingReviews.length > 0
-                    ? 'border-brand-red/30 bg-white text-brand-red shadow-2xs hover:bg-brand-red/5 cursor-pointer'
-                    : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-75'
-                }`}
-              >
-                <Microphone size={16} weight="bold" />
-                <span>Review Oral Assessments ({pendingReviews.length})</span>
-              </button>
-
-              <Link
-                to="/teacher/phil-iri-passages"
-                className="flex items-center gap-2 rounded-xl border border-brand-red/30 bg-white px-3.5 py-2 text-xs font-bold text-brand-red shadow-2xs hover:bg-brand-red/5 transition-all cursor-pointer"
-              >
-                <BookOpen size={16} weight="bold" />
-                <span>Phil-IRI Passage Bank</span>
-              </Link>
+        {/* Adaptive Metrics Banner */}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
+          {/* Active In-Progress */}
+          <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50">Active In-Progress</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-700">
+                <Clock size={16} weight="bold" />
+              </div>
             </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-ink">{adaptiveMetrics.inProgress}</span>
+              <span className="text-xs font-medium text-amber-700">Level Finding</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1 text-[11px] text-ink/60">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+              <span>{adaptiveMetrics.steppingDown} stepping down, {adaptiveMetrics.steppingUp} stepping up</span>
+            </div>
+          </div>
+
+          {/* Stepping Down */}
+          <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50">Stepping Down</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-700">
+                <TrendDown size={16} weight="bold" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-rose-700">{adaptiveMetrics.steppingDown}</span>
+              <span className="text-xs font-medium text-ink/60">Interventions</span>
+            </div>
+            <p className="mt-1 text-[11px] text-ink/60 truncate">Lower grade level tested to ease frustration</p>
+          </div>
+
+          {/* Stepping Up */}
+          <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50">Stepping Up</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+                <TrendUp size={16} weight="bold" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-blue-600">{adaptiveMetrics.steppingUp}</span>
+              <span className="text-xs font-medium text-ink/60">Advancing</span>
+            </div>
+            <p className="mt-1 text-[11px] text-ink/60 truncate">Higher grade level to find instructional ceiling</p>
+          </div>
+
+          {/* Completed */}
+          <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50">Completed</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700">
+                <Target size={16} weight="bold" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-emerald-700">{adaptiveMetrics.completed}</span>
+              <span className="text-xs font-medium text-emerald-700">Level Found</span>
+            </div>
+            <p className="mt-1 text-[11px] text-ink/60 truncate">Confirmed Instructional Reading Level</p>
+          </div>
+        </div>
+
+        {/* Toolbar & Filter Bar moved down */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          {/* Unified Assessment Filter / View Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            {[
+              { key: 'all', label: 'All Assessments' },
+              { key: 'oral', label: 'Oral Reading' },
+              { key: 'listening', label: 'Listening' },
+              { key: 'silent', label: 'Silent Reading' },
+            ].map((item) => {
+              const isSelected = assessmentFilter === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setAssessmentFilter(item.key);
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-brand-red text-white shadow-2xs'
+                      : 'bg-white border border-ink/15 text-ink/70 hover:bg-ink/5 hover:text-ink'
+                  }`}
+                >
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Action Toolbar */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={() => {
+                if (pendingReviews.length > 0) setShowPendingListModal(true);
+              }}
+              disabled={pendingReviews.length === 0}
+              className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-bold transition-all ${
+                pendingReviews.length > 0
+                  ? 'border-brand-red/30 bg-white text-brand-red shadow-2xs hover:bg-brand-red/5 cursor-pointer'
+                  : 'border-slate-200 bg-slate-50/80 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Microphone size={16} weight="bold" />
+              <span>Review Oral Assessments ({pendingReviews.length})</span>
+            </button>
+
+            <Link
+              to="/teacher/phil-iri-passages"
+              className="flex items-center gap-2 rounded-lg border border-rose-300/80 bg-white px-4 py-2 text-xs font-bold text-brand-red shadow-2xs hover:bg-brand-red/5 transition-all cursor-pointer"
+            >
+              <BookOpen size={16} weight="bold" />
+              <span>Phil-IRI Passage Bank</span>
+            </Link>
 
             <Link
               to="/teacher/class-activities/phil-iri/assign"
-              className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg bg-brand-red px-5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-red-700 transition-all cursor-pointer"
             >
               <Plus size={16} weight="bold" />
               <span>Assign Phil-IRI Sets</span>
             </Link>
           </div>
-          {/* Search & Filter Bar */}
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-1 flex-col gap-8 xl:flex-row">
+        <div className="relative min-w-0 flex-1">
+          {/* Search Box */}
           {currentActivities.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              {/* Search Box */}
               <div className="relative flex-1 min-w-[200px]">
                 <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
                 <input
@@ -280,32 +404,6 @@ export default function ClassActivities() {
                   }}
                   className="w-full rounded-xl border border-ink/15 bg-white py-2 pl-9 pr-3.5 text-xs text-ink placeholder:text-ink/40 focus:border-brand-red focus:outline-none shadow-2xs"
                 />
-              </div>
-
-              {/* Assessment Type Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                {[
-                  { key: 'all', label: 'All' },
-                  { key: 'oral', label: 'Oral Reading' },
-                  { key: 'listening', label: 'Listening' },
-                  { key: 'silent', label: 'Silent Reading' },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => {
-                      setAssessmentFilter(item.key);
-                      setCurrentPage(1);
-                    }}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                      assessmentFilter === item.key
-                        ? 'bg-brand-red text-white shadow-2xs'
-                        : 'bg-white text-ink/70 border border-ink/10 hover:bg-ink/5'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
               </div>
             </div>
           )}
