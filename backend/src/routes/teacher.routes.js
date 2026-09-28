@@ -479,6 +479,7 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
                q.question_id, 
                q.passage_id, 
                q.question_text,
+               q.question_type,
                c.choice_id, 
                c.choice_text,
                c.is_correct
@@ -496,6 +497,7 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
                 passagesQuestions[row.passage_id].push({
                   question_id: row.question_id,
                   question_text: row.question_text,
+                  question_type: row.question_type || 'Literal',
                 });
               }
               if (!questionsMap[row.question_id]) {
@@ -595,10 +597,11 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
           letter: letter || (ans?.answer_text && ans.answer_text.length === 1 ? ans.answer_text.toLowerCase() : '') || '',
           answer_text: ans?.answer_text || '',
           is_correct: isCorrect,
+          question_type: q.question_type || 'Literal',
         });
       });
 
-      const totalQuestionsCount = pQuestions.length > 0 ? pQuestions.length : (attAnswers.length > 0 ? attAnswers.length : 7);
+      const totalQuestionsCount = pQuestions.length > 0 ? pQuestions.length : (attAnswers.length > 0 ? attAnswers.length : 8);
       
       // Determine actual raw score and percentage
       let finalRawScore = rawCorrectAnswersCount;
@@ -646,6 +649,109 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
   } catch (err) {
     console.error('Error fetching Form 3 attempts:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch student attempts for Form 3.' });
+  }
+});
+
+/**
+ * GET /api/teacher/phil-iri/form4-submission/:lrn
+ * Fetch saved Form 4 record (checklist + L/I/C data) from database
+ */
+router.get('/phil-iri/form4-submission/:lrn', async (req, res) => {
+  const db = require('../config/db.js');
+  try {
+    const { lrn: rawLrn } = req.params;
+    const lrn = decodeSecureToken('st', rawLrn) || rawLrn;
+
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS phil_iri_form4_submissions (
+        submission_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        student_lrn VARCHAR(50) NOT NULL UNIQUE,
+        checklist_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        lic_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const result = await db.query(
+      `SELECT checklist_data, lic_data, updated_at 
+       FROM phil_iri_form4_submissions 
+       WHERE TRIM(student_lrn) = TRIM($1) OR TRIM(student_lrn) = TRIM($2)
+       LIMIT 1`,
+      [lrn, rawLrn]
+    );
+
+    if (result.rows && result.rows[0]) {
+      return res.json({
+        success: true,
+        submission: {
+          checklistByMode: result.rows[0].checklist_data || {},
+          licByMode: result.rows[0].lic_data || {},
+          updatedAt: result.rows[0].updated_at
+        }
+      });
+    }
+
+    return res.json({ success: true, submission: null });
+  } catch (err) {
+    console.error('Error fetching Form 4 submission:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch Form 4 submission.' });
+  }
+});
+
+/**
+ * POST /api/teacher/phil-iri/form4-submission
+ * Save / Upsert Form 4 record (checklist + L/I/C data) into database
+ */
+router.post('/phil-iri/form4-submission', async (req, res) => {
+  const db = require('../config/db.js');
+  try {
+    const { lrn: rawLrn, checklistByMode, licByMode } = req.body;
+    if (!rawLrn) {
+      return res.status(400).json({ success: false, error: 'Student LRN is required.' });
+    }
+
+    const lrn = decodeSecureToken('st', rawLrn) || rawLrn;
+
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS phil_iri_form4_submissions (
+        submission_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        student_lrn VARCHAR(50) NOT NULL UNIQUE,
+        checklist_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        lic_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const query = `
+      INSERT INTO phil_iri_form4_submissions (student_lrn, checklist_data, lic_data, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (student_lrn)
+      DO UPDATE SET
+        checklist_data = EXCLUDED.checklist_data,
+        lic_data = EXCLUDED.lic_data,
+        updated_at = NOW()
+      RETURNING submission_id, updated_at;
+    `;
+
+    const result = await db.query(query, [
+      lrn,
+      JSON.stringify(checklistByMode || {}),
+      JSON.stringify(licByMode || {})
+    ]);
+
+    return res.json({
+      success: true,
+      message: 'Form 4 record saved to database successfully.',
+      submissionId: result.rows[0]?.submission_id,
+      updatedAt: result.rows[0]?.updated_at
+    });
+  } catch (err) {
+    console.error('Error saving Form 4 submission:', err);
+    return res.status(500).json({ success: false, error: 'Failed to save Form 4 submission to database.' });
   }
 });
 

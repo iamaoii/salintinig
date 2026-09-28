@@ -502,9 +502,13 @@ export default function AdminPhilIriReports() {
                 className="rounded-full border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-medium text-ink outline-none focus:border-brand-blue cursor-pointer transition-colors"
               >
                 <option value="All">All Grades</option>
+                <option value="Grade 1">Grade 1</option>
+                <option value="Grade 2">Grade 2</option>
+                <option value="Grade 3">Grade 3</option>
                 <option value="Grade 4">Grade 4</option>
                 <option value="Grade 5">Grade 5</option>
                 <option value="Grade 6">Grade 6</option>
+                <option value="Grade 7">Grade 7</option>
               </select>
             </div>
 

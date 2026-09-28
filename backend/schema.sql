@@ -348,6 +348,17 @@ CREATE TABLE IF NOT EXISTS gst_form_submissions (
     CONSTRAINT unique_section_form_lang_sy UNIQUE (school_id, section_name, test_language, school_year_id)
 );
 
+-- 7C. PHIL-IRI FORM 4 INDIVIDUAL SUMMARY RECORD SUBMISSIONS
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS phil_iri_form4_submissions (
+    submission_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_lrn VARCHAR(50) NOT NULL UNIQUE,
+    checklist_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    lic_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 
 
 -- -----------------------------------------------------------------------------

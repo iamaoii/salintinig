@@ -202,10 +202,6 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
     setTimeout(() => setShowToast(false), 3500);
   };
 
-  const handleSave = () => {
-    triggerToast('Assessment record saved successfully!');
-  };
-
   const totalMiscues = (record?.miscues || []).reduce((sum, m) => sum + (Number(m.count) || 0), 0);
   const numWords = record?.wordCount || 0;
   const wordReadingScore = numWords > 0 ? Math.max(0, (((numWords - totalMiscues) / numWords) * 100)).toFixed(2) : '0.00';
@@ -217,12 +213,6 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
       : Number(wordReadingScore) >= 90
       ? 'INSTRUCTIONAL'
       : 'FRUSTRATION';
-
-  const handleMiscueChange = (index, val) => {
-    const updated = [...(record.miscues || [])];
-    updated[index] = { ...updated[index], count: Math.max(0, Number(val) || 0) };
-    setRecord((prev) => ({ ...prev, miscues: updated }));
-  };
 
   const formTitleMap = {
     'form-3a': 'Markahang Papel ng Panggradong Lebel na Teksto (Filipino)',
@@ -330,9 +320,9 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
       const rTopSpacer = worksheet.addRow([]);
       rTopSpacer.height = 14;
 
-      // ── TOP BAR: ATTEMPT (LEFT) & FORM CODE PAHINA 1 (RIGHT) ──
+      // ── TOP BAR: ATTEMPT (LEFT) & FORM CODE (RIGHT) ──
       const attemptText = `ATTEMPT ${selectedAttemptIndex + 1} NG ${Math.max(1, attempts.length)}`;
-      const page1Text = `${pageFormCode}, Pahina 1`;
+      const page1Text = pageFormCode;
 
       // Col 1 (A..E) for attemptText, Col 8 (H..M) for page1Text
       const rTopBar = worksheet.addRow([attemptText, '', '', '', '', '', '', page1Text, '', '', '', '', '']);
@@ -545,6 +535,10 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
       mRow3.getCell(11).font = { name: 'Arial', size: 9.5, bold: true };
       mRow3.getCell(11).alignment = { horizontal: 'center', vertical: 'middle' };
 
+      // ── SPACER ROW BETWEEN METADATA HEADER & PASSAGE BOX ──
+      const rMetaPostSpacer = worksheet.addRow([]);
+      rMetaPostSpacer.height = 14;
+
       // ── PASSAGE BOX: OPTION 2 (NATIVE EXCEL RICHTEXT WITH INLINE MISCUE COLOR TAGS) ──
       const rPassTitle = worksheet.addRow([record.passageTitle]);
       worksheet.mergeCells(`A${rPassTitle.number}:M${rPassTitle.number}`);
@@ -651,22 +645,13 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         }
       }
 
-      // ── PAGE BREAK & PROPER SPACING BETWEEN PAHINA 1 AND PAHINA 2 ──
+      // ── PAGE BREAK & PROPER SPACING BETWEEN SECTIONS ──
       const rPageBreakSpacer2 = worksheet.addRow([]);
       rPageBreakSpacer2.height = 16;
       rPageBreakSpacer2.pageBreak = true; // Clean printable page separation
 
-      // ── TOP BAR OF PAHINA 2 ──
-      const page2Text = `${pageFormCode}, Pahina 2`;
-      // Col 8 (H..M) for page2Text
-      const rPahina2Bar = worksheet.addRow(['', '', '', '', '', '', '', page2Text, '', '', '', '', '']);
-      worksheet.mergeCells(`H${rPahina2Bar.number}:M${rPahina2Bar.number}`);
-      rPahina2Bar.height = 22;
-      rPahina2Bar.getCell(8).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF374151' } };
-      rPahina2Bar.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
-
       const rPartAPreSpacer = worksheet.addRow([]);
-      rPartAPreSpacer.height = 10;
+      rPartAPreSpacer.height = 16;
 
       // ── PART A: PAGTATASA SA PAG-UNAWA & RATE NG PAGBASA ──
       const rPartAHeader = worksheet.addRow(['PART A: PAGTATASA SA PAG-UNAWA (COMPREHENSION) & RATE NG PAGBASA']);
@@ -972,15 +957,6 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
             <DownloadSimple size={15} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-          >
-            <FloppyDisk size={15} weight="bold" />
-            <span>Save Record</span>
-          </button>
         </div>
       </div>
 
@@ -1101,7 +1077,7 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                     ? `ATTEMPT ${selectedAttemptIndex + 1} NG ${attempts.length}`
                     : 'ATTEMPT 0 NG 0'}
                 </span>
-                <span>{pageFormCode}, Pahina 1</span>
+                <span>{pageFormCode}</span>
               </div>
               <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                 {isTagalog ? 'Markahang Papel ng Panggradong Lebel na Teksto' : 'Graded Passage Rating Sheet'}
@@ -1157,21 +1133,13 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
               <div className="grid grid-cols-4 gap-4 pt-1">
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-gray-900">Pre-Test:</span>
-                  <button
-                    type="button"
-                    onClick={() => setRecord((r) => ({ ...r, testType: 'Pre-Test' }))}
-                    className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs cursor-pointer bg-white"
-                  >
+                  <div className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs bg-white select-none">
                     {record.testType === 'Pre-Test' ? '✓' : ''}
-                  </button>
+                  </div>
                   <span className="font-bold text-gray-900 ml-1">Post test:</span>
-                  <button
-                    type="button"
-                    onClick={() => setRecord((r) => ({ ...r, testType: 'Post-Test' }))}
-                    className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs cursor-pointer bg-white"
-                  >
+                  <div className="w-4 h-4 border-2 border-gray-900 flex items-center justify-center font-black text-xs bg-white select-none">
                     {record.testType === 'Post-Test' ? '✓' : ''}
-                  </button>
+                  </div>
                 </div>
                 <div className="flex items-center">
                   <span>Level:</span>
@@ -1314,11 +1282,8 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
               </div>
             </div>
 
-            {/* ── EXCEL TABLE: PAHINA 2 (PART A & PART B) ── */}
+            {/* ── PART A & PART B SECTION ── */}
             <div className="mt-8 pt-4 border-t border-gray-300">
-              <div className="flex justify-end text-[11px] font-bold text-gray-600 mb-2">
-                {pageFormCode}, Pahina 2
-              </div>
 
               {/* PART A: COMPREHENSION & READING RATE TABLE WITH STUDENT ANSWERS BELOW TABLE */}
               <div className="mb-6 border border-gray-400 bg-white">
@@ -1442,14 +1407,7 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                           {m.nameEn} <span className="italic text-gray-600">({m.nameFil})</span>
                         </td>
                         <td className="border border-gray-400 p-1.5 text-center font-bold text-gray-900">
-                          <div className="flex items-center justify-center w-full">
-                            <input
-                              type="number"
-                              value={m.count}
-                              onChange={(e) => handleMiscueChange(m.id - 1, e.target.value)}
-                              className="w-20 border-b border-gray-400 text-center font-bold text-gray-900 outline-none bg-transparent pl-3"
-                            />
-                          </div>
+                          {m.count}
                         </td>
                       </tr>
                     ))}
