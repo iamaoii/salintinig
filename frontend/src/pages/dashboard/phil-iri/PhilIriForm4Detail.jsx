@@ -28,6 +28,13 @@ const DEFAULT_OBSERVATIONS = [
   { behavior: 'Other observations:', behaviorFilipino: 'Ibang Puna', result: '' },
 ];
 
+const extractSetLetter = (rawSet) => {
+  if (!rawSet) return '';
+  const str = String(rawSet).toUpperCase().trim();
+  const match = str.match(/[A-D]/);
+  return match ? match[0] : str;
+};
+
 const normalizeGradeLevel = (rawLevel) => {
   if (!rawLevel) return '';
   const str = String(rawLevel).trim();
@@ -261,20 +268,28 @@ export default function PhilIriForm4Detail() {
     const normCode = normalizeGradeLevel(att.passage_grade_level);
     const wrScore = Number(att.accuracy_percentage || 0);
     const wrLevel = wrScore >= 97 ? 'Independent' : wrScore >= 90 ? 'Instructional' : 'Frustration';
+    const answers = att.answers || [];
+    const totalItems = Number(
+      answers.length > 0
+        ? answers.length
+        : (att.comprehension_total_items || 8)
+    );
     const compScore = Number(att.comprehension_raw_score ?? att.comprehension_score ?? 0);
-    const totalItems = Number(att.comprehension_total_items || 7);
     const compPct = att.comprehension_percentage ?? (totalItems > 0 ? Math.round((compScore / totalItems) * 100) : 0);
     const compLevel = att.comprehension_level || (compPct >= 80 ? 'Independent' : compPct >= 59 ? 'Instructional' : 'Frustration');
     const dStr = att.completed_at ? att.completed_at.split('T')[0] : (att.created_at ? att.created_at.split('T')[0] : '');
 
-    const answers = att.answers || [];
+    // Positional Phil-IRI split: L = first 3, C = last 2, I = middle
+    const litTotal = Math.min(3, totalItems);
+    const critTotal = Math.max(0, Math.min(2, totalItems - litTotal));
+    const infTotal = Math.max(0, totalItems - litTotal - critTotal);
+
     let literalCount = 0, inferentialCount = 0, criticalCount = 0;
     answers.forEach((ans, idx) => {
-      if (ans.is_correct) {
-        if (idx < 3) literalCount++;
-        else if (idx < (totalItems >= 8 ? 6 : 5)) inferentialCount++;
-        else criticalCount++;
-      }
+      if (!ans.is_correct) return;
+      if (idx < litTotal) literalCount++;
+      else if (idx < litTotal + infTotal) inferentialCount++;
+      else criticalCount++;
     });
 
     levelMap[normCode] = {
@@ -299,7 +314,22 @@ export default function PhilIriForm4Detail() {
       literalCount,
       inferentialCount,
       criticalCount,
+      literalTotal: litTotal,
+      inferentialTotal: infTotal,
+      criticalTotal: critTotal,
     };
+  });
+
+  const usedSets = new Set();
+  currentAttempts.forEach((att) => {
+    const letter = extractSetLetter(att.passage_set);
+    if (letter) usedSets.add(letter);
+  });
+  Object.values(levelMap).forEach((lvlData) => {
+    if (lvlData?.set) {
+      const letter = extractSetLetter(lvlData.set);
+      if (letter) usedSets.add(letter);
+    }
   });
 
   // Starting level (*) is determined by the grade level of the student's earliest oral reading attempt (placed via GST). If no attempt exists, set to null.
@@ -556,7 +586,7 @@ export default function PhilIriForm4Detail() {
       rT3Lang.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
 
       const rT3Sub1 = worksheet.addRow([
-        'Passage Level\nA [ ]  B [ ]\nC [ ]  D [ ]',
+        `Passage Level\nA [${usedSets.has('A') ? '✓' : ' '}]  B [${usedSets.has('B') ? '✓' : ' '}]\nC [${usedSets.has('C') ? '✓' : ' '}]  D [${usedSets.has('D') ? '✓' : ' '}]`,
         `[ ${!isPostMode ? '✓' : ' '} ] Pre-Test (Panimulang Pagtatasa)`, '', '', '',
         `[ ${isPostMode ? '✓' : ' '} ] Post Test (Panapos na Pagtatasa)`, '', '', '',
         'Score per\nType of\nQuestion',
@@ -612,9 +642,13 @@ export default function PhilIriForm4Detail() {
           return ans ? (ans.is_correct ? '✓' : 'x') : '';
         });
 
-        const lVal = licByMode[selectedMode]?.[lvlCode]?.l ?? (lvlData ? `${lvlData.literalCount}/3` : '_/_');
-        const iVal = licByMode[selectedMode]?.[lvlCode]?.i ?? (lvlData ? `${lvlData.inferentialCount}/${lvlData.totalItems >= 8 ? 3 : 2}` : '_/_');
-        const cVal = licByMode[selectedMode]?.[lvlCode]?.c ?? (lvlData ? `${lvlData.criticalCount}/2` : '_/_');
+        const litDenom = lvlData ? lvlData.literalTotal : 3;
+        const infDenom = lvlData ? lvlData.inferentialTotal : 3;
+        const critDenom = lvlData ? lvlData.criticalTotal : 2;
+
+        const lVal = licByMode[selectedMode]?.[lvlCode]?.l ?? (lvlData ? `${lvlData.literalCount}/${litDenom}` : '_/_');
+        const iVal = licByMode[selectedMode]?.[lvlCode]?.i ?? (lvlData ? `${lvlData.inferentialCount}/${infDenom}` : '_/_');
+        const cVal = licByMode[selectedMode]?.[lvlCode]?.c ?? (lvlData ? `${lvlData.criticalCount}/${critDenom}` : '_/_');
 
         const typeScores = `L= ${lVal}\nI= ${iVal}\nC= ${cVal}`;
         const scoreStr = lvlData ? `${lvlData.compScore}/${lvlData.totalItems}` : '';
@@ -988,7 +1022,9 @@ export default function PhilIriForm4Detail() {
                         {['A','B','C','D'].map((s) => (
                           <div key={s} className="flex items-center gap-1 text-[9px] font-semibold text-gray-800">
                             <span>{s}</span>
-                            <div className="w-3 h-3 border border-gray-700 bg-white shrink-0" />
+                            <div className="w-3 h-3 border border-gray-700 bg-white shrink-0 flex items-center justify-center text-[9px] font-black">
+                              {usedSets.has(s) ? '✓' : ''}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1070,18 +1106,33 @@ export default function PhilIriForm4Detail() {
                           );
                         })}
                         <td className="border border-gray-400 p-1.5 text-left text-[10px] leading-snug text-gray-800 pl-2">
-                          {[['l','L'],['i','I'],['c','C']].map(([field, label]) => (
-                            <div key={field} className="flex items-center gap-0.5">
-                              <span className="font-bold shrink-0">{label}=</span>
-                              <input
-                                type="text"
-                                value={licByMode[selectedMode]?.[lvlCode]?.[field] ?? ''}
-                                onChange={(e) => handleLicChange(lvlCode, field, e.target.value)}
-                                placeholder="_/_"
-                                className="w-10 border-b border-gray-400 text-center text-[10px] font-semibold bg-transparent focus:outline-none focus:border-[#107c41] placeholder-gray-300"
-                              />
-                            </div>
-                          ))}
+                          {(() => {
+                            const litDenom = lvlData ? lvlData.literalTotal : 3;
+                            const infDenom = lvlData ? lvlData.inferentialTotal : 3;
+                            const critDenom = lvlData ? lvlData.criticalTotal : 2;
+
+                            return [['l','L', litDenom],['i','I', infDenom],['c','C', critDenom]].map(([field, label, maxDenom]) => {
+                              let autoVal = '';
+                              if (lvlData) {
+                                if (field === 'l') autoVal = `${lvlData.literalCount}/${maxDenom}`;
+                                else if (field === 'i') autoVal = `${lvlData.inferentialCount}/${maxDenom}`;
+                                else if (field === 'c') autoVal = `${lvlData.criticalCount}/${maxDenom}`;
+                              }
+                              const val = licByMode[selectedMode]?.[lvlCode]?.[field] ?? autoVal;
+                              return (
+                                <div key={field} className="flex items-center gap-0.5">
+                                  <span className="font-bold shrink-0">{label}=</span>
+                                  <input
+                                    type="text"
+                                    value={val}
+                                    onChange={(e) => handleLicChange(lvlCode, field, e.target.value)}
+                                    placeholder="_/_"
+                                    className="w-10 border-b border-gray-400 text-center text-[10px] font-semibold bg-transparent focus:outline-none focus:border-[#107c41] placeholder-gray-300"
+                                  />
+                                </div>
+                              );
+                            });
+                          })()}
                         </td>
                         <td className="border border-gray-400 p-2 text-gray-900 font-bold text-center">
                           {lvlData ? `${lvlData.compScore}/${lvlData.totalItems}` : ''}

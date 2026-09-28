@@ -212,6 +212,10 @@ export default function SuperAdminPassages() {
 
   // Questions builder helpers
   const handleAddQuestion = () => {
+    if ((formData.questions?.length || 0) >= 8) {
+      setToast({ message: 'Maximum limit of 8 comprehension questions reached for this passage.', type: 'error' });
+      return;
+    }
     const newQ = {
       id: Date.now(),
       question_number: (formData.questions?.length || 0) + 1,
@@ -540,6 +544,7 @@ export default function SuperAdminPassages() {
                 <option value="Grade 4">Grade 4</option>
                 <option value="Grade 5">Grade 5</option>
                 <option value="Grade 6">Grade 6</option>
+                <option value="Grade 7">Grade 7</option>
               </select>
 
               <select
@@ -935,6 +940,7 @@ export default function SuperAdminPassages() {
                         <option value="Grade 4">Grade 4</option>
                         <option value="Grade 5">Grade 5</option>
                         <option value="Grade 6">Grade 6</option>
+                        <option value="Grade 7">Grade 7</option>
                       </select>
                     </div>
 
@@ -982,10 +988,16 @@ export default function SuperAdminPassages() {
                     <button
                       type="button"
                       onClick={handleAddQuestion}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-bold text-cream hover:bg-blue-700 cursor-pointer"
+                      disabled={(formData.questions?.length || 0) >= 8}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                        (formData.questions?.length || 0) >= 8
+                          ? 'bg-ink/10 text-ink/40 cursor-not-allowed'
+                          : 'bg-brand-blue text-cream hover:bg-blue-700 cursor-pointer'
+                      }`}
+                      title={(formData.questions?.length || 0) >= 8 ? 'Maximum 8 questions limit reached' : 'Add Question'}
                     >
                       <Plus size={14} weight="bold" />
-                      <span>Add Question</span>
+                      <span>Add Question ({(formData.questions?.length || 0)}/8)</span>
                     </button>
                   </div>
 
@@ -1159,7 +1171,7 @@ export default function SuperAdminPassages() {
                       onChange={(e) => setSetsGrade(e.target.value)}
                       className="rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer focus:border-brand-blue shadow-2xs"
                     >
-                      {['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].map((g) => (
+                      {['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].map((g) => (
                         <option key={g} value={g}>{g}</option>
                       ))}
                     </select>

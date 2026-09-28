@@ -479,6 +479,7 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
                q.question_id, 
                q.passage_id, 
                q.question_text,
+               q.question_type,
                c.choice_id, 
                c.choice_text,
                c.is_correct
@@ -496,6 +497,7 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
                 passagesQuestions[row.passage_id].push({
                   question_id: row.question_id,
                   question_text: row.question_text,
+                  question_type: row.question_type || 'Literal',
                 });
               }
               if (!questionsMap[row.question_id]) {
@@ -595,10 +597,11 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
           letter: letter || (ans?.answer_text && ans.answer_text.length === 1 ? ans.answer_text.toLowerCase() : '') || '',
           answer_text: ans?.answer_text || '',
           is_correct: isCorrect,
+          question_type: q.question_type || 'Literal',
         });
       });
 
-      const totalQuestionsCount = pQuestions.length > 0 ? pQuestions.length : (attAnswers.length > 0 ? attAnswers.length : 7);
+      const totalQuestionsCount = pQuestions.length > 0 ? pQuestions.length : (attAnswers.length > 0 ? attAnswers.length : 8);
       
       // Determine actual raw score and percentage
       let finalRawScore = rawCorrectAnswersCount;

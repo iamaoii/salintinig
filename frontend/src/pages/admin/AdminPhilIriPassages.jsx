@@ -334,6 +334,10 @@ export default function AdminPhilIriPassages() {
 
   // Question Form Helpers
   const handleAddQuestion = () => {
+    if ((formData.questions?.length || 0) >= 8) {
+      setToast({ message: 'Maximum limit of 8 comprehension questions reached for this passage.' });
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       questions: [
@@ -464,6 +468,7 @@ export default function AdminPhilIriPassages() {
                 <option value="Grade 4">Grade 4</option>
                 <option value="Grade 5">Grade 5</option>
                 <option value="Grade 6">Grade 6</option>
+                <option value="Grade 7">Grade 7</option>
               </select>
 
               <select
@@ -952,9 +957,13 @@ export default function AdminPhilIriPassages() {
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                         className="w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2 text-xs font-semibold text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
+                        <option value="Grade 1">Grade 1</option>
+                        <option value="Grade 2">Grade 2</option>
+                        <option value="Grade 3">Grade 3</option>
                         <option value="Grade 4">Grade 4</option>
                         <option value="Grade 5">Grade 5</option>
                         <option value="Grade 6">Grade 6</option>
+                        <option value="Grade 7">Grade 7</option>
                       </select>
                     </div>
 
@@ -1015,10 +1024,16 @@ export default function AdminPhilIriPassages() {
                     <button
                       type="button"
                       onClick={handleAddQuestion}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue/10 border border-brand-blue/20 px-4 py-1.5 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 cursor-pointer transition-colors"
+                      disabled={(formData.questions?.length || 0) >= 8}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
+                        (formData.questions?.length || 0) >= 8
+                          ? 'bg-ink/10 text-ink/40 border border-ink/10 cursor-not-allowed'
+                          : 'bg-brand-blue/10 border border-brand-blue/20 text-brand-blue hover:bg-brand-blue/20 cursor-pointer'
+                      }`}
+                      title={(formData.questions?.length || 0) >= 8 ? 'Maximum 8 questions limit reached' : 'Add Question'}
                     >
                       <Plus size={15} weight="bold" />
-                      <span>Add Question</span>
+                      <span>Add Question ({(formData.questions?.length || 0)}/8)</span>
                     </button>
                   </div>
 
