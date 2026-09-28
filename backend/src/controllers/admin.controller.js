@@ -1320,9 +1320,13 @@ async function getSections(req, res) {
         `, [schoolId]);
 
         const sectionsByGrade = {
+          'Grade 1': [],
+          'Grade 2': [],
+          'Grade 3': [],
           'Grade 4': [],
           'Grade 5': [],
           'Grade 6': [],
+          'Grade 7': [],
         };
 
         (rows || []).forEach((row) => {
@@ -1343,9 +1347,13 @@ async function getSections(req, res) {
     return res.json({
       success: true,
       sections: {
+        'Grade 1': [],
+        'Grade 2': [],
+        'Grade 3': [],
         'Grade 4': [],
         'Grade 5': [],
         'Grade 6': [],
+        'Grade 7': [],
       },
       allSections: [],
     });
@@ -1628,9 +1636,13 @@ async function performStudentRollover(newSchoolYearId, schoolId) {
       if (status === 'retained') {
         nextGrade = currentGrade;
       } else {
-        if (currentGrade.includes('4')) nextGrade = 'Grade 5';
+        if (currentGrade.includes('1')) nextGrade = 'Grade 2';
+        else if (currentGrade.includes('2')) nextGrade = 'Grade 3';
+        else if (currentGrade.includes('3')) nextGrade = 'Grade 4';
+        else if (currentGrade.includes('4')) nextGrade = 'Grade 5';
         else if (currentGrade.includes('5')) nextGrade = 'Grade 6';
-        else if (currentGrade.includes('6')) nextGrade = 'Grade 6 (Graduated)';
+        else if (currentGrade.includes('6')) nextGrade = 'Grade 7';
+        else if (currentGrade.includes('7')) nextGrade = 'Grade 7 (Graduated)';
         else nextGrade = currentGrade;
       }
 
@@ -2128,9 +2140,13 @@ async function getPhilIriAnalytics(req, res) {
         proficiencyRate: 0,
       },
       byGrade: {
+        'Grade 1': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+        'Grade 2': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+        'Grade 3': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
         'Grade 4': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
         'Grade 5': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
         'Grade 6': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
+        'Grade 7': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
       },
     };
 
