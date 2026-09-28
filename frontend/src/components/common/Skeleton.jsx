@@ -1350,5 +1350,123 @@ export function GradeLevelSkeleton({ activeTab = 'sections' }) {
   );
 }
 
+/**
+ * PhilIriForm4DetailSkeleton
+ * Matches: Phil-IRI Form 4 Individual Summary Record (ISR) layout
+ */
+export function PhilIriForm4DetailSkeleton() {
+  return (
+    <div className="pb-10 font-sans text-xs animate-in fade-in duration-200">
+      {/* Main Worksheet Paper Container Skeleton */}
+      <div className="overflow-x-auto rounded-lg border border-gray-400 bg-white p-6 shadow-xs">
+        <div className="min-w-[850px] space-y-6">
+          {/* Document Header Titles Skeleton */}
+          <div className="text-center space-y-1.5 mb-4">
+            <div className="flex justify-end">
+              <SkeletonBlock className="h-3.5 w-28 rounded-md" />
+            </div>
+            <SkeletonBlock className="h-4.5 w-96 max-w-full rounded-md mx-auto" />
+            <SkeletonBlock className="h-4.5 w-80 max-w-full rounded-md mx-auto" />
+            <SkeletonBlock className="h-4 w-40 rounded-md mx-auto pt-1" />
+          </div>
+
+          {/* Student Info Metadata Grid Skeleton */}
+          <div className="space-y-3 px-1 border-t border-b border-gray-300 py-4 bg-white">
+            <div className="grid grid-cols-12 gap-4 items-center">
+              <div className="col-span-6 flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-12 rounded" />
+                <SkeletonBlock className="h-4 grow rounded" />
+              </div>
+              <div className="col-span-2 flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-8 rounded" />
+                <SkeletonBlock className="h-4 grow rounded" />
+              </div>
+              <div className="col-span-4 flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-24 rounded" />
+                <SkeletonBlock className="h-4 grow rounded" />
+              </div>
+              <div className="col-span-6 flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-12 rounded" />
+                <SkeletonBlock className="h-4 grow rounded" />
+              </div>
+              <div className="col-span-6 flex items-center gap-2">
+                <SkeletonBlock className="h-3.5 w-14 rounded" />
+                <SkeletonBlock className="h-4 grow rounded" />
+              </div>
+            </div>
+          </div>
+
+          {/* Table 1 Skeleton */}
+          <div className="border border-gray-400 rounded overflow-hidden">
+            <div className="bg-[#d4d4d4] p-2.5 flex justify-between items-center border-b border-gray-400">
+              <SkeletonBlock className="h-4 w-48 rounded bg-gray-400/50" />
+              <SkeletonBlock className="h-4 w-32 rounded bg-gray-400/50" />
+            </div>
+            <div className="bg-[#f0f0f0] p-2 border-b border-gray-400">
+              <SkeletonBlock className="h-3.5 w-full rounded bg-gray-300" />
+            </div>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="p-2 border-b border-gray-200 flex justify-between items-center last:border-0">
+                <SkeletonBlock className="h-3.5 w-8 rounded" />
+                <SkeletonBlock className="h-3.5 w-12 rounded" />
+                <SkeletonBlock className="h-3.5 w-16 rounded" />
+                <SkeletonBlock className="h-3.5 w-24 rounded" />
+                <SkeletonBlock className="h-3.5 w-24 rounded" />
+                <SkeletonBlock className="h-3.5 w-20 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Table 2 Skeleton */}
+          <div className="pt-4 border-t border-gray-300 space-y-3">
+            <div className="text-center space-y-1">
+              <SkeletonBlock className="h-4 w-72 rounded mx-auto" />
+              <SkeletonBlock className="h-4 w-60 rounded mx-auto" />
+            </div>
+            <div className="border border-gray-400 rounded overflow-hidden">
+              <div className="bg-[#e2e2e2] p-2.5 flex justify-between border-b border-gray-400">
+                <SkeletonBlock className="h-4 w-64 rounded bg-gray-300" />
+                <SkeletonBlock className="h-4 w-16 rounded bg-gray-300" />
+              </div>
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="p-2.5 border-b border-gray-200 flex justify-between items-center last:border-0">
+                  <SkeletonBlock className="h-3.5 w-4/5 rounded" />
+                  <SkeletonBlock className="h-5 w-24 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Table 3 Skeleton */}
+          <div className="pt-4 border-t border-gray-300 space-y-3">
+            <div className="text-center space-y-1">
+              <SkeletonBlock className="h-4 w-72 rounded mx-auto" />
+              <SkeletonBlock className="h-4 w-48 rounded mx-auto" />
+            </div>
+            <div className="border border-gray-400 rounded overflow-hidden">
+              <div className="bg-[#e8e8e8] p-3 border-b border-gray-400 flex justify-between">
+                <SkeletonBlock className="h-4 w-28 rounded bg-gray-300" />
+                <SkeletonBlock className="h-4 w-48 rounded bg-gray-300" />
+                <SkeletonBlock className="h-4 w-36 rounded bg-gray-300" />
+              </div>
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="p-2.5 border-b border-gray-200 flex justify-between items-center last:border-0">
+                  <SkeletonBlock className="h-3.5 w-10 rounded" />
+                  <SkeletonBlock className="h-3.5 w-64 rounded" />
+                  <SkeletonBlock className="h-3.5 w-20 rounded" />
+                  <SkeletonBlock className="h-3.5 w-12 rounded" />
+                  <SkeletonBlock className="h-3.5 w-12 rounded" />
+                  <SkeletonBlock className="h-3.5 w-24 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 
