@@ -93,6 +93,12 @@ function toPhoneticCode(word) {
     // Spanish-Tagalog loanword allophones (e.g. pamilya <-> familia)
     .replace(/ly/g, 'li')
 
+    // Filipino orthographic shorthand variants:
+    // "kuw" and "kw" are interchangeable (e.g. kuwarto/kwarto, Nagkuwento/Nagkwento)
+    // "uw" after consonant collapses to "w" (e.g. kuwento → kwento)
+    .replace(/kuw/g, 'kw')
+    .replace(/(?<=[bcdfghjklmnpqrstvwxyz])uw/g, 'w')
+
     // Filipino vowel neutrality: e -> i, o -> u
     .replace(/e/g, 'i')
     .replace(/o/g, 'u')
@@ -227,10 +233,23 @@ function getPhoneticSimilarity(expectedWord, spokenWord) {
   // Weighted combination giving priority to acoustic similarity for child speech
   const compositeSimilarity = Number((graphemeSim * 0.4 + phoneticSim * 0.6).toFixed(3));
 
-  // Determine if it qualifies as an acceptable dialectal/phonetic match
-  // Canonical phonetic codes must match identically (e.g. lalaki/lalake, marami/madami)
-  // Dropped suffixes like "praised" vs "praise", "running" vs "run" have different phonetic codes and will correctly be flagged as substitutions.
-  const isPhoneticMatch = phoneExp === phoneSpok;
+const FILIPINO_DOUBLETS = new Set([
+  'din:rin', 'rin:din',
+  'daw:raw', 'raw:daw',
+  'dito:rito', 'rito:dito',
+  'doon:roon', 'roon:doon',
+  'diyan:riyan', 'riyan:diyan',
+  'kuwento:kwento', 'kwento:kuwento',
+  'kuwarto:kwarto', 'kwarto:kuwarto',
+  'nagkuwento:nagkwento', 'nagkwento:nagkuwento'
+]);
+
+  // Determine if it qualifies as an acceptable dialectal doublet/variant
+  // Real doublets (din/rin, daw/raw, kuwarto/kwarto) are acceptable matches.
+  // Distinct vowel/consonant changes (mesa/misa, pusa/posa) will retain high similarity
+  // but will be evaluated as mispronunciations rather than silent matches.
+  const isKuwKwMatch = normExp.replace(/kuw/g, 'kw') === normSpok.replace(/kuw/g, 'kw');
+  const isPhoneticMatch = FILIPINO_DOUBLETS.has(`${normExp}:${normSpok}`) || isKuwKwMatch;
 
   return {
     similarity: Math.max(graphemeSim, compositeSimilarity),

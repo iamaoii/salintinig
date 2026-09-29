@@ -1,9 +1,15 @@
 /**
- * Phil-IRI High-Accuracy AI Miscue Analysis Engine
- * 
- * Powered by Gotoh Affine-Gap Sequence Alignment, Bilingual Phonetic Matching,
- * Compound Word Reconciliation, Multi-Scale Repetition Mapping (Words & Sentences),
- * Timestamp-Based Hesitation Analysis, and Multi-Token Self-Correction Resolution.
+ * Phil-IRI High-Accuracy AI Miscue Analysis Engine v2
+ *
+ * Implements all 8 Official DepEd Phil-IRI Miscue Types:
+ *   1. Mispronunciation
+ *   2. Omission
+ *   3. Substitution
+ *   4. Insertion
+ *   5. Repetition
+ *   6. Transposition
+ *   7. Reversal
+ *   8. Self-Correction (NOT scored as an error)
  */
 
 const {
@@ -14,9 +20,15 @@ const {
   getPhoneticSimilarity,
   isPrefixStutter
 } = require('../utils/phonetics.util.js');
+const { isKnownFilipinoWord } = require('../utils/filipinoLexicon.js');
+
+// ============================================================
+// FILLER WORD DETECTION
+// ============================================================
 
 const FILLER_WORDS = new Set([
-  'uhm', 'um', 'uh', 'ah', 'eh', 'er', 'erm', 'hmm', 'hmmm', 'oops', 'ay', 'ha', 'ano', 'yung', 'kasi', 'kuan', 'kwan'
+  'uhm', 'um', 'uh', 'ah', 'eh', 'er', 'erm', 'hmm', 'hmmm', 'oops',
+  'ano', 'yung', 'kasi', 'kuan', 'kwan'
 ]);
 
 const FILLER_REGEX = /^(u+h*m+|a+h+|e+h+|e+r+m*|h+m+|u+h+|o+o+p+s+|a+y+|h+a+|a+n+o+|y+u+n+g+|k+a+s+i+|k+u+a+n+|k+w+a+n+)$/i;
@@ -27,26 +39,31 @@ function isFillerWord(word) {
   return FILLER_REGEX.test(norm) || FILLER_WORDS.has(norm);
 }
 
+// ============================================================
+// STRICT LOCAL REPETITION DETECTION
+// ============================================================
+
 /**
- * Detect repeated words and phrases in spoken words stream
- * Handles:
- * - Single word adjacent repetitions (e.g. "helping helping", "bata bata")
- * - Word repetitions with filler in between (e.g. "nagluto uhm nagluto")
- * - Multi-word phrase & sentence repetitions from 2 to 25 words
- * 
- * @param {Array<string>} spokenWords 
+ * Detect repeated words and phrases in the spoken word stream.
+ *
+ * KEY PRINCIPLE: Repetition is LOCAL. A word that naturally appears multiple
+ * times in a passage is NOT flagged as a repetition unless the student JUST
+ * read it in the immediate spoken stream context (within a strict window).
+ *
+ * @param {Array<string>} spokenWords
  * @returns {Array<{ isRepetition: boolean, sourceIdx: number|null, repetitionCount: number }>}
  */
 function detectRepetitions(spokenWords) {
   const repInfo = spokenWords.map(() => ({ isRepetition: false, sourceIdx: null, repetitionCount: 1 }));
   const normalized = spokenWords.map(w => normalizeWord(w));
 
-  // 1. Single word adjacent and filler-separated repetitions
+  // Pass 1: Single-word adjacent repetitions (including filler-separated)
   for (let i = 1; i < normalized.length; i++) {
-    if (!normalized[i] || isFillerWord(normalized[i])) continue;
+    const curr = normalized[i];
+    if (!curr || isFillerWord(curr)) continue;
 
-    // Direct adjacent
-    if (normalized[i] === normalized[i - 1]) {
+    // Direct adjacent: "bata bata"
+    if (curr === normalized[i - 1] && !isFillerWord(normalized[i - 1])) {
       repInfo[i] = {
         isRepetition: true,
         sourceIdx: repInfo[i - 1].isRepetition ? repInfo[i - 1].sourceIdx : i - 1,
@@ -55,8 +72,13 @@ function detectRepetitions(spokenWords) {
       continue;
     }
 
-    // Separated by 1 filler word (e.g. "nagluto uhm nagluto")
-    if (i >= 2 && isFillerWord(normalized[i - 1]) && normalized[i] === normalized[i - 2]) {
+    // Filler-separated: "nagluto uhm nagluto"
+    if (
+      i >= 2 &&
+      isFillerWord(normalized[i - 1]) &&
+      curr === normalized[i - 2] &&
+      !isFillerWord(normalized[i - 2])
+    ) {
       repInfo[i] = {
         isRepetition: true,
         sourceIdx: repInfo[i - 2].isRepetition ? repInfo[i - 2].sourceIdx : i - 2,
@@ -66,22 +88,26 @@ function detectRepetitions(spokenWords) {
     }
   }
 
-  // 2. Multi-word phrase and sentence repetitions (n-grams from 2 to 25 words)
-  for (let len = 2; len <= 25; len++) {
+  // Pass 2: Multi-word phrase repetitions (strict local window, n-grams 2-8)
+  for (let len = 2; len <= 8; len++) {
     for (let i = 0; i + len <= normalized.length; i++) {
-      const p1 = normalized.slice(i, i + len).join(' ');
-      if (p1.length < 3) continue;
+      if (repInfo[i].isRepetition) continue;
 
-      // Scan ahead for duplicate phrase/sentence
-      for (let j = i + len; j + len <= normalized.length && j <= i + len * 2 + 5; j++) {
-        const p2 = normalized.slice(j, j + len).join(' ');
-        if (p1 === p2) {
+      const phrase = normalized.slice(i, i + len);
+      if (phrase.every(w => !w || isFillerWord(w))) continue;
+      const phraseStr = phrase.join(' ');
+      if (phraseStr.trim().length < 4) continue;
+
+      // Strict local window: only look immediately after the phrase
+      const maxLookAhead = Math.min(i + len + len + 3, normalized.length - len);
+      for (let j = i + len; j <= maxLookAhead; j++) {
+        if (repInfo[j].isRepetition) continue;
+        const compareStr = normalized.slice(j, j + len).join(' ');
+        if (phraseStr === compareStr) {
           for (let k = 0; k < len; k++) {
-            repInfo[j + k] = {
-              isRepetition: true,
-              sourceIdx: i + k,
-              repetitionCount: 2
-            };
+            if (!repInfo[j + k].isRepetition) {
+              repInfo[j + k] = { isRepetition: true, sourceIdx: i + k, repetitionCount: 2 };
+            }
           }
         }
       }
@@ -91,46 +117,29 @@ function detectRepetitions(spokenWords) {
   return repInfo;
 }
 
-/**
- * Gotoh Global Sequence Alignment with Affine Gap Penalties & Compound Word Support
- * Prevents multi-word skips or sentence repetitions from fragmenting into false substitutions.
- * 
- * @param {Array<string>} originalWords - Reference passage words
- * @param {Array<string>} spokenWords - Transcribed student words
- * @param {Array<{ isRepetition: boolean }>} repInfo - Repetition info per spoken word
- * @param {Array<boolean>} isFiller - Filler word flags per spoken word
- * @returns {Array<{ type: string, origIdx: number|null, spokIdx: number|null, phoneticConfidence: number }>}
- */
+// ============================================================
+// GOTOH AFFINE-GAP SEQUENCE ALIGNMENT
+// ============================================================
+
 function alignSequences(originalWords, spokenWords, repInfo, isFiller) {
   const m = originalWords.length;
   const n = spokenWords.length;
 
   if (m === 0 && n === 0) return [];
-  if (m === 0) {
-    return spokenWords.map((_, j) => ({ type: 'insertion', origIdx: null, spokIdx: j, phoneticConfidence: 0 }));
-  }
-  if (n === 0) {
-    return originalWords.map((_, i) => ({ type: 'omission', origIdx: i, spokIdx: null, phoneticConfidence: 0 }));
-  }
+  if (m === 0) return spokenWords.map((_, j) => ({ type: 'insertion', origIdx: null, spokIdx: j, phoneticConfidence: 0 }));
+  if (n === 0) return originalWords.map((_, i) => ({ type: 'omission', origIdx: i, spokIdx: null, phoneticConfidence: 0 }));
 
-  const GAP_OPEN = -3.0;
+  const GAP_OPEN   = -3.0;
   const GAP_EXTEND = -0.5;
-  const NEG_INF = -1e9;
+  const NEG_INF    = -1e9;
 
-  // 3 Matrices for Gotoh Affine Gap Alignment:
-  // M: Match/Substitution, X: Omission (Gap in Spoken), Y: Insertion (Gap in Passage)
   const M = Array.from({ length: m + 1 }, () => Array(n + 1).fill(NEG_INF));
   const X = Array.from({ length: m + 1 }, () => Array(n + 1).fill(NEG_INF));
   const Y = Array.from({ length: m + 1 }, () => Array(n + 1).fill(NEG_INF));
 
   M[0][0] = 0;
-
-  for (let i = 1; i <= m; i++) {
-    X[i][0] = GAP_OPEN + i * GAP_EXTEND;
-  }
-  for (let j = 1; j <= n; j++) {
-    Y[0][j] = GAP_OPEN + j * GAP_EXTEND;
-  }
+  for (let i = 1; i <= m; i++) X[i][0] = GAP_OPEN + i * GAP_EXTEND;
+  for (let j = 1; j <= n; j++) Y[0][j] = GAP_OPEN + j * GAP_EXTEND;
 
   for (let i = 1; i <= m; i++) {
     const origWord = originalWords[i - 1];
@@ -139,114 +148,43 @@ function alignSequences(originalWords, spokenWords, repInfo, isFiller) {
       const phon = getPhoneticSimilarity(origWord, spokWord);
 
       let matchScore = -1.5;
-      if (phon.isExactMatch) {
-        matchScore = 3.0;
-      } else if (phon.isPhoneticMatch) {
-        matchScore = 2.5; // High reward for acceptable dialectal/phonetic match
-      } else if (phon.similarity >= 0.70) {
-        matchScore = 1.0;
-      } else if (phon.similarity >= 0.45) {
-        matchScore = 0.0;
-      } else {
-        matchScore = -1.5;
-      }
+      if (phon.isExactMatch)          matchScore = 3.0;
+      else if (phon.isPhoneticMatch)  matchScore = 2.5;
+      else if (phon.similarity >= 0.70) matchScore = 1.0;
+      else if (phon.similarity >= 0.45) matchScore = 0.0;
 
-      // If spoken word is flagged as a repetition or filler, reduce match weight to prioritize primary reading
-      if (repInfo[j - 1]?.isRepetition || isFiller[j - 1]) {
-        matchScore -= 1.2;
-      }
+      if (repInfo[j - 1]?.isRepetition || isFiller[j - 1]) matchScore -= 1.2;
 
-      // Calculate M[i][j] (diagonal move)
       const prevBest = Math.max(M[i - 1][j - 1], X[i - 1][j - 1], Y[i - 1][j - 1]);
       M[i][j] = prevBest + matchScore;
-
-      // Calculate X[i][j] (deletion from passage / omission)
-      X[i][j] = Math.max(
-        M[i - 1][j] + GAP_OPEN + GAP_EXTEND,
-        X[i - 1][j] + GAP_EXTEND
-      );
-
-      // Calculate Y[i][j] (insertion in spoken / extra word)
-      Y[i][j] = Math.max(
-        M[i][j - 1] + GAP_OPEN + GAP_EXTEND,
-        Y[i][j - 1] + GAP_EXTEND
-      );
+      X[i][j] = Math.max(M[i - 1][j] + GAP_OPEN + GAP_EXTEND, X[i - 1][j] + GAP_EXTEND);
+      Y[i][j] = Math.max(M[i][j - 1] + GAP_OPEN + GAP_EXTEND, Y[i][j - 1] + GAP_EXTEND);
     }
   }
 
-  // Backtracking
-  let i = m;
-  let j = n;
-  let currentMatrix = 'M';
-
-  // Determine starting matrix at (m, n)
+  let i = m, j = n;
   const maxScore = Math.max(M[m][n], X[m][n], Y[m][n]);
-  if (maxScore === X[m][n]) currentMatrix = 'X';
-  else if (maxScore === Y[m][n]) currentMatrix = 'Y';
-  else currentMatrix = 'M';
-
+  let cur = maxScore === X[m][n] ? 'X' : (maxScore === Y[m][n] ? 'Y' : 'M');
   const steps = [];
 
   while (i > 0 || j > 0) {
-    if (currentMatrix === 'M') {
-      if (i === 0 || j === 0) {
-        currentMatrix = i > 0 ? 'X' : 'Y';
-        continue;
-      }
-
-      const origWord = originalWords[i - 1];
-      const spokWord = spokenWords[j - 1];
-      const phon = getPhoneticSimilarity(origWord, spokWord);
-
-      const isMatch = phon.isExactMatch || phon.isPhoneticMatch;
+    if (cur === 'M') {
+      if (i === 0 || j === 0) { cur = i > 0 ? 'X' : 'Y'; continue; }
+      const phon = getPhoneticSimilarity(originalWords[i - 1], spokenWords[j - 1]);
       steps.unshift({
-        type: isMatch ? 'match' : 'substitution',
-        origIdx: i - 1,
-        spokIdx: j - 1,
-        phoneticConfidence: Math.round(phon.similarity * 100)
+        type: (phon.isExactMatch || phon.isPhoneticMatch) ? 'match' : 'substitution',
+        origIdx: i - 1, spokIdx: j - 1, phoneticConfidence: Math.round(phon.similarity * 100)
       });
-
-      // Find where we came from
-      const prevM = M[i - 1][j - 1];
-      const prevX = X[i - 1][j - 1];
-      const prevY = Y[i - 1][j - 1];
-      const best = Math.max(prevM, prevX, prevY);
-
-      if (best === prevM) currentMatrix = 'M';
-      else if (best === prevX) currentMatrix = 'X';
-      else currentMatrix = 'Y';
-
+      const b = Math.max(M[i-1][j-1], X[i-1][j-1], Y[i-1][j-1]);
+      cur = b === M[i-1][j-1] ? 'M' : (b === X[i-1][j-1] ? 'X' : 'Y');
+      i--; j--;
+    } else if (cur === 'X') {
+      steps.unshift({ type: 'omission', origIdx: i - 1, spokIdx: null, phoneticConfidence: 0 });
+      cur = (i > 0 && X[i][j] === X[i-1][j] + GAP_EXTEND) ? 'X' : 'M';
       i--;
-      j--;
-    } else if (currentMatrix === 'X') {
-      // Omission (gap in spoken, move up in passage)
-      steps.unshift({
-        type: 'omission',
-        origIdx: i - 1,
-        spokIdx: null,
-        phoneticConfidence: 0
-      });
-
-      if (i > 0 && X[i][j] === X[i - 1][j] + GAP_EXTEND) {
-        currentMatrix = 'X';
-      } else {
-        currentMatrix = 'M';
-      }
-      i--;
-    } else if (currentMatrix === 'Y') {
-      // Insertion (gap in passage, move left in spoken)
-      steps.unshift({
-        type: 'insertion',
-        origIdx: i > 0 ? i - 1 : 0,
-        spokIdx: j - 1,
-        phoneticConfidence: 0
-      });
-
-      if (j > 0 && Y[i][j] === Y[i][j - 1] + GAP_EXTEND) {
-        currentMatrix = 'Y';
-      } else {
-        currentMatrix = 'M';
-      }
+    } else {
+      steps.unshift({ type: 'insertion', origIdx: i > 0 ? i - 1 : 0, spokIdx: j - 1, phoneticConfidence: 0 });
+      cur = (j > 0 && Y[i][j] === Y[i][j-1] + GAP_EXTEND) ? 'Y' : 'M';
       j--;
     }
   }
@@ -254,26 +192,25 @@ function alignSequences(originalWords, spokenWords, repInfo, isFiller) {
   return steps;
 }
 
-/**
- * Reconcile compound and hyphenated words between passage and spoken words
- * E.g., if passage has "mag-aaral" and spoken has ["mag", "aaral"], merge spoken into "mag-aaral".
- * @param {Array<string>} originalWords 
- * @param {Array<string>} spokenWords 
- * @param {Array<object>} timestampedWords 
- * @returns {{ spokenWords: Array<string>, timestampedWords: Array<object> }}
- */
+// ============================================================
+// COMPOUND TOKEN RECONCILIATION
+// ============================================================
+
 function reconcileCompoundTokens(originalWords, spokenWords, timestampedWords = []) {
   const mergedSpoken = [];
   const mergedTimestamps = [];
 
-  const unsegmentedPassage = new Set(originalWords.map(w => toUnsegmented(w)));
-
   let j = 0;
   while (j < spokenWords.length) {
-    // Check if 2 consecutive spoken words form an unsegmented compound word in passage
     if (j + 1 < spokenWords.length) {
       const combined = toUnsegmented(spokenWords[j] + spokenWords[j + 1]);
-      if (unsegmentedPassage.has(combined)) {
+      
+      // Position-aware check: only merge if the local passage context (around j)
+      // actually contains a compound or hyphenated word matching this combined token.
+      const localWindow = originalWords.slice(Math.max(0, j - 2), Math.min(originalWords.length, j + 3));
+      const hasLocalCompound = localWindow.some(w => toUnsegmented(w) === combined);
+
+      if (hasLocalCompound) {
         mergedSpoken.push(`${spokenWords[j]}-${spokenWords[j + 1]}`);
         if (timestampedWords.length > 0) {
           mergedTimestamps.push({
@@ -286,27 +223,56 @@ function reconcileCompoundTokens(originalWords, spokenWords, timestampedWords = 
         continue;
       }
     }
-
     mergedSpoken.push(spokenWords[j]);
-    if (timestampedWords.length > 0 && timestampedWords[j]) {
-      mergedTimestamps.push(timestampedWords[j]);
-    }
+    if (timestampedWords.length > 0 && timestampedWords[j]) mergedTimestamps.push(timestampedWords[j]);
     j++;
   }
 
-  return {
-    spokenWords: mergedSpoken,
-    timestampedWords: mergedTimestamps
-  };
+  return { spokenWords: mergedSpoken, timestampedWords: mergedTimestamps };
 }
+
+// ============================================================
+// TRANSPOSITION DETECTION HELPER
+// ============================================================
+
+/**
+ * Check if two adjacent substitution steps represent a transposition.
+ * Passage: [A, B] — Student reads: [B, A]
+ * Extended window: checks up to 2 steps ahead for the second substitution.
+ */
+/**
+ * Returns the index of the partner step if transposition is detected, or -1.
+ * Passage: [A, B] — Student reads: [B, A]
+ */
+function findTranspositionPartner(steps, s, originalWords, spokenWords) {
+  for (let offset = 1; offset <= 2; offset++) {
+    const ns = s + offset;
+    if (ns >= steps.length) break;
+    const nextStep = steps[ns];
+    if (!nextStep || nextStep.type !== 'substitution') continue;
+    if (nextStep.origIdx === null || nextStep.spokIdx === null) continue;
+
+    const currOrig = normalizeWord(originalWords[steps[s].origIdx] || '');
+    const currSpok = normalizeWord(spokenWords[steps[s].spokIdx] || '');
+    const nextOrig = normalizeWord(originalWords[nextStep.origIdx] || '');
+    const nextSpok = normalizeWord(spokenWords[nextStep.spokIdx] || '');
+
+    if (currOrig === nextSpok && nextOrig === currSpok) return ns;
+  }
+  return -1;
+}
+
+// ============================================================
+// MAIN ANALYSIS FUNCTION
+// ============================================================
 
 /**
  * Perform Comprehensive Phil-IRI AI Miscue Analysis
- * 
- * @param {string} passageText - Original reference passage text
- * @param {string|object} spokenInput - Spoken transcript or { text, words: [{ word, start, end }] }
- * @param {number} [readingTimeSeconds=60] - Total reading duration
- * @returns {object} Full Phil-IRI analysis output with verified reading metrics
+ *
+ * @param {string}        passageText         - Original reference passage text
+ * @param {string|object} spokenInput         - Spoken transcript or { text, words: [{word,start,end}] }
+ * @param {number}        readingTimeSeconds   - Total reading duration in seconds
+ * @returns {object} Full Phil-IRI analysis output
  */
 function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
   const originalWords = (passageText || '').split(/\s+/).filter(Boolean);
@@ -321,7 +287,6 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
     timestampedWords = Array.isArray(spokenInput.words) ? spokenInput.words : [];
   }
 
-  // Extract initial spoken words list
   let rawSpokenWords = [];
   if (timestampedWords.length > 0) {
     rawSpokenWords = timestampedWords.map(tw => tw.word || '').filter(Boolean);
@@ -329,34 +294,19 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
     rawSpokenWords = spokenRawText.split(/\s+/).filter(Boolean);
   }
 
-  // Reconcile compound words (e.g. "mag" "aaral" -> "mag-aaral")
   const reconciled = reconcileCompoundTokens(originalWords, rawSpokenWords, timestampedWords);
   const spokenWords = reconciled.spokenWords;
   timestampedWords = reconciled.timestampedWords;
 
   const totalPassageWords = originalWords.length;
   if (totalPassageWords === 0) {
-    return {
-      totalPassageWords: 0,
-      wordsRead: 0,
-      correctWords: 0,
-      readingRateWPM: 0,
-      accuracyPercentage: 0,
-      miscuesCount: 0,
-      miscues: []
-    };
+    return { totalPassageWords: 0, wordsRead: 0, correctWords: 0, readingRateWPM: 0, accuracyPercentage: 0, miscuesCount: 0, miscues: [] };
   }
 
-  // 1. Detect word and phrase repetitions (N-Gram & sentence loop-back detection)
-  const repInfo = detectRepetitions(spokenWords);
-
-  // 3. Mark filler words
+  const repInfo  = detectRepetitions(spokenWords);
   const isFiller = spokenWords.map(w => isFillerWord(w));
+  const steps    = alignSequences(originalWords, spokenWords, repInfo, isFiller);
 
-  // 4. Perform Gotoh Affine Gap Sequence Alignment
-  const steps = alignSequences(originalWords, spokenWords, repInfo, isFiller);
-
-  // Map each spoken word index to the passage index it aligned to
   const spokenToOrigMap = new Array(spokenWords.length).fill(null);
   for (const step of steps) {
     if (step.spokIdx !== null && step.origIdx !== null) {
@@ -364,113 +314,103 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
     }
   }
 
-  // 5. Forward Processing & Consolidation
-  const miscuesByPosition = new Map(); // Map<word_position, miscue_object>
+  // Miscue priority for de-duplication (higher = wins)
+  const PRIORITY = {
+    self_correction: 6,
+    reversal: 5,
+    transposition: 5,
+    mispronunciation: 4,
+    substitution: 4,
+    omission: 4,
+    repetition: 3,
+    insertion: 1
+  };
+
+  const miscuesByPosition = new Map();
 
   const setMiscue = (pos, miscue) => {
     const validPos = Math.max(1, Math.min(pos, totalPassageWords));
-    const fallbackExpected = originalWords[validPos - 1] || originalWords[0] || '';
-    
-    // Ensure expected_word is always guaranteed to be populated
-    const cleanMiscue = {
-      ...miscue,
-      word_position: validPos,
-      expected_word: miscue.expected_word || fallbackExpected
-    };
+    const fallback = originalWords[validPos - 1] || originalWords[0] || '';
+    const cleanMiscue = { ...miscue, word_position: validPos, expected_word: miscue.expected_word || fallback };
 
     const existing = miscuesByPosition.get(validPos);
-    if (!existing) {
-      miscuesByPosition.set(validPos, cleanMiscue);
-      return;
-    }
+    if (!existing) { miscuesByPosition.set(validPos, cleanMiscue); return; }
 
-    // Priority ranking (8 Official Phil-IRI Miscues):
-    // 1. self_correction (highest - student corrected themselves)
-    // 2. repetition (overwrites generic insertion)
-    // 3. mispronunciation / substitution / omission / reversal / transposition (content errors)
-    // 4. insertion
-    if (cleanMiscue.miscue_type === 'self_correction') {
-      miscuesByPosition.set(validPos, cleanMiscue);
-      return;
-    }
-
-    if (cleanMiscue.miscue_type === 'repetition') {
-      if (existing.miscue_type === 'insertion') {
-        miscuesByPosition.set(validPos, cleanMiscue);
-        return;
-      }
-    }
-
-    const contentErrorTypes = ['mispronunciation', 'substitution', 'omission', 'reversal', 'transposition'];
-    if (contentErrorTypes.includes(cleanMiscue.miscue_type)) {
-      if (existing.miscue_type === 'insertion') {
-        miscuesByPosition.set(validPos, cleanMiscue);
-        return;
-      }
-    }
+    const newP = PRIORITY[cleanMiscue.miscue_type] || 0;
+    const oldP = PRIORITY[existing.miscue_type] || 0;
+    if (newP > oldP) miscuesByPosition.set(validPos, cleanMiscue);
   };
 
   let currentOrigPos = 1;
 
   for (let s = 0; s < steps.length; s++) {
     const step = steps[s];
-    if (step.origIdx !== null && step.origIdx !== undefined) {
-      currentOrigPos = step.origIdx + 1;
-    }
+    if (step.origIdx !== null && step.origIdx !== undefined) currentOrigPos = step.origIdx + 1;
 
-    const nextStep = s + 1 < steps.length ? steps[s + 1] : null;
-    const spokenWord = step.spokIdx !== null ? spokenWords[step.spokIdx] : '';
-    const isStepFiller = step.spokIdx !== null && isFillerWord(spokenWord);
-    const isStepRepetition = step.spokIdx !== null && repInfo[step.spokIdx]?.isRepetition;
-    const isSameWordAsNext = nextStep && nextStep.spokIdx !== null && normalizeWord(spokenWord) === normalizeWord(spokenWords[nextStep.spokIdx]);
+    const nextStep    = s + 1 < steps.length ? steps[s + 1] : null;
+    const spokenWord  = step.spokIdx !== null ? spokenWords[step.spokIdx] : '';
+    const isStepFill  = step.spokIdx !== null && isFillerWord(spokenWord);
+    const isStepRep   = step.spokIdx !== null && repInfo[step.spokIdx]?.isRepetition;
 
-    // A. Detect Self-Correction:
-    // If the spoken word is identical to the next spoken word, it is a REPETITION, not a self-correction!
-    // Pattern 1: Substitution immediately corrected on same expected word
-    // Pattern 2: False start / prefix stutter / phonetic attempt immediately followed by match on target word
-    if (
-      !isStepFiller &&
-      !isStepRepetition &&
-      !isSameWordAsNext &&
-      nextStep &&
-      nextStep.type === 'match' &&
-      nextStep.origIdx !== null &&
-      (
+    // ── A. SELF-CORRECTION ──
+    if (step.type !== 'match' && !isStepFill && !isStepRep && nextStep && nextStep.type === 'match' && nextStep.origIdx !== null) {
+      const targetWord  = originalWords[nextStep.origIdx];
+      const spokenNorm  = normalizeWord(spokenWord);
+      const targetNorm  = normalizeWord(targetWord);
+      const isSameAsTarget = spokenNorm === targetNorm;
+
+      const isKnownModifier = (word) => {
+        const w = (word || '').toLowerCase().trim();
+        const MODS = new Set([
+          'talaga', 'sobra', 'palagi', 'noon', 'kanina', 'ngayon', 'bukas', 'dito', 'doon', 'diyan',
+          'napakaganda', 'napalaki', 'napakaliit', 'mabilis', 'dahan-dahan', 'bigla', 'agad', 'mismo',
+          'daw', 'raw', 'din', 'rin', 'pala', 'sana', 'kaya', 'tuloy', 'naman', 'nga',
+          'isang', 'dalawang', 'tatlong', 'apat', 'lima', 'buong', 'lahat', 'bawat',
+          'puting', 'pulang', 'itim', 'dilaw', 'berde', 'asul', 'luntiang', 'lumang', 'bagong',
+          'munting', 'matabang', 'payat', 'mababang', 'mataas', 'matamis', 'maasim', 'maalat',
+          'maraming', 'kaunting', 'mabait', 'masipag', 'matalino', 'masayang', 'tahimik', 'tunay'
+        ]);
+        if (MODS.has(w)) return true;
+        if (w.endsWith('ng') && w.length >= 4) return true;
+        return w === 'na' || w === 'mga' || w === 'ay' || w === 'at';
+      };
+
+      const isSelfCorrect = !isSameAsTarget && (
         (step.type === 'substitution' && step.origIdx === nextStep.origIdx) ||
-        (step.spokIdx !== null && isPrefixStutter(spokenWord, originalWords[nextStep.origIdx])) ||
-        (step.type === 'insertion' && (step.origIdx === nextStep.origIdx || step.origIdx + 1 === nextStep.origIdx) && getPhoneticSimilarity(spokenWord, originalWords[nextStep.origIdx]).similarity >= 0.40)
-      )
-    ) {
-      const targetOrigIdx = nextStep.origIdx;
-      setMiscue(targetOrigIdx + 1, {
-        expected_word: originalWords[targetOrigIdx],
-        spoken_word: `${spokenWords[step.spokIdx]} → ${spokenWords[nextStep.spokIdx]}`,
-        miscue_type: 'self_correction',
-        is_corrected: true,
-        phonetic_confidence: 100
-      });
-      s++; // Skip nextStep as it is resolved as part of the self-correction
-      continue;
-    }
+        (step.spokIdx !== null && isPrefixStutter(spokenWord, targetWord)) ||
+        (
+          step.type === 'insertion' &&
+          (step.origIdx === nextStep.origIdx || step.origIdx + 1 === nextStep.origIdx) &&
+          (
+            getPhoneticSimilarity(spokenWord, targetWord).similarity >= 0.65 ||
+            (!isKnownModifier(spokenWord) && (isKnownFilipinoWord(spokenNorm) || spokenWord.includes('-')))
+          )
+        )
+      );
 
-    // B. Match Step
-    if (step.type === 'match') {
-      const sIdx = step.spokIdx;
-      if (sIdx !== null) {
-        if (repInfo[sIdx]?.isRepetition) {
-          setMiscue(currentOrigPos, {
-            expected_word: originalWords[step.origIdx],
-            spoken_word: spokenWords[sIdx],
-            miscue_type: 'repetition',
-            is_corrected: false,
-            phonetic_confidence: step.phoneticConfidence || 100
-          });
-        }
+      if (isSelfCorrect) {
+        setMiscue(nextStep.origIdx + 1, {
+          expected_word: targetWord,
+          spoken_word: `${spokenWord} -> ${spokenWords[nextStep.spokIdx]}`,
+          miscue_type: 'self_correction',
+          is_corrected: true,
+          phonetic_confidence: 100
+        });
+        s++;
+        continue;
       }
+    }
+
+    // ── B. MATCH ──
+    if (step.type === 'match') {
+      // In Phil-IRI, a word that successfully matches a distinct forward passage position
+      // is a correct reading of the text. Naturally recurring words in passage text
+      // (e.g. "sa bukid", "ang", "si Mila") are author refrains, NOT student repetition errors.
+      // Student repetitions are extra spoken tokens aligned as insertions or regressions.
       continue;
     }
 
-    // C. Omission Step (Student skipped the passage word)
+    // ── C. OMISSION ──
     if (step.type === 'omission') {
       setMiscue(currentOrigPos, {
         expected_word: originalWords[step.origIdx],
@@ -482,38 +422,51 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
       continue;
     }
 
-    // D. Substitution Step (Student mispronounced or changed the word)
-    // D. Substitution / Mispronunciation / Reversal / Transposition Step
+    // ── D. SUBSTITUTION → reversal / transposition / mispronunciation / substitution ──
     if (step.type === 'substitution') {
       const exp = originalWords[step.origIdx] || '';
       const spk = spokenWords[step.spokIdx] || '';
       const expNorm = normalizeWord(exp);
       const spkNorm = normalizeWord(spk);
+      if (!expNorm || !spkNorm) continue;
 
-      // Check for Reversal: e.g. "bad" read as "dab", "on" as "no", "was" as "saw"
-      const isReversal = expNorm.length > 1 && expNorm === spkNorm.split('').reverse().join('');
+      // Reversal: letters of the expected word read in reverse order.
+      // Guard: reversed form must be the exact string (both words must match letter-for-letter).
+      // Extra guard: both words should be similar in length (±1 char) to avoid false positives.
+      const reversedSpk = spkNorm.split('').reverse().join('');
+      const isReversal = (
+        expNorm.length >= 2 &&
+        expNorm === reversedSpk &&
+        Math.abs(expNorm.length - spkNorm.length) <= 1
+      );
 
-      // Check for Transposition: e.g. adjacent words swapped in sequence
-      const isTransposition = nextStep && nextStep.type === 'substitution' &&
-        nextStep.origIdx !== null && nextStep.spokIdx !== null &&
-        normalizeWord(originalWords[nextStep.origIdx]) === spkNorm &&
-        expNorm === normalizeWord(spokenWords[nextStep.spokIdx]);
+      // Transposition: adjacent passage words read in reversed order.
+      // findTranspositionPartner returns the partner step index, or -1.
+      const partnerIdx = findTranspositionPartner(steps, s, originalWords, spokenWords);
+      const isTransp   = partnerIdx >= 0;
+
+      // Mispronunciation vs Substitution:
+      // Mispronunciation = student attempted the SAME word but distorted phonemes.
+      //   Criteria: phonetic similarity >= 0.55 (raised from 0.42 to prevent long
+      //   semantically-different words like basketball/volleyball from being grouped here)
+      //   OR words share the same 3-char prefix AND both words are not too long (<=8 chars)
+      //   OR isPrefixStutter (partial false start of the correct word).
+      const { similarity: phonSim } = getPhoneticSimilarity(spk, exp);
+      const avgLen = (expNorm.length + spkNorm.length) / 2;
+      // Short words (<=5 chars): lower threshold (0.45) since minor phoneme changes are significant
+      // Long words (>5 chars): higher threshold (0.60) since superficial letter overlap is common
+      const misprThreshold = avgLen <= 5 ? 0.50 : 0.65;
+      const sharePrefix = expNorm.length >= 3 && spkNorm.length >= 3 &&
+        expNorm.slice(0, 3) === spkNorm.slice(0, 3) && avgLen <= 8;
+
+      const isBothKnownWords = isKnownFilipinoWord(expNorm) && isKnownFilipinoWord(spkNorm);
 
       let detectedType = 'substitution';
-      if (isReversal) {
-        detectedType = 'reversal';
-      } else if (isTransposition) {
-        detectedType = 'transposition';
-      } else {
-        const { similarity } = getPhoneticSimilarity(spk, exp);
-        // Mispronunciation: student attempted the target word but mispronounced phonemes
-        // Substitution: student substituted an entirely different word
-        if (similarity >= 0.40 || (step.phoneticConfidence && step.phoneticConfidence >= 35)) {
-          detectedType = 'mispronunciation';
-        } else {
-          detectedType = 'substitution';
-        }
-      }
+      if (isReversal)                                detectedType = 'reversal';
+      else if (isTransp)                             detectedType = 'transposition';
+      else if (isBothKnownWords && phonSim < 0.85)   detectedType = 'substitution';
+      else if (phonSim >= misprThreshold || sharePrefix) detectedType = 'mispronunciation';
+      else                                           detectedType = 'substitution';
 
       setMiscue(currentOrigPos, {
         expected_word: exp,
@@ -522,19 +475,44 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
         is_corrected: false,
         phonetic_confidence: step.phoneticConfidence || 0
       });
+
+      // If transposition: advance s to partner step so it's counted as 1 error per Phil-IRI standard
+      if (isTransp && partnerIdx >= 0) {
+        s = partnerIdx; // Skip partner step — 1 error per transposition
+      }
+
       continue;
     }
 
-    // E. Insertion Step (Student said an extra word, filler, or repeated phrase)
+    // ── E. INSERTION ──
     if (step.type === 'insertion') {
       const sIdx = step.spokIdx;
       const currentSpoken = spokenWords[sIdx];
 
-      if (isFillerWord(currentSpoken)) {
-        // Phil-IRI Rule: Vocal fillers/pauses (uh, uhm, ano) are not Phil-IRI miscues.
+      // Filler words are never a Phil-IRI miscue
+      if (isFillerWord(currentSpoken)) continue;
+
+      // Local repetition
+      if (repInfo[sIdx]?.isRepetition) {
+        let targetPos = currentOrigPos;
+        const srcIdx = repInfo[sIdx].sourceIdx;
+        if (srcIdx !== null && spokenToOrigMap[srcIdx] !== null) targetPos = spokenToOrigMap[srcIdx] + 1;
+        setMiscue(targetPos, {
+          expected_word: originalWords[targetPos - 1] || originalWords[0] || '',
+          spoken_word: currentSpoken,
+          miscue_type: 'repetition',
+          is_corrected: false,
+          phonetic_confidence: 0
+        });
         continue;
-      } else if (isSameWordAsNext && nextStep && nextStep.origIdx !== null) {
-        // Identical word read twice in sequence
+      }
+
+      // Adjacent duplicate (same word as next aligned passage word)
+      const spokenNorm = normalizeWord(currentSpoken);
+      const isAdjDup = nextStep && nextStep.spokIdx !== null && nextStep.origIdx !== null &&
+        spokenNorm === normalizeWord(spokenWords[nextStep.spokIdx]);
+
+      if (isAdjDup) {
         const targetPos = nextStep.origIdx + 1;
         setMiscue(targetPos, {
           expected_word: originalWords[targetPos - 1] || originalWords[0] || '',
@@ -543,79 +521,39 @@ function analyzeOralReading(passageText, spokenInput, readingTimeSeconds = 60) {
           is_corrected: false,
           phonetic_confidence: 100
         });
-      } else if (repInfo[sIdx]?.isRepetition) {
-        // If this repetition maps to a known source word in passage, use that exact passage position!
-        let targetPos = currentOrigPos;
-        const srcIdx = repInfo[sIdx].sourceIdx;
-        if (srcIdx !== null && spokenToOrigMap[srcIdx] !== null) {
-          targetPos = spokenToOrigMap[srcIdx] + 1;
-        }
-
-        setMiscue(targetPos, {
-          expected_word: originalWords[targetPos - 1] || originalWords[0] || '',
-          spoken_word: currentSpoken,
-          miscue_type: 'repetition',
-          is_corrected: false,
-          phonetic_confidence: 0
-        });
-      } else {
-        const anchorWord = originalWords[currentOrigPos - 1] || originalWords[0] || '';
-        setMiscue(currentOrigPos, {
-          expected_word: anchorWord,
-          spoken_word: currentSpoken,
-          miscue_type: 'insertion',
-          is_corrected: false,
-          phonetic_confidence: 0
-        });
+        continue;
       }
+
+      // Pure insertion
+      setMiscue(currentOrigPos, {
+        expected_word: originalWords[currentOrigPos - 1] || originalWords[0] || '',
+        spoken_word: currentSpoken,
+        miscue_type: 'insertion',
+        is_corrected: false,
+        phonetic_confidence: 0
+      });
     }
   }
 
-  // Convert map to sorted array by 1-indexed word_position
   const miscues = Array.from(miscuesByPosition.values()).sort((a, b) => a.word_position - b.word_position);
 
-  // DepEd Phil-IRI Accuracy scoring:
-  // All miscues count as 1 error EXCEPT Self-Correction
-  // - Mispronunciation: 1 error
-  // - Omission: 1 error
-  // - Substitution: 1 error
-  // - Insertion: 1 error
-  // - Repetition: 1 error
-  // - Transposition: 1 error
-  // - Reversal: 1 error
-  // - Self-Correction: Don't count self-correction as an error
-  const penalizedMiscues = miscues.filter(m => 
-    m.miscue_type !== 'self_correction'
-  ).length;
-
-  const correctWords = Math.max(0, totalPassageWords - penalizedMiscues);
-  const accuracyPercentage = totalPassageWords > 0
+  // DepEd Phil-IRI: self_correction is NOT an error
+  const penalizedMiscues   = miscues.filter(m => m.miscue_type !== 'self_correction').length;
+  const correctWords        = Math.max(0, totalPassageWords - penalizedMiscues);
+  const accuracyPercentage  = totalPassageWords > 0
     ? Number(((correctWords / totalPassageWords) * 100).toFixed(1))
     : 0;
-
-  const wordsRead = spokenWords.length;
+  const wordsRead      = spokenWords.length;
   const readingTimeMin = (readingTimeSeconds || 60) / 60;
   const readingRateWPM = readingTimeMin > 0 ? Number((wordsRead / readingTimeMin).toFixed(1)) : 0;
 
-  return {
-    totalPassageWords,
-    wordsRead,
-    correctWords,
-    readingRateWPM,
-    accuracyPercentage,
-    miscuesCount: miscues.length,
-    miscues
-  };
+  return { totalPassageWords, wordsRead, correctWords, readingRateWPM, accuracyPercentage, miscuesCount: miscues.length, miscues };
 }
 
 // ===========================================================================
 // OFFICIAL DEPED PHIL-IRI COMPUTATION STANDARDS
 // ===========================================================================
 
-/**
- * Table 6. Table of Percentage for Comprehension Scores
- * Derived by dividing the number of correct answers over the number of questions and multiplying by 100.
- */
 const TABLE_6_PERCENTAGES = {
   5: { 5: 100, 4: 80, 3: 60, 2: 40, 1: 20 },
   6: { 6: 100, 5: 83, 4: 67, 3: 50, 2: 33, 1: 17 },
@@ -623,49 +561,28 @@ const TABLE_6_PERCENTAGES = {
   8: { 8: 100, 7: 88, 6: 75, 5: 63, 4: 50, 3: 38, 2: 25, 1: 13 },
 };
 
-/**
- * Calculate Comprehension Score Percentage (Image 2, 3 & Table 6)
- * C = (No. of correct answers / No. of questions) * 100 = % of comprehension
- */
 function getComprehensionScorePercentage(correctAnswers, totalQuestions) {
   const correct = Math.max(0, Number(correctAnswers) || 0);
-  const total = Number(totalQuestions) || 0;
+  const total   = Number(totalQuestions) || 0;
   if (total <= 0) return 0;
-  if (TABLE_6_PERCENTAGES[total] && TABLE_6_PERCENTAGES[total][correct] !== undefined) {
-    return TABLE_6_PERCENTAGES[total][correct];
-  }
+  if (TABLE_6_PERCENTAGES[total] && TABLE_6_PERCENTAGES[total][correct] !== undefined) return TABLE_6_PERCENTAGES[total][correct];
   return Math.round((correct / total) * 100);
 }
 
-/**
- * Oral Reading Score / Word Reading Score % (Image 1)
- * Oral Reading Score = ((No. of words - No. of miscues) / No. of words) * 100
- */
 function calculateOralReadingScore(totalWords, miscuesCount) {
-  const words = Math.max(0, Number(totalWords) || 0);
+  const words   = Math.max(0, Number(totalWords) || 0);
   const miscues = Math.max(0, Number(miscuesCount) || 0);
   if (words <= 0) return 0;
-  const correct = Math.max(0, words - miscues);
-  return Number(((correct / words) * 100).toFixed(1));
+  return Number(((Math.max(0, words - miscues) / words) * 100).toFixed(1));
 }
 
-/**
- * Reading Rate in Words Per Minute (Image 5)
- * Reading Rate = (Words Read / Time in seconds) * 60
- */
 function calculateReadingRate(wordsRead, durationSeconds) {
   const words = Math.max(0, Number(wordsRead) || 0);
-  const secs = Number(durationSeconds) || 0;
+  const secs  = Number(durationSeconds) || 0;
   if (secs <= 0) return 0;
   return Number(((words / secs) * 60).toFixed(1));
 }
 
-/**
- * Table 7. Word Reading Score Criteria (in %)
- * - Independent: 97 - 100%
- * - Instructional: 90 - 96%
- * - Frustration: 89% and below
- */
 function getWordReadingLevel(accuracyPercentage) {
   const acc = Number(accuracyPercentage) || 0;
   if (acc >= 97) return 'Independent';
@@ -673,12 +590,6 @@ function getWordReadingLevel(accuracyPercentage) {
   return 'Frustration';
 }
 
-/**
- * Table 7. Comprehension Score Criteria (in %)
- * - Independent: 80 - 100%
- * - Instructional: 59 - 79%
- * - Frustration: 58% and below
- */
 function getComprehensionLevel(comprehensionScorePercentage) {
   const comp = Number(comprehensionScorePercentage) || 0;
   if (comp >= 80) return 'Independent';
@@ -686,75 +597,37 @@ function getComprehensionLevel(comprehensionScorePercentage) {
   return 'Frustration';
 }
 
-/**
- * Table 8. Student's Reading Profile Per Passage
- * Combines Word Reading and Reading Comprehension:
- * | Word Reading  | Reading Comprehension | Reading Profile per passage |
- * | Independent   | Independent           | Independent                 |
- * | Independent   | Instructional         | Instructional               |
- * | Instructional | Independent           | Instructional               |
- * | Instructional | Frustration           | Frustration                 |
- * | Frustration   | Instructional         | Frustration                 |
- * | Frustration   | Frustration           | Frustration                 |
- * (Frustration with any level yields Frustration)
- */
 function getPhilIriOralProfile(accuracyPercentage, comprehensionScorePercentage) {
   const wordLevel = getWordReadingLevel(accuracyPercentage);
   const compLevel = getComprehensionLevel(comprehensionScorePercentage);
-
-  if (wordLevel === 'Independent' && compLevel === 'Independent') {
-    return 'Independent';
-  }
-  if (
-    (wordLevel === 'Independent' && compLevel === 'Instructional') ||
-    (wordLevel === 'Instructional' && compLevel === 'Independent') ||
-    (wordLevel === 'Instructional' && compLevel === 'Instructional')
-  ) {
-    return 'Instructional';
-  }
-  return 'Frustration';
+  if (wordLevel === 'Frustration' || compLevel === 'Frustration') return 'Frustration';
+  if (wordLevel === 'Independent' && compLevel === 'Independent') return 'Independent';
+  return 'Instructional';
 }
 
-/**
- * Listening Comprehension Profile (Comprehension Score % only)
- * - Independent: 80% - 100%
- * - Instructional: 59% - 79%
- * - Frustration: 58% and below
- */
 function getPhilIriListeningProfile(comprehensionScorePercentage) {
   return getComprehensionLevel(comprehensionScorePercentage);
 }
 
-/**
- * Silent Reading Profile (Reading Speed WPM + Comprehension Score %)
- */
 function getPhilIriSilentProfile(readingSpeedWpm, comprehensionScorePercentage, gradeLevel = 'Grade 4', language = 'fil') {
   const compLevel = getComprehensionLevel(comprehensionScorePercentage);
-  const speed = Number(readingSpeedWpm) || 0;
-  if (speed <= 0) {
-    return compLevel;
-  }
+  const speed     = Number(readingSpeedWpm) || 0;
+  if (speed <= 0) return compLevel;
 
   const isEnglish = (language || '').toLowerCase().startsWith('en');
   let speedLevel = 'Instructional';
-
   if (isEnglish) {
     if (speed >= 100) speedLevel = 'Independent';
     else if (speed >= 70) speedLevel = 'Instructional';
     else speedLevel = 'Frustration';
   } else {
-    // Filipino
     if (speed >= 80) speedLevel = 'Independent';
     else if (speed >= 60) speedLevel = 'Instructional';
     else speedLevel = 'Frustration';
   }
 
-  if (speedLevel === 'Frustration' || compLevel === 'Frustration') {
-    return 'Frustration';
-  }
-  if (speedLevel === 'Instructional' || compLevel === 'Instructional') {
-    return 'Instructional';
-  }
+  if (speedLevel === 'Frustration' || compLevel === 'Frustration') return 'Frustration';
+  if (speedLevel === 'Instructional' || compLevel === 'Instructional') return 'Instructional';
   return 'Independent';
 }
 
