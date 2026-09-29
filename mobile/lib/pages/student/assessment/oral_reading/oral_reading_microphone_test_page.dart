@@ -264,11 +264,22 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
           builder: (context, constraints) {
             final isTablet = constraints.maxWidth > 600;
             final screenHeight = constraints.maxHeight;
+            final isCompactHeight = screenHeight < 680;
+            final bool hasBottomButtons = _testState == 'success' || _testState == 'failure';
 
-            // Compute sizes proportionally to the screen height to prevent overflows
-            final double mascotHeight = (screenHeight * 0.36).clamp(160.0, 240.0);
-            final double micButtonSize = (screenHeight * 0.16).clamp(100.0, 130.0);
+            // Use the available screen area in every state. The retry/proceed
+            // controls remain reserved at the bottom, but the visual test area
+            // should not become unnecessarily small when they are visible.
+            final double mascotHeight = (screenHeight * (hasBottomButtons
+                    ? (isCompactHeight ? 0.27 : 0.41)
+                    : (isCompactHeight ? 0.31 : 0.37)))
+                .clamp(isCompactHeight ? 82.0 : 110.0, hasBottomButtons ? (isCompactHeight ? 170.0 : 300.0) : 250.0);
+            final double micButtonSize = (screenHeight * (hasBottomButtons ? 0.14 : 0.16))
+                .clamp(isCompactHeight ? 66.0 : 76.0, hasBottomButtons ? (isCompactHeight ? 96.0 : 115.0) : 125.0);
             final double iconSize = micButtonSize * 0.48;
+            final double largeGap = (hasBottomButtons || isCompactHeight) ? 8.0 : 24.0;
+            final double mediumGap = (hasBottomButtons || isCompactHeight) ? 4.0 : 8.0;
+            final double buttonToMeterGap = (hasBottomButtons || isCompactHeight) ? 10.0 : 30.0;
 
             return Center(
               child: ConstrainedBox(
@@ -295,13 +306,17 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Microphone Test',
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black,
-                              letterSpacing: -0.5,
+                          Expanded(
+                            child: Text(
+                              'Microphone Test',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                                letterSpacing: -0.5,
+                              ),
                             ),
                           ),
                         ],
@@ -311,21 +326,24 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                     // 2. Main Content
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // High-Resolution Mascot Image (Bigger and scaled)
-                                  Image.asset(
-                                    'assets/mascot/sally_speaking.webp',
-                                    height: mascotHeight,
-                                    fit: BoxFit.contain,
-                                  ),
-                                  const SizedBox(height: 24),
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      // High-Resolution Mascot Image (Bigger and scaled)
+                                      Image.asset(
+                                        'assets/mascot/sally_speaking.webp',
+                                        height: mascotHeight,
+                                        fit: BoxFit.contain,
+                                      ),
+                                  SizedBox(height: largeGap),
 
                                   // Dynamic Heading Title
                                   AnimatedSwitcher(
@@ -342,11 +360,11 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
+                                  SizedBox(height: mediumGap),
 
                                   // Dynamic Subtext Instructions
                                   SizedBox(
-                                    height: 48,
+                                    height: isCompactHeight ? 40 : 48,
                                     child: AnimatedSwitcher(
                                       duration: const Duration(milliseconds: 300),
                                       child: Text(
@@ -363,7 +381,7 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 24),
+                                  SizedBox(height: largeGap),
 
                                   // Big Blue Microphone Button with Pulse Animation when recording
                                   ScaleTransition(
@@ -410,7 +428,7 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 32),
+                                  SizedBox(height: buttonToMeterGap),
 
                                   // Responsive Audio Level Progress Line
                                   Padding(
@@ -441,7 +459,7 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                       },
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
+                                  SizedBox(height: isCompactHeight ? 8 : 12),
 
                                   // Status Message Below Audio Progress Line
                                   SizedBox(
@@ -470,6 +488,9 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                                 ],
                               ),
                             ),
+
+                           ),
+                         ),
 
                             // Bottom Navigation Action Buttons (Success vs Failure)
                             if (_testState == 'success')

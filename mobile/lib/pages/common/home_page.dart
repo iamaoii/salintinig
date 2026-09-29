@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+  import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/auth/student_login_page.dart';
 import 'package:salintinig/pages/auth/teacher_login_page.dart';
@@ -28,6 +28,16 @@ class _HomePageState extends State<HomePage> {
             // doesn't stretch across the full iPad canvas.
             final isTablet = constraints.maxWidth > 600;
             final double H = constraints.maxHeight;
+            // iPhone SE and similar screens need a compact vertical rhythm,
+            // while regular and taller screens retain the original sizing.
+            final isCompactHeight = H < 720;
+            final mascotHeight = isCompactHeight
+                ? (H * 0.38).clamp(160.0, 250.0).toDouble()
+                : H * 0.35;
+            final headingSize = isCompactHeight ? 26.0 : 32.0;
+            final buttonHeight = isCompactHeight ? 48.0 : 56.0;
+            final sectionGap = isCompactHeight ? 8.0 : 32.0;
+            final buttonGap = isCompactHeight ? 8.0 : 12.0;
 
             return Center(
               child: ConstrainedBox(
@@ -38,15 +48,14 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     // ── Scrollable body ────────────────────────────────────
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
+                      child: Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: isTablet ? 0 : 24.0,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 20),
+                            SizedBox(height: isCompactHeight ? 10 : 20),
                             // Header
                             Row(
                               children: [
@@ -66,22 +75,26 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ],
                             ),
-                            SizedBox(height: H * 0.05), // Responsive spacer to move mascot lower
-                            // Mascot Display
-                            Center(
-                              child: SizedBox(
-                                height: H * 0.32, // Responsive height (approx 256px on standard screens)
-                                child: _buildMascotWithShadow(
-                                  'assets/mascot/sally_standing.webp',
+                            SizedBox(height: isCompactHeight ? 8 : H * 0.05),
+                            // The mascot takes only the remaining vertical
+                            // space, preventing it from pushing buttons/footer
+                            // into each other on compact devices.
+                            Expanded(
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(maxHeight: mascotHeight),
+                                  child: _buildMascotWithShadow(
+                                    'assets/mascot/sally_standing.webp',
+                                  ),
                                 ),
                               ),
                             ),
-                            SizedBox(height: H * 0.04), // Responsive spacer below mascot
+                            SizedBox(height: isCompactHeight ? 8 : H * 0.04),
                             // Greetings
                             Text(
                               'Hello!',
                               style: GoogleFonts.inter(
-                                fontSize: 32,
+                                fontSize: headingSize,
                                 fontWeight: FontWeight.w800,
                                 height: 1.1,
                                 letterSpacing: -1.2,
@@ -91,71 +104,77 @@ class _HomePageState extends State<HomePage> {
                             Text(
                               "Let's get you started.",
                               style: GoogleFonts.inter(
-                                fontSize: 32,
+                                fontSize: headingSize,
                                 fontWeight: FontWeight.w800,
                                 height: 1.1,
                                 letterSpacing: -1.2,
                                 color: Colors.black,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: isCompactHeight ? 6 : 12),
                             Text(
                               'Set up your account in few quick steps and explore everything the app has to offer.',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: isCompactHeight ? 14 : 16,
                                 color: Colors.grey[700],
                               ),
                             ),
-                            const SizedBox(height: 32),
+                            SizedBox(height: sectionGap),
                             // Buttons
-                            _buildRoleButton(
-                              iconSvg: phBooksRegular,
-                              label: 'Student',
-                              color: const Color(0xFF1B64D8),
-                              isOutlined: false,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const StudentLoginPage(),
-                                  ),
-                                );
-                              },
+                            SizedBox(
+                              height: buttonHeight,
+                              child: _buildRoleButton(
+                                iconSvg: phBooksRegular,
+                                label: 'Student',
+                                color: const Color(0xFF1B64D8),
+                                isOutlined: false,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const StudentLoginPage(),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            _buildRoleButton(
-                              iconSvg: Ph.user_list,
-                              label: 'Teacher',
-                              color: const Color(0xFFD34426),
-                              isOutlined: false,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const TeacherLoginPage(),
-                                  ),
-                                );
-                              },
+                            SizedBox(height: buttonGap),
+                            SizedBox(
+                              height: buttonHeight,
+                              child: _buildRoleButton(
+                                iconSvg: Ph.user_list,
+                                label: 'Teacher',
+                                color: const Color(0xFFD34426),
+                                isOutlined: false,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const TeacherLoginPage(),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            _buildRoleButton(
-                              iconSvg: Ph.users,
-                              label: 'Parent',
-                              color: const Color(0xFF1B64D8),
-                              isOutlined: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const ParentLoginPage(),
-                                  ),
-                                );
-                              },
+                            SizedBox(height: buttonGap),
+                            SizedBox(
+                              height: buttonHeight,
+                              child: _buildRoleButton(
+                                iconSvg: Ph.users,
+                                label: 'Parent',
+                                color: const Color(0xFF1B64D8),
+                                isOutlined: true,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const ParentLoginPage(),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                            const SizedBox(height: 32),
+                            SizedBox(height: isCompactHeight ? 8 : 32),
                           ],
                         ),
                       ),
@@ -167,14 +186,14 @@ class _HomePageState extends State<HomePage> {
                         isTablet ? 0 : 24,
                         0,
                         isTablet ? 0 : 24,
-                        16,
+                        isCompactHeight ? 8 : 16,
                       ),
                       child: RichText(
                         textAlign: TextAlign.center,
                         text: TextSpan(
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.grey,
-                            fontSize: 12,
+                            fontSize: isCompactHeight ? 11 : 12,
                           ),
                           children: [
                             const TextSpan(
@@ -218,7 +237,8 @@ class _HomePageState extends State<HomePage> {
     final buttonStyle = ElevatedButton.styleFrom(
       backgroundColor: isOutlined ? Colors.white : color,
       foregroundColor: isOutlined ? color : Colors.white,
-      minimumSize: const Size(double.infinity, 56),
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: isOutlined ? BorderSide(color: color, width: 2) : BorderSide.none,
