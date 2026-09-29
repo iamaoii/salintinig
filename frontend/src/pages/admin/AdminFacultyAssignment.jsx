@@ -1,4 +1,5 @@
 import { getApiUrl } from '../../config/api.js';
+import { getCompactPageItems } from '../../lib/pagination.js';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -1339,7 +1340,9 @@ export default function AdminFacultyAssignment() {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                  ) : (
                     <button
                       key={pg}
                       type="button"

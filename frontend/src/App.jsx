@@ -103,6 +103,7 @@ export default function App() {
           <Route path="teachers" element={<AdminTeacherRecords />} />
         </Route>
         <Route path="records/students/:lrn" element={<AdminStudentProfile />} />
+        <Route path="records/students/:lrn/review/:attemptId" element={<PhilIriReviewPage />} />
         <Route path="records/teachers/:id" element={<TeacherProfile />} />
 
         <Route path="sections" element={<AdminSectionsLayout />}>

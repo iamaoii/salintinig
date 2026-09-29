@@ -17,6 +17,7 @@ import {
 } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { getCompactPageItems } from '../../../lib/pagination.js';
 import { CardGridSkeleton } from '../../../components/common/Skeleton.jsx';
 import { cacheService } from '../../../services/cacheService.js';
 import { getApiUrl } from '../../../config/api.js';
@@ -442,7 +443,9 @@ export default function PhilIriPassageBank() {
             >
               <CaretLeft size={14} weight="bold" />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            {getCompactPageItems(totalPages, currentPage).map((p, index) => p === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} className="flex size-7 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+            ) : (
               <button
                 key={p}
                 type="button"

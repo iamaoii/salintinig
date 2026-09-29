@@ -8,6 +8,7 @@ import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { getCompactPageItems } from '../../../lib/pagination.js';
 import { getApiUrl } from '../../../config/api.js';
 import { cacheService } from '../../../services/cacheService.js';
 import { ActivityRowSkeleton, ClassMetricsBannerSkeleton } from '../../../components/common/Skeleton.jsx';
@@ -465,7 +466,9 @@ export default function ClassActivities() {
                         <CaretLeft size={14} weight="bold" />
                       </button>
 
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                      {getCompactPageItems(totalPages, safePage).map((pg, index) => pg === 'ellipsis' ? (
+                        <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                      ) : (
                         <button
                           key={pg}
                           type="button"

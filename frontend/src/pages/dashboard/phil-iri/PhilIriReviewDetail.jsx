@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Play,
   Pause,
@@ -1801,8 +1801,13 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
 }
 
 export function PhilIriReviewPage() {
-  const { attemptId } = useParams();
+  const { attemptId, lrn } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminView = location.pathname.startsWith('/admin/');
+  const backTo = isAdminView && lrn
+    ? `/admin/records/students/${lrn}`
+    : '/teacher/class-activities/phil-iri';
   const [reviewData, setReviewData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1812,8 +1817,11 @@ export function PhilIriReviewPage() {
     async function fetchReview() {
       try {
         const token = getToken();
-        // 1. Direct review detail endpoint
-        const directRes = await fetch(getApiUrl(`/api/teacher/assessments/review/${attemptId}`), {
+        // Admins use their own school-scoped route; teachers use their review route.
+        const reviewUrl = isAdminView
+          ? `/api/admin/students/assessments/review/${attemptId}`
+          : `/api/teacher/assessments/review/${attemptId}`;
+        const directRes = await fetch(getApiUrl(reviewUrl), {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -1822,6 +1830,10 @@ export function PhilIriReviewPage() {
           setReviewData(directData.review);
           return;
         }
+
+        // Pending-review queues are teacher-only. Admin result pages are read
+        // directly from the completed assessment record above.
+        if (isAdminView) return;
 
         // 2. Fallback to pending reviews list
         const pendingRes = await fetch(getApiUrl('/api/teacher/assessments/pending-reviews'), {
@@ -1853,7 +1865,7 @@ export function PhilIriReviewPage() {
     return () => {
       controller.abort();
     };
-  }, [attemptId]);
+  }, [attemptId, isAdminView]);
 
   if (loading) {
     return <PhilIriReviewSkeleton />;
@@ -1871,7 +1883,7 @@ export function PhilIriReviewPage() {
         </p>
         <button
           type="button"
-          onClick={() => navigate('/teacher/class-activities/phil-iri')}
+          onClick={() => navigate(backTo)}
           className="mt-3 inline-flex items-center gap-2 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-brand-red/90 transition-all cursor-pointer"
         >
           Back to Assessments
@@ -1883,8 +1895,8 @@ export function PhilIriReviewPage() {
   return (
     <PhilIriReviewDetail
       reviewData={reviewData}
-      onBack={() => navigate('/teacher/class-activities/phil-iri')}
-      onVerified={() => navigate('/teacher/class-activities/phil-iri')}
+      onBack={() => navigate(backTo)}
+      onVerified={() => navigate(backTo)}
     />
   );
 }

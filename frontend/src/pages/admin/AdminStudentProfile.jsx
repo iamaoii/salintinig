@@ -147,9 +147,7 @@ export default function AdminStudentProfile() {
       ...act,
       onAction: (a) => {
         if (a.attemptId) {
-          navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
-        } else if (a.id) {
-          navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+          navigate(`/admin/records/students/${rawLrn}/review/${a.attemptId}`);
         }
       },
     }));

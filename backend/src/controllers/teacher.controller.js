@@ -920,10 +920,11 @@ async function assignPhilIriToStudents(req, res) {
            FROM students s
            JOIN student_grade_history sgh ON sgh.student_id = s.student_id
            JOIN classes c ON sgh.class_id = c.class_id
-           JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
-             SELECT fic.teacher_id FROM faculty_in_charge fic WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
-           ))
-           WHERE t.user_id::text = $1::text OR t.teacher_id::text = $1::text`,
+        JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
+        JOIN users u ON u.user_id = t.user_id
+        JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+           WHERE (t.user_id::text = $1::text OR t.teacher_id::text = $1::text)
+             AND c.school_id = u.school_id`,
           [teacherUserId]
         );
 
@@ -1076,6 +1077,7 @@ async function getPendingOralReviews(req, res) {
 async function getOralReviewDetail(req, res) {
   try {
     const { attemptId } = req.params;
+    const userId = req.user?.userId || req.user?.user_id || req.user?.id;
     if (process.env.DATABASE_URL) {
       const query = `
         SELECT 
@@ -1104,13 +1106,15 @@ async function getOralReviewDetail(req, res) {
         FROM assessment_attempts aa
         JOIN assessments a ON aa.assessment_id = a.assessment_id
         JOIN students s ON a.student_id = s.student_id
+        JOIN users student_user ON student_user.user_id = s.user_id
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
-        WHERE aa.attempt_id::text = $1 OR a.assessment_id::text = $1
+        WHERE (aa.attempt_id::text = $1 OR a.assessment_id::text = $1)
+          AND student_user.school_id = (SELECT school_id FROM users WHERE user_id = $2)
         ORDER BY aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
         LIMIT 1
       `;
-      const { rows } = await db.query(query, [attemptId]);
+      const { rows } = await db.query(query, [attemptId, userId]);
       if (rows.length > 0) {
         return res.json({ success: true, review: rows[0] });
       }
@@ -1598,7 +1602,14 @@ async function getPhilIriActivities(req, res) {
 
     if (process.env.DATABASE_URL) {
       // Fetch active school year
-      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      const activeSyRes = await db.query(
+        `SELECT sy.school_year_id
+         FROM school_years sy
+         JOIN users u ON u.school_id = sy.school_id
+         WHERE u.user_id = $1 AND sy.is_active = true
+         LIMIT 1`,
+        [userId]
+      );
       const activeSyId = activeSyRes.rows[0]?.school_year_id;
 
       const query = `
@@ -1620,12 +1631,10 @@ async function getPhilIriActivities(req, res) {
         LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
         JOIN student_grade_history sgh ON sgh.student_id = a.student_id
         JOIN classes c ON sgh.class_id = c.class_id
-        JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
-          SELECT fic.teacher_id FROM faculty_in_charge fic 
-          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
-        ))
+        JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
         WHERE t.user_id = $1
-          AND ($2::uuid IS NULL OR c.school_year_id = $2 OR sgh.school_year_id = $2)
+          AND c.school_id = (SELECT school_id FROM users WHERE user_id = $1)
+          AND ($2::uuid IS NULL OR (c.school_year_id = $2 AND sgh.school_year_id = $2))
         GROUP BY LOWER(COALESCE(a.assessment_type, 'oral')), LOWER(COALESCE(a.assessment_period, 'pre_test')), LOWER(COALESCE(p.language, 'fil'))
         ORDER BY MAX(a.created_at) DESC
       `;
@@ -2094,6 +2103,7 @@ async function getTeacherClassStudents(req, res) {
           ORDER BY student_id, created_at DESC
         ) a ON a.student_id::text = s.student_id::text
         WHERE t.user_id = $1
+          AND c.school_id = (SELECT school_id FROM users WHERE user_id = $1)
         ORDER BY s.last_name ASC, s.first_name ASC
       `;
       const { rows } = await db.query(sectionQuery, [userId]);
@@ -2242,7 +2252,14 @@ async function getActivityDetail(req, res) {
 
     if (process.env.DATABASE_URL) {
       const userId = req.user?.userId || req.user?.user_id || req.user?.id;
-      const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+      const activeSyRes = await db.query(
+        `SELECT sy.school_year_id
+         FROM school_years sy
+         JOIN users u ON u.school_id = sy.school_id
+         WHERE u.user_id = $1 AND sy.is_active = true
+         LIMIT 1`,
+        [userId]
+      );
       const activeSyId = activeSyRes.rows[0]?.school_year_id;
 
       let passageId = null;
@@ -2279,13 +2296,11 @@ async function getActivityDetail(req, res) {
       whereClause += ` AND EXISTS (
         SELECT 1 FROM student_grade_history sgh
         JOIN classes c ON sgh.class_id = c.class_id
-        JOIN teachers t ON (c.advisor_teacher_id = t.teacher_id OR t.teacher_id IN (
-          SELECT fic.teacher_id FROM faculty_in_charge fic 
-          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
-        ))
+        JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
         WHERE sgh.student_id = a.student_id
           AND t.user_id = $${params.length}
-          AND ($${params.length + 1}::uuid IS NULL OR c.school_year_id = $${params.length + 1} OR sgh.school_year_id = $${params.length + 1})
+          AND c.school_id = (SELECT school_id FROM users WHERE user_id = $${params.length})
+          AND ($${params.length + 1}::uuid IS NULL OR (c.school_year_id = $${params.length + 1} AND sgh.school_year_id = $${params.length + 1}))
       )`;
       params.push(activeSyId || null);
 
@@ -2510,15 +2525,50 @@ async function startStudentAdaptiveSessions(req, res) {
     );
     const teacherId = tRes.rows[0]?.teacher_id || null;
 
-    // Get active school_year_id
-    const syRes = await db.query(`SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1`);
+    // Use the active year of this teacher's school only.
+    const syRes = await db.query(
+      `SELECT sy.school_year_id
+       FROM school_years sy
+       JOIN teachers t ON (t.user_id::text = $1::text OR t.teacher_id::text = $1::text)
+       JOIN users u ON u.user_id = t.user_id AND u.school_id = sy.school_id
+       WHERE sy.is_active = true
+       LIMIT 1`,
+      [teacherUserId]
+    );
     const schoolYearId = syRes.rows[0]?.school_year_id || null;
+
+    // A teacher can start adaptive sessions only for learners in their own
+    // adviser section. This is also an authorization boundary for direct API use.
+    const allowedStudentsRes = await db.query(
+      `SELECT DISTINCT s.student_id::text AS student_id
+       FROM students s
+       JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+       JOIN classes c ON c.class_id = sgh.class_id
+       JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
+       WHERE (t.user_id::text = $1::text OR t.teacher_id::text = $1::text)
+         AND c.school_id = (
+           SELECT u.school_id
+           FROM teachers tx JOIN users u ON u.user_id = tx.user_id
+           WHERE tx.user_id::text = $1::text OR tx.teacher_id::text = $1::text
+           LIMIT 1
+         )
+         AND c.school_year_id = $2
+         AND sgh.school_year_id = $2`,
+      [teacherUserId, schoolYearId]
+    );
+    const allowedStudentIds = new Set((allowedStudentsRes.rows || []).map((row) => String(row.student_id)));
 
     for (const item of students) {
       const { studentId, baselineGradeLevel, baselineProfileLevel } = item;
       if (!studentId || !baselineGradeLevel || !baselineProfileLevel) {
         skippedCount++;
         results.push({ studentId, status: 'skipped', reason: 'Missing required fields.' });
+        continue;
+      }
+
+      if (!allowedStudentIds.has(String(studentId))) {
+        skippedCount++;
+        results.push({ studentId, status: 'skipped', reason: 'Student is not enrolled in your assigned section.' });
         continue;
       }
 
@@ -2670,13 +2720,7 @@ async function getAdaptiveSessions(req, res) {
       JOIN student_grade_history sgh ON sgh.student_id = s.student_id
       JOIN classes c ON c.class_id = sgh.class_id
       JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
-      LEFT JOIN teachers t ON (
-        c.advisor_teacher_id = t.teacher_id
-        OR t.teacher_id IN (
-          SELECT fic.teacher_id FROM faculty_in_charge fic
-          WHERE fic.grade_level = c.grade_level AND fic.status = 'active'
-        )
-      )
+      JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
       LEFT JOIN LATERAL (
         SELECT assessment_id, reading_level_result, status, passage_id
         FROM assessments
@@ -2685,6 +2729,14 @@ async function getAdaptiveSessions(req, res) {
       ) la ON true
       LEFT JOIN phil_iri_passages lp ON lp.passage_id = la.passage_id
       WHERE (t.user_id::text = $1::text OR t.teacher_id::text = $1::text)
+        AND c.school_id = (
+          SELECT u.school_id
+          FROM teachers tx JOIN users u ON u.user_id = tx.user_id
+          WHERE tx.user_id::text = $1::text OR tx.teacher_id::text = $1::text
+          LIMIT 1
+        )
+        AND s.school_year_id = c.school_year_id
+        AND sgh.school_year_id = c.school_year_id
         ${filterClauses}
       ORDER BY s.status = 'in_progress' DESC, s.updated_at DESC
       LIMIT 200

@@ -507,7 +507,8 @@ export default function PhilIriForm1({ language }) {
         });
       });
 
-      // Render Male Rows (Exact 10 slots)
+      // Keep ten blank slots for the official layout, but never truncate
+      // enrolled learners when a section has more than ten boys.
       const renderMaleRows = [...maleRows];
       while (renderMaleRows.length < 10) {
         renderMaleRows.push({ lrn: '', name: '', gender: 'M', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
@@ -516,7 +517,7 @@ export default function PhilIriForm1({ language }) {
       const numFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
       const totalColFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
 
-      renderMaleRows.slice(0, 10).forEach((r, i) => {
+      renderMaleRows.forEach((r, i) => {
         const row = worksheet.addRow([
           i + 1,
           r.name,
@@ -583,13 +584,14 @@ export default function PhilIriForm1({ language }) {
         else if (colIndex === 10) cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
 
-      // Render Female Rows (Exact 10 slots)
+      // Keep ten blank slots for the official layout, but never truncate
+      // enrolled learners when a section has more than ten girls.
       const renderFemaleRows = [...femaleRows];
       while (renderFemaleRows.length < 10) {
         renderFemaleRows.push({ lrn: '', name: '', gender: 'F', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
       }
 
-      renderFemaleRows.slice(0, 10).forEach((r, i) => {
+      renderFemaleRows.forEach((r, i) => {
         const row = worksheet.addRow([
           i + 1,
           r.name,

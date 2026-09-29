@@ -7,6 +7,7 @@ import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { encodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken, getUser } from '../../../lib/auth.js';
+import { getCompactPageItems } from '../../../lib/pagination.js';
 import { cacheService } from '../../../services/cacheService.js';
 import { StudentTableSkeleton } from '../../../components/common/Skeleton.jsx';
 
@@ -316,7 +317,9 @@ export default function StudentMasterlist({ level }) {
                   </button>
 
                   <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                      <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                    ) : (
                       <button
                         key={pg}
                         type="button"

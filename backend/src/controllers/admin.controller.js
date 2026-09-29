@@ -1862,7 +1862,10 @@ async function assignStudentsToSection(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true LIMIT 1',
+          [schoolId]
+        );
         const activeSyId = syRes.rows[0]?.school_year_id || null;
 
         let targetClassId = classId;
@@ -1926,7 +1929,10 @@ async function updateStudentPromotionStatus(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
-        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true LIMIT 1',
+          [schoolId]
+        );
         const activeSyId = syRes.rows[0]?.school_year_id || null;
 
         if (activeSyId) {
@@ -2553,7 +2559,10 @@ async function getGstFormSubmission(req, res) {
       // Resolve active school_year_id if not provided
       let syId = schoolYearId;
       if (!syId) {
-        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true LIMIT 1',
+          [schoolId]
+        );
         syId = syRes.rows[0]?.school_year_id;
       }
 
@@ -2627,7 +2636,10 @@ async function saveGstFormSubmission(req, res) {
       // Resolve active school_year_id if not provided
       let syId = schoolYearId;
       if (!syId) {
-        const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true LIMIT 1',
+          [schoolId]
+        );
         syId = syRes.rows[0]?.school_year_id;
       }
 

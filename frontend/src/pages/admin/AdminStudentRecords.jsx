@@ -28,6 +28,7 @@ import {
 import ToastNotification from '../../components/common/ToastNotification.jsx';
 import { StudentRecordsSkeleton } from '../../components/common/Skeleton.jsx';
 import { encodeSecureToken } from '../../lib/securityToken.js';
+import { getCompactPageItems } from '../../lib/pagination.js';
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
 import * as XLSX from 'xlsx';
@@ -189,6 +190,10 @@ export default function AdminStudentRecords() {
   const paginatedStudents = filteredStudents.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
+  );
+  const paginationItems = useMemo(
+    () => getCompactPageItems(totalPages, currentPage),
+    [currentPage, totalPages]
   );
 
   const handleFilterChange = (setter) => (val) => {
@@ -843,18 +848,20 @@ export default function AdminStudentRecords() {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  {paginationItems.map((item, index) => item === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                  ) : (
                     <button
-                      key={pg}
+                      key={item}
                       type="button"
-                      onClick={() => setCurrentPage(pg)}
+                      onClick={() => setCurrentPage(item)}
                       className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        currentPage === pg
+                        currentPage === item
                           ? 'bg-brand-blue text-white shadow-xs'
                           : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
                       }`}
                     >
-                      {pg}
+                      {item}
                     </button>
                   ))}
                 </div>
