@@ -11,7 +11,6 @@ import { isLoggedIn, getUserRole } from './lib/auth.js';
 
 import DashboardLayout from './pages/dashboard/DashboardLayout.jsx';
 import OverviewLayout from './pages/dashboard/overview/OverviewLayout.jsx';
-import OverviewActivities from './pages/dashboard/overview/OverviewActivities.jsx';
 import OverviewForms from './pages/dashboard/overview/OverviewForms.jsx';
 import OverviewPeople from './pages/dashboard/overview/OverviewPeople.jsx';
 import AccountSettings from './pages/dashboard/settings/AccountSettings.jsx';
@@ -187,7 +186,6 @@ export default function App() {
 
         <Route path="overview" element={<OverviewLayout />}>
           <Route index element={<Navigate to="forms" replace />} />
-          <Route path="activities" element={<OverviewActivities />} />
           <Route path="forms" element={<OverviewForms />} />
           <Route path="people" element={<OverviewPeople />} />
         </Route>

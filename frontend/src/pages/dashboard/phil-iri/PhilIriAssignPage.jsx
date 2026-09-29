@@ -92,13 +92,24 @@ export default function PhilIriAssignPage() {
 
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
-      // Language filter
       const lang = (p.language || '').toLowerCase();
-      if (selectedLanguage === 'fil') return lang === 'fil' || lang === 'filipino';
-      if (selectedLanguage === 'en') return lang === 'en' || lang === 'eng' || lang === 'english';
-      return true;
+      const matchesLanguage = selectedLanguage === 'fil'
+        ? lang === 'fil' || lang === 'filipino'
+        : selectedLanguage === 'en'
+          ? lang === 'en' || lang === 'eng' || lang === 'english'
+          : true;
+      if (!matchesLanguage) return false;
+
+      // Passages are tagged by their Phil-IRI stage (Pre-Test / Post-Test).
+      // Do not mix stages in the assignment picker.
+      if (!period) return true;
+      const passagePeriod = String(p.stage || p.assessment_period || p.assessmentPeriod || '')
+        .toLowerCase()
+        .replace(/[^a-z]+/g, '_')
+        .replace(/^_|_$/g, '');
+      return passagePeriod === period;
     });
-  }, [passages, selectedLanguage]);
+  }, [passages, selectedLanguage, period]);
 
   useEffect(() => {
     const token = getToken();
@@ -397,7 +408,7 @@ export default function PhilIriAssignPage() {
       if (rec.isExempt) return;
 
       // Find all passages matching recommended target grade and selected language
-      const matchingPassages = passages.filter((p) => {
+      const matchingPassages = filteredPassages.filter((p) => {
         const pGrade = parseInt(String(p.grade_level || '').replace(/\D/g, ''), 10);
         const pLang = (p.language || '').toLowerCase();
         const langMatch = selectedLanguage === 'fil' ? (pLang === 'fil' || pLang === 'filipino') : (pLang === 'en' || pLang === 'english');
@@ -412,10 +423,7 @@ export default function PhilIriAssignPage() {
         gradeSetCounters[rec.targetGrade] = counter + 1;
       } else {
         // Smart Fallback: Pick first available passage in that language if exact grade level is missing
-        const langPassages = passages.filter((p) => {
-          const pLang = (p.language || '').toLowerCase();
-          return selectedLanguage === 'fil' ? (pLang === 'fil' || pLang === 'filipino') : (pLang === 'en' || pLang === 'english');
-        });
+        const langPassages = filteredPassages;
         if (langPassages.length > 0) {
           match = langPassages[0];
         }
@@ -468,7 +476,7 @@ export default function PhilIriAssignPage() {
     try {
       const assignmentList = Array.from(selectedStudents).map((studentId) => ({
         studentId,
-        passageId: selectedPassages[studentId] || passages[0]?.passage_id,
+        passageId: selectedPassages[studentId] || filteredPassages[0]?.passage_id,
       }));
 
       const token = getToken();

@@ -904,13 +904,21 @@ async function assignPhilIriToStudents(req, res) {
           `SELECT passage_id FROM phil_iri_passages 
            WHERE (LOWER(passage_set) = LOWER($1) OR passage_set = $1 OR passage_set ILIKE $1)
              AND (LOWER(COALESCE(language, 'fil')) LIKE LOWER($2) || '%')
+             AND LOWER(REGEXP_REPLACE(COALESCE(stage, ''), '[^a-zA-Z]+', '_', 'g')) = LOWER($3)
            LIMIT 1`,
-          [passageSet || 'Set A', (language || 'fil').substring(0, 2)]
+          [passageSet || 'Set A', (language || 'fil').substring(0, 2), assessmentPeriod]
         );
 
         let targetPassageId = pMatch.rows[0]?.passage_id;
         if (!targetPassageId) {
-          const fallbackPassage = await db.query(`SELECT passage_id FROM phil_iri_passages LIMIT 1`);
+          const fallbackPassage = await db.query(
+            `SELECT passage_id
+             FROM phil_iri_passages
+             WHERE LOWER(COALESCE(language, 'fil')) LIKE LOWER($1) || '%'
+               AND LOWER(REGEXP_REPLACE(COALESCE(stage, ''), '[^a-zA-Z]+', '_', 'g')) = LOWER($2)
+             LIMIT 1`,
+            [(language || 'fil').substring(0, 2), assessmentPeriod]
+          );
           targetPassageId = fallbackPassage.rows[0]?.passage_id;
         }
 
