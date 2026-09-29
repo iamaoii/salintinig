@@ -1006,6 +1006,24 @@ async function importStudentsCSV(req, res) {
       };
 
       if (isDbConfigured()) {
+        const preflightSchoolId = await getAdminSchoolId(req);
+        const { rows: activeClassRows } = await db.query(
+          `SELECT c.class_id
+           FROM classes c
+           JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+           WHERE (c.school_id = $1 OR c.school_id IS NULL)
+             AND LOWER(c.grade_level) = LOWER($2)
+             AND LOWER(c.section_name) = LOWER($3)
+           LIMIT 1`,
+          [preflightSchoolId, grade, section]
+        );
+        if (!activeClassRows[0]) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid grade/section "${grade || 'blank'} - ${section || 'blank'}" on row ${index + 1}. It must exist in the active school year.`,
+          });
+        }
+
         try {
           const bcrypt = require('bcryptjs');
           const salt = bcrypt.genSaltSync(10);
@@ -1068,8 +1086,14 @@ async function importStudentsCSV(req, res) {
               // Ensure class/section strictly exists in database (do NOT auto-create invalid section names)
               let classId = null;
               const { rows: existingClass } = await db.query(
-                `SELECT class_id FROM classes WHERE LOWER(grade_level) = LOWER($1) AND LOWER(section_name) = LOWER($2) LIMIT 1`,
-                [grade, section]
+                `SELECT c.class_id
+                 FROM classes c
+                 JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+                 WHERE (c.school_id = $1 OR c.school_id IS NULL)
+                   AND LOWER(c.grade_level) = LOWER($2)
+                   AND LOWER(c.section_name) = LOWER($3)
+                 LIMIT 1`,
+                [adminSchoolId, grade, section]
               );
 
               if (existingClass && existingClass[0]) {
@@ -4740,5 +4764,3 @@ module.exports = {
   startAdaptiveSession,
   getAdaptiveSessionStatus,
 };
-
-

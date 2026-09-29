@@ -143,10 +143,12 @@ export default function AdminStudentRecords() {
       const data = await res.json();
       if (res.ok && data.success && data.allSections) {
         setAvailableSections(data.allSections);
+        return data.allSections;
       }
     } catch (err) {
       console.warn('Could not fetch sections:', err);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -368,7 +370,25 @@ export default function AdminStudentRecords() {
     setUploadStep('validating');
 
     try {
-      const VALID_SECTIONS = ['Fyang', 'Kalapati', 'Agila', 'Sampaguita', 'Narra', 'Rizal'];
+      // Always validate against the live section list. Sections are managed by
+      // admins, so a static list here will eventually reject valid additions.
+      const latestSections = await fetchSections();
+      if (!Array.isArray(latestSections)) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: ['Unable to load the live section list. Please try again before uploading.'],
+        });
+        setUploadStep('summary');
+        return;
+      }
+      const sectionsForUpload = latestSections;
+      const sectionLookup = new Map(
+        sectionsForUpload.map((item) => [
+          `${String(item.gradeLevel || '').trim().toLowerCase()}::${String(item.sectionName || '').trim().toLowerCase()}`,
+          item,
+        ])
+      );
       const validationErrors = [];
       const parsedList = [];
 
@@ -465,11 +485,22 @@ export default function AdminStudentRecords() {
             }
           }
 
-          // Check if section exists in official school sections
-          if (rawSection && !VALID_SECTIONS.some((s) => s.toLowerCase() === rawSection.toLowerCase())) {
-            validationErrors.push(`Row ${i + 1}: Invalid section "${rawSection}". Valid sections: ${VALID_SECTIONS.join(', ')}`);
+          const rawGrade = String(rowObj['Grade Level'] || rowObj['grade'] || cols[5] || '').trim();
+          const matchedSection = sectionLookup.get(`${rawGrade.toLowerCase()}::${rawSection.toLowerCase()}`);
+          if (!rawGrade || !rawSection || !matchedSection) {
+            const validSections = sectionsForUpload
+              .filter((item) => String(item.gradeLevel || '').trim().toLowerCase() === rawGrade.toLowerCase())
+              .map((item) => item.sectionName)
+              .filter(Boolean);
+            validationErrors.push(
+              `Row ${i + 1}: Invalid grade/section "${rawGrade || 'blank'} - ${rawSection || 'blank'}".` +
+              (validSections.length ? ` Valid sections for ${rawGrade}: ${validSections.join(', ')}` : '')
+            );
           }
 
+          if (!rawGrade || !rawSection || !matchedSection) {
+            continue;
+          }
           if (validationErrors.length === 0) {
             parsedList.push({
               lrn: rawLrn,
@@ -477,8 +508,8 @@ export default function AdminStudentRecords() {
               middleName: String(rowObj['Middle Name'] || rowObj['middleName'] || cols[2] || '').trim(),
               lastName: String(rowObj['Last Name'] || rowObj['lastName'] || cols[3] || '').trim(),
               gender: String(rowObj['Gender'] || rowObj['gender'] || rowObj['Sex'] || cols[4] || 'Male').trim(),
-              grade: String(rowObj['Grade Level'] || rowObj['grade'] || cols[5] || '').trim(),
-              section: rawSection,
+              grade: matchedSection.gradeLevel,
+              section: matchedSection.sectionName,
               personalEmail: rawStudentEmail,
               parentEmail: rawParentEmail,
             });

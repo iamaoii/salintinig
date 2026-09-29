@@ -195,10 +195,12 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success && data.allSections) {
         setAvailableSections(data.allSections);
+        return data.allSections;
       }
     } catch (err) {
       console.warn('Could not fetch sections:', err);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -368,6 +370,23 @@ export default function AdminTeacherRecords() {
       const seenEmpIdInFile = new Set();
       const seenEmailInFile = new Set();
       const validRecords = [];
+      const latestSections = await fetchSections();
+      if (!Array.isArray(latestSections)) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: ['Unable to load the live section list. Please try again before uploading.'],
+        });
+        setUploadStep('summary');
+        return;
+      }
+      const sectionsForUpload = latestSections;
+      const sectionLookup = new Map(
+        sectionsForUpload.map((item) => [
+          `${String(item.gradeLevel || '').trim().toLowerCase()}::${String(item.sectionName || '').trim().toLowerCase()}`,
+          item,
+        ])
+      );
 
       rawRows.forEach((row, i) => {
         const empId = String(
@@ -393,6 +412,10 @@ export default function AdminTeacherRecords() {
         ).trim().toLowerCase();
 
         const gender = String(row['Sex / Gender'] || row.Gender || row.gender || row.Sex || 'Male').trim();
+        const gradeAssigned = String(row['Assigned Grade'] || row['Grade Level'] || row.gradeAssigned || row.grade || 'Unassigned').trim();
+        const sectionAssigned = String(row['Assigned Section'] || row.Section || row.sectionAssigned || row.section || 'Unassigned').trim();
+        const hasSectionAssignment = gradeAssigned !== 'Unassigned' || sectionAssigned !== 'Unassigned';
+        const matchedSection = sectionLookup.get(`${gradeAssigned.toLowerCase()}::${sectionAssigned.toLowerCase()}`);
 
         // 1. Missing Required Fields Check
         if (!empId) {
@@ -403,6 +426,9 @@ export default function AdminTeacherRecords() {
         }
         if (!lastName) {
           validationErrors.push(`Row ${i + 1}: Missing Last Name.`);
+        }
+        if (hasSectionAssignment && (!matchedSection || gradeAssigned === 'Unassigned' || sectionAssigned === 'Unassigned')) {
+          validationErrors.push(`Row ${i + 1}: Invalid grade/section assignment "${gradeAssigned} - ${sectionAssigned}".`);
         }
 
         // 2. Duplicate Employee ID in file
@@ -439,6 +465,9 @@ export default function AdminTeacherRecords() {
           lastName,
           gender,
           email,
+          gradeAssigned: matchedSection?.gradeLevel || 'Unassigned',
+          sectionAssigned: matchedSection?.sectionName || 'Unassigned',
+          isFacultyInCharge: String(row['Faculty In Charge'] || row.isFacultyInCharge || '').trim().toLowerCase(),
         });
       });
 
@@ -495,7 +524,7 @@ export default function AdminTeacherRecords() {
 
   const handleDownloadTemplate = () => {
     const csvContent =
-      'data:text/csv;charset=utf-8,DepEd Employee ID,First Name,Middle Name,Last Name,Sex / Gender,DepEd Email Address\nEMP-2024-099,Maria,Santos,Dela Cruz,Female,maria.delacruz@deped.gov.ph';
+      'data:text/csv;charset=utf-8,DepEd Employee ID,First Name,Middle Name,Last Name,Sex / Gender,DepEd Email Address,Assigned Grade,Assigned Section,Faculty In Charge\nEMP-2024-099,Maria,Santos,Dela Cruz,Female,maria.delacruz@deped.gov.ph,Grade 5,Maya,No';
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);

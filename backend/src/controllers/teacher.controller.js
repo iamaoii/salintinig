@@ -563,6 +563,25 @@ async function importTeachersCSV(req, res) {
 
       if (process.env.DATABASE_URL) {
         try {
+          let assignedClassId = null;
+          if (hasSectionAssignment) {
+            const { rows: classRows } = await db.query(
+              `SELECT c.class_id
+               FROM classes c
+               JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+               WHERE (c.school_id = $1 OR c.school_id IS NULL)
+                 AND LOWER(c.grade_level) = LOWER($2)
+                 AND LOWER(c.section_name) = LOWER($3)
+               LIMIT 1`,
+              [schoolId, gradeAssigned, sectionAssigned]
+            );
+            assignedClassId = classRows[0]?.class_id || null;
+            if (!assignedClassId) {
+              errors.push(`Row ${i + 1} (${empId}): Grade/section "${gradeAssigned} - ${sectionAssigned}" was not found in the active school year — skipped.`);
+              continue;
+            }
+          }
+
           // Check for duplicate Employee ID
           const { rows: dupRows } = await db.query(
             `SELECT teacher_id FROM teachers WHERE teacher_no = $1 LIMIT 1`,
@@ -599,10 +618,13 @@ async function importTeachersCSV(req, res) {
               const teacherId = tchRows[0].teacher_id;
 
               if (hasSectionAssignment) {
-                await db.query(
-                  `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-                  [teacherId, gradeAssigned, sectionAssigned]
+                const assignment = await db.query(
+                  `UPDATE classes SET advisor_teacher_id = $1 WHERE class_id = $2 RETURNING class_id`,
+                  [teacherId, assignedClassId]
                 );
+                if (!assignment.rows.length) {
+                  errors.push(`Row ${i + 1} (${empId}): Grade/section "${gradeAssigned} - ${sectionAssigned}" was not found in the active school year.`);
+                }
               }
 
               if (hasFacultyAssignment) {
