@@ -604,7 +604,7 @@ export default function GradeLevelPage() {
                           className="group hover:bg-ink/[0.02] transition-colors cursor-pointer"
                         >
                           <td className="px-5 py-3 font-bold text-ink group-hover:text-brand-blue transition-colors flex items-center gap-2.5">
-                            <Avatar name={st.name} src={st.profileImage} size={28} />
+                            <Avatar name={st.name} src={st.profileImage || st.profile_image || st.avatarUrl || st.avatar} size={28} />
                             <span>{st.name}</span>
                           </td>
                           <td className="px-4 py-3 font-mono text-ink/70">{st.lrn}</td>

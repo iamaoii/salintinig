@@ -150,13 +150,16 @@ class ApiService {
     return clean;
   }
 
-  static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
+  static List<String> _buildCandidateUrls(String endpoint) {
     final clean = _cleanEndpoint(endpoint);
-    final urls = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    return ApiConfig.candidateBaseUrls.map((base) {
+      final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+      return '$b$clean';
+    }).toList();
+  }
+
+  static Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
+    final urls = _buildCandidateUrls(endpoint);
     return _raceRequest((url) => http.post(
           Uri.parse(url),
           headers: _headers,
@@ -165,12 +168,7 @@ class ApiService {
   }
 
   static Future<ApiResponse> get(String endpoint) async {
-    final clean = _cleanEndpoint(endpoint);
-    final urls = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    final urls = _buildCandidateUrls(endpoint);
     return _raceRequest((url) => http.get(
           Uri.parse(url),
           headers: _headers,
@@ -178,12 +176,7 @@ class ApiService {
   }
 
   static Future<ApiResponse> put(String endpoint, Map<String, dynamic> body) async {
-    final clean = _cleanEndpoint(endpoint);
-    final urls = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    final urls = _buildCandidateUrls(endpoint);
     return _raceRequest((url) => http.put(
           Uri.parse(url),
           headers: _headers,
@@ -192,12 +185,7 @@ class ApiService {
   }
 
   static Future<ApiResponse> patch(String endpoint, Map<String, dynamic> body) async {
-    final clean = _cleanEndpoint(endpoint);
-    final urls = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    final urls = _buildCandidateUrls(endpoint);
     return _raceRequest((url) => http.patch(
           Uri.parse(url),
           headers: _headers,
@@ -206,12 +194,7 @@ class ApiService {
   }
 
   static Future<ApiResponse> delete(String endpoint) async {
-    final clean = _cleanEndpoint(endpoint);
-    final urls = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    final urls = _buildCandidateUrls(endpoint);
     return _raceRequest((url) => http.delete(
           Uri.parse(url),
           headers: _headers,
@@ -253,12 +236,7 @@ class ApiService {
     String fileFieldName, {
     Map<String, String>? fields,
   }) async {
-    final cleanEndpoint = _cleanEndpoint(endpoint);
-    final urlsToTry = [
-      '${ApiConfig.baseUrl}$cleanEndpoint',
-      'http://10.0.2.2:5000/api$cleanEndpoint',
-      'http://192.168.1.146:5000/api$cleanEndpoint',
-    ];
+    final urlsToTry = _buildCandidateUrls(endpoint);
     String lastErr = '';
 
     for (final urlStr in urlsToTry) {
@@ -284,11 +262,7 @@ class ApiService {
   }
 
   static Future<List<int>?> uploadAudioForDenoising(String filePath) async {
-    final urlsToTry = [
-      '${ApiConfig.baseUrl}/students/assessment/denoise-test-audio',
-      'http://10.0.2.2:5000/api/students/assessment/denoise-test-audio',
-      'http://192.168.1.146:5000/api/students/assessment/denoise-test-audio',
-    ];
+    final urlsToTry = _buildCandidateUrls('/students/assessment/denoise-test-audio');
 
     for (final urlStr in urlsToTry) {
       try {
@@ -303,19 +277,14 @@ class ApiService {
           return response.bodyBytes;
         }
       } catch (e) {
-        debugPrint('[ApiService] Denoise upload attempt notice: $e');
+        debugPrint('[ApiService] Denoise upload attempt notice for $urlStr: $e');
       }
     }
     return null;
   }
 
   static Future<Uint8List?> getRawBytes(String endpoint) async {
-    final clean = _cleanEndpoint(endpoint);
-    final urlsToTry = [
-      '${ApiConfig.baseUrl}$clean',
-      'http://10.0.2.2:5000/api$clean',
-      'http://192.168.1.146:5000/api$clean',
-    ];
+    final urlsToTry = _buildCandidateUrls(endpoint);
 
     for (final urlStr in urlsToTry) {
       try {

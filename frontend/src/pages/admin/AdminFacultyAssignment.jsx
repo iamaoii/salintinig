@@ -27,6 +27,8 @@ import AdminSchoolYearModal from '../../components/admin/AdminSchoolYearModal.js
 import { getToken } from '../../lib/auth.js';
 import { cacheService } from '../../services/cacheService.js';
 
+const ADMIN_GRADE_LEVELS = ['Grade 4', 'Grade 5', 'Grade 6'];
+const ADMIN_GRADE_FILTERS = ['All', ...ADMIN_GRADE_LEVELS];
 
 export default function AdminFacultyAssignment() {
   const location = useLocation();
@@ -290,6 +292,7 @@ export default function AdminFacultyAssignment() {
   // Sectioning Filtered & Paginated List
   const filteredSectioningStudents = useMemo(() => {
     return (sectioningStudents || []).filter((std) => {
+      if (!ADMIN_GRADE_LEVELS.includes(std.gradeLevel)) return false;
       const matchesGrade = sectioningGradeFilter === 'All' || std.gradeLevel === sectioningGradeFilter;
       const isUnassigned = !std.sectionName || std.sectionName === 'Unassigned';
       const matchesStatus =
@@ -398,7 +401,7 @@ export default function AdminFacultyAssignment() {
   // Flat list of sections for the data table
   const allSectionsList = useMemo(() => {
     if (dbSectionsList && dbSectionsList.length > 0) {
-      return dbSectionsList.map((item) => {
+      return dbSectionsList.filter((item) => ADMIN_GRADE_LEVELS.includes(item.gradeLevel)).map((item) => {
         const gradeAssignment = assignments.find((a) => a.gradeLevel === item.gradeLevel);
         return {
           ...item,
@@ -415,6 +418,7 @@ export default function AdminFacultyAssignment() {
 
     const list = [];
     Object.entries(sections).forEach(([gradeLevel, sectionArr]) => {
+      if (!ADMIN_GRADE_LEVELS.includes(gradeLevel)) return;
       sectionArr.forEach((sectionName) => {
         const gradeAssignment = assignments.find((a) => a.gradeLevel === gradeLevel);
         const adviser = teachers.find(
@@ -797,7 +801,7 @@ export default function AdminFacultyAssignment() {
               <div className="flex flex-wrap items-center gap-2">
                 {/* Grade Level Tabs */}
                 <div className="flex items-center gap-1 bg-ink/5 p-1 rounded-xl">
-                  {['All', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].map((grade) => (
+                  {ADMIN_GRADE_FILTERS.map((grade) => (
                     <button
                       key={grade}
                       type="button"
@@ -1182,7 +1186,7 @@ export default function AdminFacultyAssignment() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-ink/10 pb-4">
           {/* Grade Level Tabs */}
           <div className="flex items-center gap-1.5 bg-ink/5 p-1 rounded-xl">
-            {['All', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].map((tab) => (
+            {ADMIN_GRADE_FILTERS.map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -1396,13 +1400,9 @@ export default function AdminFacultyAssignment() {
                   onChange={(e) => setSectionFormData({ ...sectionFormData, gradeLevel: e.target.value })}
                   className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-xs text-ink outline-none focus:border-brand-blue disabled:opacity-60"
                 >
-                  <option value="Grade 1">Grade 1</option>
-                  <option value="Grade 2">Grade 2</option>
-                  <option value="Grade 3">Grade 3</option>
-                  <option value="Grade 4">Grade 4</option>
-                  <option value="Grade 5">Grade 5</option>
-                  <option value="Grade 6">Grade 6</option>
-                  <option value="Grade 7">Grade 7</option>
+                  {ADMIN_GRADE_LEVELS.map((grade) => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
                 </select>
               </div>
 

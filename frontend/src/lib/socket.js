@@ -7,6 +7,7 @@ export function getSocket() {
   if (!socket) {
     socket = io(API_BASE_URL || window.location.origin, {
       autoConnect: true,
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,

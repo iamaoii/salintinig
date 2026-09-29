@@ -95,6 +95,9 @@ async function getTeachers(req, res) {
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
             COALESCE(t.sex, 'Male') AS gender,
             COALESCE(u.email, '') AS email,
+            u.profile_image AS "profileImage",
+            u.profile_image AS "profile_image",
+            u.profile_image AS "avatarUrl",
             COALESCE(
               (SELECT c.grade_level FROM classes c JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true WHERE c.advisor_teacher_id = t.teacher_id LIMIT 1),
               'Unassigned'
@@ -147,6 +150,9 @@ async function getTeacherById(req, res) {
              CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name,
              COALESCE(t.sex, 'Female') AS gender,
              COALESCE(u.email, '') AS email,
+             u.profile_image AS "profileImage",
+             u.profile_image AS "profile_image",
+             u.profile_image AS "avatarUrl",
              COALESCE(
                (SELECT c.grade_level FROM classes c WHERE c.advisor_teacher_id::text = t.teacher_id::text OR c.advisor_teacher_id::text = t.teacher_no::text ORDER BY c.created_at DESC LIMIT 1),
                'Unassigned'

@@ -720,7 +720,7 @@ export default function PhilIriAssignPage() {
                     >
                       {/* Left: Avatar + Name + Level Badge + GST Table 3 Rec Badge */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Avatar name={name} src={std.profileImage || std.profile_image} size={32} />
+                        <Avatar name={name} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={32} />
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
