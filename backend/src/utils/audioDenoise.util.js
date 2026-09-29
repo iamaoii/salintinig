@@ -24,7 +24,7 @@ const prepareHighFidelityWav = (inputPath, tempWavPath) => {
       '-c:a', 'pcm_s16le',
       tempWavPath
     ];
-    execFile('ffmpeg', args, (err) => {
+    execFile('ffmpeg', args, { timeout: 3000 }, (err) => {
       if (!err && fs.existsSync(tempWavPath) && fs.statSync(tempWavPath).size > 0) {
         return resolve(tempWavPath);
       }
@@ -40,7 +40,7 @@ const runDeepFilterNet = (wavPath, outputDir) => {
     }
     // DeepFilterNet AI execution with attenuation limit set to 20 dB
     const args = ['-o', outputDir, '-D', '-a', '20', '--pf', wavPath];
-    execFile(DEEP_FILTER_EXE, args, (err) => {
+    execFile(DEEP_FILTER_EXE, args, { timeout: 3000 }, (err) => {
       const parsed = path.parse(wavPath);
       const expectedOutput = path.join(outputDir, parsed.base);
       if (!err && fs.existsSync(expectedOutput) && fs.statSync(expectedOutput).size > 0) {
@@ -62,7 +62,7 @@ const normalizeStudioLoudness = (inputPath, outputPath) => {
       '-b:a', '128k',
       outputPath
     ];
-    execFile('ffmpeg', args, (err) => {
+    execFile('ffmpeg', args, { timeout: 3000 }, (err) => {
       if (!err && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
         return resolve(outputPath);
       }

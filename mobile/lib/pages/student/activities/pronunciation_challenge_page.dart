@@ -817,7 +817,7 @@ class _PronunciationChallengePageState
 
     try {
       debugPrint('[PronunciationChallenge] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, lang=$_sessionLanguage, words=$totalWords, score=$avgAccuracy, xp=$_earnedXp');
-      final res = await ApiService.post('/students/pronunciation/attempt', {
+      final attemptTask = ApiService.post('/students/pronunciation/attempt', {
         'sessionId': _sessionId,
         'language': _sessionLanguage,
         'difficulty': _sessionDifficulty,
@@ -828,8 +828,10 @@ class _PronunciationChallengePageState
         'itemsDetail': _sessionWordResults,
       });
 
-      // Now sync streak with backend to get authoritative updated streak
-      await StreakService.recordActivityCompletion();
+      final streakTask = StreakService.recordActivityCompletion();
+      final results = await Future.wait([attemptTask, streakTask]);
+      final res = results[0] as ApiResponse;
+
       final newStreakCount = await StreakService.getStreakCount();
 
       if (!wasCompletedBefore && mounted) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -259,43 +260,35 @@ class _ListeningAssessmentQuizPageState
       });
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF1B64D8)),
-      ),
-    );
+    // Instantly launch background tasks for DB submission and draft cleanup
+    unawaited(() async {
+      try {
+        final user = AuthService.currentUser;
+        final studentId = user?.rawUser?['student_id']?.toString() ??
+            user?.rawUser?['studentId']?.toString() ??
+            user?.userId;
+        final lrn = user?.lrn;
 
-    try {
-      final user = AuthService.currentUser;
-      final studentId = user?.rawUser?['student_id']?.toString() ??
-          user?.rawUser?['studentId']?.toString() ??
-          user?.userId;
-      final lrn = user?.lrn;
+        await ApiService.post('/students/assessment/submit', {
+          'studentId': studentId,
+          'lrn': lrn,
+          'passageId': widget.passageId,
+          'assessmentType': 'listening',
+          'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
+          'score': correctCount,
+          'maxScore': _questions.length,
+          'answers': answersPayload,
+        });
 
-      await ApiService.post('/students/assessment/submit', {
-        'studentId': studentId,
-        'lrn': lrn,
-        'passageId': widget.passageId,
-        'assessmentType': 'listening',
-        'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
-        'score': correctCount,
-        'maxScore': _questions.length,
-        'answers': answersPayload,
-      });
-
-      await QuizProgressService.clearQuizDraft(widget.passageId, 'listening');
-    } catch (e) {
-      debugPrint('[ListeningQuiz] submission error: $e');
-    } finally {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context);
+        await QuizProgressService.clearQuizDraft(widget.passageId, 'listening');
+      } catch (e) {
+        debugPrint('[ListeningQuiz] submission error: $e');
       }
-    }
+    }());
 
     if (!mounted) return;
 
+    // Instant transition to Congratulations Page in < 0.05s!
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

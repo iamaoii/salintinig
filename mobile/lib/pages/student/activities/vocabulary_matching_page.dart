@@ -488,7 +488,7 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
 
     try {
       debugPrint('[VocabularyMatching] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, pairs=$totalPairs, score=$score, xp=$_earnedXp');
-      final res = await ApiService.post('/students/vocabulary/attempt', {
+      final attemptTask = ApiService.post('/students/vocabulary/attempt', {
         'sessionId': _sessionId,
         'difficulty': _sessionDifficulty,
         'totalPairs': totalPairs,
@@ -498,8 +498,10 @@ class _VocabularyMatchingPageState extends State<VocabularyMatchingPage>
         'itemsDetail': itemsDetail,
       });
 
-      // Now sync streak with backend to get authoritative updated streak
-      await StreakService.recordActivityCompletion();
+      final streakTask = StreakService.recordActivityCompletion();
+      final results = await Future.wait([attemptTask, streakTask]);
+      final res = results[0] as ApiResponse;
+
       final newStreakCount = await StreakService.getStreakCount();
 
       if (!wasCompletedBefore && mounted) {

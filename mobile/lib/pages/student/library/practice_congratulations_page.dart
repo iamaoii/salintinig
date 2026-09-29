@@ -113,7 +113,7 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
 
     try {
       final user = AuthService.currentUser;
-      final response = await ApiService.post('/students/story/complete', {
+      final postTask = ApiService.post('/students/story/complete', {
         'bookTitle': widget.bookTitle,
         if (widget.materialId != null && widget.materialId!.isNotEmpty) 'materialId': widget.materialId,
         'score': widget.score,
@@ -124,12 +124,16 @@ class _PracticeCongratulationsPageState extends State<PracticeCongratulationsPag
         if (user?.lrn != null && user!.lrn.isNotEmpty) 'lrn': user.lrn,
         if (user?.userId != null && user!.userId.isNotEmpty) 'studentId': user.userId,
       });
+
+      final streakTask = StreakService.recordActivityCompletion();
+      final analyticsTask = AnalyticsService.fetchAnalytics(forceRefresh: true);
+
       LibraryService.invalidateAll();
-      await AnalyticsService.fetchAnalytics(forceRefresh: true);
       StudentPrefetchService.prefetchAll();
 
-      // Now sync streak with backend to get authoritative updated streak
-      await StreakService.recordActivityCompletion();
+      final results = await Future.wait([postTask, streakTask, analyticsTask]);
+      final response = results[0] as ApiResponse;
+
       final newStreakCount = await StreakService.getStreakCount();
 
       // If this was the student's first activity completion today, show ignition celebration pop-up!

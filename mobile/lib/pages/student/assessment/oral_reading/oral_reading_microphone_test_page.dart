@@ -207,30 +207,12 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
           _audioTimer?.cancel();
           _pulseController.stop();
 
-          // Transition smoothly to 'processing' state while backend AI denoises audio
-          setState(() {
-            _testState = 'processing';
-            _audioLevel = 0.0;
-          });
-
+          String? recordedPath;
           try {
             if (await _audioRecorder.isRecording()) {
-              final path = await _audioRecorder.stop();
-              if (path != null) {
-                _lastRecordedPath = path;
-
-                // Process test audio with DeepFilterNet AI Model on backend
-                try {
-                  final cleanBytes = await ApiService.uploadAudioForDenoising(path);
-                  if (cleanBytes != null && cleanBytes.isNotEmpty) {
-                    final cleanPath = '${path}_clean.m4a';
-                    File(cleanPath).writeAsBytesSync(cleanBytes);
-                    _lastRecordedPath = cleanPath;
-                    debugPrint('[MicTest] Audio replay successfully updated with DeepFilterNet clean file');
-                  }
-                } catch (e) {
-                  debugPrint('[MicTest] Denoise notice: $e');
-                }
+              recordedPath = await _audioRecorder.stop();
+              if (recordedPath != null) {
+                _lastRecordedPath = recordedPath;
               }
             }
           } catch (_) {}
@@ -246,6 +228,21 @@ class _OralReadingMicrophoneTestPageState extends State<OralReadingMicrophoneTes
                 _audioLevel = 0.0;
               }
             });
+          }
+
+          // Asynchronously process optional clean audio in background without blocking UI
+          if (recordedPath != null && File(recordedPath).existsSync()) {
+            final targetPath = recordedPath;
+            unawaited(ApiService.uploadAudioForDenoising(targetPath).then((cleanBytes) {
+              if (cleanBytes != null && cleanBytes.isNotEmpty) {
+                final cleanPath = '${targetPath}_clean.m4a';
+                File(cleanPath).writeAsBytesSync(cleanBytes);
+                _lastRecordedPath = cleanPath;
+                debugPrint('[MicTest] Background denoise updated audio replay');
+              }
+            }).catchError((e) {
+              debugPrint('[MicTest] Denoise notice: $e');
+            }));
           }
         }
       }
