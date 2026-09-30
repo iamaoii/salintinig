@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE SET NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'student', 'parent')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'student', 'parent', 'super_admin')),
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     must_change_password BOOLEAN DEFAULT FALSE,
     profile_image TEXT,
