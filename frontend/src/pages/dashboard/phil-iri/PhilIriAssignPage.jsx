@@ -77,6 +77,7 @@ export default function PhilIriAssignPage() {
   const [selectedPassages, setSelectedPassages] = useState({});
   const [selectedStudentGrades, setSelectedStudentGrades] = useState({});
   const [selectedStudents, setSelectedStudents] = useState(new Set());
+  const [supplementaryEligibilityConfirmed, setSupplementaryEligibilityConfirmed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewPassage, setPreviewPassage] = useState(null);
@@ -336,7 +337,12 @@ export default function PhilIriAssignPage() {
   };
 
   const toggleAll = () => {
-    const eligibleStudents = students.filter((s) => !checkAlreadyHasAssessment(s, assessmentType, period, selectedLanguage));
+    const eligibleStudents = students.filter((student) => {
+      if (checkAlreadyHasAssessment(student, assessmentType, period, selectedLanguage)) return false;
+      if (assessmentType !== 'oral') return true;
+      const recommendation = computeGstRecommendation(student, selectedLanguage);
+      return !recommendation.missingGst && !recommendation.isExempt;
+    });
     if (selectedStudents.size === eligibleStudents.length && eligibleStudents.length > 0) {
       setSelectedStudents(new Set());
       setSelectedPassages({});
@@ -358,16 +364,17 @@ export default function PhilIriAssignPage() {
     const startingPointText = isTagalog ? student.startingPointFil : student.startingPointEng;
     const currentGrade = parseInt(String(student.gradeLevel || student.grade || selectedGrade || '4').replace(/\D/g, ''), 10) || 4;
 
+    const minimumPassageGrade = isTagalog ? 1 : 2;
     if (score !== null && score !== undefined && score !== '') {
       const numScore = Number(score);
       if (numScore >= 14) {
         return { label: 'Exempted (Score ≥ 14)', targetGrade: currentGrade, isExempt: true };
       }
       if (numScore >= 8) {
-        const targetGrade = Math.max(1, currentGrade - 2);
+        const targetGrade = Math.max(minimumPassageGrade, currentGrade - 2);
         return { label: `Rec: Grade ${targetGrade} Passage`, targetGrade, isExempt: false };
       }
-      const targetGrade = Math.max(1, currentGrade - 3);
+      const targetGrade = Math.max(minimumPassageGrade, currentGrade - 3);
       return { label: `Rec: Grade ${targetGrade} Passage`, targetGrade, isExempt: false };
     }
 
@@ -381,11 +388,49 @@ export default function PhilIriAssignPage() {
       }
     }
 
-    const defaultTarget = Math.max(1, currentGrade - 2);
-    return { label: `Grade ${defaultTarget} (Default)`, targetGrade: defaultTarget, isExempt: false };
+    // A saved Form 1A/1B GST result is mandatory before assigning Stage 2 Oral Reading.
+    return { label: 'GST score required', targetGrade: null, isExempt: false, missingGst: true };
   };
 
+  const getPassagesForStudent = (student) => {
+    if (assessmentType !== 'oral') return filteredPassages;
+    const recommendation = computeGstRecommendation(student, selectedLanguage);
+    if (!recommendation.targetGrade) return [];
+    return filteredPassages.filter((passage) =>
+      Number(String(passage.grade_level || '').replace(/\D/g, '')) === recommendation.targetGrade
+    );
+  };
+
+  // Changing to Oral (or changing language) must remove learners without a saved
+  // GST score, so they can never be accidentally published as Oral assignments.
+  useEffect(() => {
+    if (assessmentType !== 'oral' || !selectedLanguage) return;
+    const ineligibleIds = new Set(students
+      .filter((student) => {
+        const recommendation = computeGstRecommendation(student, selectedLanguage);
+        return recommendation.isExempt || recommendation.missingGst;
+      })
+      .map((student) => String(student.student_id || student.id)));
+    if (ineligibleIds.size === 0) return;
+    setSelectedStudents((current) => {
+      const next = new Set([...current].filter((id) => !ineligibleIds.has(String(id))));
+      return next.size === current.size ? current : next;
+    });
+    setSelectedPassages((current) => {
+      const next = { ...current };
+      let changed = false;
+      ineligibleIds.forEach((id) => {
+        if (id in next) { delete next[id]; changed = true; }
+      });
+      return changed ? next : current;
+    });
+  }, [assessmentType, selectedLanguage, students]);
+
   const handleAutoAssignGstRecommended = () => {
+    if (assessmentType !== 'oral') {
+      setToastMessage({ text: 'GST auto-assignment is available only for Oral Reading Assessment. Please choose passages manually for Listening or Silent Reading.', type: 'warning' });
+      return;
+    }
     if (!selectedLanguage) {
       setToastMessage({ text: 'Please select an Assessment Language (Filipino or English) first.', type: 'warning' });
       return;
@@ -398,6 +443,8 @@ export default function PhilIriAssignPage() {
 
     const updated = { ...selectedPassages };
     let assignedCount = 0;
+    let missingGstCount = 0;
+    let missingPassageCount = 0;
     const gradeSetCounters = {};
 
     students.forEach((std) => {
@@ -406,6 +453,10 @@ export default function PhilIriAssignPage() {
 
       const rec = computeGstRecommendation(std, selectedLanguage);
       if (rec.isExempt) return;
+      if (rec.missingGst) {
+        missingGstCount++;
+        return;
+      }
 
       // Find all passages matching recommended target grade and selected language
       const matchingPassages = filteredPassages.filter((p) => {
@@ -421,13 +472,7 @@ export default function PhilIriAssignPage() {
         const counter = gradeSetCounters[rec.targetGrade] || 0;
         match = matchingPassages[counter % matchingPassages.length];
         gradeSetCounters[rec.targetGrade] = counter + 1;
-      } else {
-        // Smart Fallback: Pick first available passage in that language if exact grade level is missing
-        const langPassages = filteredPassages;
-        if (langPassages.length > 0) {
-          match = langPassages[0];
-        }
-      }
+      } else missingPassageCount++;
 
       if (match) {
         updated[stdId] = match.passage_id;
@@ -436,7 +481,12 @@ export default function PhilIriAssignPage() {
     });
 
     setSelectedPassages(updated);
-    setToastMessage({ text: `Auto-assigned GST Table 3 recommended starting passages for ${assignedCount} student(s).`, type: 'success' });
+    setToastMessage({
+      text: missingGstCount > 0 || missingPassageCount > 0
+        ? `Assigned ${assignedCount} GST-based passage(s). ${missingGstCount ? `${missingGstCount} learner(s) need a saved Form 1A/1B score. ` : ''}${missingPassageCount ? `${missingPassageCount} learner(s) have no passage at their required starting grade.` : ''}`
+        : `Auto-assigned GST Table 3 recommended starting passages for ${assignedCount} student(s).`,
+      type: missingGstCount > 0 || missingPassageCount > 0 ? 'warning' : 'success',
+    });
   };
 
   const handleSetChange = (studentId, passageId) => {
@@ -463,6 +513,20 @@ export default function PhilIriAssignPage() {
     }
     if (selectedStudents.size === 0) {
       setToastMessage({ text: 'Please select at least one student to assign.', type: 'warning' });
+      return;
+    }
+    if (assessmentType === 'oral') {
+      const missingGstStudents = students.filter((student) => {
+        const studentId = student.student_id || student.id;
+        return selectedStudents.has(studentId) && computeGstRecommendation(student, selectedLanguage).missingGst;
+      });
+      if (missingGstStudents.length > 0) {
+        setToastMessage({ text: `${missingGstStudents.length} selected learner(s) have no saved Form 1A/1B GST score for this language. Save GST first before publishing an Oral Reading assessment.`, type: 'warning' });
+        return;
+      }
+    }
+    if ((assessmentType === 'listening' || assessmentType === 'silent') && !supplementaryEligibilityConfirmed) {
+      setToastMessage({ text: 'Please confirm that the selected learners are eligible for this supplementary assessment.', type: 'warning' });
       return;
     }
 
@@ -602,7 +666,10 @@ export default function PhilIriAssignPage() {
                       <button
                         key={item.key}
                         type="button"
-                        onClick={() => setAssessmentType(item.key)}
+                        onClick={() => {
+                          setAssessmentType(item.key);
+                          setSupplementaryEligibilityConfirmed(false);
+                        }}
                         className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-4 transition-all cursor-pointer ${
                           isSelected
                             ? 'border-brand-blue bg-blue-50/50 shadow-sm ring-1 ring-brand-blue'
@@ -618,6 +685,34 @@ export default function PhilIriAssignPage() {
                   })}
                 </div>
               </div>
+
+              {(assessmentType === 'silent' || assessmentType === 'listening') && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                  <p className="font-bold">
+                    {assessmentType === 'silent'
+                      ? 'Silent Reading is a teacher-directed supplementary assessment.'
+                      : 'Listening Comprehension is for a learner identified as a nonreader.'}
+                  </p>
+                  <p className="mt-1 leading-relaxed text-amber-900">
+                    {assessmentType === 'silent'
+                      ? 'Use it after Oral Reading to further check a reader’s speed and comprehension. GST does not select its passage.'
+                      : 'Use it only when the completed Oral Reading findings and teacher judgment identify the learner as a nonreader. GST does not select its passage.'}
+                  </p>
+                  <label className="mt-2 flex cursor-pointer items-start gap-2 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={supplementaryEligibilityConfirmed}
+                      onChange={(e) => setSupplementaryEligibilityConfirmed(e.target.checked)}
+                      className="mt-0.5 size-3.5 accent-brand-blue"
+                    />
+                    <span>
+                      {assessmentType === 'silent'
+                        ? 'I confirm this learner is eligible based on Oral Reading findings.'
+                        : 'I confirm this learner has been identified as a nonreader based on Oral Reading findings.'}
+                    </span>
+                  </label>
+                </div>
+              )}
 
               {/* Optional Custom Instructions / Teacher Notes */}
               <div>
@@ -639,6 +734,10 @@ export default function PhilIriAssignPage() {
         {/* Right Column - Assigned Students List (5 Cols) */}
         {(() => {
           const isLeftPanelComplete = Boolean(period && selectedLanguage && assessmentType);
+          const oralNotRequiredCount = assessmentType === 'oral'
+            ? students.filter((student) => computeGstRecommendation(student, selectedLanguage).isExempt).length
+            : 0;
+          const eligibleStudentCount = students.length - oralNotRequiredCount;
           return (
             <div className="flex flex-col lg:col-span-5">
               <div className={`flex h-full flex-col rounded-2xl border border-ink/10 bg-cream p-5 shadow-sm transition-all ${
@@ -649,21 +748,21 @@ export default function PhilIriAssignPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold text-ink">Assigned Students</h2>
                     <span className="rounded-full bg-brand-blue/10 px-2.5 py-0.5 text-xs font-bold text-brand-blue">
-                      {selectedStudents.size}/{students.length}
+                      {selectedStudents.size}/{eligibleStudentCount}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {assessmentType === 'oral' && <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={!isLeftPanelComplete}
+                      disabled={!isLeftPanelComplete || assessmentType !== 'oral'}
                       onClick={handleAutoAssignGstRecommended}
                       className="flex items-center gap-1.5 rounded-lg border border-ink/15 bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:bg-ink/5 hover:border-ink/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                      title="Auto-assign starting passage based on DepEd Table 3 GST score"
+                      title={assessmentType === 'oral' ? 'Auto-assign starting passage based on DepEd Table 3 GST score' : 'GST auto-assignment applies only to Oral Reading Assessment'}
                     >
                       <MagicWand size={14} className="text-ink/60" /> Auto-Assign GST Level
                     </button>
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Search and Select All */}
@@ -700,6 +799,7 @@ export default function PhilIriAssignPage() {
                   const badgeStyle = LEVEL_TAG[level] || LEVEL_TAG['Pending Evaluation'];
 
                   const gstRec = computeGstRecommendation(std, selectedLanguage);
+                  const isOralNotRequired = assessmentType === 'oral' && gstRec.isExempt;
 
                   const existingRec = checkAlreadyHasAssessment(std, assessmentType, period, selectedLanguage);
                   const isAlreadyAssigned = Boolean(existingRec);
@@ -708,18 +808,22 @@ export default function PhilIriAssignPage() {
                     <div
                       key={stdId}
                       onClick={() => {
-                        if (!isLeftPanelComplete || isAlreadyAssigned) return;
+                        if (!isLeftPanelComplete || isAlreadyAssigned || (assessmentType === 'oral' && (gstRec.missingGst || gstRec.isExempt))) return;
                         toggleStudent(stdId);
                       }}
                       title={
                         isAlreadyAssigned
                           ? `Student already has an official ${selectedLanguage === 'en' ? 'English' : 'Filipino'} ${period === 'pre_test' ? 'Pre-test' : 'Post-test'} for this assessment type.`
-                          : undefined
+                          : assessmentType === 'oral' && gstRec.missingGst
+                            ? 'Save a GST score in Form 1A/1B before assigning Stage 2 Oral Reading.'
+                            : isOralNotRequired
+                              ? 'GST score is 14 or higher. No individualized Oral Reading assessment is required.'
+                              : undefined
                       }
                       className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-all ${
                         isAlreadyAssigned
                           ? 'border-ink/15 bg-slate-50/60 opacity-80 cursor-not-allowed'
-                          : !isLeftPanelComplete
+                          : !isLeftPanelComplete || (assessmentType === 'oral' && (gstRec.missingGst || gstRec.isExempt))
                             ? 'border-ink/10 bg-white/40 opacity-40 cursor-not-allowed'
                             : isChecked
                               ? 'border-ink/15 bg-white shadow-xs cursor-pointer'
@@ -743,7 +847,7 @@ export default function PhilIriAssignPage() {
                             <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
                               {level}
                             </span>
-                            {selectedLanguage && (
+                            {assessmentType === 'oral' && selectedLanguage && (
                               <span className="inline-block rounded-md bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 text-[9px] font-bold">
                                 {gstRec.label}
                               </span>
@@ -845,9 +949,13 @@ export default function PhilIriAssignPage() {
                 <h3 className="text-base font-bold text-ink">
                   Select Passage for <span className="text-brand-blue">{pickingStudentForPassage.name || 'Learner'}</span>
                 </h3>
-                <p className="text-xs text-ink/60">
-                  GST Recommended Level: <strong className="text-ink">{computeGstRecommendation(pickingStudentForPassage, selectedLanguage).label}</strong>
-                </p>
+                {assessmentType === 'oral' ? (
+                  <p className="text-xs text-ink/60">
+                    GST starting level: <strong className="text-ink">{computeGstRecommendation(pickingStudentForPassage, selectedLanguage).label}</strong>. Choose a parallel set at this grade only.
+                  </p>
+                ) : (
+                  <p className="text-xs text-ink/60">Choose the appropriate passage manually for this supplementary assessment.</p>
+                )}
               </div>
               <button
                 type="button"
@@ -860,14 +968,28 @@ export default function PhilIriAssignPage() {
 
             {/* Modal Passage Cards Grid */}
             <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4">
-              {Object.entries(
-                filteredPassages.reduce((acc, p) => {
+              {(() => {
+                const recommendation = computeGstRecommendation(pickingStudentForPassage, selectedLanguage);
+                const pickerPassages = getPassagesForStudent(pickingStudentForPassage);
+
+                if (pickerPassages.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
+                      {assessmentType === 'oral'
+                        ? `No ${selectedLanguage === 'en' ? 'English' : 'Filipino'} ${recommendation.targetGrade ? `Grade ${recommendation.targetGrade}` : ''} ${period === 'post_test' ? 'Post-Test' : 'Pre-Test'} passage is available. Do not select another grade; contact the administrator.`
+                        : 'No passages are available for the selected language and assessment period.'}
+                    </div>
+                  );
+                }
+
+                return Object.entries(
+                  pickerPassages.reduce((acc, p) => {
                   const gr = p.grade_level || 'Other Grades';
                   if (!acc[gr]) acc[gr] = [];
                   acc[gr].push(p);
                   return acc;
-                }, {})
-              )
+                  }, {})
+                )
                 .sort(([aGrade], [bGrade]) => {
                   const numA = parseInt(String(aGrade).replace(/\D/g, ''), 10) || 99;
                   const numB = parseInt(String(bGrade).replace(/\D/g, ''), 10) || 99;
@@ -915,7 +1037,8 @@ export default function PhilIriAssignPage() {
                       </div>
                     </div>
                   );
-                })}
+                });
+              })()}
             </div>
           </div>
         </div>,

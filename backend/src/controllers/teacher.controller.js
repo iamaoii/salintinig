@@ -1695,7 +1695,10 @@ async function getPhilIriActivities(req, res) {
           period: r.period,
           language: r.language,
           gradeLevel: r.gradeLevel || 'Grade 4',
-          passageSet: r.setsIncluded ? `Sets ${r.setsIncluded}` : 'All Sets',
+          // The passage names already include the "Set" prefix (e.g., "Set A").
+          // Do not prepend "Sets" here, otherwise the activity card shows
+          // the redundant label "Sets Set A".
+          passageSet: r.setsIncluded || 'All Sets',
           activityStatus: isClosed ? 'closed' : 'open',
           status: isClosed ? 'closed' : r.pending === 0 ? 'completed' : 'pending',
           done: r.done,
