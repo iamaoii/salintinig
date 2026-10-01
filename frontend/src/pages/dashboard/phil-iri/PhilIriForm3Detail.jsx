@@ -39,21 +39,31 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
       const cacheKey = `form3_attempts_${rawLrn}_${langCode}`;
       const cached = cacheService.get(cacheKey);
 
+      const deduplicateList = (list) => {
+        const map = new Map();
+        (list || []).forEach((att) => {
+          const key = att.passage_id || `${att.passage_grade_level || ''}_${att.passage_set || ''}`;
+          map.set(key, att);
+        });
+        return Array.from(map.values());
+      };
+
       if (cached && cached.success && Array.isArray(cached.attempts) && cached.attempts.length > 0) {
+        const cleanCached = deduplicateList(cached.attempts);
         setStudentInfo(cached.student);
-        setAttempts(cached.attempts);
+        setAttempts(cleanCached);
 
         const paramAttToken = searchParams.get('att') || searchParams.get('attemptId');
         const decodedAttId = decodeSecureToken('ATT', paramAttToken);
         const paramAttemptNum = searchParams.get('attempt');
 
         let initialIdx = 0;
-        if (decodedAttId && cached.attempts.length > 0) {
-          const foundIdx = cached.attempts.findIndex((a) => String(a.attempt_id) === String(decodedAttId));
+        if (decodedAttId && cleanCached.length > 0) {
+          const foundIdx = cleanCached.findIndex((a) => String(a.attempt_id) === String(decodedAttId));
           if (foundIdx >= 0) initialIdx = foundIdx;
         } else if (paramAttemptNum && !isNaN(paramAttemptNum)) {
           const numIdx = Number(paramAttemptNum) - 1;
-          if (numIdx >= 0 && numIdx < cached.attempts.length) initialIdx = numIdx;
+          if (numIdx >= 0 && numIdx < cleanCached.length) initialIdx = numIdx;
         }
 
         setSelectedAttemptIndex(initialIdx);
@@ -72,10 +82,10 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         );
         const data = await res.json();
         if (res.ok && data.success) {
-          cacheService.set(cacheKey, data, 300000); // 5 mins TTL
+          const cleanAtts = deduplicateList(data.attempts || []);
+          cacheService.set(cacheKey, { ...data, attempts: cleanAtts }, 300000); // 5 mins TTL
           setStudentInfo(data.student);
-          const atts = data.attempts || [];
-          setAttempts(atts);
+          setAttempts(cleanAtts);
 
           const paramAttToken = searchParams.get('att') || searchParams.get('attemptId');
           const decodedAttId = decodeSecureToken('ATT', paramAttToken);
@@ -973,13 +983,27 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
         const currentAtt = attempts.length > 0 ? attempts[selectedAttemptIndex] : null;
         const profile = currentAtt?.overall_profile || record?.overallProfile || '—';
 
-        const preTestAttempts = attempts
-          .map((att, originalIndex) => ({ ...att, originalIndex }))
-          .filter((att) => !(att.assessment_period || '').toLowerCase().includes('post'));
+        // Deduplicate attempts per passage key to avoid rendering duplicate records for the same passage level
+        const deduplicateAttempts = (list) => {
+          const map = new Map();
+          list.forEach((att) => {
+            const key = att.passage_id || `${att.passage_grade_level || ''}_${att.passage_set || ''}`;
+            map.set(key, att);
+          });
+          return Array.from(map.values());
+        };
 
-        const postTestAttempts = attempts
-          .map((att, originalIndex) => ({ ...att, originalIndex }))
-          .filter((att) => (att.assessment_period || '').toLowerCase().includes('post'));
+        const preTestAttempts = deduplicateAttempts(
+          attempts
+            .map((att, originalIndex) => ({ ...att, originalIndex }))
+            .filter((att) => !(att.assessment_period || '').toLowerCase().includes('post'))
+        );
+
+        const postTestAttempts = deduplicateAttempts(
+          attempts
+            .map((att, originalIndex) => ({ ...att, originalIndex }))
+            .filter((att) => (att.assessment_period || '').toLowerCase().includes('post'))
+        );
 
         return (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/15 bg-white px-4 py-2.5 shadow-2xs">
