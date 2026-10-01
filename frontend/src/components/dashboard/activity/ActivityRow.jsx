@@ -173,7 +173,7 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
               theme={theme}
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/teacher/class-activities/phil-iri/view/${activity.id}`);
+                navigate(`/teacher/phil-iri-assessments/view/${activity.id}`);
               }}
             />
           </div>
@@ -208,7 +208,7 @@ export default function ActivityRow({ activity, selected = false, onClick, onDel
                     setMenuOpen(false);
                     const isPhilIri = activity.type === 'phil-iri' || activity.tag === 'Phil-IRI' || activity.id.startsWith('act-') || activity.id.includes('_');
                     const editPath = isPhilIri
-                      ? `/teacher/class-activities/phil-iri/edit/${activity.id}`
+                      ? `/teacher/phil-iri-assessments/edit/${activity.id}`
                       : `/teacher/class-activities/practice/edit/${activity.id}`;
                     navigate(editPath);
                   }}

@@ -122,9 +122,9 @@ export default function StudentProfile() {
           ...act,
           onAction: (a) => {
             if (a.attemptId) {
-              navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
+              navigate(`/teacher/phil-iri-assessments/review/${a.attemptId}`);
             } else if (a.id) {
-              navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+              navigate(`/teacher/phil-iri-assessments/view/${a.id}`);
             }
           },
         }))

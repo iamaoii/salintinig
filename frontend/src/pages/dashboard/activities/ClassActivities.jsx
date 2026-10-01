@@ -137,6 +137,7 @@ export default function ClassActivities() {
             steppingDown: s.filter(x => x.status === 'in_progress' && x.direction === 'stepping_down').length,
             steppingUp: s.filter(x => x.status === 'in_progress' && x.direction === 'stepping_up').length,
             completed: s.filter(x => x.status === 'completed').length,
+            needsReview: s.filter(x => x.status === 'needs_review').length,
           };
           setAdaptiveMetrics(nextMetrics);
           cacheService.set('teacher_adaptive_metrics', nextMetrics);
@@ -259,7 +260,7 @@ export default function ClassActivities() {
         {isLoading ? (
           <ClassMetricsBannerSkeleton />
         ) : (
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 lg:gap-4">
             {/* Active In-Progress */}
             <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
               <div className="flex items-center justify-between">
@@ -270,7 +271,7 @@ export default function ClassActivities() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-ink">{adaptiveMetrics.inProgress}</span>
-                <span className="text-xs font-medium text-amber-700">Level Finding</span>
+                <span className="text-xs font-medium text-amber-700">Adaptive Profiling</span>
               </div>
               <div className="mt-1 flex items-center gap-1 text-[11px] text-ink/60">
                 <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
@@ -288,9 +289,9 @@ export default function ClassActivities() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-rose-700">{adaptiveMetrics.steppingDown}</span>
-                <span className="text-xs font-medium text-ink/60">Interventions</span>
+                <span className="text-xs font-medium text-ink/60">Stepping Down</span>
               </div>
-              <p className="mt-1 text-[11px] text-ink/60 truncate">Lower grade level tested to ease frustration</p>
+              <p className="mt-1 text-[11px] text-ink/60 truncate">Testing lower grade level</p>
             </div>
 
             {/* Stepping Up */}
@@ -303,9 +304,24 @@ export default function ClassActivities() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-blue-600">{adaptiveMetrics.steppingUp}</span>
-                <span className="text-xs font-medium text-ink/60">Advancing</span>
+                <span className="text-xs font-medium text-ink/60">Stepping Up</span>
               </div>
-              <p className="mt-1 text-[11px] text-ink/60 truncate">Higher grade level to find instructional ceiling</p>
+              <p className="mt-1 text-[11px] text-ink/60 truncate">Testing higher grade level</p>
+            </div>
+
+            {/* Needs Review */}
+            <div className="relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs transition-all hover:shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-ink/50">Needs Review</span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-700">
+                  <WarningCircle size={16} weight="bold" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-amber-700">{adaptiveMetrics.needsReview || 0}</span>
+                <span className="text-xs font-medium text-ink/60">Flagged Cases</span>
+              </div>
+              <p className="mt-1 text-[11px] text-ink/60 truncate">Non-monotonic / anomaly levels</p>
             </div>
 
             {/* Completed */}
@@ -318,9 +334,9 @@ export default function ClassActivities() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-emerald-700">{adaptiveMetrics.completed}</span>
-                <span className="text-xs font-medium text-emerald-700">Level Found</span>
+                <span className="text-xs font-medium text-emerald-700">Profile Established</span>
               </div>
-              <p className="mt-1 text-[11px] text-ink/60 truncate">Confirmed Instructional Reading Level</p>
+              <p className="mt-1 text-[11px] text-ink/60 truncate">Full 3-Tier Profile Established</p>
             </div>
           </div>
         )}
@@ -382,7 +398,7 @@ export default function ClassActivities() {
             </Link>
 
             <Link
-              to="/teacher/class-activities/phil-iri/assign"
+              to="/teacher/phil-iri-assessments/assign"
               className="flex items-center gap-1.5 rounded-xl bg-brand-red px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition-all cursor-pointer"
             >
               <Plus size={16} weight="bold" />
@@ -506,7 +522,7 @@ export default function ClassActivities() {
                 You have not assigned any Phil-IRI passage sets to your class students yet.
               </p>
               <Link
-                to="/teacher/class-activities/phil-iri/assign"
+                to="/teacher/phil-iri-assessments/assign"
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition-all cursor-pointer"
               >
                 <UserCheck size={18} /> Assign Phil-IRI Sets to Students Now
@@ -619,7 +635,7 @@ export default function ClassActivities() {
                     type="button"
                     onClick={() => {
                       setShowPendingListModal(false);
-                      navigate(`/teacher/class-activities/phil-iri/review/${rev.attemptId}`);
+                      navigate(`/teacher/phil-iri-assessments/review/${rev.attemptId}`);
                     }}
                     className="shrink-0 rounded-lg bg-brand-red px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-brand-red/90 active:scale-95 transition-all cursor-pointer"
                   >

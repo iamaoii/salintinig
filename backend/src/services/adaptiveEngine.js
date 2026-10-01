@@ -338,6 +338,18 @@ function deriveProfileFromAttempts(attempts = []) {
     }
   }
 
+  // Strict Monotonic Rule Check (Independent < Instructional < Frustration)
+  let isMonotonic = true;
+  if (independent !== null && instructional !== null && independent >= instructional) {
+    isMonotonic = false;
+  }
+  if (instructional !== null && frustration !== null && instructional >= frustration) {
+    isMonotonic = false;
+  }
+  if (independent !== null && frustration !== null && independent >= frustration) {
+    isMonotonic = false;
+  }
+
   return {
     independentLevel: independent !== null ? formatGradeLevel(independent) : null,
     instructionalLevel: instructional !== null ? formatGradeLevel(instructional) : null,
@@ -345,7 +357,8 @@ function deriveProfileFromAttempts(attempts = []) {
     independentInt: independent,
     instructionalInt: instructional,
     frustrationInt: frustration,
-    isComplete: independent !== null && instructional !== null && frustration !== null,
+    isComplete: isMonotonic && independent !== null && instructional !== null && frustration !== null,
+    isMonotonic,
   };
 }
 
@@ -434,9 +447,16 @@ function evaluateAdaptiveTransition({
         nextTarget = L - 1;
       } else if (classification === 'Instructional') {
         if (profile.independentInt !== null) {
-          nextState = 'COMPLETE';
-          status = 'COMPLETE';
-          nextTarget = null;
+          if (profile.isMonotonic) {
+            nextState = 'COMPLETE';
+            status = 'COMPLETE';
+            nextTarget = null;
+          } else {
+            nextState = 'NEEDS_REVIEW';
+            status = 'NEEDS_REVIEW';
+            terminalReason = 'NON_MONOTONIC_READING_LEVELS';
+            nextTarget = null;
+          }
         } else {
           nextState = 'SEARCHING_INDEPENDENT_DOWN';
           nextTarget = L - 1;

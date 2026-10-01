@@ -335,6 +335,8 @@ router.get('/assessments/passages', teacherController.getPhilIriPassages);
 // GET  /api/teacher/assessments/adaptive-sessions        — List all Phase 2 sessions for teacher's class
 router.post('/assessments/start-adaptive-sessions', teacherController.startStudentAdaptiveSessions);
 router.get('/assessments/adaptive-sessions', teacherController.getAdaptiveSessions);
+router.post('/assessments/resolve-adaptive-session', teacherController.resolveAdaptiveSession);
+router.post('/assessments/reassign-passage', teacherController.reassignPassageAttempt);
 
 
 router.put('/assessments/toggle-status', async (req, res) => {

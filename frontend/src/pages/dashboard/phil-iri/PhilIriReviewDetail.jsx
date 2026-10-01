@@ -349,11 +349,44 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
     return Boolean(reviewData?.isDiscontinued || reviewData?.discontinuationReason === 'refusal_to_read');
   });
 
+  const [isReassigning, setIsReassigning] = useState(false);
+
+  const handleReassignPassage = async () => {
+    if (!attemptId) return;
+    if (!window.confirm('Are you sure you want to re-assign this passage attempt for a student retake? This will reset the assessment status back to assigned.')) {
+      return;
+    }
+    setIsReassigning(true);
+    try {
+      const token = getToken();
+      const res = await fetch(getApiUrl('/api/teacher/assessments/reassign-passage'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ attemptId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToastMsg({ text: 'Passage attempt re-assigned successfully for student retake.', type: 'success' });
+        if (onVerified) onVerified();
+      } else {
+        setToastMsg({ text: data.error || 'Failed to re-assign passage.', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error re-assigning passage:', err);
+      setToastMsg({ text: 'Failed to connect to server.', type: 'error' });
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
   // Comprehension state (Image 2, 3, Table 6)
   const defaultTotalQuestions = Number(reviewData?.totalQuestions || reviewData?.comprehension_total_items) || (reviewData?.answers && reviewData.answers.length > 0 ? reviewData.answers.length : 5);
   const initialCorrect = reviewData?.comprehensionScore != null
-    ? Math.min(defaultTotalQuestions, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 57) / 100) * defaultTotalQuestions)))
-    : 4;
+    ? Math.min(defaultTotalQuestions, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 0) / 100) * defaultTotalQuestions)))
+    : 0;
 
   const [compCorrect, setCompCorrect] = useState(initialCorrect);
   const [compTotal, setCompTotal] = useState(defaultTotalQuestions);
@@ -365,7 +398,7 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
     setCompTotal(totalQ);
 
     if (reviewData?.comprehensionScore != null) {
-      const calcCorr = Math.min(totalQ, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 57) / 100) * totalQ)));
+      const calcCorr = Math.min(totalQ, Math.max(0, Math.round(((Number(reviewData.comprehensionScore) || 0) / 100) * totalQ)));
       setCompCorrect(calcCorr);
     }
 
@@ -836,33 +869,69 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
             </div>
           </div>
 
-          <button
-            onClick={handleSaveVerification}
-            disabled={isSubmitting}
-            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-2xs transition-all cursor-pointer ${
-              isVerified
-                ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
-                : 'bg-brand-red hover:bg-brand-red/90 active:scale-95 disabled:opacity-50'
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Saving...</span>
-              </>
-            ) : isVerified ? (
-              <>
-                <CheckCircle size={18} weight="bold" />
-                <span>Update & Save Verified Result</span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck size={18} weight="bold" />
-                <span>Approve & Save Official Result</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleReassignPassage}
+              disabled={isReassigning}
+              className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 px-4 py-2.5 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              title="Re-assign this passage attempt back to assigned status so the student can retake it"
+            >
+              <ArrowCounterClockwise size={18} weight="bold" />
+              <span>{isReassigning ? 'Re-assigning...' : 'Re-assign for Retake'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveVerification}
+              disabled={isSubmitting}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-2xs transition-all cursor-pointer ${
+                isVerified
+                  ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                  : 'bg-brand-red hover:bg-brand-red/90 active:scale-95 disabled:opacity-50'
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Saving...</span>
+                </>
+              ) : isVerified ? (
+                <>
+                  <CheckCircle size={18} weight="bold" />
+                  <span>Update & Save Verified Result</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={18} weight="bold" />
+                  <span>Approve & Save Official Result</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Adaptive Session Needs Review Resolution Banner */}
+        {(reviewData?.sessionStatus === 'needs_review' || reviewData?.sessionTerminalReason === 'NON_MONOTONIC_READING_LEVELS' || reviewData?.isNeedsReview) && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 sm:p-5 shadow-2xs space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300">
+                    Needs Review
+                  </span>
+                  <h3 className="text-sm font-bold text-amber-950">
+                    Non-Monotonic Reading Level Anomaly Detected
+                  </h3>
+                </div>
+                <p className="text-xs text-amber-900/80 mt-1 leading-relaxed">
+                  The student achieved inconsistent results across passage levels (e.g. Independent at higher level, but Frustration at lower level).
+                  To resolve: inspect & verify miscue annotations and comprehension scores above, then click <strong>Approve & Save Official Result</strong> (the engine will recalculate automatically) or <strong>Re-assign for Retake</strong> if audio was unclear.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* PHIL-IRI ORAL READING PROFILE SUMMARY                                     */}
@@ -879,26 +948,28 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
               </p>
             </div>
 
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                combinedProfile === 'Independent'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : combinedProfile === 'Instructional'
-                  ? 'bg-blue-50 text-brand-blue border border-blue-200'
-                  : 'bg-red-50 text-brand-red border border-red-200'
-              }`}
-            >
+            <div className="flex items-center gap-2">
               <span
-                className={`size-1.5 rounded-full ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
                   combinedProfile === 'Independent'
-                    ? 'bg-emerald-500'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                     : combinedProfile === 'Instructional'
-                    ? 'bg-brand-blue'
-                    : 'bg-brand-red'
+                    ? 'bg-blue-50 text-brand-blue border border-blue-200'
+                    : 'bg-red-50 text-brand-red border border-red-200'
                 }`}
-              />
-              <span>Overall Profile: {combinedProfile}</span>
-            </span>
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    combinedProfile === 'Independent'
+                      ? 'bg-emerald-500'
+                      : combinedProfile === 'Instructional'
+                      ? 'bg-brand-blue'
+                      : 'bg-brand-red'
+                  }`}
+                />
+                <span>Overall Profile: {combinedProfile}</span>
+              </span>
+            </div>
           </div>
 
           {/* Clean 3-Column Metrics Grid */}
@@ -1801,13 +1872,15 @@ export default function PhilIriReviewDetail({ reviewData, onBack, onVerified }) 
 }
 
 export function PhilIriReviewPage() {
-  const { attemptId, lrn } = useParams();
+  const { attemptId, id, lrn } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminView = location.pathname.startsWith('/admin/');
   const backTo = isAdminView && lrn
     ? `/admin/records/students/${lrn}`
-    : '/teacher/class-activities/phil-iri';
+    : id
+    ? `/teacher/phil-iri-assessments/view/${id}`
+    : '/teacher/phil-iri-assessments';
   const [reviewData, setReviewData] = useState(null);
   const [loading, setLoading] = useState(true);
 

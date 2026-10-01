@@ -224,17 +224,23 @@ export default function App() {
         <Route path="phil-iri-records/export-success" element={<PhilIriExportSuccess />} />
         <Route path="phil-iri-passages" element={<PhilIriPassageBank />} />
 
-        {/* Class Activities Sub-System */}
-        <Route path="class-activities" element={<Navigate to="phil-iri" replace />} />
-        <Route path="class-activities/phil-iri" element={<ClassActivities />} />
-        <Route path="class-activities/adaptive" element={<ClassActivities />} />
-        <Route path="class-activities/practice" element={<ClassActivities />} />
+        {/* Phil-IRI Assessments Sub-System */}
+        <Route path="phil-iri-assessments" element={<ClassActivities />} />
+        <Route path="phil-iri-assessments/assign" element={<PhilIriAssignPage />} />
+        <Route path="phil-iri-assessments/edit/:editId" element={<PhilIriAssignPage />} />
+        <Route path="phil-iri-assessments/view/:id" element={<ActivityDetailPage />} />
+        <Route path="phil-iri-assessments/view/:id/review/:attemptId" element={<PhilIriReviewPage />} />
+        <Route path="phil-iri-assessments/review/:attemptId" element={<PhilIriReviewPage />} />
 
-        {/* Phil-IRI Assessment Routes */}
-        <Route path="class-activities/phil-iri/assign" element={<PhilIriAssignPage />} />
+        {/* Redirects & Legacy Backwards Compatibility */}
+        <Route path="class-activities" element={<Navigate to="/teacher/phil-iri-assessments" replace />} />
+        <Route path="class-activities/phil-iri" element={<Navigate to="/teacher/phil-iri-assessments" replace />} />
+        <Route path="class-activities/phil-iri/assign" element={<Navigate to="/teacher/phil-iri-assessments/assign" replace />} />
         <Route path="class-activities/phil-iri/edit/:editId" element={<PhilIriAssignPage />} />
         <Route path="class-activities/phil-iri/view/:id" element={<ActivityDetailPage />} />
         <Route path="class-activities/phil-iri/review/:attemptId" element={<PhilIriReviewPage />} />
+        <Route path="class-activities/adaptive" element={<ClassActivities />} />
+        <Route path="class-activities/practice" element={<ClassActivities />} />
 
         {/* Practice Activity Routes */}
         <Route path="class-activities/practice/create" element={<ActivityFormPage />} />

@@ -131,7 +131,7 @@ export default function ActivityDetailPanel({ activity, onDelete, onToggleStatus
       <div className="flex flex-col gap-2.5 pt-1">
         {/* Primary Action: Open Roster */}
         <Link
-          to={`/teacher/class-activities/phil-iri/view/${activity.id}`}
+          to={`/teacher/phil-iri-assessments/view/${activity.id}`}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 active:scale-[0.99] cursor-pointer"
         >
           <ArrowRight size={16} weight="bold" />

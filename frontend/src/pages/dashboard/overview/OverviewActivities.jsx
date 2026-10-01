@@ -11,7 +11,7 @@ export default function OverviewActivities() {
       ))}
 
       <Link
-        to="/teacher/class-activities/phil-iri/assign"
+        to="/teacher/phil-iri-assessments/assign"
         aria-label="Assign Phil-IRI Sets"
         title="Assign Phil-IRI Sets"
         className="fixed bottom-8 right-8 z-50 flex size-12 items-center justify-center rounded-full bg-brand-red text-cream shadow-lg transition-transform hover:scale-105 hover:bg-[#b8331b] active:scale-95"

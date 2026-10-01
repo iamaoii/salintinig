@@ -1118,13 +1118,27 @@ async function getOralReviewDetail(req, res) {
           orr.comprehension_score AS "comprehensionScore",
           (SELECT COUNT(*)::int FROM phil_iri_questions q WHERE q.passage_id = p.passage_id) AS "totalQuestions",
           orr.verification_status AS "verificationStatus",
-          aa.completed_at AS "submittedAt"
+          aa.completed_at AS "submittedAt",
+          LOWER(COALESCE(a.assessment_type, 'oral')) AS "assessmentType",
+          LOWER(COALESCE(a.assessment_period, 'pre_test')) AS "period",
+          pas.session_id AS "sessionId",
+          pas.status AS "sessionStatus",
+          pas.terminal_reason AS "sessionTerminalReason",
+          pas.instructional_level AS "establishedInstructionalLevel"
         FROM assessment_attempts aa
         JOIN assessments a ON aa.assessment_id = a.assessment_id
         JOIN students s ON a.student_id = s.student_id
         JOIN users student_user ON student_user.user_id = s.user_id
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        LEFT JOIN phil_iri_adaptive_sessions pas ON (
+          pas.session_id = a.adaptive_session_id OR (
+            pas.student_id = s.student_id
+            AND LOWER(pas.language) = LOWER(COALESCE(p.language, 'fil'))
+            AND LOWER(pas.assessment_type) = LOWER(COALESCE(a.assessment_type, 'oral'))
+            AND LOWER(pas.assessment_period) = LOWER(COALESCE(a.assessment_period, 'pre_test'))
+          )
+        )
         WHERE (aa.attempt_id::text = $1 OR a.assessment_id::text = $1)
           AND student_user.school_id = (SELECT school_id FROM users WHERE user_id = $2)
         ORDER BY (orr.audio_recording_url IS NOT NULL AND orr.audio_recording_url != '') DESC,
@@ -2472,9 +2486,14 @@ async function getActivityDetail(req, res) {
           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score) AS "comprehensionScore",
           (SELECT COUNT(*)::int FROM phil_iri_questions q WHERE q.passage_id = p.passage_id) AS "totalQuestions",
           orr.verification_status AS "verificationStatus",
-          COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds"
+          COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds) AS "readingTimeSeconds",
+          u.profile_image AS "profileImage",
+          pas.session_id AS "sessionId",
+          pas.status AS "sessionStatus",
+          pas.terminal_reason AS "sessionTerminalReason"
         FROM assessments a
         JOIN students s ON a.student_id = s.student_id
+        LEFT JOIN users u ON s.user_id = u.user_id
         LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
         LEFT JOIN classes c ON sgh.class_id = c.class_id
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
@@ -2482,6 +2501,10 @@ async function getActivityDetail(req, res) {
         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
         LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
         LEFT JOIN listening_reading_results lrr ON lrr.assessment_attempt_id = aa.attempt_id
+        LEFT JOIN phil_iri_adaptive_sessions pas ON pas.student_id = s.student_id
+          AND LOWER(pas.language) = LOWER(COALESCE(p.language, 'fil'))
+          AND LOWER(pas.assessment_type) = LOWER(COALESCE(a.assessment_type, 'oral'))
+          AND LOWER(pas.assessment_period) = LOWER(COALESCE(a.assessment_period, 'pre_test'))
         WHERE ${whereClause}
         ORDER BY a.assessment_id, aa.created_at DESC NULLS LAST
       `;
@@ -2850,6 +2873,173 @@ async function getAdaptiveSessions(req, res) {
   }
 }
 
+/**
+ * POST /api/teacher/assessments/resolve-adaptive-session
+ * Manually resolves/overrides an adaptive session (e.g. Needs Review / Non-Monotonic Flag)
+ */
+async function resolveAdaptiveSession(req, res) {
+  try {
+    const { sessionId, studentId, language, assessmentType, assessmentPeriod, instructionalLevel } = req.body;
+
+    if (!sessionId && (!studentId || !language)) {
+      return res.status(400).json({ success: false, error: 'Session ID or Student ID + Language is required.' });
+    }
+
+    if (!instructionalLevel) {
+      return res.status(400).json({ success: false, error: 'Instructional level selection is required.' });
+    }
+
+    let updateQuery;
+    let params;
+
+    if (sessionId) {
+      updateQuery = `
+        UPDATE phil_iri_adaptive_sessions
+        SET status = 'completed',
+            instructional_level = $1,
+            independent_level = COALESCE(independent_level, $1),
+            frustration_level = COALESCE(frustration_level, $1),
+            terminal_reason = 'TEACHER_MANUAL_OVERRIDE',
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE session_id = $2
+        RETURNING *
+      `;
+      params = [instructionalLevel, sessionId];
+    } else {
+      updateQuery = `
+        UPDATE phil_iri_adaptive_sessions
+        SET status = 'completed',
+            instructional_level = $1,
+            independent_level = COALESCE(independent_level, $1),
+            frustration_level = COALESCE(frustration_level, $1),
+            terminal_reason = 'TEACHER_MANUAL_OVERRIDE',
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE student_id = $2
+          AND LOWER(language) = LOWER($3)
+          AND LOWER(COALESCE(assessment_type, 'oral')) = LOWER(COALESCE($4, 'oral'))
+          AND LOWER(COALESCE(assessment_period, 'pre_test')) = LOWER(COALESCE($5, 'pre_test'))
+        RETURNING *
+      `;
+      params = [instructionalLevel, studentId, language, assessmentType || 'oral', assessmentPeriod || 'pre_test'];
+    }
+
+    const { rows } = await db.query(updateQuery, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Adaptive session not found.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Adaptive session successfully finalized by teacher override.',
+      session: rows[0],
+    });
+  } catch (err) {
+    console.error('[resolveAdaptiveSession] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to resolve adaptive session.' });
+  }
+}
+
+/**
+ * POST /api/teacher/assessments/reassign-passage
+ * Re-assigns a specific passage attempt to a student (e.g. for retaking noisy/flagged audio)
+ */
+async function reassignPassageAttempt(req, res) {
+  try {
+    const { studentId, passageId, attemptId, assessmentType, period } = req.body;
+
+    if (!studentId && !attemptId) {
+      return res.status(400).json({ success: false, error: 'Student ID or Attempt ID is required.' });
+    }
+
+    let targetPassageId = passageId;
+    let targetAssessmentId = null;
+    let targetStudentId = studentId;
+
+    if (attemptId) {
+      const attemptRes = await db.query(
+        `SELECT a.passage_id, a.assessment_id, a.student_id 
+         FROM assessment_attempts aa
+         JOIN assessments a ON a.assessment_id = aa.assessment_id
+         WHERE aa.attempt_id::text = $1 OR a.assessment_id::text = $1
+         LIMIT 1`,
+        [attemptId]
+      );
+      if (attemptRes.rows?.[0]) {
+        targetPassageId = attemptRes.rows[0].passage_id;
+        targetAssessmentId = attemptRes.rows[0].assessment_id;
+        targetStudentId = attemptRes.rows[0].student_id;
+      }
+    }
+
+    if (targetAssessmentId) {
+      // Re-open assessment record for retake
+      await db.query(
+        `UPDATE assessments
+         SET status = 'assigned',
+             reading_level_result = 'Pending Evaluation',
+             remarks = 'Re-assigned by teacher for retake',
+             updated_at = NOW()
+         WHERE assessment_id = $1`,
+        [targetAssessmentId]
+      );
+
+      // Reset existing attempt record so student retake updates it directly instead of creating duplicate attempts
+      await db.query(
+        `UPDATE assessment_attempts
+         SET status = 'assigned',
+             updated_at = NOW()
+         WHERE assessment_id = $1`,
+        [targetAssessmentId]
+      );
+
+      // Reset oral reading results verification status if present
+      await db.query(
+        `UPDATE oral_reading_results
+         SET verification_status = 'pending',
+             updated_at = NOW()
+         WHERE assessment_attempt_id IN (
+           SELECT attempt_id FROM assessment_attempts WHERE assessment_id = $1
+         )`,
+        [targetAssessmentId]
+      );
+    } else if (targetStudentId && targetPassageId) {
+      // Create new assessment assignment for passage
+      await db.query(
+        `INSERT INTO assessments (
+           student_id, passage_id, assessment_type, assessment_period,
+           status, reading_level_result, remarks, created_at, updated_at
+         )
+         VALUES ($1, $2, $3, $4, 'assigned', 'Pending Evaluation', 'Re-assigned by teacher for retake', NOW(), NOW())`,
+        [targetStudentId, targetPassageId, assessmentType || 'oral', period || 'pre_test']
+      );
+    }
+
+    // Update adaptive session status to in_progress if flagged
+    if (targetStudentId) {
+      await db.query(
+        `UPDATE phil_iri_adaptive_sessions
+         SET status = 'in_progress',
+             terminal_reason = NULL,
+             updated_at = NOW()
+         WHERE student_id = $1
+           AND status = 'needs_review'`,
+        [targetStudentId]
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: 'Passage attempt successfully re-assigned to student for retake.',
+    });
+  } catch (err) {
+    console.error('[reassignPassageAttempt] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to re-assign passage attempt.' });
+  }
+}
+
 module.exports = {
   getTeachers,
   getTeacherById,
@@ -2873,4 +3063,7 @@ module.exports = {
   updateStudentPromotionByTeacher,
   startStudentAdaptiveSessions,
   getAdaptiveSessions,
+  resolveAdaptiveSession,
+  reassignPassageAttempt,
 };
+

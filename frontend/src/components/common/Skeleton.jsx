@@ -1467,6 +1467,87 @@ export function PhilIriForm4DetailSkeleton() {
   );
 }
 
+/**
+ * Skeleton loader for Phil-IRI Master Activity Detail Page (ActivityDetailPage.jsx)
+ */
+export function ActivityDetailSkeleton() {
+  return (
+    <div className="space-y-6 w-full animate-pulse">
+      {/* 4 Overview Metrics Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
+            <div className="space-y-2">
+              <SkeletonBlock className="h-3 w-24 rounded" />
+              <SkeletonBlock className="h-7 w-12 rounded-md" />
+            </div>
+            <SkeletonBlock className="size-11 rounded-xl" />
+          </div>
+        ))}
+      </div>
+
+      {/* Assigned Passage Sets Container */}
+      <div className="rounded-2xl border border-ink/10 bg-white p-4 sm:p-5 shadow-2xs space-y-3.5">
+        <div className="flex items-center gap-2">
+          <SkeletonBlock className="size-5 rounded" />
+          <SkeletonBlock className="h-4 w-44 rounded" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-ink/10 bg-cream/60 p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <SkeletonBlock className="h-4 w-12 rounded" />
+                <SkeletonBlock className="h-3 w-16 rounded" />
+              </div>
+              <SkeletonBlock className="h-4 w-3/4 rounded" />
+              <div className="pt-2 border-t border-ink/5 flex items-center justify-between">
+                <SkeletonBlock className="h-3 w-16 rounded" />
+                <SkeletonBlock className="h-3 w-20 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Student Roster Table Card */}
+      <div className="rounded-2xl border border-ink/10 bg-white p-4 sm:p-5 shadow-2xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1.5">
+            <SkeletonBlock className="h-4 w-52 rounded" />
+            <SkeletonBlock className="h-3 w-72 rounded" />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <SkeletonBlock className="h-8 w-44 rounded-xl" />
+            <SkeletonBlock className="h-8 w-28 rounded-xl" />
+            <SkeletonBlock className="h-8 w-28 rounded-xl" />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="w-full divide-y divide-ink/5 border-t border-ink/10 pt-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5 w-1/4">
+                  <SkeletonBlock className="size-7 rounded-full shrink-0" />
+                  <SkeletonBlock className="h-3.5 w-40 rounded" />
+                </div>
+                <SkeletonBlock className="h-3.5 w-24 rounded" />
+                <SkeletonBlock className="h-3.5 w-16 rounded" />
+                <SkeletonBlock className="h-3.5 w-28 rounded" />
+                <SkeletonBlock className="h-5 w-20 rounded-full" />
+                <SkeletonBlock className="h-5 w-24 rounded-md" />
+                <SkeletonBlock className="h-7 w-20 rounded-lg shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 
 

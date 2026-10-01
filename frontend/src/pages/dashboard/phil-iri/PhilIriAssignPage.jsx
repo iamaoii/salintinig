@@ -562,7 +562,7 @@ export default function PhilIriAssignPage() {
 
       const data = await res.json();
       if (data.success) {
-        navigate('/teacher/class-activities/phil-iri');
+        navigate('/teacher/phil-iri-assessments');
       } else {
         setToastMessage({ text: data.error || 'Failed to publish Phil-IRI assignments.', type: 'error' });
       }
