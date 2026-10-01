@@ -1036,8 +1036,12 @@ async function assignPhilIriToStudents(req, res) {
 async function getPendingOralReviews(req, res) {
   try {
     if (process.env.DATABASE_URL) {
+      const userId = req.user?.userId || req.user?.user_id || req.user?.id;
+      // Use DISTINCT ON to deduplicate: for each assessment, only return the
+      // latest attempt that has an audio recording (prevents duplicate review
+      // cards caused by race-condition double-submits).
       const query = `
-        SELECT 
+        SELECT DISTINCT ON (a.assessment_id)
           a.assessment_id AS "assessmentId",
           aa.attempt_id AS "attemptId",
           s.student_id AS "studentId",
@@ -1061,14 +1065,18 @@ async function getPendingOralReviews(req, res) {
           aa.completed_at AS "submittedAt"
         FROM assessments a
         JOIN students s ON a.student_id = s.student_id
+        JOIN users su ON su.user_id = s.user_id
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
         JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
         JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
         WHERE LOWER(COALESCE(orr.verification_status, 'pending')) != 'verified'
           AND LOWER(COALESCE(a.status, 'open')) != 'completed'
-        ORDER BY aa.completed_at DESC
+          AND orr.audio_recording_url IS NOT NULL
+          AND orr.audio_recording_url != ''
+          AND su.school_id = (SELECT school_id FROM users WHERE user_id = $1)
+        ORDER BY a.assessment_id, aa.completed_at DESC
       `;
-      const { rows } = await db.query(query);
+      const { rows } = await db.query(query, [userId]);
       return res.json({ success: true, pendingReviews: rows });
     }
 
@@ -1116,10 +1124,11 @@ async function getOralReviewDetail(req, res) {
         JOIN students s ON a.student_id = s.student_id
         JOIN users student_user ON student_user.user_id = s.user_id
         JOIN phil_iri_passages p ON a.passage_id = p.passage_id
-        LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+        JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
         WHERE (aa.attempt_id::text = $1 OR a.assessment_id::text = $1)
           AND student_user.school_id = (SELECT school_id FROM users WHERE user_id = $2)
-        ORDER BY aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
+        ORDER BY (orr.audio_recording_url IS NOT NULL AND orr.audio_recording_url != '') DESC,
+                 aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
         LIMIT 1
       `;
       const { rows } = await db.query(query, [attemptId, userId]);
@@ -1308,6 +1317,7 @@ async function verifyOralReadingResult(req, res) {
         try {
           // Look up active adaptive session for this oral assessment
           let targetSessionId = null;
+          let newlyCreatedSession = false;
           if (resolvedAssessmentId) {
             const aCheck = await db.query(
               `SELECT adaptive_session_id FROM assessments WHERE assessment_id = $1 LIMIT 1`,
@@ -1374,14 +1384,15 @@ async function verifyOralReadingResult(req, res) {
                   `INSERT INTO phil_iri_adaptive_sessions (
                      student_id, language, assessment_type,
                      baseline_grade_level, baseline_profile_level,
-                     current_grade_level, direction, school_year_id,
-                     assigned_by_teacher_id
-                   ) VALUES ($1, $2, 'oral', $3, $4, $5, $6, $7, $8)
+                     current_grade_level, direction, search_state, status,
+                     school_year_id, assigned_by_teacher_id
+                   ) VALUES ($1, $2, 'oral', $3, $4, $5, $6, $7, $8, $9, $10)
                    RETURNING session_id`,
                   [
                     resolvedStudentId, langCode,
                     baselineGradeLevel, profileLabel,
-                    baselineGradeLevel, initialStep.direction,
+                    baselineGradeLevel, initialStep.direction, 'INITIAL_PASSAGE',
+                    initialStep.status === 'NEEDS_REVIEW' ? 'needs_review' : 'in_progress',
                     schoolYearId,
                     assignedTeacherId,
                   ]
@@ -1394,11 +1405,41 @@ async function verifyOralReadingResult(req, res) {
                     [targetSessionId, resolvedAssessmentId]
                   );
                 }
+
+                // If starting target grade level differs from baseline OR if creating next step passage:
+                // Auto-create assessment assignment at initialStep.firstGradeLevel for Phase 2
+                const initPassageRes = await db.query(
+                  `SELECT passage_id, title, grade_level, word_count
+                   FROM phil_iri_passages
+                   WHERE LOWER(grade_level) = LOWER($1)
+                     AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+                     AND status != 'archived'
+                     AND passage_id != (SELECT COALESCE(passage_id, '00000000-0000-0000-0000-000000000000') FROM assessments WHERE assessment_id = $3)
+                   ORDER BY created_at DESC LIMIT 1`,
+                  [initialStep.firstGradeLevel, langCode, resolvedAssessmentId || '00000000-0000-0000-0000-000000000000']
+                );
+
+                if (initPassageRes.rows?.[0]) {
+                  await db.query(
+                    `INSERT INTO assessments (
+                       student_id, passage_id, assigned_by_teacher_id,
+                       assessment_type, assessment_period, status,
+                       adaptive_session_id, adaptive_step_number
+                     ) VALUES ($1, $2, $3, 'oral', 'pre_test', 'open', $4, 1)`,
+                    [
+                      resolvedStudentId,
+                      initPassageRes.rows[0].passage_id,
+                      assignedTeacherId,
+                      targetSessionId,
+                    ]
+                  );
+                }
+                newlyCreatedSession = true;
               }
             }
           }
 
-          if (targetSessionId) {
+          if (targetSessionId && !newlyCreatedSession) {
             const { evaluateNextStep, buildSessionSummary } = require('../services/adaptiveEngine.js');
 
             const sessRes = await db.query(
@@ -1422,25 +1463,50 @@ async function verifyOralReadingResult(req, res) {
                 }
               }
 
-              const progression = evaluateNextStep(passageGradeLevel, profileLabel);
+              // Fetch prior assessed attempts for this adaptive session to maintain DepEd Plan v2 multi-level profile history
+              const priorAttemptsRes = await db.query(
+                `SELECT p.grade_level AS "gradeLevel", a.reading_level_result AS classification
+                 FROM assessments a
+                 JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+                 WHERE a.adaptive_session_id = $1 AND a.reading_level_result IS NOT NULL`,
+                [targetSessionId]
+              );
+              const existingAttempts = (priorAttemptsRes.rows || []).map((r) => ({
+                gradeLevel: r.gradeLevel,
+                classification: r.classification,
+                isVoided: false,
+              }));
+
+              const progression = evaluateNextStep(passageGradeLevel, profileLabel, {
+                currentState: session.search_state || 'INITIAL_PASSAGE',
+                language: langCode,
+                existingAttempts,
+              });
               const newStepCount = (session.step_count || 0) + 1;
 
               if (progression.action === 'complete') {
-                // ── Session COMPLETE ──
+                // ── Session COMPLETE or TERMINATED ──
                 await db.query(
                   `UPDATE phil_iri_adaptive_sessions SET
                      current_grade_level = $1,
-                     status = 'completed',
-                     final_instructional_level = $2,
-                     final_profile_level = $3,
-                     step_count = $4,
+                     status = $2,
+                     independent_level = $3,
+                     instructional_level = $4,
+                     frustration_level = $5,
+                     search_state = $6,
+                     terminal_reason = $7,
+                     step_count = $8,
                      completed_at = CURRENT_TIMESTAMP,
                      updated_at = CURRENT_TIMESTAMP
-                   WHERE session_id = $5`,
+                   WHERE session_id = $9`,
                   [
                     passageGradeLevel,
-                    progression.finalLevel,
-                    progression.finalProfileLevel,
+                    progression.status === 'COMPLETE' ? 'completed' : 'terminated',
+                    progression.profile?.independentLevel || session.independent_level || null,
+                    progression.profile?.instructionalLevel || session.instructional_level || progression.finalLevel || null,
+                    progression.profile?.frustrationLevel || session.frustration_level || null,
+                    progression.nextState || 'COMPLETE',
+                    progression.terminalReason || null,
                     newStepCount,
                     targetSessionId,
                   ]
@@ -1475,7 +1541,18 @@ async function verifyOralReadingResult(req, res) {
                 }
 
                 adaptiveProgression = {
-                  ...buildSessionSummary({ ...session, status: 'completed', final_instructional_level: progression.finalLevel, final_profile_level: progression.finalProfileLevel, step_count: newStepCount }),
+                  ...buildSessionSummary({
+                    ...session,
+                    status: progression.status === 'COMPLETE' ? 'completed' : 'terminated',
+                    final_instructional_level: progression.finalLevel,
+                    final_profile_level: progression.finalProfileLevel,
+                    independent_level: progression.profile?.independentLevel,
+                    instructional_level: progression.profile?.instructionalLevel,
+                    frustration_level: progression.profile?.frustrationLevel,
+                    search_state: progression.nextState,
+                    terminal_reason: progression.terminalReason,
+                    step_count: newStepCount,
+                  }),
                   nextAction: 'complete',
                   nextGradeLevel: null,
                   currentResult: profileLabel,
@@ -1489,12 +1566,20 @@ async function verifyOralReadingResult(req, res) {
                   `UPDATE phil_iri_adaptive_sessions SET
                      current_grade_level = $1,
                      direction = $2,
-                     step_count = $3,
+                     independent_level = COALESCE($3, independent_level),
+                     instructional_level = COALESCE($4, instructional_level),
+                     frustration_level = COALESCE($5, frustration_level),
+                     search_state = $6,
+                     step_count = $7,
                      updated_at = CURRENT_TIMESTAMP
-                   WHERE session_id = $4`,
+                   WHERE session_id = $8`,
                   [
-                    passageGradeLevel,
+                    progression.nextGradeLevel || passageGradeLevel,
                     session.direction || (progression.action === 'stepUp' ? 'stepping_up' : 'stepping_down'),
+                    progression.profile?.independentLevel || null,
+                    progression.profile?.instructionalLevel || null,
+                    progression.profile?.frustrationLevel || null,
+                    progression.nextState,
                     newStepCount,
                     targetSessionId,
                   ]
@@ -1628,8 +1713,8 @@ async function getPhilIriActivities(req, res) {
           MAX(p.grade_level) AS "gradeLevel",
           STRING_AGG(DISTINCT p.passage_set, ', ' ORDER BY p.passage_set) AS "setsIncluded",
           COUNT(DISTINCT a.assessment_id)::int AS "totalAssigned",
-          COUNT(DISTINCT CASE WHEN LOWER(aa.status) = 'completed' THEN a.assessment_id END)::int AS "done",
-          COUNT(DISTINCT CASE WHEN COALESCE(LOWER(aa.status), 'pending') != 'completed' THEN a.assessment_id END)::int AS "pending",
+          COUNT(DISTINCT CASE WHEN LOWER(a.status) = 'completed' THEN a.assessment_id END)::int AS "done",
+          COUNT(DISTINCT CASE WHEN LOWER(a.status) != 'completed' THEN a.assessment_id END)::int AS "pending",
           MAX(a.created_at) AS "created_at",
           MAX(a.due_date) AS "dueDate",
           BOOL_OR(LOWER(a.status) = 'closed') AS "isClosed",
@@ -2355,7 +2440,7 @@ async function getActivityDetail(req, res) {
 
       // Query 2: Fetch student roster and attempt details
       const studentRosterQuery = `
-        SELECT 
+        SELECT DISTINCT ON (a.assessment_id)
           a.assessment_id AS "assessmentId",
           s.student_id AS "studentId",
           s.lrn,
@@ -2398,7 +2483,7 @@ async function getActivityDetail(req, res) {
         LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
         LEFT JOIN listening_reading_results lrr ON lrr.assessment_attempt_id = aa.attempt_id
         WHERE ${whereClause}
-        ORDER BY s.last_name ASC, s.first_name ASC
+        ORDER BY a.assessment_id, aa.created_at DESC NULLS LAST
       `;
       const sRes = await db.query(studentRosterQuery, params);
 
@@ -2609,14 +2694,15 @@ async function startStudentAdaptiveSessions(req, res) {
             `INSERT INTO phil_iri_adaptive_sessions (
                student_id, language, assessment_type,
                baseline_grade_level, baseline_profile_level,
-               current_grade_level, direction,
+               current_grade_level, direction, search_state, status,
                assigned_by_teacher_id, school_year_id
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              RETURNING session_id`,
             [
               studentId, langCode, aType,
               baselineGradeLevel, baselineProfileLevel,
-              initialStep.firstGradeLevel, initialStep.direction,
+              initialStep.firstGradeLevel, initialStep.direction, 'INITIAL_PASSAGE',
+              initialStep.status === 'NEEDS_REVIEW' ? 'needs_review' : 'in_progress',
               teacherId, schoolYearId,
             ]
           );
@@ -2711,8 +2797,6 @@ async function getAdaptiveSessions(req, res) {
         s.current_grade_level                 AS "currentGradeLevel",
         s.direction,
         s.status,
-        s.final_instructional_level           AS "finalInstructionalLevel",
-        s.final_profile_level                 AS "finalProfileLevel",
         s.step_count                          AS "stepCount",
         s.started_at                          AS "startedAt",
         s.completed_at                        AS "completedAt",
