@@ -1610,6 +1610,86 @@ export function OverviewFormsSkeleton() {
   );
 }
 
+/**
+ * PhilIriReportsSkeleton
+ * Matches Admin Phil-IRI Report Analytics page:
+ * Top Container: Phil-IRI Oral Adaptive Diagnostic Distribution (3 boundary cards)
+ * Bottom Container: Section Phil-IRI Master Monitoring & Progress Table
+ */
+export function PhilIriReportsSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* Container 1: Diagnostic Level Distribution Skeleton */}
+      <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] space-y-4">
+        <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+          <div className="space-y-1.5">
+            <SkeletonBlock className="h-5 w-72" />
+            <SkeletonBlock className="h-3.5 w-96" />
+          </div>
+          <SkeletonBlock className="h-4 w-32 rounded-full" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={idx} className="rounded-xl border border-ink/10 bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <SkeletonBlock className="h-6 w-28 rounded-lg" />
+                <SkeletonBlock className="h-5 w-20" />
+              </div>
+              <div className="space-y-2.5 pt-1">
+                {Array.from({ length: 7 }).map((_, gIdx) => (
+                  <div key={gIdx} className="flex items-center gap-3">
+                    <SkeletonBlock className="h-3.5 w-14" />
+                    <SkeletonBlock className="h-2.5 flex-1 rounded-full" />
+                    <SkeletonBlock className="h-3.5 w-4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Container 2: Section Master Monitoring Table Skeleton */}
+      <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] space-y-4">
+        <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+          <div className="space-y-1.5">
+            <SkeletonBlock className="h-5 w-80" />
+            <SkeletonBlock className="h-3.5 w-[420px]" />
+          </div>
+          <SkeletonBlock className="h-8 w-32 rounded-xl" />
+        </div>
+
+        <div className="rounded-2xl border border-ink/10 bg-white overflow-hidden">
+          <div className="border-b border-ink/10 bg-ink/[0.03] px-3 py-3 flex items-center justify-between">
+            <SkeletonBlock className="h-3.5 w-20" />
+            <SkeletonBlock className="h-3.5 w-16" />
+            <SkeletonBlock className="h-3.5 w-24" />
+            <SkeletonBlock className="h-3.5 w-20" />
+            <SkeletonBlock className="h-3.5 w-32" />
+            <SkeletonBlock className="h-3.5 w-16" />
+          </div>
+          <div className="divide-y divide-ink/10">
+            {Array.from({ length: 6 }).map((_, rIdx) => (
+              <div key={rIdx} className="px-3 py-3.5 flex items-center justify-between">
+                <div className="space-y-1 w-24">
+                  <SkeletonBlock className="h-4 w-16" />
+                  <SkeletonBlock className="h-3 w-12" />
+                </div>
+                <SkeletonBlock className="h-4 w-8" />
+                <SkeletonBlock className="h-4 w-10" />
+                <SkeletonBlock className="h-4 w-8" />
+                <SkeletonBlock className="h-4 w-8" />
+                <SkeletonBlock className="h-4 w-8" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 

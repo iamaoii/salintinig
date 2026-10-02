@@ -16,6 +16,7 @@ router.get('/stats', adminController.getSystemStats);
 router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);
 router.get('/analytics/phil-iri', adminController.getPhilIriAnalytics);
+router.get('/phil-iri/adaptive-reports', adminController.getAdaptiveOralReports);
 
 // Teacher management & assignment endpoints
 router.get('/teachers', teacherController.getTeachers);

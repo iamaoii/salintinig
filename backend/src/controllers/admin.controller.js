@@ -1300,20 +1300,21 @@ async function getSections(req, res) {
             c.advisor_teacher_id AS "adviserId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS adviser,
             COUNT(DISTINCT sgh.student_id)::int AS "studentsCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Independent' THEN sgh.student_id END)::int AS "independentCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Instructional' THEN sgh.student_id END)::int AS "instructionalCount",
-            COUNT(DISTINCT CASE WHEN COALESCE(a.reading_level_result, rp.fil_oral_profile_label) = 'Frustrational' THEN sgh.student_id END)::int AS "frustrationalCount"
+            COUNT(DISTINCT CASE WHEN COALESCE(oral.has_oral, FALSE) = FALSE THEN sgh.student_id END)::int AS "notStartedCount",
+            COUNT(DISTINCT CASE WHEN oral.has_oral = TRUE AND COALESCE(oral.is_finalized, FALSE) = FALSE THEN sgh.student_id END)::int AS "inProgressCount",
+            COUNT(DISTINCT CASE WHEN oral.is_finalized = TRUE THEN sgh.student_id END)::int AS "finalizedCount"
           FROM classes c
           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
           LEFT JOIN teachers t ON c.advisor_teacher_id = t.teacher_id
           LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
-          LEFT JOIN reading_profiles rp ON rp.student_id = sgh.student_id
-          LEFT JOIN (
-            SELECT DISTINCT ON (student_id) student_id, reading_level_result
-            FROM assessments
-            WHERE reading_level_result IS NOT NULL
-            ORDER BY student_id, created_at DESC
-          ) a ON a.student_id = sgh.student_id
+          LEFT JOIN LATERAL (
+            SELECT
+              COUNT(*) > 0 AS has_oral,
+              BOOL_OR(LOWER(COALESCE(a.status, '')) = 'completed') AS is_finalized
+            FROM phil_iri_adaptive_sessions a
+            WHERE a.student_id = sgh.student_id
+              AND LOWER(COALESCE(a.assessment_type, 'oral')) = 'oral'
+          ) oral ON TRUE
           WHERE (c.school_id = $1 OR c.school_id IS NULL)
           GROUP BY c.class_id, c.grade_level, c.section_name, c.advisor_teacher_id, t.first_name, t.middle_name, t.last_name
           ORDER BY c.grade_level ASC, c.section_name ASC
@@ -2237,6 +2238,66 @@ async function getPhilIriAnalytics(req, res) {
   }
 }
 
+async function getAdaptiveOralReports(req, res) {
+  try {
+    const schoolId = await getAdminSchoolId(req);
+    const [{ rows: profiles }, { rows: students }, { rows: gstSubmissions }, { rows: sections }] = await Promise.all([
+      db.query(`
+        SELECT DISTINCT ON (s.student_id, LOWER(COALESCE(a.language, 'fil')), LOWER(COALESCE(a.assessment_period, 'pre_test')))
+          s.student_id AS id, s.lrn,
+          COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
+          COALESCE(c.grade_level, 'Unassigned') AS grade,
+          COALESCE(c.section_name, 'Unassigned') AS section,
+          LOWER(COALESCE(a.language, 'fil')) AS language,
+          LOWER(COALESCE(a.assessment_period, 'pre_test')) AS period,
+          to_jsonb(a)->>'independent_level' AS "independentLevel",
+          to_jsonb(a)->>'instructional_level' AS "instructionalLevel",
+          COALESCE(to_jsonb(a)->>'frustration_level', to_jsonb(a)->>'frustrational_level') AS "frustrationalLevel",
+          a.status
+        FROM phil_iri_adaptive_sessions a
+        JOIN students s ON s.student_id = a.student_id
+        JOIN users u ON u.user_id = s.user_id
+        LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+        LEFT JOIN classes c ON c.class_id = sgh.class_id
+        WHERE u.school_id = $1 AND LOWER(COALESCE(a.assessment_type, 'oral')) = 'oral'
+        ORDER BY s.student_id, LOWER(COALESCE(a.language, 'fil')), LOWER(COALESCE(a.assessment_period, 'pre_test')),
+          CASE WHEN LOWER(COALESCE(a.status, '')) = 'completed' THEN 0 ELSE 1 END,
+          a.completed_at DESC NULLS LAST, a.started_at DESC NULLS LAST
+      `, [schoolId]),
+      db.query(`
+        SELECT DISTINCT ON (s.student_id)
+          s.student_id AS id, s.lrn,
+          COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
+          COALESCE(c.grade_level, 'Unassigned') AS grade,
+          COALESCE(c.section_name, 'Unassigned') AS section
+        FROM students s
+        JOIN users u ON u.user_id = s.user_id
+        LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
+        LEFT JOIN classes c ON c.class_id = sgh.class_id
+        WHERE u.school_id = $1 AND LOWER(COALESCE(u.status, 'active')) = 'active'
+        ORDER BY s.student_id, sgh.created_at DESC NULLS LAST
+      `, [schoolId]),
+      db.query(`
+        SELECT submission_id, class_id, section_name, grade_level, test_language, form_code, form_data, above_14_count, below_14_count, total_assessed, updated_at
+        FROM gst_form_submissions
+        WHERE school_id = $1
+      `, [schoolId]).catch(() => ({ rows: [] })),
+      db.query(`
+        SELECT DISTINCT c.grade_level AS grade, c.section_name AS section
+        FROM classes c
+        LEFT JOIN school_years sy ON sy.school_year_id = c.school_year_id
+        WHERE c.school_id = $1
+          AND (sy.is_active = TRUE OR c.school_year_id IS NULL)
+        ORDER BY c.grade_level, c.section_name
+      `, [schoolId]).catch(() => ({ rows: [] }))
+    ]);
+    return res.json({ success: true, profiles, students, gstSubmissions: gstSubmissions || [], sections: sections || [] });
+  } catch (error) {
+    console.error('Error fetching adaptive oral reports:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch adaptive oral reports.' });
+  }
+}
+
 // Memory store for active screening period per grade
 let memoryPeriods = {
   'Grade 4': 'Pre-Test',
@@ -2704,6 +2765,7 @@ module.exports = {
   getAdminInfo,
   updateAdminInfo,
   getPhilIriAnalytics,
+  getAdaptiveOralReports,
   getPassages,
   createPassage,
   updatePassage,

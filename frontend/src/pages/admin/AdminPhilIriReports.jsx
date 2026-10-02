@@ -1,649 +1,465 @@
-import { getApiUrl } from '../../config/api.js';
-import { getCompactPageItems } from '../../lib/pagination.js';
-import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChartBar,
-  ChartPie,
-  DownloadSimple,
-  MagnifyingGlass,
   Funnel,
   CaretLeft,
   CaretRight,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
+import { PhilIriReportsSkeleton } from '../../components/common/Skeleton.jsx';
+import { getApiUrl } from '../../config/api.js';
 import { getToken } from '../../lib/auth.js';
-import { cacheService } from '../../services/cacheService.js';
 
+const BOUNDARIES = [
+  ['Independent', 'independentLevel', 'emerald', 'bg-emerald-500', 'text-emerald-700', 'bg-emerald-50 border-emerald-200'],
+  ['Instructional', 'instructionalLevel', 'amber', 'bg-amber-400', 'text-amber-700', 'bg-amber-50 border-amber-200'],
+  ['Frustrational', 'frustrationalLevel', 'rose', 'bg-rose-500', 'text-rose-700', 'bg-rose-50 border-rose-200'],
+];
+const SECTION_PAGE_SIZE = 6;
+
+const gradeLabel = (value) => {
+  if (!value) return '—';
+  const grade = String(value || '').match(/\d+/)?.[0];
+  return grade ? `Grade ${grade}` : String(value);
+};
 
 export default function AdminPhilIriReports() {
-  const { globalSearch } = useOutletContext() || {};
-  const [selectedGrade, setSelectedGrade] = useState('All');
-  const [selectedLanguage, setSelectedLanguage] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [analytics, setAnalytics] = useState(null);
+  const [profiles, setProfiles] = useState([]);
   const [students, setStudents] = useState([]);
+  const [gstSubmissions, setGstSubmissions] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('pre_test');
+  const [language, setLanguage] = useState('fil');
+  const [selectedGrade, setSelectedGrade] = useState('All');
+  const [sectionPage, setSectionPage] = useState(1);
   const [toast, setToast] = useState(null);
-  const [isMounted, setIsMounted] = useState(false);
-  const [hoveredSlice, setHoveredSlice] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 8;
-
-  const fetchAnalytics = async () => {
-    try {
-      const cached = cacheService.get('admin_phil_iri_analytics');
-      if (cached) {
-        setAnalytics(cached);
-      }
-      const token = getToken();
-      const res = await fetch(getApiUrl('/api/admin/analytics/phil-iri'), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setAnalytics(data.analytics);
-        cacheService.set('admin_phil_iri_analytics', data.analytics);
-      }
-    } catch (err) {
-      console.warn('Failed to fetch Phil-IRI analytics:', err);
-    }
-  };
-
-  const fetchStudents = async () => {
-    try {
-      const cached = cacheService.get('admin_students');
-      if (cached) {
-        setStudents(cached);
-        setLoading(false);
-      } else {
-        setLoading(true);
-      }
-      const token = getToken();
-      const res = await fetch(getApiUrl('/api/admin/students'), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStudents(data.students || []);
-        cacheService.set('admin_students', data.students || []);
-      }
-    } catch (err) {
-      console.warn('Failed to fetch students for reports:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchAnalytics();
-    fetchStudents();
-    const timer = setTimeout(() => setIsMounted(true), 100);
-    return () => clearTimeout(timer);
+    const fetchReports = async () => {
+      try {
+        setLoading(true);
+        const token = getToken();
+        const response = await fetch(getApiUrl('/api/admin/phil-iri/adaptive-reports'), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+          setProfiles(data.profiles || []);
+          setStudents(data.students || []);
+          setGstSubmissions(data.gstSubmissions || []);
+          setSections(data.sections || []);
+        } else {
+          setToast({ message: data.error || 'Unable to load Phil-IRI analytics reports.', type: 'error' });
+        }
+      } catch (err) {
+        setToast({ message: 'Unable to connect to server for Phil-IRI analytics.', type: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
   }, []);
 
-  // Reset pagination on filter or search change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedGrade, selectedLanguage, searchQuery, globalSearch]);
-
-  // Apply language filter
-  const filteredByLang = useMemo(() => {
-    if (selectedLanguage === 'All') return students;
-    return students.filter((s) => {
-      const lang = (s.language || s.assessmentLanguage || '').toLowerCase();
-      return lang.includes(selectedLanguage.toLowerCase());
-    });
-  }, [students, selectedLanguage]);
-
-  // Compute summary breakdown
-  const summaryData = useMemo(() => {
-    if (analytics?.summary && analytics.summary.totalEvaluated > 0 && selectedLanguage === 'All') {
-      return analytics.summary;
-    }
-    let ind = 0, inst = 0, frust = 0, pend = 0;
-    filteredByLang.forEach((s) => {
-      const lvl = (s.level || '').toLowerCase();
-      if (lvl.includes('independent')) ind++;
-      else if (lvl.includes('instructional')) inst++;
-      else if (lvl.includes('frustration') || lvl.includes('non-reader') || lvl.includes('non reader')) frust++;
-      else pend++;
-    });
-    const totalEval = ind + inst + frust;
-    const profRate = totalEval > 0 ? Math.round(((ind + inst) / totalEval) * 100) : 0;
-    return { totalEvaluated: totalEval, independent: ind, instructional: inst, frustration: frust, pending: pend, proficiencyRate: profRate };
-  }, [analytics, filteredByLang, selectedLanguage]);
-
-  // Compute grade breakdown
-  const gradeBreakdown = useMemo(() => {
-    const grades = {
-      'Grade 4': { independent: 0, instructional: 0, frustration: 0, pending: 0, total: 0 },
-      'Grade 5': { independent: 0, instructional: 0, frustration: 0, pending: 0, total: 0 },
-      'Grade 6': { independent: 0, instructional: 0, frustration: 0, pending: 0, total: 0 },
-    };
-    filteredByLang.forEach((s) => {
-      const g = s.grade || 'Grade 4';
-      if (!grades[g]) grades[g] = { independent: 0, instructional: 0, frustration: 0, pending: 0, total: 0 };
-      const lvl = (s.level || '').toLowerCase();
-      if (lvl.includes('independent')) grades[g].independent++;
-      else if (lvl.includes('instructional')) grades[g].instructional++;
-      else if (lvl.includes('frustration') || lvl.includes('non-reader') || lvl.includes('non reader')) grades[g].frustration++;
-      else grades[g].pending++;
-      grades[g].total++;
-    });
-    return grades;
-  }, [filteredByLang]);
-
-  // SVG Donut Chart
-  const donutSlices = useMemo(() => {
-    const total = summaryData.totalEvaluated || 1;
-    const segments = [
-      { label: 'Independent Level', count: summaryData.independent, color: '#00a652' },
-      { label: 'Instructional Level', count: summaryData.instructional, color: '#ffc300' },
-      { label: 'Frustration Level', count: summaryData.frustration, color: '#d53f24' },
-    ];
-    let cum = 0;
-    return segments.map((seg) => {
-      const pct = (seg.count / total) * 100;
-      const start = cum * 3.6;
-      cum += pct;
-      const end = cum * 3.6;
-      const x1 = 50 + 40 * Math.cos(((start - 90) * Math.PI) / 180);
-      const y1 = 50 + 40 * Math.sin(((start - 90) * Math.PI) / 180);
-      const x2 = 50 + 40 * Math.cos(((end - 90) * Math.PI) / 180);
-      const y2 = 50 + 40 * Math.sin(((end - 90) * Math.PI) / 180);
-      const largeArc = pct > 50 ? 1 : 0;
-      const pathData = pct >= 99.99
-        ? `M 50,10 A 40,40 0 1,1 49.99,10 Z`
-        : `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
-      return { ...seg, percent: Math.round(pct), pathData };
-    });
-  }, [summaryData]);
-
-  // Filtered student masterlist
+  // Filter students and profiles by grade, period, and language
   const filteredStudents = useMemo(() => {
-    const query = (globalSearch || searchQuery).toLowerCase().trim();
-    return filteredByLang.filter((s) => {
-      const matchesGrade = selectedGrade === 'All' || s.grade === selectedGrade;
-      const matchesQuery = !query ||
-        s.name?.toLowerCase().includes(query) ||
-        s.lrn?.toLowerCase().includes(query) ||
-        s.section?.toLowerCase().includes(query) ||
-        s.level?.toLowerCase().includes(query);
-      return matchesGrade && matchesQuery;
+    return students.filter((s) => selectedGrade === 'All' || s.grade === selectedGrade);
+  }, [students, selectedGrade]);
+
+  const scopedProfiles = useMemo(() => {
+    const profileMap = new Map(
+      profiles
+        .filter((p) => {
+          const pLang = String(p.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+          const pPeriod = String(p.period || 'pre_test').toLowerCase();
+          return pLang === language && pPeriod === period;
+        })
+        .map((p) => [p.id, p])
+    );
+
+    return filteredStudents.map((student) => {
+      const existing = profileMap.get(student.id);
+      if (existing) return existing;
+      return {
+        ...student,
+        language,
+        period,
+        status: 'not_started',
+        independentLevel: null,
+        instructionalLevel: null,
+        frustrationalLevel: null,
+      };
     });
-  }, [filteredByLang, selectedGrade, globalSearch, searchQuery]);
+  }, [profiles, filteredStudents, period, language]);
 
-  const totalPages = Math.ceil(filteredStudents.length / PAGE_SIZE) || 1;
+  const gradeOptions = useMemo(() => {
+    const grades = Array.from(new Set([
+      ...students.map((s) => s.grade),
+      ...sections.map((section) => section.grade),
+    ].filter(Boolean))).sort((a, b) => {
+      const numA = Number(String(a).match(/\d+/)?.[0] || 0);
+      const numB = Number(String(b).match(/\d+/)?.[0] || 0);
+      return numA - numB;
+    });
+    return ['All', ...grades];
+  }, [students, sections]);
 
-  const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredStudents.slice(start, start + PAGE_SIZE);
-  }, [filteredStudents, currentPage]);
+  // Stage 2 Completed vs In Progress Profiles
+  const finalizedProfiles = scopedProfiles.filter((p) => String(p.status || '').toLowerCase() === 'completed');
+  const inProgressProfiles = scopedProfiles.filter((p) => String(p.status || '').toLowerCase() !== 'completed');
 
-  const handleExportCSV = (formType) => {
-    if (filteredStudents.length === 0) {
-      setToast({ message: 'No student data available to export.', type: 'error' });
-      return;
-    }
-    let headers = '', filename = '', rows = '';
-    if (formType === 'Form 1') {
-      headers = 'Student LRN,Full Name,Gender,Grade Level,Assigned Section,Phil-IRI Reading Level,Date Added\n';
-      filename = `Phil_IRI_Form_1_Masterlist_${selectedGrade.replace(/\s+/g, '_')}.csv`;
-      rows = filteredStudents.map((s) => `"${s.lrn || ''}","${s.name || ''}","${s.gender || 'Male'}","${s.grade || ''}","${s.section || ''}","${s.level || 'Pending Evaluation'}","${s.dateAdded || ''}"`).join('\n');
-    } else if (formType === 'Form 3') {
-      headers = 'Grade & Section,Total Enrolled,Independent Count,Instructional Count,Frustration Count,Pending Count\n';
-      filename = `Phil_IRI_Form_3_Class_Summary_${selectedGrade.replace(/\s+/g, '_')}.csv`;
-      rows = Object.entries(gradeBreakdown).map(([grade, data]) => `"${grade}","${data.total}","${data.independent}","${data.instructional}","${data.frustration}","${data.pending}"`).join('\n');
-    } else if (formType === 'Form 4') {
-      headers = 'School Year,Total Assessed,Overall Proficiency Rate (%),Independent,Instructional,Frustration\n';
-      filename = `Phil_IRI_Form_4_School_Consolidated_Summary.csv`;
-      rows = `"S.Y. 2025-2026","${summaryData.totalEvaluated}","${summaryData.proficiencyRate}%","${summaryData.independent}","${summaryData.instructional}","${summaryData.frustration}"`;
-    }
-    const csvContent = 'data:text/csv;charset=utf-8,' + headers + rows;
-    const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setToast({ message: `Phil-IRI ${formType} exported successfully.`, type: 'success' });
-  };
+  // Distribution across Independent, Instructional, Frustration
+  const distribution = useMemo(() => {
+    return BOUNDARIES.map(([label, key, color, barBg, textColor, badgeBg]) => {
+      const byGrade = finalizedProfiles.reduce((counts, p) => {
+        const current = gradeLabel(p[key]);
+        if (current !== '—') {
+          counts[current] = (counts[current] || 0) + 1;
+        }
+        return counts;
+      }, {});
+
+      const totalCount = Object.values(byGrade).reduce((sum, c) => sum + c, 0);
+
+      return {
+        label,
+        key,
+        color,
+        barBg,
+        textColor,
+        badgeBg,
+        totalCount,
+        byGrade,
+      };
+    });
+  }, [finalizedProfiles]);
+
+  const gradesInDistribution = language === 'en' ? [2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6, 7];
+
+  // Section workflow monitoring: GST completion and oral adaptive progress.
+  const sectionMonitoring = useMemo(() => {
+    const groups = {};
+    const gstBySection = new Map();
+
+    // A section can have resubmitted GST forms. Use its largest recorded learner count,
+    // rather than adding old submissions together.
+    gstSubmissions
+      .filter((submission) => {
+        const submissionLanguage = String(submission.test_language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+        return submissionLanguage === language;
+      })
+      .forEach((submission) => {
+        const key = `${submission.grade_level}::${submission.section_name}`;
+        const assessed = Number(submission.total_assessed || 0);
+        gstBySection.set(key, Math.max(gstBySection.get(key) || 0, assessed));
+      });
+
+    sections
+      .filter((section) => selectedGrade === 'All' || section.grade === selectedGrade)
+      .forEach((section) => {
+        const key = `${section.grade}::${section.section}`;
+        groups[key] = {
+          grade: section.grade,
+          section: section.section,
+          enrolled: 0,
+          finalized: 0,
+          inProgress: 0,
+          notStarted: 0,
+          gstAssessed: gstBySection.get(key) ?? null,
+        };
+      });
+
+    scopedProfiles.forEach((p) => {
+      const key = `${p.grade}::${p.section}`;
+      if (!groups[key]) {
+        groups[key] = {
+          grade: p.grade,
+          section: p.section,
+          enrolled: 0,
+          finalized: 0,
+          inProgress: 0,
+          notStarted: 0,
+          gstAssessed: gstBySection.get(key) ?? null,
+        };
+      }
+
+      groups[key].enrolled += 1;
+      const isDone = String(p.status || '').toLowerCase() === 'completed';
+
+      if (isDone) {
+        groups[key].finalized += 1;
+      } else if (String(p.status || '').toLowerCase() === 'not_started') {
+        groups[key].notStarted += 1;
+      } else {
+        groups[key].inProgress += 1;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => {
+      const numA = Number(String(a.grade).match(/\d+/)?.[0] || 0);
+      const numB = Number(String(b.grade).match(/\d+/)?.[0] || 0);
+      if (numA !== numB) return numA - numB;
+      return String(a.section).localeCompare(String(b.section));
+    });
+  }, [scopedProfiles, gstSubmissions, language, sections, selectedGrade]);
+
+  useEffect(() => {
+    setSectionPage(1);
+  }, [selectedGrade, language, period]);
+
+  const sectionPageCount = Math.max(1, Math.ceil(sectionMonitoring.length / SECTION_PAGE_SIZE));
+  const paginatedSections = useMemo(() => {
+    const start = (sectionPage - 1) * SECTION_PAGE_SIZE;
+    return sectionMonitoring.slice(start, start + SECTION_PAGE_SIZE);
+  }, [sectionMonitoring, sectionPage]);
+  const sectionRangeStart = sectionMonitoring.length ? ((sectionPage - 1) * SECTION_PAGE_SIZE) + 1 : 0;
+  const sectionRangeEnd = Math.min(sectionPage * SECTION_PAGE_SIZE, sectionMonitoring.length);
 
   return (
     <>
       <ToastNotification message={toast?.message} onClose={() => setToast(null)} />
-      <div className="space-y-6">
 
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="space-y-6">
+        {/* Page Top Bar */}
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <div className="flex items-center gap-2">
-              <ChartPie size={22} className="text-brand-red shrink-0" />
-              <h2 className="text-xl font-bold text-ink">Phil-IRI Reports & Analytics</h2>
+              <ChartBar size={22} weight="bold" className="shrink-0 text-brand-red" />
+              <h1 className="text-xl font-bold text-ink">Phil-IRI School Analytics & Monitoring</h1>
             </div>
             <p className="mt-0.5 text-xs text-ink/50">
-              Reading profile distribution, grade-level comparison, and official DepEd form exports
+              Comprehensive school-level baseline screening, oral adaptive boundaries, and section reading profiles
             </p>
           </div>
 
-          {/* Export Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleExportCSV('Form 1')}
-              className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Period Selector */}
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="rounded-xl border border-ink/15 bg-cream px-3 py-2 text-xs font-semibold text-ink outline-none cursor-pointer focus:border-brand-blue"
             >
-              <DownloadSimple size={15} />
-              <span>Form 1</span>
-            </button>
-            <a
-              href="/admin/phil-iri/form-2"
-              className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
+              <option value="pre_test">Pre-Test Period</option>
+              <option value="post_test">Post-Test Period</option>
+            </select>
+
+            {/* Language Selector */}
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded-xl border border-ink/15 bg-cream px-3 py-2 text-xs font-semibold text-ink outline-none cursor-pointer focus:border-brand-blue"
             >
-              <DownloadSimple size={15} />
-              <span>Form 2</span>
-            </a>
-            <button
-              type="button"
-              onClick={() => handleExportCSV('Form 3')}
-              className="flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
-            >
-              <DownloadSimple size={15} />
-              <span>Form 3</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExportCSV('Form 4')}
-              className="flex items-center gap-2 rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
-            >
-              <DownloadSimple size={15} />
-              <span>Form 4 (School Summary)</span>
-            </button>
+              <option value="fil">Filipino (Form 1A / 3A)</option>
+              <option value="en">English (Form 1B / 3B)</option>
+            </select>
+
           </div>
         </div>
 
-        {/* Language Filter + Summary Stat Pills */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-          {/* Quick Stats */}
-          <div className="flex flex-wrap items-center gap-4 text-xs text-ink/70">
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-ink/30 inline-block" />
-              <span><strong className="text-ink">{summaryData.totalEvaluated + summaryData.pending}</strong> Total Learners</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#00a652] inline-block" />
-              <span><strong className="text-ink">{summaryData.independent}</strong> Independent</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#ffc300] inline-block" />
-              <span><strong className="text-ink">{summaryData.instructional}</strong> Instructional</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#d53f24] inline-block" />
-              <span><strong className="text-ink">{summaryData.frustration}</strong> Frustration</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-slate-300 inline-block" />
-              <span><strong className="text-ink">{summaryData.pending}</strong> Pending</span>
+        {loading ? (
+          <PhilIriReportsSkeleton />
+        ) : (
+          <>
+        <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-ink">Phil-IRI Oral Adaptive Diagnostic Distribution</h2>
+              <p className="text-xs text-ink/60">
+                Evaluation results across Independent, Instructional, and Frustrational grade boundaries
+              </p>
+            </div>
+            <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-bold text-ink/70">
+              {finalizedProfiles.length} Finalized • {inProgressProfiles.length} In Progress
             </span>
           </div>
 
-          {/* Language Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-ink/50">Language:</span>
-            {['All', 'Filipino', 'English'].map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setSelectedLanguage(lang)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                  selectedLanguage === lang
-                    ? 'bg-brand-blue text-cream'
-                    : 'border border-ink/20 bg-cream text-ink/70 hover:bg-ink/5'
-                }`}
-              >
-                {lang}
-              </button>
+          {/* 3 Boundary Distribution Cards */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {distribution.map((b) => (
+              <div key={b.label} className="rounded-xl border border-ink/10 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className={`rounded-lg px-2.5 py-1 text-xs font-bold ${b.badgeBg}`}>
+                    {b.label} Level
+                  </span>
+                  <span className="text-base font-bold text-ink">{b.totalCount} Learners</span>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {gradesInDistribution.map((gradeNum) => {
+                    const count = b.byGrade[`Grade ${gradeNum}`] || 0;
+                    const pct = finalizedProfiles.length
+                      ? Math.round((count / finalizedProfiles.length) * 100)
+                      : 0;
+
+                    return (
+                      <div key={gradeNum} className="flex items-center gap-3 text-xs">
+                        <span className="w-16 font-semibold text-ink/60">Grade {gradeNum}</span>
+                        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-ink/5">
+                          <div
+                            className={`h-full rounded-full transition-all ${b.barBg}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right font-bold text-ink">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Donut Chart */}
-          <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-            <div className="flex items-center gap-2 mb-5">
-              <ChartPie size={18} className="text-brand-red" />
-              <div>
-                <h3 className="text-sm font-bold text-ink">Reading Profile Distribution</h3>
-                <p className="text-xs text-ink/50">Overall reading level breakdown — all grades</p>
-              </div>
-              <span className="ml-auto rounded-full border border-ink/15 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-ink/70">
-                {summaryData.proficiencyRate}% proficient
-              </span>
+        {/* ── Section Master Monitoring Table ── */}
+        <div className="rounded-2xl border border-ink/10 bg-cream p-5 shadow-[0px_4px_12px_rgba(26,24,22,0.06)] space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-3">
+            <div>
+              <h2 className="text-base font-bold text-ink">Section Phil-IRI Master Monitoring & Progress</h2>
+              <p className="text-xs text-ink/60">
+                Grade and section breakdown of Phil-IRI assessment progress and learner evaluation status
+              </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-8">
-              {/* SVG Donut */}
-              <div className="relative size-40 shrink-0">
-                <svg
-                  viewBox="0 0 100 100"
-                  className={`size-full transition-all duration-1000 ease-out ${
-                    isMounted ? 'rotate-[-90deg] scale-100 opacity-100' : 'rotate-[-270deg] scale-50 opacity-0'
-                  }`}
-                >
-                  {/* Empty state base circle ring when 0 assessed */}
-                  {summaryData.totalEvaluated === 0 && (
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#EAE6DF" strokeWidth="20" />
-                  )}
-                  {donutSlices.map((slice, i) => {
-                    if (slice.count === 0) return null;
-                    const isHovered = hoveredSlice === i;
-                    const isAnyHovered = hoveredSlice !== null;
-                    return (
-                      <path
-                        key={i}
-                        d={slice.pathData}
-                        fill={slice.color}
-                        style={{
-                          opacity: isAnyHovered && !isHovered ? 0.3 : 1,
-                          transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-                          transformOrigin: '50px 50px',
-                          transition: 'transform 0.2s ease, opacity 0.2s ease',
-                        }}
-                        onMouseEnter={() => setHoveredSlice(i)}
-                        onMouseLeave={() => setHoveredSlice(null)}
-                        className="cursor-pointer"
-                      />
-                    );
-                  })}
-                  <circle cx="50" cy="50" r="26" fill="#F7F5F0" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                  {hoveredSlice !== null ? (
-                    <>
-                      <span className="text-xl font-bold" style={{ color: donutSlices[hoveredSlice].color }}>{donutSlices[hoveredSlice].count}</span>
-                      <span className="text-[9px] font-semibold text-ink/60 leading-tight px-1">{donutSlices[hoveredSlice].label}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xl font-bold text-ink">{summaryData.totalEvaluated}</span>
-                      <span className="text-[9px] font-semibold text-ink/50 uppercase tracking-wider">assessed</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="w-full space-y-2 text-xs">
-                {donutSlices.map((slice, i) => (
-                  <div
-                    key={i}
-                    onMouseEnter={() => setHoveredSlice(i)}
-                    onMouseLeave={() => setHoveredSlice(null)}
-                    className="flex items-center justify-between py-2 px-2.5 rounded-lg border border-ink/10 bg-white hover:border-ink/20 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-                      <span className="font-semibold text-ink">{slice.label}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-ink/60">
-                      <span className="font-bold text-ink">{slice.count}</span>
-                      <span>({slice.percent}%)</span>
-                    </div>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between py-2 px-2.5 rounded-lg border border-ink/10 bg-white text-xs text-ink/60">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-slate-300 shrink-0" />
-                    <span className="font-semibold text-ink">Pending Evaluation</span>
-                  </div>
-                  <span className="font-bold text-ink">{summaryData.pending}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bar Graph */}
-          <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
-            <div className="flex items-center gap-2 mb-5">
-              <ChartBar size={18} className="text-brand-red" />
-              <div>
-                <h3 className="text-sm font-bold text-ink">Grade-Level Comparison</h3>
-                <p className="text-xs text-ink/50">Learner reading levels by grade</p>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              {Object.entries(gradeBreakdown).map(([grade, data]) => {
-                const maxVal = Math.max(data.total, 1);
-                const evaluated = data.total - data.pending;
-                return (
-                  <div key={grade}>
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-semibold text-ink">{grade}</span>
-                      <span className="text-ink/50">{evaluated} / {data.total} evaluated</span>
-                    </div>
-                    <div className="h-5 w-full rounded bg-white border border-ink/10 overflow-hidden flex gap-px p-px">
-                      {data.independent > 0 && (
-                        <div
-                          title={`Independent: ${data.independent}`}
-                          style={{ width: `${(data.independent / maxVal) * 100}%` }}
-                          className="bg-[#00a652] h-full rounded-sm transition-all duration-500 flex items-center justify-center text-[9px] font-bold text-white"
-                        >
-                          {data.independent}
-                        </div>
-                      )}
-                      {data.instructional > 0 && (
-                        <div
-                          title={`Instructional: ${data.instructional}`}
-                          style={{ width: `${(data.instructional / maxVal) * 100}%` }}
-                          className="bg-[#ffc300] h-full rounded-sm transition-all duration-500 flex items-center justify-center text-[9px] font-bold text-ink"
-                        >
-                          {data.instructional}
-                        </div>
-                      )}
-                      {data.frustration > 0 && (
-                        <div
-                          title={`Frustration: ${data.frustration}`}
-                          style={{ width: `${(data.frustration / maxVal) * 100}%` }}
-                          className="bg-[#d53f24] h-full rounded-sm transition-all duration-500 flex items-center justify-center text-[9px] font-bold text-white"
-                        >
-                          {data.frustration}
-                        </div>
-                      )}
-                      {data.pending > 0 && (
-                        <div
-                          title={`Pending: ${data.pending}`}
-                          style={{ width: `${(data.pending / maxVal) * 100}%` }}
-                          className="bg-slate-200 h-full rounded-sm transition-all duration-500 flex items-center justify-center text-[9px] font-bold text-slate-600"
-                        >
-                          {data.pending}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Legend */}
-            <div className="mt-5 pt-4 border-t border-ink/10 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink/60">
-              {[
-                { color: '#00a652', label: 'Independent' },
-                { color: '#ffc300', label: 'Instructional' },
-                { color: '#d53f24', label: 'Frustration' },
-                { color: '#cbd5e1', label: 'Pending' },
-              ].map(({ color, label }) => (
-                <span key={label} className="flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Learner Masterlist Table */}
-        <div className="rounded-2xl border border-ink/10 bg-cream p-6 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)] space-y-4">
-          {/* Filters Bar matching Picture 2 */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Left: Filters Dropdowns */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-1.5 text-xs text-ink/60 font-semibold mr-0.5">
-                <Funnel size={16} />
-                <span>Filters:</span>
-              </div>
-
+            <div className="flex items-center gap-2">
+              <Funnel size={16} className="text-ink/60" />
+              <span className="text-xs font-semibold text-ink/70">Filter Grade:</span>
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}
-                className="rounded-full border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-medium text-ink outline-none focus:border-brand-blue cursor-pointer transition-colors"
+                className="rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
-                <option value="All">All Grades</option>
-                <option value="Grade 1">Grade 1</option>
-                <option value="Grade 2">Grade 2</option>
-                <option value="Grade 3">Grade 3</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="Grade 5">Grade 5</option>
-                <option value="Grade 6">Grade 6</option>
-                <option value="Grade 7">Grade 7</option>
+                {gradeOptions.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
               </select>
             </div>
-
-            {/* Right: Search Bar */}
-            <div className="relative w-full md:w-80">
-              <MagnifyingGlass size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40" />
-              <input
-                type="text"
-                placeholder="Search student, LRN, section..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full border border-ink/20 bg-white pl-10 pr-4 py-1.5 text-xs text-ink outline-none focus:border-brand-blue"
-              />
-            </div>
           </div>
 
-          {/* Student Table Container */}
-          <div className="overflow-x-auto rounded-xl border border-ink/10 bg-white">
-            <table className="w-full text-left text-xs text-ink border-collapse">
-              <thead>
-                <tr className="border-b border-ink/10 bg-ink/[0.02] text-xs font-bold text-ink/50">
-                  <th className="py-3.5 px-4 font-bold">LRN</th>
-                  <th className="py-3.5 px-4 font-bold">Student Name</th>
-                  <th className="py-3.5 px-4 font-bold">Grade & Section</th>
-                  <th className="py-3.5 px-4 font-bold">Gender</th>
-                  <th className="py-3.5 px-4 font-bold">Phil-IRI Level</th>
-                  <th className="py-3.5 px-4 font-bold text-right">Date Added</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink/10">
-                {loading ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="py-3.5 px-4"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
-                      <td className="py-3.5 px-4"><div className="h-3.5 w-36 rounded bg-ink/10" /></td>
-                      <td className="py-3.5 px-4"><div className="h-3.5 w-24 rounded bg-ink/10" /></td>
-                      <td className="py-3.5 px-4"><div className="h-3.5 w-12 rounded bg-ink/10" /></td>
-                      <td className="py-3.5 px-4"><div className="h-5 w-28 rounded-full bg-ink/10" /></td>
-                      <td className="py-3.5 px-4 text-right"><div className="h-3.5 w-16 ml-auto rounded bg-ink/10" /></td>
-                    </tr>
-                  ))
-                ) : filteredStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 px-4 text-center">
-                      <div className="mx-auto max-w-xs flex flex-col items-center gap-2">
-                        <ChartPie size={36} className="text-ink/20" />
-                        <p className="text-xs font-bold text-ink/60">No records found</p>
-                        <p className="text-xs text-ink/40">Try adjusting your search or grade filter.</p>
-                      </div>
-                    </td>
+          {/* Rounded Table Card Wrapper */}
+          <div className="rounded-2xl border border-ink/10 bg-white overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-ink/10 bg-ink/[0.03] text-[10px] uppercase tracking-wider text-ink/60 font-bold">
+                    <th className="p-3">Section</th>
+                    <th className="p-3 text-center">Enrolled</th>
+                    <th className="p-3 text-center">GST Completed</th>
+                    <th className="p-3 text-center">Not Started</th>
+                    <th className="p-3 text-center">Adaptive In Progress</th>
+                    <th className="p-3 text-center">Finalized</th>
                   </tr>
-                ) : (
-                  paginatedStudents.map((s) => {
-                    const lvl = (s.level || '').toLowerCase();
-                    let badge = 'bg-slate-100 text-slate-600 border-slate-200';
-                    if (lvl.includes('independent')) badge = 'bg-[#00a652]/10 text-[#00a652] border-[#00a652]/20';
-                    else if (lvl.includes('instructional')) badge = 'bg-amber-50 text-amber-700 border-amber-200';
-                    else if (lvl.includes('frustration') || lvl.includes('non-reader') || lvl.includes('non reader')) badge = 'bg-[#d53f24]/10 text-[#d53f24] border-[#d53f24]/20';
+                </thead>
+                <tbody className="divide-y divide-ink/10">
+                  {loading ? (
+                    <tr>
+                      <td colSpan="6" className="p-8 text-center text-ink/50">
+                        Loading school monitoring analytics...
+                      </td>
+                    </tr>
+                  ) : sectionMonitoring.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-8 text-center text-ink/50">
+                        No section assessment data found for this selection.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedSections.map((sec) => {
+                      return (
+                        <tr key={`${sec.grade}-${sec.section}`} className="hover:bg-ink/[0.02] transition-colors">
+                          <td className="p-3">
+                            <p className="font-bold text-ink">{sec.section}</p>
+                            <p className="mt-0.5 text-[10px] font-medium text-ink/55">{sec.grade}</p>
+                          </td>
 
-                    return (
-                      <tr key={s.id || s.lrn} className="hover:bg-ink/[0.02] transition-colors">
-                        <td className="py-3.5 px-4 font-mono text-xs text-ink/80">{s.lrn}</td>
-                        <td className="py-3.5 px-4 font-bold text-ink">{s.name}</td>
-                        <td className="py-3.5 px-4 text-xs text-ink/80">
-                          {s.grade || 'Grade 4'} - {s.section || 'Unassigned'}
-                        </td>
-                        <td className="py-3.5 px-4 text-xs text-ink/70">{s.gender || 'Male'}</td>
-                        <td className="py-3.5 px-4">
-                          <span className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}>
-                            {s.level || 'Pending Evaluation'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right text-xs text-ink/50">{s.dateAdded || '—'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                          <td className="p-3 text-center font-bold text-ink">
+                            {sec.enrolled || '—'}
+                          </td>
 
-          {/* Table Footer with Pagination Controls */}
-          {!loading && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-ink/10 pt-4 text-xs text-ink/60">
-              <span>
-                {filteredStudents.length === 0
-                  ? 'Showing 0 of 0 student records'
-                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of ${filteredStudents.length} student records`}
-              </span>
+                          <td className="p-3 text-center">
+                            {sec.enrolled === 0 || sec.gstAssessed === null ? (
+                              <span className="font-bold text-ink/40">—</span>
+                            ) : (
+                              <span className="font-bold text-ink">{Math.min(sec.gstAssessed, sec.enrolled)} / {sec.enrolled}</span>
+                            )}
+                          </td>
 
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
-                  >
-                    <CaretLeft size={14} /> Previous
-                  </button>
+                          <td className="p-3 text-center font-bold text-ink">
+                            {sec.enrolled ? sec.notStarted : '—'}
+                          </td>
 
-                  <div className="flex items-center gap-1">
-                    {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
-                      <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
-                    ) : (
-                      <button
-                        key={pg}
-                        type="button"
-                        onClick={() => setCurrentPage(pg)}
-                        className={`size-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          currentPage === pg
-                            ? 'bg-brand-blue text-white shadow-xs'
-                            : 'bg-cream border border-ink/10 text-ink/70 hover:bg-ink/5'
-                        }`}
-                      >
-                        {pg}
-                      </button>
-                    ))}
-                  </div>
+                          <td className="p-3 text-center font-bold text-ink">
+                            {sec.enrolled ? sec.inProgress : '—'}
+                          </td>
 
-                  <button
-                    type="button"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                    className="flex items-center gap-1 rounded-2xl border border-ink/10 bg-cream px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
-                  >
-                    Next <CaretRight size={14} />
-                  </button>
-                </div>
-              )}
+                          <td className="p-3 text-center font-bold text-ink">
+                            {sec.enrolled ? sec.finalized : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+
+            {/* Pagination Controls - shown only when multiple pages exist or records exceed single page limit */}
+            {!loading && sectionMonitoring.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between border-t border-ink/10 px-4 py-3 gap-3 text-xs text-ink/60 bg-ink/[0.01]">
+                <span>
+                  Showing {sectionRangeStart} to {sectionRangeEnd} of {sectionMonitoring.length} section records
+                </span>
+
+                {sectionPageCount > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSectionPage((current) => Math.max(1, current - 1))}
+                      disabled={sectionPage === 1}
+                      className="flex items-center gap-1 rounded-full border border-ink/10 bg-white px-3 py-1 text-xs font-medium text-ink/60 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      <CaretLeft size={14} /> Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {getCompactPageItems(sectionPageCount, sectionPage).map((pg, index) =>
+                        pg === 'ellipsis' ? (
+                          <span key={`ellipsis-${index}`} className="flex size-7 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={pg}
+                            type="button"
+                            onClick={() => setSectionPage(pg)}
+                            className={`size-8 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                              sectionPage === pg
+                                ? 'bg-brand-blue text-white shadow-xs'
+                                : 'bg-white border border-ink/10 text-ink/70 hover:bg-ink/5'
+                            }`}
+                          >
+                            {pg}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSectionPage((current) => Math.min(sectionPageCount, current + 1))}
+                      disabled={sectionPage === sectionPageCount}
+                      className="flex items-center gap-1 rounded-full border border-ink/10 bg-white px-3 py-1 text-xs font-medium text-ink/60 hover:bg-ink/5 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                    >
+                      Next <CaretRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </>
+    )}
+  </div>
     </>
   );
 }

@@ -15,7 +15,6 @@ import {
   Article,
   GraduationCap,
   IdentificationCard,
-  ChartLineUp,
   CaretDown,
   CaretLeft,
   CaretRight,
@@ -29,23 +28,11 @@ import { decodeSecureToken } from '../../lib/securityToken.js';
 
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../components/dashboard/progress/StatCard.jsx';
-import AccuracyTrendChart from '../../components/dashboard/progress/AccuracyTrendChart.jsx';
 import AchievementActivityRow from '../../components/dashboard/activity/AchievementActivityRow.jsx';
 import BadgeCard from '../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../components/dashboard/student/StoryRow.jsx';
 
 import { badgesByLrn, storiesByLrn, defaultBadges, defaultStories } from '../../data/studentAchievements.js';
-
-const LEVEL_BADGE = {
-  Frustration: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
-  Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
-  Instruction: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
-  Instructional: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
-  Independent: 'bg-[#D1FAE5] text-[#047857] font-bold border border-[#047857]/20',
-  Screening: 'bg-blue-100 text-blue-800 font-bold border border-blue-200',
-  Pending: 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
-  'Pending Evaluation': 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
-};
 
 const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Badges', 'Stories'];
 
@@ -75,6 +62,8 @@ export default function AdminStudentProfile() {
   const [student, setStudent] = useState(cachedData || null);
   const [loading, setLoading] = useState(!cachedData);
   const [achievementTab, setAchievementTab] = useState('Phil-IRI Records');
+  const [profileLanguage, setProfileLanguage] = useState('fil');
+  const [profilePeriod, setProfilePeriod] = useState('pre_test');
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
@@ -152,6 +141,36 @@ export default function AdminStudentProfile() {
       },
     }));
 
+  const formatGrade = (value) => {
+    const grade = String(value || '').match(/\d+/)?.[0];
+    return grade ? `Grade ${grade}` : '—';
+  };
+  const selectedAdaptiveProfile = (std.oralAdaptiveProfiles || []).find((profile) => {
+    const language = String(profile.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    return language === profileLanguage && String(profile.period || 'pre_test').toLowerCase() === profilePeriod;
+  });
+  const oralEvidence = allPhilIriRecords
+    .filter((activity) => activity.assessmentType === 'oral'
+      && (String(activity.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil') === profileLanguage
+      && String(activity.assessmentPeriod || 'pre_test').toLowerCase() === profilePeriod)
+    .sort((first, second) => new Date(first.completedAt || 0) - new Date(second.completedAt || 0));
+  const evidenceAverage = (key) => oralEvidence.length
+    ? Math.round(oralEvidence.reduce((total, activity) => total + Number(activity[key] || 0), 0) / oralEvidence.length)
+    : 0;
+  const diagnosticEvidence = [
+    ['Independent', 'independent', selectedAdaptiveProfile?.independentLevel, 'bg-emerald-50 text-emerald-800'],
+    ['Instructional', 'instructional', selectedAdaptiveProfile?.instructionalLevel, 'bg-amber-50 text-amber-900'],
+    ['Frustrational', 'frustrational', selectedAdaptiveProfile?.frustrationalLevel, 'bg-rose-50 text-rose-800'],
+  ].map(([label, key, level, style]) => {
+    const grade = String(level || '').match(/\d+/)?.[0];
+    const resultPrefix = key === 'frustrational' ? 'frustr' : key;
+    const evidence = oralEvidence.find((activity) => grade
+      && String(activity.passageGradeLevel || '').match(/\d+/)?.[0] === grade
+      && String(activity.readingLevelResult || '').toLowerCase().startsWith(resultPrefix))
+      || oralEvidence.find((activity) => String(activity.readingLevelResult || '').toLowerCase().startsWith(resultPrefix));
+    return { label, level, style, evidence };
+  });
+
   const [recordsPage, setRecordsPage] = useState(1);
   const [storiesPage, setStoriesPage] = useState(1);
   const [badgesPage, setBadgesPage] = useState(1);
@@ -222,9 +241,6 @@ export default function AdminStudentProfile() {
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-bold text-ink">{std.name}</h1>
-                  <span className={`rounded-lg px-2.5 py-0.5 text-xs ${LEVEL_BADGE[std.level] || (String(std.level || '').toLowerCase().includes('frustrat') ? 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20' : 'bg-slate-100 text-slate-700 font-bold border border-slate-300')}`}>
-                    {std.level || 'Pending Evaluation'}
-                  </span>
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${
                       std.status === 'Active'
@@ -319,39 +335,53 @@ export default function AdminStudentProfile() {
           </div>
         </div>
 
-      {/* Main 2-Column Section: Left Accuracy Chart, Right Phil-IRI Records & Student Progress */}
+      {/* Main 2-Column Section: oral adaptive profile, analytics, and records */}
       <div className="flex flex-col gap-6 xl:flex-row">
-        {/* Left Column: Accuracy Trend & Stat Cards */}
         <div className="flex w-full flex-col gap-3 xl:max-w-[540px]">
-          <div className="flex items-center gap-2">
-            <ChartLineUp size={16} className="text-ink" />
-            <p className="text-sm font-medium text-ink">Accuracy Trend</p>
-          </div>
-          <div className="rounded-[10px] border border-ink/10 bg-cream p-3 shadow-xs">
-            <AccuracyTrendChart
-              sessions={std.sessions || []}
-              accuracy={std.accuracyTrend || []}
-              comprehension={std.comprehensionTrend || []}
-            />
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold text-ink">Oral Reading Adaptive Profile</p>
+                <p className="text-[11px] text-ink/55">Teacher-reviewed diagnostic boundaries</p>
+              </div>
+              <div className="flex gap-1.5">
+                <select value={profilePeriod} onChange={(event) => setProfilePeriod(event.target.value)} className="rounded-lg border border-ink/15 bg-white px-2 py-1.5 text-[11px] font-semibold text-ink outline-none">
+                  <option value="pre_test">Pre-Test</option><option value="post_test">Post-Test</option>
+                </select>
+                <select value={profileLanguage} onChange={(event) => setProfileLanguage(event.target.value)} className="rounded-lg border border-ink/15 bg-white px-2 py-1.5 text-[11px] font-semibold text-ink outline-none">
+                  <option value="fil">Filipino</option><option value="en">English</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3 overflow-hidden rounded-xl border border-ink/10">
+              <div className="grid grid-cols-[1.1fr_.8fr_1.35fr] gap-2 bg-ink/[0.04] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-ink/55"><span>Boundary</span><span>Grade</span><span>Assessment basis</span></div>
+              {diagnosticEvidence.map((boundary) => (
+                <div key={boundary.label} className="grid grid-cols-[1.1fr_.8fr_1.35fr] items-center gap-2 border-t border-ink/10 px-3 py-2.5 text-xs">
+                  <span className={`w-fit rounded-md px-2 py-1 text-[10px] font-bold ${boundary.style}`}>{boundary.label}</span>
+                  <span className="font-bold text-ink">{boundary.level ? formatGrade(boundary.level) : '—'}</span>
+                  {boundary.evidence ? <div className="min-w-0"><p className="truncate font-semibold text-ink">{boundary.evidence.passageTitle || boundary.evidence.passageSet}</p><p className="text-[10px] text-ink/60">{boundary.evidence.passageSet} · {boundary.evidence.accuracyScore}% Acc · {boundary.evidence.comprehensionScore}% Comp</p></div> : <span className="text-[10px] text-ink/50">No reviewed result yet</span>}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
-              value={std.avgAccuracy ?? 0}
+              value={evidenceAverage('accuracyScore')}
               unit="%"
               label={'Average\nAccuracy'}
               iconName="ph:target"
               iconBg="bg-[#DBEAFE] text-[#2563EB]"
             />
             <StatCard
-              value={std.avgComprehension ?? 0}
+              value={evidenceAverage('comprehensionScore')}
               unit="%"
               label={'Average\nComprehension'}
               iconName="ph:lightbulb"
               iconBg="bg-[#D1FAE5] text-[#059669]"
             />
             <StatCard
-              value={std.avgWps ?? 0}
+              value={evidenceAverage('readingSpeed')}
               unit="wps"
               label={'Average\nReading Speed'}
               iconName="ph:lightning"

@@ -2,8 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { BookOpen } from '@phosphor-icons/react';
 
 const TABS = [
-  { to: '/admin/phil-iri/passages', label: 'Passages' },
   { to: '/admin/phil-iri/reports', label: 'Reports' },
+  { to: '/admin/phil-iri/passages', label: 'Passages' },
   { to: '/admin/phil-iri/form-2', label: 'FORM 2' },
 ];
 

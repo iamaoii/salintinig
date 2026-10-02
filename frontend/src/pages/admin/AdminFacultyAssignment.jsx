@@ -1225,7 +1225,7 @@ export default function AdminFacultyAssignment() {
                 <th className="px-5 py-3.5 w-[16%]">Section Name</th>
                 <th className="px-5 py-3.5 w-[22%]">Class Adviser</th>
                 <th className="px-5 py-3.5 w-[15%]">Enrolled Students</th>
-                <th className="px-5 py-3.5 w-[25%] whitespace-nowrap">Reading Level Profile</th>
+                <th className="px-5 py-3.5 w-[25%] whitespace-nowrap">Oral Adaptive Progress</th>
                 <th className="px-5 py-3.5 text-right w-[10%]">Actions</th>
               </tr>
             </thead>
@@ -1275,17 +1275,17 @@ export default function AdminFacultyAssignment() {
                     <td className="px-5 py-4 text-ink/70">{sec.studentsCount || 0} Students</td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
-                          <span>{sec.independentCount || 0} Independent</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                          <span className="size-2 rounded-full bg-slate-400 shrink-0" />
+                          <span>{sec.notStartedCount || 0} Not Started</span>
                         </span>
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
                           <span className="size-2 rounded-full bg-amber-500 shrink-0" />
-                          <span>{sec.instructionalCount || 0} Instructional</span>
+                          <span>{sec.inProgressCount || 0} In Progress</span>
                         </span>
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">
-                          <span className="size-2 rounded-full bg-red-500 shrink-0" />
-                          <span>{sec.frustrationalCount || 0} Frustrational</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span>{sec.finalizedCount || 0} Finalized</span>
                         </span>
                       </div>
                     </td>
