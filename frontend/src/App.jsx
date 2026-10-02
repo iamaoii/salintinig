@@ -60,7 +60,6 @@ import SuperAdminSchoolDetail from './pages/super-admin/SuperAdminSchoolDetail.j
 import SuperAdminPhilIriLayout from './pages/super-admin/SuperAdminPhilIriLayout.jsx';
 import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
 import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
-import SuperAdminAnalytics from './pages/super-admin/SuperAdminAnalytics.jsx';
 import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
 
 function HomeRedirect() {
@@ -162,9 +161,6 @@ export default function App() {
 
         {/* Stories Library */}
         <Route path="stories" element={<SuperAdminStories />} />
-
-        {/* System Analytics */}
-        <Route path="analytics" element={<SuperAdminAnalytics />} />
 
         {/* Account & Notifications */}
         <Route path="notifications" element={<AdminNotifications />} />
