@@ -18,9 +18,12 @@ export const schoolInfo = {
 
 // Form 1A / 1B: per-student class test record.
 export const form1Rows = students.map((student, i) => {
-  const literal = 4;
-  const inferential = 4;
-  const critical = 5;
+  // Mirrors the standardized GST split used by the backend mock seed:
+  // 14+ = GST not required; 0–13 proceeds to the individual assessment.
+  const totalTarget = i % 5 === 0 ? 15 + (i % 5) : 8 + (i % 6);
+  const literal = Math.min(7, Math.ceil(totalTarget * 0.35));
+  const inferential = Math.min(7, Math.ceil(totalTarget * 0.35));
+  const critical = Math.min(6, totalTarget - literal - inferential);
   const total = literal + inferential + critical;
   return {
     lrn: student.lrn,
@@ -30,8 +33,8 @@ export const form1Rows = students.map((student, i) => {
     inferential: `${inferential}/7`,
     critical: `${critical}/6`,
     total: `${total}/20`,
-    below14: total < 14 ? '/' : '',
-    above14: total >= 14 ? '/' : '',
+    below14: total < 14 ? '/' : '', // GST_REQUIRES_INDIVIDUAL
+    above14: total >= 14 ? '/' : '', // GST_NOT_REQUIRED
   };
 });
 
