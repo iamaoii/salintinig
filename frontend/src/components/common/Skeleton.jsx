@@ -90,27 +90,18 @@ export function StudentTableSkeleton({ rows = 6 }) {
     <>
       {Array.from({ length: rows }).map((_, i) => (
         <tr key={i} className="animate-pulse">
-          <td className="w-12 px-4 py-3.5">
-            <SkeletonBlock className="h-3.5 w-5" />
-          </td>
-          <td className="px-4 py-3.5">
-            <SkeletonBlock className="h-3.5 w-24" />
-          </td>
+          <td className="w-12 px-4 py-3.5"><SkeletonBlock className="h-3.5 w-5" /></td>
+          <td className="px-4 py-3.5"><SkeletonBlock className="h-3.5 w-24" /></td>
           <td className="px-4 py-3.5">
             <div className="flex items-center gap-3">
-              <SkeletonBlock className="size-[30px] rounded-full shrink-0" />
+              <SkeletonBlock className="size-[30px] shrink-0 rounded-full" />
               <SkeletonBlock className="h-3.5 w-36" />
             </div>
           </td>
-          <td className="px-4 py-3.5">
-            <SkeletonBlock className="h-3.5 w-10" />
-          </td>
-          <td className="px-4 py-3.5">
-            <SkeletonBlock className="h-[22px] w-24 rounded-full" />
-          </td>
-          <td className="px-4 py-3.5">
-            <SkeletonBlock className="h-[22px] w-28 rounded-full" />
-          </td>
+          <td className="px-4 py-3.5"><SkeletonBlock className="h-[22px] w-20 rounded-full" /></td>
+          <td className="px-4 py-3.5"><SkeletonBlock className="h-[22px] w-20 rounded-full" /></td>
+          <td className="px-4 py-3.5"><SkeletonBlock className="h-[22px] w-20 rounded-full" /></td>
+          <td className="w-40 px-4 py-3.5"><SkeletonBlock className="h-[22px] w-28 rounded-full" /></td>
         </tr>
       ))}
     </>
@@ -1546,7 +1537,6 @@ export function ActivityDetailSkeleton() {
     </div>
   );
 }
-
 
 
 

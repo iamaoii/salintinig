@@ -1,6 +1,6 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ArrowsClockwise, Check, X, UserCheck, CaretDown, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
@@ -13,11 +13,10 @@ import { StudentTableSkeleton } from '../../../components/common/Skeleton.jsx';
 
 
 const TABS = [
-  { to: '/teacher/student-dashboard/all', label: 'All', level: 'All', activeColor: '#165fd5' },
-  { to: '/teacher/student-dashboard/independent', label: 'Independent', level: 'Independent', activeColor: '#00a652' },
-  { to: '/teacher/student-dashboard/instructional', label: 'Instructional', level: 'Instructional', activeColor: '#ffc300' },
-  { to: '/teacher/student-dashboard/frustrational', label: 'Frustrational', level: 'Frustrational', activeColor: '#d53f24' },
-  { to: '/teacher/student-dashboard/pending', label: 'Pending Evaluation', level: 'Pending', activeColor: '#64748b' },
+  { to: '/teacher/student-dashboard/all', label: 'All Learners', filter: 'all', activeColor: '#165fd5' },
+  { to: '/teacher/student-dashboard/independent', label: 'Complete Profiles', filter: 'complete', activeColor: '#00a652' },
+  { to: '/teacher/student-dashboard/instructional', label: 'In Progress', filter: 'in_progress', activeColor: '#d97706' },
+  { to: '/teacher/student-dashboard/pending', label: 'Not Started', filter: 'not_started', activeColor: '#64748b' },
 ];
 
 export default function StudentMasterlist({ level }) {
@@ -26,13 +25,16 @@ export default function StudentMasterlist({ level }) {
   const [loading, setLoading] = useState(true);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [searchParams] = useSearchParams();
+  const profileLanguage = searchParams.get('language') || 'fil';
+  const profilePeriod = searchParams.get('period') || 'pre_test';
 
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [level]);
+  }, [level, profileLanguage, profilePeriod]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -173,12 +175,26 @@ export default function StudentMasterlist({ level }) {
     }
   };
 
-  const filtered = level === 'All'
-    ? students
-    : level.toLowerCase() === 'pending'
-    ? students.filter((s) => !s.level || s.level.toLowerCase().includes('pending') || s.level.toLowerCase().includes('unassessed'))
-    : students.filter((s) => (s.level || s.readingLevel || '').toLowerCase().includes(level.toLowerCase()));
-  const headerColor = TABS.find((tab) => tab.level === level)?.activeColor ?? '#165fd5';
+  const getAdaptiveProfile = (student) => (student.oralAdaptiveProfiles || []).find((profile) => {
+    const language = String(profile.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    return language === profileLanguage && String(profile.period || 'pre_test').toLowerCase() === profilePeriod;
+  });
+  const formatGrade = (value) => {
+    if (!value) return null;
+    const grade = String(value).match(/\d+/)?.[0];
+    return grade ? `Grade ${grade}` : String(value);
+  };
+  const profileIsComplete = (profile) => Boolean(profile?.independentLevel && profile?.instructionalLevel && profile?.frustrationalLevel);
+
+  const activeFilter = TABS.find((tab) => tab.to.endsWith(`/${String(level || 'all').toLowerCase()}`))?.filter || 'all';
+  const filtered = students.filter((student) => {
+    const profile = getAdaptiveProfile(student);
+    if (activeFilter === 'complete') return profileIsComplete(profile);
+    if (activeFilter === 'in_progress') return Boolean(profile) && !profileIsComplete(profile);
+    if (activeFilter === 'not_started') return !profile;
+    return true;
+  });
+  const headerColor = TABS.find((tab) => tab.filter === activeFilter)?.activeColor ?? '#165fd5';
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
   const paginatedStudents = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -211,40 +227,42 @@ export default function StudentMasterlist({ level }) {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-4 overflow-x-auto border-b border-ink/10 sm:gap-6">
-          <span className="shrink-0 pb-3 text-sm font-medium text-ink/60">GST:</span>
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              className={({ isActive }) =>
-                `shrink-0 border-b-2 pb-3 text-sm font-medium transition-colors ${
-                  isActive ? '' : 'border-transparent text-ink/60 hover:text-ink'
-                }`
-              }
-              style={({ isActive }) => (isActive ? { borderColor: tab.activeColor, color: tab.activeColor } : undefined)}
-            >
-              {tab.label}
-            </NavLink>
-          ))}
+        <div className="mt-4 border-b border-ink/10 pb-3">
+          <div className="flex min-w-0 items-center gap-4 overflow-x-auto sm:gap-6">
+            {TABS.map((tab) => (
+              <NavLink
+                key={tab.to}
+                to={{ pathname: tab.to, search: searchParams.toString() }}
+                className={({ isActive }) =>
+                  `shrink-0 border-b-2 py-1.5 text-sm font-medium transition-colors ${
+                    isActive ? '' : 'border-transparent text-ink/60 hover:text-ink'
+                  }`
+                }
+                style={({ isActive }) => (isActive ? { borderColor: tab.activeColor, color: tab.activeColor } : undefined)}
+              >
+                {tab.label}
+              </NavLink>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 overflow-hidden rounded-xl border border-ink/10 bg-white shadow-xs">
-          <table className="w-full min-w-[700px] border-collapse text-sm">
+          <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-ink/10 bg-[#eef2f6] text-left text-xs font-bold uppercase tracking-wider text-ink/70">
                 <th className="w-12 px-4 py-3.5">#</th>
-                <th className="px-4 py-3.5">LRN</th>
                 <th className="px-4 py-3.5">Name</th>
-                <th className="px-4 py-3.5">Gender</th>
-                <th className="px-4 py-3.5">Reading Level</th>
-                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">Independent</th>
+                <th className="px-4 py-3.5">Instructional</th>
+                <th className="px-4 py-3.5">Frustrational</th>
+                <th className="w-40 px-4 py-3.5">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/5">
               {loading && <StudentTableSkeleton rows={6} />}
 
               {!loading && paginatedStudents.map((student, i) => {
+                const adaptiveProfile = getAdaptiveProfile(student);
                 const rawLvl = (student.level || student.readingLevel || student.reading_level || student.current_profile_label || student.gstResult || '').toLowerCase();
                 let levelBadge = <span className="text-ink/40 font-bold px-2">—</span>;
                 if (rawLvl.includes('independ')) {
@@ -255,12 +273,15 @@ export default function StudentMasterlist({ level }) {
                   levelBadge = <span className="inline-flex items-center rounded-full bg-rose-100/90 px-2.5 py-0.5 text-xs font-semibold text-rose-900 border border-rose-200/80">Frustration</span>;
                 }
 
-                const isCompleted = rawLvl.includes('independ') || rawLvl.includes('instruct') || rawLvl.includes('frustrat') || student.status === 'Completed' || student.status === 'completed';
+                const isCompleted = profileIsComplete(adaptiveProfile);
                 const statusBadge = isCompleted ? (
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200/60">Completed</span>
+                  <span className="inline-flex whitespace-nowrap items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200/60">Completed</span>
                 ) : (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 border border-slate-200/80">Pending Evaluation</span>
+                  <span className="inline-flex whitespace-nowrap items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 border border-slate-200/80">{adaptiveProfile?.status === 'in_progress' ? 'In Progress' : 'Pending Evaluation'}</span>
                 );
+                const boundaryBadge = (value, colors) => value ? (
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${colors}`}>{formatGrade(value)}</span>
+                ) : <span className="px-2 text-xs font-semibold text-ink/35">—</span>;
 
                 return (
                   <tr
@@ -269,17 +290,18 @@ export default function StudentMasterlist({ level }) {
                     className="group transition-colors hover:bg-ink/[0.015] cursor-pointer"
                   >
                     <td className="px-4 py-3.5 text-xs font-semibold text-ink/70">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
-                    <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.lrn}</td>
                     <td className="px-4 py-3.5 text-xs">
                       <div className="flex items-center gap-3">
                         <Avatar name={student.name} src={student.profileImage || student.profile_image || student.avatarUrl || student.avatar} size={30} />
-                        <span className="font-semibold text-ink group-hover:text-brand-blue transition-colors">
-                          {student.name}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="block truncate font-semibold text-ink group-hover:text-brand-blue transition-colors">{student.name}</span>
+                          <span className="mt-0.5 block text-[10px] font-medium text-ink/50">LRN: {student.lrn}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-xs font-medium text-ink/80">{student.gender || 'N/A'}</td>
-                    <td className="px-4 py-3.5 text-xs">{levelBadge}</td>
+                    <td className="px-4 py-3.5 text-xs">{boundaryBadge(adaptiveProfile?.independentLevel, 'border-emerald-200 bg-emerald-50 text-emerald-800')}</td>
+                    <td className="px-4 py-3.5 text-xs">{boundaryBadge(adaptiveProfile?.instructionalLevel, 'border-amber-200 bg-amber-50 text-amber-900')}</td>
+                    <td className="px-4 py-3.5 text-xs">{boundaryBadge(adaptiveProfile?.frustrationalLevel, 'border-rose-200 bg-rose-50 text-rose-800')}</td>
                     <td className="px-4 py-3.5 text-xs">{statusBadge}</td>
                   </tr>
                 );
@@ -290,7 +312,7 @@ export default function StudentMasterlist({ level }) {
                   <td colSpan={6} className="px-4 py-10 text-center text-xs font-medium text-ink/50">
                     {students.length === 0
                       ? 'No enrolled students found in this section.'
-                      : 'No students found at this reading level.'}
+                      : 'No learners match this Oral adaptive-profile status.'}
                   </td>
                 </tr>
               )}

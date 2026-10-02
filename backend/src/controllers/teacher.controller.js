@@ -2322,6 +2322,67 @@ async function getTeacherClassStudents(req, res) {
             const sidStr = String(s.id || s.studentId);
             s.existingAssessments = assMap.get(sidStr) || [];
           });
+
+          // Oral adaptive profiles are diagnostic boundaries, not a single label.
+          // `to_jsonb` keeps this query compatible with older backup schemas where
+          // a newly added adaptive column may not exist yet (it simply returns null).
+          const adaptiveRes = await db.query(
+            `SELECT DISTINCT ON (s.student_id, LOWER(COALESCE(s.language, 'fil')), LOWER(COALESCE(s.assessment_period, 'pre_test')))
+               s.student_id::text AS "studentId",
+               LOWER(COALESCE(s.language, 'fil')) AS language,
+               LOWER(COALESCE(s.assessment_period, 'pre_test')) AS period,
+               to_jsonb(s)->>'independent_level' AS "independentLevel",
+               to_jsonb(s)->>'instructional_level' AS "instructionalLevel",
+               COALESCE(to_jsonb(s)->>'frustration_level', to_jsonb(s)->>'frustrational_level') AS "frustrationalLevel",
+               s.status,
+               s.completed_at AS "completedAt",
+               s.started_at AS "startedAt"
+             FROM phil_iri_adaptive_sessions s
+             WHERE s.student_id::text = ANY($1::text[])
+               AND LOWER(COALESCE(s.assessment_type, 'oral')) = 'oral'
+             ORDER BY s.student_id, LOWER(COALESCE(s.language, 'fil')), LOWER(COALESCE(s.assessment_period, 'pre_test')),
+               CASE WHEN LOWER(COALESCE(s.status, '')) = 'completed' THEN 0 ELSE 1 END,
+               s.completed_at DESC NULLS LAST, s.started_at DESC NULLS LAST`,
+            [studentIds]
+          ).catch((adaptiveErr) => {
+            console.warn('Adaptive profile summary query notice:', adaptiveErr.message);
+            return { rows: [] };
+          });
+
+          const adaptiveMap = new Map();
+          (adaptiveRes.rows || []).forEach((profile) => {
+            const studentId = String(profile.studentId);
+            if (!adaptiveMap.has(studentId)) adaptiveMap.set(studentId, []);
+            adaptiveMap.get(studentId).push(profile);
+          });
+          students.forEach((s) => {
+            s.oralAdaptiveProfiles = adaptiveMap.get(String(s.id || s.studentId)) || [];
+          });
+
+          const oralMetricsRes = await db.query(
+            `SELECT student_id::text AS "studentId",
+               LOWER(COALESCE(language, 'fil')) AS language,
+               LOWER(COALESCE(assessment_period, 'pre_test')) AS period,
+               accuracy_rate AS accuracy,
+               comprehension_rate AS comprehension,
+               speed_wpm AS speed
+             FROM student_reading_profiles
+             WHERE student_id::text = ANY($1::text[])
+               AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'`,
+            [studentIds]
+          ).catch((metricsErr) => {
+            console.warn('Oral profile metrics query notice:', metricsErr.message);
+            return { rows: [] };
+          });
+          const oralMetricsMap = new Map();
+          (oralMetricsRes.rows || []).forEach((metric) => {
+            const studentId = String(metric.studentId);
+            if (!oralMetricsMap.has(studentId)) oralMetricsMap.set(studentId, []);
+            oralMetricsMap.get(studentId).push(metric);
+          });
+          students.forEach((s) => {
+            s.oralProfileMetrics = oralMetricsMap.get(String(s.id || s.studentId)) || [];
+          });
         }
       }
 
@@ -3066,4 +3127,3 @@ module.exports = {
   resolveAdaptiveSession,
   reassignPassageAttempt,
 };
-
