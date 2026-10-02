@@ -231,12 +231,14 @@ export default function ClassProgressPanel() {
           label={'Average\nAccuracy'}
           iconName="ph:target"
           iconBg="bg-[#DBEAFE] text-[#2563EB]"
+          compact
         />
         <StatCard
           value={stats.completedProfiles || 0}
           label={'Complete Adaptive\nProfiles'}
           iconName="ph:check-circle"
           iconBg="bg-violet-100 text-violet-700"
+          compact
         />
         <StatCard
           value={stats.averageReadingSpeed}
@@ -244,6 +246,7 @@ export default function ClassProgressPanel() {
           label={'Average\nReading Speed'}
           iconName="ph:lightning"
           iconBg="bg-[#FEF08A] text-[#CA8A04]"
+          compact
         />
         <StatCard
           value={stats.averageComprehension}
@@ -251,6 +254,7 @@ export default function ClassProgressPanel() {
           label={'Average\nComprehension'}
           iconName="ph:lightbulb"
           iconBg="bg-[#D1FAE5] text-[#059669]"
+          compact
         />
       </div>
     </div>

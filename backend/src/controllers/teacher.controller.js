@@ -1829,7 +1829,6 @@ async function getPhilIriPassages(req, res) {
     const { rows: materials } = await db.query(
       `SELECT passage_id, passage_id AS id, title, grade_level, grade_level AS grade, passage_set, passage_set AS set, COALESCE(stage, 'Pre-Test') AS stage, language, status, content_text, content_text AS text, word_count, word_count AS words 
        FROM phil_iri_passages 
-       WHERE LOWER(COALESCE(passage_set, '')) NOT IN ('unassigned', '')
        ORDER BY stage ASC, passage_set ASC, title ASC`
     );
 

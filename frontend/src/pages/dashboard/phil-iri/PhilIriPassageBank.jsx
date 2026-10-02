@@ -27,7 +27,11 @@ const SET_COLORS = {
   'Set B': 'bg-amber-100/90 text-amber-950 border border-amber-200/80',
   'Set C': 'bg-rose-100/90 text-rose-900 border border-rose-200/80',
   'Set D': 'bg-orange-100/90 text-orange-950 border border-orange-200/80',
+  'Unassigned': 'bg-slate-100 text-slate-700 border border-slate-200',
 };
+
+const FILIPINO_PASSAGE_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
+const ENGLISH_PASSAGE_GRADES = ['Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
 
 export default function PhilIriPassageBank() {
   const cachedPassages = cacheService.get('teacher_phil_iri_passages') || cacheService.get('teacher_passages');
@@ -43,6 +47,14 @@ export default function PhilIriPassageBank() {
   const [isLoading, setIsLoading] = useState(!cachedPassages || cachedPassages.length === 0);
 
   const ITEMS_PER_PAGE = 6;
+
+  const filterGradeOptions = selectedLanguage === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
+
+  useEffect(() => {
+    if (selectedLanguage === 'English' && selectedGrade === 'Grade 1') {
+      setSelectedGrade('All');
+    }
+  }, [selectedLanguage, selectedGrade]);
 
   useEffect(() => {
     const cached = cacheService.get('teacher_phil_iri_passages') || cacheService.get('teacher_passages');
@@ -87,40 +99,55 @@ export default function PhilIriPassageBank() {
 
   const filteredPassages = useMemo(() => {
     return passages.filter((p) => {
+      // Search query filter
+      const q = searchQuery.toLowerCase().trim();
+      if (q) {
+        const titleMatch = (p.title || '').toLowerCase().includes(q);
+        const textMatch = (p.content_text || p.text || '').toLowerCase().includes(q);
+        const gradeMatch = (p.grade_level || p.grade || '').toLowerCase().includes(q);
+        const langMatch = (p.language || '').toLowerCase().includes(q);
+        const setMatch = (p.passage_set || p.set || '').toLowerCase().includes(q);
+        if (!titleMatch && !textMatch && !gradeMatch && !langMatch && !setMatch) return false;
+      }
+
       // Grade filter
       if (selectedGrade !== 'All') {
-        const pGrade = (p.grade_level || p.grade || '').toLowerCase();
-        const target = selectedGrade.toLowerCase();
-        if (!pGrade.includes(target)) return false;
+        const rawGrade = String(p.grade_level || p.grade || '');
+        const normGrade = rawGrade.match(/\d+/)?.[0];
+        const targetNorm = selectedGrade.match(/\d+/)?.[0];
+        if (!normGrade || normGrade !== targetNorm) return false;
       }
 
       // Language filter
       if (selectedLanguage !== 'All') {
-        const lang = (p.language || '').toLowerCase();
-        const target = selectedLanguage.toLowerCase();
-        if (!lang.includes(target.slice(0, 3))) return false;
+        const lang = (p.language || '').toLowerCase().trim();
+        const isEnglish = lang === 'en' || lang.startsWith('eng') || lang === 'english';
+        const isFilipino = lang === 'fil' || lang.startsWith('fil') || lang === 'filipino';
+
+        if (selectedLanguage === 'English' && !isEnglish) return false;
+        if (selectedLanguage === 'Filipino' && !isFilipino) return false;
       }
 
       // Set filter
       if (selectedSet !== 'All') {
-        const pSet = (p.passage_set || p.set || '').toLowerCase();
-        const target = selectedSet.toLowerCase();
-        if (pSet !== target) return false;
+        const pSet = String(p.passage_set || p.set || 'Unassigned').toLowerCase().trim();
+        const target = selectedSet.toLowerCase().trim();
+        if (target === 'unassigned') {
+          if (pSet !== 'unassigned' && pSet !== '' && pSet !== 'null') return false;
+        } else if (pSet !== target) {
+          return false;
+        }
       }
 
       // Status filter
       if (selectedStatus !== 'All') {
-        const pStatus = (p.status || 'published').toLowerCase();
+        const pStatus = String(p.status || 'Published').toLowerCase();
         const target = selectedStatus.toLowerCase();
-        if (!pStatus.includes(target)) return false;
-      }
-
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const titleMatch = (p.title || '').toLowerCase().includes(q);
-        const textMatch = (p.content_text || p.text || '').toLowerCase().includes(q);
-        if (!titleMatch && !textMatch) return false;
+        if (target === 'published') {
+          if (!pStatus.includes('pub') && !pStatus.includes('act')) return false;
+        } else if (!pStatus.includes(target)) {
+          return false;
+        }
       }
 
       return true;
@@ -190,19 +217,19 @@ export default function PhilIriPassageBank() {
               className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
             >
               <option value="All">All Grades</option>
-              <option value="Grade 1">Grade 1</option>
-              <option value="Grade 2">Grade 2</option>
-              <option value="Grade 3">Grade 3</option>
-              <option value="Grade 4">Grade 4</option>
-              <option value="Grade 5">Grade 5</option>
-              <option value="Grade 6">Grade 6</option>
-              <option value="Grade 7">Grade 7</option>
+              {filterGradeOptions.map((grade) => (
+                <option key={grade} value={grade}>{grade}</option>
+              ))}
             </select>
 
             <select
               value={selectedLanguage}
               onChange={(e) => {
-                setSelectedLanguage(e.target.value);
+                const nextLanguage = e.target.value;
+                setSelectedLanguage(nextLanguage);
+                if (nextLanguage === 'English' && selectedGrade === 'Grade 1') {
+                  setSelectedGrade('All');
+                }
                 setCurrentPage(1);
               }}
               className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
@@ -221,6 +248,7 @@ export default function PhilIriPassageBank() {
               className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
             >
               <option value="All">All Sets</option>
+              <option value="Unassigned">Unassigned (Bank)</option>
               <option value="Set A">Set A</option>
               <option value="Set B">Set B</option>
               <option value="Set C">Set C</option>
@@ -291,7 +319,8 @@ export default function PhilIriPassageBank() {
         /* GRID VIEW (2 columns, matching Admin page) */
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
           {paginatedPassages.map((passage, idx) => {
-            const isFil = (passage.language || '').toLowerCase().includes('fil');
+            const langLower = (passage.language || '').toLowerCase().trim();
+            const isFil = langLower === 'fil' || langLower.startsWith('fil') || langLower === 'filipino';
             const isArchived = (passage.status || '').toLowerCase() === 'archived';
             const setBadgeStyle = SET_COLORS[passage.passage_set || passage.set] || 'bg-ink/5 text-ink';
             const qCount = passage.questions?.length || passage.question_count || 0;
@@ -312,10 +341,10 @@ export default function PhilIriPassageBank() {
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${setBadgeStyle}`}>
-                        {passage.passage_set || passage.set || 'Set A'}
+                        {passage.passage_set || passage.set || 'Unassigned'}
                       </span>
                       <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
-                        {passage.grade_level || passage.grade || 'Grade 4'}
+                        {passage.grade_level || passage.grade || 'Grade 1'}
                       </span>
                       <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[10px] font-medium text-ink/70">
                         {isFil ? 'Filipino' : 'English'}
@@ -381,7 +410,8 @@ export default function PhilIriPassageBank() {
               </thead>
               <tbody className="divide-y divide-ink/10">
                 {paginatedPassages.map((passage, idx) => {
-                  const isFil = (passage.language || '').toLowerCase().includes('fil');
+                  const langLower = (passage.language || '').toLowerCase().trim();
+                  const isFil = langLower === 'fil' || langLower.startsWith('fil') || langLower === 'filipino';
                   const setBadgeStyle = SET_COLORS[passage.passage_set || passage.set] || 'bg-ink/5 text-ink';
                   const wCount = passage.word_count || (passage.content_text ? passage.content_text.trim().split(/\s+/).length : 0);
 
@@ -389,7 +419,7 @@ export default function PhilIriPassageBank() {
                     <tr key={passage.passage_id || passage.id || idx} className="hover:bg-white/60 transition-colors">
                       <td className="px-5 py-3">
                         <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${setBadgeStyle}`}>
-                          {passage.passage_set || passage.set || 'Set A'}
+                          {passage.passage_set || passage.set || 'Unassigned'}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-bold text-ink">
@@ -397,7 +427,7 @@ export default function PhilIriPassageBank() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded-md bg-brand-blue/10 px-2 py-0.5 text-[10px] font-bold text-brand-blue">
-                          {passage.grade_level || passage.grade || 'Grade 4'}
+                          {passage.grade_level || passage.grade || 'Grade 1'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-ink/70">

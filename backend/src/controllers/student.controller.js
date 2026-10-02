@@ -251,6 +251,28 @@ async function getStudentByLrn(req, res) {
             }
           } catch (_) {}
 
+          // Oral adaptive sessions carry the three diagnostic grade boundaries.
+          try {
+            const { rows: adaptiveRows } = await db.query(
+              `SELECT DISTINCT ON (LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')))
+                 LOWER(COALESCE(language, 'fil')) AS language,
+                 LOWER(COALESCE(assessment_period, 'pre_test')) AS period,
+                 to_jsonb(s)->>'independent_level' AS "independentLevel",
+                 to_jsonb(s)->>'instructional_level' AS "instructionalLevel",
+                 COALESCE(to_jsonb(s)->>'frustration_level', to_jsonb(s)->>'frustrational_level') AS "frustrationalLevel",
+                 status
+               FROM phil_iri_adaptive_sessions s
+               WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'
+               ORDER BY LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')),
+                 CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 0 ELSE 1 END,
+                 completed_at DESC NULLS LAST, started_at DESC NULLS LAST`,
+              [studentId]
+            );
+            studentObj.oralAdaptiveProfiles = adaptiveRows || [];
+          } catch (_) {
+            studentObj.oralAdaptiveProfiles = [];
+          }
+
           // 2. Fetch real assessment performance attempts (Oral & Silent)
           const { rows: perfRows } = await db.query(
             `SELECT 
@@ -317,6 +339,7 @@ async function getStudentByLrn(req, res) {
                  a.assessment_id AS id,
                  p.title AS "passageTitle",
                  p.passage_set AS "passageSet",
+                 p.grade_level AS "passageGradeLevel",
                  COALESCE(p.language, 'fil') AS language,
                  LOWER(a.assessment_type) AS "assessmentType",
                  LOWER(a.assessment_period) AS "assessmentPeriod",
@@ -327,7 +350,9 @@ async function getStudentByLrn(req, res) {
                  aa.attempt_id,
                  aa.completed_at,
                  COALESCE(orr.accuracy_percentage, orr.fluency_score, 0) AS accuracy_score,
-                 COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score
+                 COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score,
+                 COALESCE(orr.reading_rate_wpm, 0) AS reading_rate_wpm,
+                 a.reading_level_result AS "readingLevelResult"
                FROM assessments a
                LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
                LEFT JOIN LATERAL (
@@ -359,6 +384,7 @@ async function getStudentByLrn(req, res) {
                 attemptId: r.attempt_id,
                 title: `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
                 passageTitle: r.passageTitle,
+                passageGradeLevel: r.passageGradeLevel,
                 assessmentType: r.assessmentType,
                 type: r.assessmentType,
                 language: r.language,
@@ -367,6 +393,8 @@ async function getStudentByLrn(req, res) {
                 status: r.status,
                 accuracyScore: Math.round(Number(r.accuracy_score || 0)),
                 comprehensionScore: Math.round(Number(r.comprehension_score || 0)),
+                readingSpeed: Math.round(Number(r.reading_rate_wpm || 0) / 60),
+                readingLevelResult: r.readingLevelResult,
                 completedAt: r.completed_at,
                 action: isDone ? 'View result' : 'Open',
               };
