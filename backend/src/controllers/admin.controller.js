@@ -2493,48 +2493,6 @@ async function deletePassage(req, res) {
 }
 
 /**
- * GET /api/admin/phil-iri/assessments — Fetch Phil-IRI Assessment status records
- */
-async function getPhilIriAssessments(req, res) {
-  try {
-    if (!process.env.DATABASE_URL) {
-      return res.json({ success: true, assessments: [], periods: memoryPeriods });
-    }
-
-    const schoolId = await getAdminSchoolId(req);
-    const { rows } = await db.query(`
-      SELECT 
-        s.student_id AS id,
-        s.lrn,
-        COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
-        COALESCE(c.grade_level, 'Grade 4') AS grade,
-        COALESCE(c.section_name, 'Unassigned') AS section,
-        COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
-        COALESCE(a.assessment_type, 'Oral Reading') AS type,
-        COALESCE(a.assessment_period, 'Pre-Test') AS period,
-        COALESCE(a.status, 'assigned') AS status,
-        TO_CHAR(a.date_assigned, 'YYYY-MM-DD') AS date_assigned
-      FROM students s
-      JOIN users u ON s.user_id = u.user_id
-      LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-      LEFT JOIN classes c ON sgh.class_id = c.class_id
-      LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
-      LEFT JOIN (
-        SELECT DISTINCT ON (student_id) student_id, assessment_type, assessment_period, status, date_assigned, reading_level_result
-        FROM assessments
-        ORDER BY student_id, created_at DESC
-      ) a ON a.student_id = s.student_id
-      WHERE u.school_id = $1
-      ORDER BY COALESCE(s.last_name, s.lrn) ASC
-    `, [schoolId]);
-
-    return res.json({ success: true, assessments: rows, periods: memoryPeriods });
-  } catch (error) {
-    console.error('Error fetching Phil-IRI assessments:', error);
-    return res.status(500).json({ success: false, error: 'Failed to fetch assessments.' });
-  }
-}
-
 /**
  * GET /api/admin/phil-iri/periods — Fetch screening periods
  */
@@ -2750,7 +2708,6 @@ module.exports = {
   createPassage,
   updatePassage,
   deletePassage,
-  getPhilIriAssessments,
   getPhilIriPeriods,
   updatePhilIriPeriods,
   getGstFormSubmission,

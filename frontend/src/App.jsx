@@ -46,7 +46,6 @@ import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
 import AdminAccountRequests from './pages/admin/AdminAccountRequests.jsx';
 import AdminPhilIriReports from './pages/admin/AdminPhilIriReports.jsx';
 import AdminPhilIriPassages from './pages/admin/AdminPhilIriPassages.jsx';
-import AdminPhilIriAssessment from './pages/admin/AdminPhilIriAssessment.jsx';
 import AdminNotifications from './pages/admin/AdminNotifications.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
 import AdminRecordsLayout from './pages/admin/AdminRecordsLayout.jsx';
@@ -114,8 +113,7 @@ export default function App() {
 
         {/* Phil-IRI Group — layout with sub-tabs inside */}
         <Route path="phil-iri" element={<AdminPhilIriLayout />}>
-          <Route index element={<Navigate to="assessment" replace />} />
-          <Route path="assessment" element={<AdminPhilIriAssessment />} />
+          <Route index element={<Navigate to="reports" replace />} />
           <Route path="passages" element={<AdminPhilIriPassages />} />
           <Route path="reports" element={<AdminPhilIriReports />} />
           <Route path="form-2" element={<PhilIriForm2 />} />
@@ -132,7 +130,7 @@ export default function App() {
         <Route path="teachers" element={<Navigate to="/admin/records/teachers" replace />} />
         <Route path="faculty-assignment" element={<Navigate to="/admin/sections/list" replace />} />
         <Route path="reports" element={<Navigate to="/admin/phil-iri/reports" replace />} />
-        <Route path="activities" element={<Navigate to="/admin/phil-iri/assessment" replace />} />
+        <Route path="activities" element={<Navigate to="/admin/phil-iri/reports" replace />} />
         <Route path="settings" element={<Navigate to="/admin/account" replace />} />
         <Route path="profile" element={<Navigate to="/admin/account" replace />} />
       </Route>

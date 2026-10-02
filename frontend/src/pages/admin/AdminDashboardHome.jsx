@@ -450,7 +450,7 @@ export default function AdminDashboardHome() {
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
         <div className="flex items-center justify-between gap-3 border-b border-ink/10 pb-3">
           <div className="flex items-center gap-2"><ClipboardText size={20} className="text-brand-red" /><div><h2 className="text-sm font-bold text-ink">Phil-IRI Implementation Status</h2><p className="text-xs text-ink/50">School workflow progress for GST and teacher-reviewed assessments</p></div></div>
-          <button type="button" onClick={() => navigate('/admin/phil-iri/assessment')} className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"><span>Manage Phil-IRI</span><ArrowRight size={12} /></button>
+          <button type="button" onClick={() => navigate('/admin/phil-iri/reports')} className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"><span>View Reports</span><ArrowRight size={12} /></button>
         </div>
         {loadingAnalytics ? <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-ink/5" />)}</div> : <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">{[
           ['GST Forms Submitted', analytics?.gstForms || 0, FileCsv, 'text-amber-700 bg-amber-100'],
