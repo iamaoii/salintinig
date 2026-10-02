@@ -568,24 +568,173 @@ export default function AdminStudentRecords() {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const csvHeader = 'LRN,First Name,Middle Name,Last Name,Gender,Grade Level,Section,Student Email,Parent Email\n';
-    const row1 = '136670100091,Juan,Santos,Dela Cruz,Male,Grade 4,Fyang,juan.delacruz@salintinig.edu.ph,parent.136670100091@gmail.com\n';
-    const row2 = '136670100092,Maria,Clara,Santos,Female,Grade 4,Kalapati,maria.santos@salintinig.edu.ph,parent.136670100092@gmail.com\n';
-    
-    const csvData = csvHeader + row1 + row2;
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+  const handleDownloadTemplate = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'SalinTinig System';
+      workbook.lastModifiedBy = 'SalinTinig Admin';
+      workbook.created = new Date();
 
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'SalinTinig_Student_Import_Template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      // Sheet 1: Student Import Template
+      const worksheet = workbook.addWorksheet('Student Import List', {
+        views: [{ showGridLines: true }],
+      });
 
-    showToast('Student CSV Template downloaded.');
+      // Columns definition with auto-fit widths & numFmt @ for text LRNs
+      worksheet.columns = [
+        { header: 'LRN', key: 'lrn', width: 22, style: { numFmt: '@' } },
+        { header: 'First Name', key: 'firstName', width: 20 },
+        { header: 'Middle Name', key: 'middleName', width: 20 },
+        { header: 'Last Name', key: 'lastName', width: 20 },
+        { header: 'Gender', key: 'gender', width: 14 },
+        { header: 'Grade Level', key: 'grade', width: 16 },
+        { header: 'Section', key: 'section', width: 18 },
+        { header: 'Student Email', key: 'studentEmail', width: 32 },
+        { header: 'Parent Email', key: 'parentEmail', width: 34 },
+      ];
+
+      // Style Header Row (Row 1)
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 28;
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF334155' }, // Simple Slate Dark
+        };
+        cell.font = {
+          name: 'Calibri',
+          size: 11,
+          bold: true,
+          color: { argb: 'FFFFFFFF' }, // White
+        };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: 'left',
+          wrapText: true,
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF1E293B' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF475569' } },
+          right: { style: 'thin', color: { argb: 'FF475569' } },
+        };
+      });
+
+      // Add Sample Data Rows
+      const sampleRows = [
+        {
+          lrn: '136670100091',
+          firstName: 'Juan',
+          middleName: 'Santos',
+          lastName: 'Dela Cruz',
+          gender: 'Male',
+          grade: 'Grade 4',
+          section: 'Fyang',
+          studentEmail: 'juan.delacruz@salintinig.edu.ph',
+          parentEmail: 'parent.136670100091@gmail.com',
+        },
+        {
+          lrn: '136670100092',
+          firstName: 'Maria',
+          middleName: 'Clara',
+          lastName: 'Santos',
+          gender: 'Female',
+          grade: 'Grade 4',
+          section: 'Kalapati',
+          studentEmail: 'maria.santos@salintinig.edu.ph',
+          parentEmail: 'parent.136670100092@gmail.com',
+        },
+      ];
+
+      sampleRows.forEach((rowData) => {
+        const row = worksheet.addRow(rowData);
+        row.height = 22;
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Calibri', size: 10.5 };
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          };
+          // Explicitly set LRN cell as text format to prevent scientific notation 1.37E+11
+          if (colNumber === 1) {
+            cell.numFmt = '@';
+            cell.value = String(rowData.lrn);
+          }
+        });
+      });
+
+      // Sheet 2: Instructions & Field Rules
+      const guideSheet = workbook.addWorksheet('Upload Instructions', {
+        views: [{ showGridLines: true }],
+      });
+      guideSheet.columns = [
+        { header: 'Column Name', key: 'col', width: 22 },
+        { header: 'Required?', key: 'req', width: 18 },
+        { header: 'Accepted Format / Valid Values', key: 'fmt', width: 45 },
+        { header: 'Description & Guidance', key: 'desc', width: 50 },
+      ];
+
+      const gHeader = guideSheet.getRow(1);
+      gHeader.height = 26;
+      gHeader.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+
+      const instructions = [
+        { col: 'LRN', req: 'YES (Mandatory)', fmt: 'Exactly 12 digits (e.g. 136670100091)', desc: 'Official DepEd Learner Reference Number. Must be unique in system.' },
+        { col: 'First Name', req: 'YES (Mandatory)', fmt: 'Text (e.g. Juan)', desc: 'Student given first name.' },
+        { col: 'Middle Name', req: 'Optional', fmt: 'Text (e.g. Santos)', desc: 'Student middle name or initial.' },
+        { col: 'Last Name', req: 'YES (Mandatory)', fmt: 'Text (e.g. Dela Cruz)', desc: 'Student surname.' },
+        { col: 'Gender', req: 'YES (Mandatory)', fmt: 'Male or Female', desc: 'Student sex / gender.' },
+        { col: 'Grade Level', req: 'YES (Mandatory)', fmt: 'Grade 1 to Grade 7', desc: 'Must match an existing school grade level.' },
+        { col: 'Section', req: 'YES (Mandatory)', fmt: 'Text (e.g. Fyang, Kalapati)', desc: 'Must match an existing section name under the specified Grade Level.' },
+        { col: 'Student Email', req: 'Optional', fmt: 'Valid email address', desc: 'Student personal or school email address.' },
+        { col: 'Parent Email', req: 'Optional', fmt: 'Valid email address', desc: 'Parent or guardian contact email.' },
+      ];
+
+      instructions.forEach((ins) => {
+        const row = guideSheet.addRow(ins);
+        row.height = 20;
+        row.eachCell((cell, colIdx) => {
+          cell.font = { name: 'Calibri', size: 10 };
+          cell.alignment = { vertical: 'middle', horizontal: colIdx === 2 ? 'center' : 'left' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          };
+          if (colIdx === 2) {
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: ins.req.startsWith('YES') ? 'FFD97706' : 'FF64748B' } };
+          }
+        });
+      });
+
+      // Write to Excel file buffer & trigger browser download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'SalinTinig_Student_Import_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('Student Excel Template (.xlsx) downloaded successfully.');
+    } catch (err) {
+      console.error('Error generating Excel template:', err);
+      showToast('Failed to generate template.');
+    }
   };
 
   return (

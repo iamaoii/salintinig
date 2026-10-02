@@ -2135,6 +2135,20 @@ async function updateAdminInfo(req, res) {
  */
 async function getPhilIriAnalytics(req, res) {
   try {
+    const workflow = { gstForms: 0, assessmentsAssigned: 0, completedAttempts: 0, awaitingReview: 0 };
+    if (process.env.DATABASE_URL) {
+      const schoolId = await getAdminSchoolId(req);
+      const { rows } = await db.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM gst_form_submissions WHERE school_id = $1) AS "gstForms",
+          (SELECT COUNT(*)::int FROM assessments a JOIN students s ON s.student_id = a.student_id JOIN users u ON u.user_id = s.user_id WHERE u.school_id = $1 AND LOWER(COALESCE(a.status, 'open')) != 'cancelled') AS "assessmentsAssigned",
+          (SELECT COUNT(*)::int FROM assessment_attempts aa JOIN assessments a ON a.assessment_id = aa.assessment_id JOIN students s ON s.student_id = a.student_id JOIN users u ON u.user_id = s.user_id WHERE u.school_id = $1 AND LOWER(COALESCE(aa.status, '')) IN ('completed', 'verified')) AS "completedAttempts",
+          (SELECT COUNT(*)::int FROM assessment_attempts aa JOIN assessments a ON a.assessment_id = aa.assessment_id JOIN students s ON s.student_id = a.student_id JOIN users u ON u.user_id = s.user_id WHERE u.school_id = $1 AND LOWER(COALESCE(aa.status, '')) IN ('submitted', 'pending_review')) AS "awaitingReview"
+      `, [schoolId]);
+      Object.assign(workflow, rows[0] || {});
+    }
+    return res.json({ success: true, analytics: workflow });
+
     let analytics = {
       summary: {
         totalEvaluated: 0,
