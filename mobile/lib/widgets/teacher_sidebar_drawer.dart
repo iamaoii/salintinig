@@ -107,7 +107,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
               // Nav Item 3: Phil-IRI Records
               _buildNavItem(
                 context,
-                icon: Ph.exam,
+                icon: Ph.article,
                 label: 'Phil-IRI Records',
                 isSelected: activeRoute == 'Phil-IRI Records',
                 onTap: () {

@@ -194,7 +194,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                     Row(
                       children: [
                         const Iconify(
-                          Ph.files_bold,
+                          Ph.article_bold,
                           color: Color(0xFFD34426),
                           size: 24,
                         ),

@@ -487,7 +487,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         Expanded(
           child: _buildQuickAccessCard(
             label: 'Phil - IRI\nRecords',
-            icon: Ph.files_bold,
+            icon: Ph.article_bold,
             onTap: () {
               Feedback.forTap(context);
               Navigator.push(
@@ -1006,7 +1006,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
             Row(
               children: [
                 Iconify(
-                  PhIcons.examBold,
+                  PhIcons.flagPennantBold,
                   color: const Color(0xFFD34426),
                   size: 24,
                 ),
