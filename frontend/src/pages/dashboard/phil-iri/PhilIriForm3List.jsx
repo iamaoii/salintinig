@@ -6,6 +6,7 @@ import { UsersThree, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import { PhilIriForm3ListSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
+import { getCompactPageItems } from '../../../lib/pagination.js';
 
 export default function PhilIriForm3List({ formKey, label }) {
   const navigate = useNavigate();
@@ -134,7 +135,9 @@ export default function PhilIriForm3List({ formKey, label }) {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                  ) : (
                     <button
                       key={pg}
                       type="button"

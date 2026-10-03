@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE SET NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'student', 'parent')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'student', 'parent', 'super_admin')),
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     must_change_password BOOLEAN DEFAULT FALSE,
     profile_image TEXT,
@@ -211,13 +211,17 @@ CREATE TABLE IF NOT EXISTS phil_iri_adaptive_sessions (
     student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
     language VARCHAR(20) NOT NULL DEFAULT 'fil',           -- 'fil' or 'en'
     assessment_type VARCHAR(50) NOT NULL,                  -- 'oral', 'listening', 'silent'
+    assessment_period VARCHAR(50) NOT NULL DEFAULT 'pre_test', -- 'pre_test' or 'post_test'
     baseline_grade_level VARCHAR(50) NOT NULL,             -- Student's enrolled grade level at start of Phase 2
     baseline_profile_level VARCHAR(50),                    -- Phase 1 result that triggered Phase 2 ('Independent' or 'Frustration')
     current_grade_level VARCHAR(50) NOT NULL,              -- Grade level of the most recent adaptive assessment
     direction VARCHAR(20),                                 -- 'stepping_up' or 'stepping_down'
     status VARCHAR(50) NOT NULL DEFAULT 'in_progress',     -- 'in_progress' or 'completed'
-    final_instructional_level VARCHAR(50),                 -- The identified instructional grade level (set on completion)
-    final_profile_level VARCHAR(50),                       -- Final profile at the identified level ('Instructional', 'Frustration' at boundary)
+    independent_level VARCHAR(50),                         -- Grade of highest confirmed Independent passage
+    instructional_level VARCHAR(50),                       -- Grade of confirmed Instructional passage
+    frustration_level VARCHAR(50),                         -- Grade of lowest confirmed Frustration passage
+    search_state VARCHAR(50) DEFAULT 'INITIAL_PASSAGE',    -- Adaptive state-machine state
+    terminal_reason VARCHAR(100),                           -- Boundary/review/override reason
     step_count INT DEFAULT 0,                              -- Number of adaptive steps taken
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
     school_year_id UUID REFERENCES school_years(school_year_id) ON DELETE SET NULL,
@@ -227,9 +231,23 @@ CREATE TABLE IF NOT EXISTS phil_iri_adaptive_sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Keep already-provisioned databases compatible with the standardized
+-- three-tier adaptive workflow. CREATE TABLE IF NOT EXISTS alone does not add
+-- columns to an existing table.
+ALTER TABLE phil_iri_adaptive_sessions
+    DROP COLUMN IF EXISTS final_instructional_level,
+    DROP COLUMN IF EXISTS final_profile_level,
+    ADD COLUMN IF NOT EXISTS assessment_period VARCHAR(50) NOT NULL DEFAULT 'pre_test',
+    ADD COLUMN IF NOT EXISTS independent_level VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS instructional_level VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS frustration_level VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS search_state VARCHAR(50) DEFAULT 'INITIAL_PASSAGE',
+    ADD COLUMN IF NOT EXISTS terminal_reason VARCHAR(100);
+
 -- Only one active (in_progress) adaptive session per student per language/type
+DROP INDEX IF EXISTS idx_adaptive_session_active;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_adaptive_session_active
-    ON phil_iri_adaptive_sessions(student_id, language, assessment_type)
+    ON phil_iri_adaptive_sessions(student_id, language, assessment_type, assessment_period)
     WHERE status = 'in_progress';
 
 CREATE INDEX IF NOT EXISTS idx_adaptive_sessions_student ON phil_iri_adaptive_sessions(student_id);
@@ -244,6 +262,7 @@ CREATE TABLE IF NOT EXISTS assessments (
     assigned_by_teacher_id UUID REFERENCES teachers(teacher_id) ON DELETE SET NULL,
     adaptive_session_id UUID REFERENCES phil_iri_adaptive_sessions(session_id) ON DELETE SET NULL, -- NULL = Phase 1 screening; set = Phase 2 adaptive step
     adaptive_step_number INT DEFAULT NULL,                 -- Step number within an adaptive session (1, 2, 3 ...)
+    adaptive_passage_grade_level VARCHAR(50),              -- Explicit adaptive target grade, if assigned outside a passage row
     assessment_type VARCHAR(50) NOT NULL,                  -- 'oral', 'silent', or 'listening'
     assessment_period VARCHAR(50) NOT NULL,                -- 'pre_test' or 'post_test'
     date_assigned TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -255,6 +274,9 @@ CREATE TABLE IF NOT EXISTS assessments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE assessments
+    ADD COLUMN IF NOT EXISTS adaptive_passage_grade_level VARCHAR(50);
 
 CREATE TABLE IF NOT EXISTS assessment_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -601,4 +623,3 @@ CREATE INDEX IF NOT EXISTS idx_sentence_bank_difficulty ON sentence_bank(difficu
 CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_student ON pronunciation_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_attempts_student ON vocabulary_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_sentence_attempts_student ON sentence_attempts(student_id, session_id);
-

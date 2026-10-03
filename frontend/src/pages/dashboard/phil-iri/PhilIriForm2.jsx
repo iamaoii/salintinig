@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { DownloadSimple } from '@phosphor-icons/react';
+import { jsPDF } from 'jspdf';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { PhilIriForm2Skeleton } from '../../../components/common/Skeleton.jsx';
 import { getApiUrl } from '../../../config/api.js';
 import { getToken } from '../../../lib/auth.js';
 import cacheService from '../../../services/cacheService.js';
-import * as XLSX from 'xlsx';
 
 export default function PhilIriForm2() {
   const [toastMessage, setToastMessage] = useState(null);
@@ -462,6 +462,145 @@ export default function PhilIriForm2() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const widths = [42, 78, 56, 52.5, 52.5];
+      const x = [margin];
+      widths.forEach((width) => x.push(x[x.length - 1] + width));
+      const center = (text, left, width, y) => pdf.text(String(text ?? ''), left + width / 2, y, { align: 'center' });
+      const cell = (left, top, width, height, options = {}) => {
+        const { fill, text = '', align = 'center', bold = false, size = 7.5 } = options;
+        if (fill) {
+          pdf.setFillColor(...fill);
+          pdf.rect(left, top, width, height, 'F');
+        }
+        pdf.setDrawColor(145, 145, 145);
+        pdf.rect(left, top, width, height);
+        pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+        pdf.setFontSize(size);
+        pdf.setTextColor(20, 20, 20);
+        if (text !== '') {
+          const textX = align === 'left' ? left + 2.5 : left + width / 2;
+          pdf.text(String(text), textX, top + height / 2 + 1.2, { align: align === 'left' ? 'left' : 'center' });
+        }
+      };
+      const scoreHeader = (left, width, greaterThan) => {
+        const baseline = tableTop + 11.6;
+        const glyph = String.fromCharCode(greaterThan ? 0xB3 : 0xA3);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7);
+        pdf.setTextColor(20, 20, 20);
+        const labelWidth = pdf.getTextWidth('MARKANG');
+        pdf.setFont('symbol', 'normal');
+        pdf.setFontSize(9);
+        const glyphWidth = pdf.getTextWidth(glyph);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7);
+        const numberWidth = pdf.getTextWidth('14');
+        const gap = 1.6;
+        let textX = left + (width - labelWidth - glyphWidth - numberWidth - gap * 2) / 2;
+        pdf.text('MARKANG', textX, baseline);
+        textX += labelWidth + gap;
+        pdf.setFont('symbol', 'normal');
+        pdf.setFontSize(9);
+        pdf.text(glyph, textX, baseline);
+        textX += glyphWidth + gap;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7);
+        pdf.text('14', textX, baseline);
+      };
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(45, 45, 45);
+      pdf.setFontSize(7);
+      pdf.text('PHIL-IRI FORM 2', pageWidth - margin, 10, { align: 'right' });
+      pdf.setFontSize(9);
+      center('TALAAN NG PAARALAN SA PAGBABASA (TPP) /', margin, pageWidth - margin * 2, 14);
+      center('SCHOOL READING PROFILE (SRP)', margin, pageWidth - margin * 2, 18);
+
+      pdf.setFontSize(7.5);
+      pdf.text('School:', margin, 26);
+      pdf.text(dbSchoolInfo.school || '', margin + 13, 26);
+      pdf.line(margin + 13, 27, margin + 135, 27);
+      pdf.text('Division:', margin + 145, 26);
+      pdf.text(dbSchoolInfo.division || '', margin + 160, 26);
+      pdf.line(margin + 160, 27, pageWidth - margin, 27);
+      pdf.text('District:', margin, 33);
+      pdf.text(dbSchoolInfo.district || '', margin + 13, 33);
+      pdf.line(margin + 13, 34, margin + 135, 34);
+      pdf.text('Region:', margin + 145, 33);
+      pdf.text(dbSchoolInfo.region || '', margin + 160, 33);
+      pdf.line(margin + 160, 34, pageWidth - margin, 34);
+
+      const tableTop = 41;
+      const headerFill = [226, 226, 226];
+      const gradeFill = [212, 212, 212];
+      const yellowFill = [254, 240, 138];
+      cell(x[0], tableTop, widths[0], 14, { fill: gradeFill, text: 'GRADE', bold: true });
+      cell(x[1], tableTop, widths[1], 14, { fill: headerFill, text: 'SECTIONS', align: 'left', bold: true });
+      cell(x[2], tableTop, widths[2], 14, { fill: gradeFill, text: 'ENROLMENT', bold: true });
+      cell(x[3], tableTop, widths[3] + widths[4], 7, { fill: headerFill, text: 'SCORE (MARKA)', bold: true });
+      cell(x[3], tableTop + 7, widths[3], 7, { fill: headerFill });
+      cell(x[4], tableTop + 7, widths[4], 7, { fill: headerFill });
+      scoreHeader(x[3], widths[3], true);
+      scoreHeader(x[4], widths[4], false);
+
+      let y = tableTop + 14;
+      rowsData.forEach((block) => {
+        const gradeRows = [{ summary: true, section: '', enrolment: block.total.enrolment, above14: block.total.above14, below14: block.total.below14 }, ...block.sections];
+        gradeRows.forEach((row, index) => {
+          const height = 7.25;
+          const summary = index === 0;
+          cell(x[0], y, widths[0], height, { fill: summary ? gradeFill : gradeFill, text: summary ? block.grade : '', bold: summary });
+          cell(x[1], y, widths[1], height, { fill: summary ? yellowFill : null, text: row.section || '', align: 'left', bold: !row.isEmpty && !summary });
+          cell(x[2], y, widths[2], height, { fill: summary ? yellowFill : [234, 234, 234], text: row.enrolment, align: 'right', bold: summary });
+          cell(x[3], y, widths[3], height, { fill: summary ? yellowFill : null, text: row.above14, align: 'right', bold: summary });
+          cell(x[4], y, widths[4], height, { fill: summary ? yellowFill : null, text: row.below14, align: 'right', bold: summary });
+          y += height;
+        });
+      });
+
+      const totalHeight = 8;
+      pdf.setFillColor(16, 124, 65);
+      pdf.rect(margin, y, pageWidth - margin * 2, totalHeight, 'F');
+      pdf.setDrawColor(16, 124, 65);
+      pdf.rect(margin, y, pageWidth - margin * 2, totalHeight);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.text('TOTAL (KABUUANG PAARALAN)', margin + 3, y + 5, { align: 'left' });
+      center(calculatedTotals.enrolment, x[2], widths[2], y + 5);
+      center(calculatedTotals.above14, x[3], widths[3], y + 5);
+      center(calculatedTotals.below14, x[4], widths[4], y + 5);
+
+      const signatureY = Math.min(y + 23, pageHeight - 14);
+      pdf.setTextColor(45, 45, 45);
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
+      pdf.text('Inihanda ni (Prepared):', 63, signatureY, { align: 'right' });
+      pdf.line(67, signatureY + 1, 117, signatureY + 1);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Phil-IRI Coordinator', 92, signatureY + 7, { align: 'center' });
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Binigyang-pansin (Noted):', 187, signatureY, { align: 'right' });
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(dbSchoolInfo.principalName || '', 219, signatureY, { align: 'center' });
+      pdf.line(193, signatureY + 1, 246, signatureY + 1);
+      pdf.setFontSize(7);
+      pdf.text('Punong-guro (School Principal)', 219, signatureY + 7, { align: 'center' });
+      pdf.save('Phil-IRI_Form_2_School_Reading_Profile.pdf');
+      triggerToast('Downloaded Phil-IRI Form 2 as PDF.');
+    } catch (error) {
+      console.error('Failed to generate Form 2 PDF:', error);
+      triggerToast('Failed to generate the PDF file.', 'error');
+    }
+  };
+
   if (loading) {
     return <PhilIriForm2Skeleton rows={6} />;
   }
@@ -506,6 +645,14 @@ export default function PhilIriForm2() {
           >
             <DownloadSimple size={16} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
+          >
+            <DownloadSimple size={16} weight="bold" className="text-brand-red" />
+            <span>Download PDF</span>
           </button>
         </div>
       </div>
@@ -661,4 +808,3 @@ export default function PhilIriForm2() {
     </div>
   );
 }
-

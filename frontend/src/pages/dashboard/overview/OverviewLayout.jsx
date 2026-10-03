@@ -3,7 +3,6 @@ import Sidebar from '../../../components/dashboard/layout/Sidebar.jsx';
 
 const TABS = [
   { to: '/teacher/overview/forms', label: 'Forms' },
-  { to: '/teacher/overview/activities', label: 'Activities' },
   { to: '/teacher/overview/people', label: 'People' },
 ];
 

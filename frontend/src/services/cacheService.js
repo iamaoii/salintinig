@@ -6,7 +6,9 @@
 class CacheService {
   constructor() {
     this.memoryCache = new Map();
-    this.prefix = 'salintinig_cache_';
+    // Bump the namespace whenever cached response shapes or access boundaries
+    // change.  This prevents an old, unscoped teacher cache from being reused.
+    this.prefix = 'salintinig_cache_v3_';
     this.maxEntries = 50;
     this.isSessionStorageAvailable = this._checkStorageSupport();
   }

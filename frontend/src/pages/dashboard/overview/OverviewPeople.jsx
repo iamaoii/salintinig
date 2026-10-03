@@ -81,6 +81,18 @@ export default function OverviewPeople() {
     fetchOverviewData();
   }, []);
 
+  useEffect(() => {
+    const handleAvatarUpdate = (event) => {
+      setTeacherInfo((prev) => ({
+        ...prev,
+        avatar: event.detail || localStorage.getItem('teacherAvatarCache') || prev.avatar,
+      }));
+    };
+
+    window.addEventListener('userAvatarChanged', handleAvatarUpdate);
+    return () => window.removeEventListener('userAvatarChanged', handleAvatarUpdate);
+  }, []);
+
   const totalStudents = students.length;
   const pageCount = Math.max(1, Math.ceil(students.length / PAGE_SIZE));
   const pageStudents = students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

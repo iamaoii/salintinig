@@ -251,6 +251,28 @@ async function getStudentByLrn(req, res) {
             }
           } catch (_) {}
 
+          // Oral adaptive sessions carry the three diagnostic grade boundaries.
+          try {
+            const { rows: adaptiveRows } = await db.query(
+              `SELECT DISTINCT ON (LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')))
+                 LOWER(COALESCE(language, 'fil')) AS language,
+                 LOWER(COALESCE(assessment_period, 'pre_test')) AS period,
+                 to_jsonb(s)->>'independent_level' AS "independentLevel",
+                 to_jsonb(s)->>'instructional_level' AS "instructionalLevel",
+                 COALESCE(to_jsonb(s)->>'frustration_level', to_jsonb(s)->>'frustrational_level') AS "frustrationalLevel",
+                 status
+               FROM phil_iri_adaptive_sessions s
+               WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'
+               ORDER BY LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')),
+                 CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 0 ELSE 1 END,
+                 completed_at DESC NULLS LAST, started_at DESC NULLS LAST`,
+              [studentId]
+            );
+            studentObj.oralAdaptiveProfiles = adaptiveRows || [];
+          } catch (_) {
+            studentObj.oralAdaptiveProfiles = [];
+          }
+
           // 2. Fetch real assessment performance attempts (Oral & Silent)
           const { rows: perfRows } = await db.query(
             `SELECT 
@@ -317,6 +339,7 @@ async function getStudentByLrn(req, res) {
                  a.assessment_id AS id,
                  p.title AS "passageTitle",
                  p.passage_set AS "passageSet",
+                 p.grade_level AS "passageGradeLevel",
                  COALESCE(p.language, 'fil') AS language,
                  LOWER(a.assessment_type) AS "assessmentType",
                  LOWER(a.assessment_period) AS "assessmentPeriod",
@@ -327,7 +350,9 @@ async function getStudentByLrn(req, res) {
                  aa.attempt_id,
                  aa.completed_at,
                  COALESCE(orr.accuracy_percentage, orr.fluency_score, 0) AS accuracy_score,
-                 COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score
+                 COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score,
+                 COALESCE(orr.reading_rate_wpm, 0) AS reading_rate_wpm,
+                 a.reading_level_result AS "readingLevelResult"
                FROM assessments a
                LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
                LEFT JOIN LATERAL (
@@ -359,6 +384,7 @@ async function getStudentByLrn(req, res) {
                 attemptId: r.attempt_id,
                 title: `${typeLabel} Assessment (${periodLabel} - ${langLabel})`,
                 passageTitle: r.passageTitle,
+                passageGradeLevel: r.passageGradeLevel,
                 assessmentType: r.assessmentType,
                 type: r.assessmentType,
                 language: r.language,
@@ -367,6 +393,8 @@ async function getStudentByLrn(req, res) {
                 status: r.status,
                 accuracyScore: Math.round(Number(r.accuracy_score || 0)),
                 comprehensionScore: Math.round(Number(r.comprehension_score || 0)),
+                readingSpeed: Math.round(Number(r.reading_rate_wpm || 0) / 60),
+                readingLevelResult: r.readingLevelResult,
                 completedAt: r.completed_at,
                 action: isDone ? 'View result' : 'Open',
               };
@@ -1006,6 +1034,24 @@ async function importStudentsCSV(req, res) {
       };
 
       if (isDbConfigured()) {
+        const preflightSchoolId = await getAdminSchoolId(req);
+        const { rows: activeClassRows } = await db.query(
+          `SELECT c.class_id
+           FROM classes c
+           JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+           WHERE (c.school_id = $1 OR c.school_id IS NULL)
+             AND LOWER(c.grade_level) = LOWER($2)
+             AND LOWER(c.section_name) = LOWER($3)
+           LIMIT 1`,
+          [preflightSchoolId, grade, section]
+        );
+        if (!activeClassRows[0]) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid grade/section "${grade || 'blank'} - ${section || 'blank'}" on row ${index + 1}. It must exist in the active school year.`,
+          });
+        }
+
         try {
           const bcrypt = require('bcryptjs');
           const salt = bcrypt.genSaltSync(10);
@@ -1068,8 +1114,14 @@ async function importStudentsCSV(req, res) {
               // Ensure class/section strictly exists in database (do NOT auto-create invalid section names)
               let classId = null;
               const { rows: existingClass } = await db.query(
-                `SELECT class_id FROM classes WHERE LOWER(grade_level) = LOWER($1) AND LOWER(section_name) = LOWER($2) LIMIT 1`,
-                [grade, section]
+                `SELECT c.class_id
+                 FROM classes c
+                 JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+                 WHERE (c.school_id = $1 OR c.school_id IS NULL)
+                   AND LOWER(c.grade_level) = LOWER($2)
+                   AND LOWER(c.section_name) = LOWER($3)
+                 LIMIT 1`,
+                [adminSchoolId, grade, section]
               );
 
               if (existingClass && existingClass[0]) {
@@ -1730,25 +1782,50 @@ async function submitPhilIriAssessment(req, res) {
             const session = sessRes.rows?.[0];
 
             if (session && session.status === 'in_progress') {
-              const progression = evaluateNextStep(passageGradeLevel, newLevel);
+              // Fetch prior assessed attempts for this adaptive session to maintain DepEd Plan v2 multi-level profile history
+              const priorAttemptsRes = await db.query(
+                `SELECT p.grade_level AS "gradeLevel", a.reading_level_result AS classification
+                 FROM assessments a
+                 JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+                 WHERE a.adaptive_session_id = $1 AND a.reading_level_result IS NOT NULL`,
+                [targetSessionId]
+              );
+              const existingAttempts = (priorAttemptsRes.rows || []).map((r) => ({
+                gradeLevel: r.gradeLevel,
+                classification: r.classification,
+                isVoided: false,
+              }));
+
+              const progression = evaluateNextStep(passageGradeLevel, newLevel, {
+                currentState: session.search_state || 'INITIAL_PASSAGE',
+                language: passageLang || 'fil',
+                existingAttempts,
+              });
               const newStepCount = (session.step_count || 0) + 1;
 
               if (progression.action === 'complete') {
-                // ── Session COMPLETE ──
+                // ── Session COMPLETE or TERMINATED ──
                 await db.query(
                   `UPDATE phil_iri_adaptive_sessions SET
                      current_grade_level = $1,
-                     status = 'completed',
-                     final_instructional_level = $2,
-                     final_profile_level = $3,
-                     step_count = $4,
+                     status = $2,
+                     independent_level = $3,
+                     instructional_level = $4,
+                     frustration_level = $5,
+                     search_state = $6,
+                     terminal_reason = $7,
+                     step_count = $8,
                      completed_at = CURRENT_TIMESTAMP,
                      updated_at = CURRENT_TIMESTAMP
-                   WHERE session_id = $5`,
+                   WHERE session_id = $9`,
                   [
                     passageGradeLevel,
-                    progression.finalLevel,
-                    progression.finalProfileLevel,
+                    progression.status === 'COMPLETE' ? 'completed' : 'terminated',
+                    progression.profile?.independentLevel || session.independent_level || null,
+                    progression.profile?.instructionalLevel || session.instructional_level || progression.finalLevel || null,
+                    progression.profile?.frustrationLevel || session.frustration_level || null,
+                    progression.nextState || 'COMPLETE',
+                    progression.terminalReason || null,
                     newStepCount,
                     targetSessionId,
                   ]
@@ -1799,7 +1876,18 @@ async function submitPhilIriAssessment(req, res) {
                 } catch (_) {}
 
                 adaptiveProgression = {
-                  ...buildSessionSummary({ ...session, status: 'completed', final_instructional_level: progression.finalLevel, final_profile_level: progression.finalProfileLevel, step_count: newStepCount }),
+                  ...buildSessionSummary({
+                    ...session,
+                    status: progression.status === 'COMPLETE' ? 'completed' : 'terminated',
+                    final_instructional_level: progression.finalLevel,
+                    final_profile_level: progression.finalProfileLevel,
+                    independent_level: progression.profile?.independentLevel,
+                    instructional_level: progression.profile?.instructionalLevel,
+                    frustration_level: progression.profile?.frustrationLevel,
+                    search_state: progression.nextState,
+                    terminal_reason: progression.terminalReason,
+                    step_count: newStepCount,
+                  }),
                   nextAction: 'complete',
                   nextGradeLevel: null,
                   currentResult: newLevel,
@@ -1814,12 +1902,20 @@ async function submitPhilIriAssessment(req, res) {
                   `UPDATE phil_iri_adaptive_sessions SET
                      current_grade_level = $1,
                      direction = $2,
-                     step_count = $3,
+                     independent_level = COALESCE($3, independent_level),
+                     instructional_level = COALESCE($4, instructional_level),
+                     frustration_level = COALESCE($5, frustration_level),
+                     search_state = $6,
+                     step_count = $7,
                      updated_at = CURRENT_TIMESTAMP
-                   WHERE session_id = $4`,
+                   WHERE session_id = $8`,
                   [
                     passageGradeLevel,
                     session.direction || (progression.action === 'stepUp' ? 'stepping_up' : 'stepping_down'),
+                    progression.profile?.independentLevel || null,
+                    progression.profile?.instructionalLevel || null,
+                    progression.profile?.frustrationLevel || null,
+                    progression.nextState,
                     newStepCount,
                     targetSessionId,
                   ]
@@ -2521,12 +2617,41 @@ async function getStudentActiveAssignment(req, res) {
       }
     }
 
+    // Stage 2 oral assessment returns a three-boundary adaptive profile,
+    // not a single overall Phil-IRI level.
+    let oralAdaptiveProfiles = [];
+    if (targetStudentId) {
+      try {
+        const { rows } = await db.query(
+          `SELECT DISTINCT ON (LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')))
+             LOWER(COALESCE(language, 'fil')) AS language,
+             LOWER(COALESCE(assessment_period, 'pre_test')) AS period,
+             independent_level AS "independentLevel",
+             instructional_level AS "instructionalLevel",
+             frustration_level AS "frustrationalLevel",
+             status,
+             current_grade_level AS "currentGradeLevel",
+             step_count AS "stepCount"
+           FROM phil_iri_adaptive_sessions
+           WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'
+           ORDER BY LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')),
+             CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 0 ELSE 1 END,
+             completed_at DESC NULLS LAST, started_at DESC NULLS LAST`,
+          [targetStudentId]
+        );
+        oralAdaptiveProfiles = rows || [];
+      } catch (adaptiveProfileError) {
+        console.warn('[getStudentActiveAssignment] adaptive profile query notice:', adaptiveProfileError.message);
+      }
+    }
+
     return res.json({
       success: true,
       hasAssignment: assignedActivities.length > 0,
       assignedActivities,
       attemptsStatus,
       readingProfiles,
+      oralAdaptiveProfiles,
       studentId: targetStudentId,
       lrn: resolvedLrn,
       gradeLevel: targetGrade,
@@ -2684,13 +2809,19 @@ async function submitStudentOralAudio(req, res) {
           activeAssessmentId = aRes.rows?.[0]?.assessment_id;
         }
       }
-
-      // Check if an attempt was just created by the quiz submission API or grab latest attempt
+      // Check if an attempt was just created by the quiz submission API or grab latest attempt.
+      // Prefer an attempt that already has an oral_reading_results record (audio already
+      // uploaded once), then fall back to the most-recently created attempt. This prevents
+      // a second phantom attempt being created when quiz submission and audio upload arrive
+      // within milliseconds of each other (race condition).
       let attemptId = null;
       const recentAttempt = await db.query(
-        `SELECT attempt_id, total_score FROM assessment_attempts 
-         WHERE assessment_id = $1 
-         ORDER BY created_at DESC LIMIT 1`,
+        `SELECT aa.attempt_id, aa.total_score
+         FROM assessment_attempts aa
+         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+         WHERE aa.assessment_id = $1
+         ORDER BY (orr.oral_result_id IS NOT NULL) DESC, aa.created_at DESC
+         LIMIT 1`,
         [activeAssessmentId]
       );
       if (recentAttempt.rows?.[0]?.attempt_id) {
@@ -4544,9 +4675,9 @@ async function startAdaptiveSession(req, res) {
       `INSERT INTO phil_iri_adaptive_sessions (
          student_id, language, assessment_type,
          baseline_grade_level, baseline_profile_level,
-         current_grade_level, direction,
+         current_grade_level, direction, search_state, status,
          assigned_by_teacher_id, school_year_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         resolvedStudentId,
@@ -4556,6 +4687,8 @@ async function startAdaptiveSession(req, res) {
         baselineProfileLevel,
         initialStep.firstGradeLevel,
         initialStep.direction,
+        'INITIAL_PASSAGE',
+        initialStep.status === 'NEEDS_REVIEW' ? 'needs_review' : 'in_progress',
         assignedByTeacherId || null,
         schoolYearId || null,
       ]
@@ -4740,5 +4873,3 @@ module.exports = {
   startAdaptiveSession,
   getAdaptiveSessionStatus,
 };
-
-

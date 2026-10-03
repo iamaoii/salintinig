@@ -1,4 +1,5 @@
 import { getApiUrl } from '../config/api.js';
+import { cacheService } from '../services/cacheService.js';
 
 const AUTH_KEY = 'salintinig_auth';
 const USER_KEY = 'salintinig_user';
@@ -58,6 +59,9 @@ export async function authenticateAsync(identifier, password, rememberMe = false
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(LEGACY_TOKEN_KEY);
       sessionStorage.removeItem('token');
+      // Cached class, assessment, and dashboard data belongs to the previous
+      // signed-in account. Never carry it over to another teacher or school.
+      cacheService.clear();
 
       if (!mustChange) {
         storage.setItem(AUTH_KEY, 'true');
@@ -134,6 +138,7 @@ export function logout() {
       },
     }).catch(() => {});
   }
+  cacheService.clear();
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
@@ -176,4 +181,3 @@ export function getUserRole() {
   const user = getUser();
   return user?.role || 'teacher';
 }
-

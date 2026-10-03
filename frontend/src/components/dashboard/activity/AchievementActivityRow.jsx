@@ -96,38 +96,14 @@ export default function AchievementActivityRow({ activity }) {
           </div>
         </div>
 
-        {/* Right: Personal Status / Scores + Blue Action Button */}
+        {/* Right: pending state when applicable + action */}
         <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-ink/5">
-          {/* Personal status & performance chips */}
-          <div className="flex items-center gap-2">
-            {isDone ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                  <Icon icon="ph:check-circle-bold" className="size-3.5 text-emerald-600 shrink-0" />
-                  Done
-                </span>
-                {(activity.accuracyScore > 0 || activity.comprehensionScore > 0) && (
-                  <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-ink/70">
-                    {activity.accuracyScore > 0 && (
-                      <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-semibold text-ink">
-                        Acc: {activity.accuracyScore}%
-                      </span>
-                    )}
-                    {activity.comprehensionScore > 0 && (
-                      <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-semibold text-ink">
-                        Comp: {activity.comprehensionScore}%
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
+          {!isDone && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-xs font-bold text-amber-700">
                 <Icon icon="ph:clock-bold" className="size-3.5 text-amber-600 shrink-0" />
                 Pending
               </span>
-            )}
-          </div>
+          )}
 
           {/* Action Button: Royal Blue Pill Button ("Open" or "View result") */}
           <button

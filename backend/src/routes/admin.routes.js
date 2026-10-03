@@ -16,6 +16,7 @@ router.get('/stats', adminController.getSystemStats);
 router.get('/info', adminController.getAdminInfo);
 router.put('/info', adminController.updateAdminInfo);
 router.get('/analytics/phil-iri', adminController.getPhilIriAnalytics);
+router.get('/phil-iri/adaptive-reports', adminController.getAdaptiveOralReports);
 
 // Teacher management & assignment endpoints
 router.get('/teachers', teacherController.getTeachers);
@@ -48,6 +49,7 @@ router.put('/student-promotion', adminController.updateStudentPromotionStatus);
 // Student Records management endpoints
 router.get('/students', studentController.getStudents);
 router.get('/students/check/:lrn', studentController.checkExistingStudent);
+router.get('/students/assessments/review/:attemptId', teacherController.getOralReviewDetail);
 router.get('/students/:lrn', studentController.getStudentByLrn);
 router.post('/students/transfer-in', studentController.transferInStudent);
 router.post('/students', studentController.createStudent);
@@ -61,7 +63,6 @@ router.get('/phil-iri/passages', adminController.getPassages);
 // POST/PUT/DELETE passages are now handled by /api/super-admin/phil-iri/passages
 
 // Phil-IRI Assessment Monitoring & Screening Periods
-router.get('/phil-iri/assessments', adminController.getPhilIriAssessments);
 router.get('/phil-iri/periods', adminController.getPhilIriPeriods);
 router.post('/phil-iri/periods', adminController.updatePhilIriPeriods);
 // Read-only GST Form 1A/1B lookup for Admin Form 2 summary reports (saving is handled via /api/teacher/phil-iri/gst-submission)

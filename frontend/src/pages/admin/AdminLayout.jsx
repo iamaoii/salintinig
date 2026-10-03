@@ -94,11 +94,6 @@ export default function AdminLayout() {
             .then((r) => r.json())
             .then((d) => d.success && Array.isArray(d.passages) && cacheService.set('admin_phil_iri_passages', d.passages));
         }
-        if (!cacheService.get('admin_phil_iri_assessments')) {
-          fetch(getApiUrl('/api/admin/phil-iri/assessments'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && Array.isArray(d.assessments) && cacheService.set('admin_phil_iri_assessments', d.assessments));
-        }
       } catch (err) {
         // Silently ignore prefetch errors
       }

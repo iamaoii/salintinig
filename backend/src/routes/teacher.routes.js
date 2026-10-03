@@ -335,6 +335,8 @@ router.get('/assessments/passages', teacherController.getPhilIriPassages);
 // GET  /api/teacher/assessments/adaptive-sessions        — List all Phase 2 sessions for teacher's class
 router.post('/assessments/start-adaptive-sessions', teacherController.startStudentAdaptiveSessions);
 router.get('/assessments/adaptive-sessions', teacherController.getAdaptiveSessions);
+router.post('/assessments/resolve-adaptive-session', teacherController.resolveAdaptiveSession);
+router.post('/assessments/reassign-passage', teacherController.reassignPassageAttempt);
 
 
 router.put('/assessments/toggle-status', async (req, res) => {
@@ -463,9 +465,17 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
       [studentInfo.student_id, isEng ? 'en%' : 'fil%']
     );
 
-    // Process attempts to calculate miscues counts and comprehension stats
-    const attemptIds = (attemptsRes.rows || []).map(r => r.attempt_id).filter(Boolean);
-    const passageIds = [...new Set((attemptsRes.rows || []).map(r => r.passage_id).filter(Boolean))];
+    // Process attempts: deduplicate by passage_id + assessment_period to return only the latest attempt per passage
+    const rawRows = attemptsRes.rows || [];
+    const uniqueAttemptsMap = new Map();
+    rawRows.forEach((row) => {
+      const key = `${row.passage_id}_${row.assessment_period || 'pre_test'}`;
+      uniqueAttemptsMap.set(key, row);
+    });
+    const deduplicatedRows = Array.from(uniqueAttemptsMap.values());
+
+    const attemptIds = deduplicatedRows.map(r => r.attempt_id).filter(Boolean);
+    const passageIds = [...new Set(deduplicatedRows.map(r => r.passage_id).filter(Boolean))];
 
     const passagesQuestions = {};
     const questionsMap = {};
@@ -540,7 +550,7 @@ router.get('/phil-iri/form3-attempts/:lrn', async (req, res) => {
 
     const letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
 
-    const attempts = (attemptsRes.rows || []).map((row) => {
+    const attempts = deduplicatedRows.map((row) => {
       let mispronunciation = 0;
       let omission = 0;
       let substitution = 0;

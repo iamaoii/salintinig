@@ -17,7 +17,7 @@ import { getToken, getUser } from '../../../lib/auth.js';
 import { PhilIriForm1Skeleton } from '../../../components/common/Skeleton.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import cacheService from '../../../services/cacheService.js';
-import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
 
 const EXCEL_COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
 
@@ -507,7 +507,8 @@ export default function PhilIriForm1({ language }) {
         });
       });
 
-      // Render Male Rows (Exact 10 slots)
+      // Keep ten blank slots for the official layout, but never truncate
+      // enrolled learners when a section has more than ten boys.
       const renderMaleRows = [...maleRows];
       while (renderMaleRows.length < 10) {
         renderMaleRows.push({ lrn: '', name: '', gender: 'M', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
@@ -516,7 +517,7 @@ export default function PhilIriForm1({ language }) {
       const numFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4D4D4' } };
       const totalColFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
 
-      renderMaleRows.slice(0, 10).forEach((r, i) => {
+      renderMaleRows.forEach((r, i) => {
         const row = worksheet.addRow([
           i + 1,
           r.name,
@@ -583,13 +584,14 @@ export default function PhilIriForm1({ language }) {
         else if (colIndex === 10) cell.alignment = { horizontal: 'right', vertical: 'middle' };
       });
 
-      // Render Female Rows (Exact 10 slots)
+      // Keep ten blank slots for the official layout, but never truncate
+      // enrolled learners when a section has more than ten girls.
       const renderFemaleRows = [...femaleRows];
       while (renderFemaleRows.length < 10) {
         renderFemaleRows.push({ lrn: '', name: '', gender: 'F', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
       }
 
-      renderFemaleRows.slice(0, 10).forEach((r, i) => {
+      renderFemaleRows.forEach((r, i) => {
         const row = worksheet.addRow([
           i + 1,
           r.name,
@@ -752,6 +754,429 @@ export default function PhilIriForm1({ language }) {
     }
   };
 
+  // Vector PDF: exact 100% match with DepEd Form 1 Web UI layout.
+  const handleDownloadPDF = () => {
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth(); // 210mm (A4 portrait)
+      const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm (A4 portrait)
+      const margin = 8;
+      const contentWidth = pageWidth - margin * 2; // 281mm
+
+      // 11 Columns width setup (totaling 281mm)
+      const baseWidths = [10, 64, 16, 20, 14, 26, 14, 18, 18, 46, 17];
+      const widthScale = contentWidth / baseWidths.reduce((a, b) => a + b, 0);
+      const widths = baseWidths.map((w) => w * widthScale);
+      const xs = [margin];
+      widths.forEach((w) => xs.push(xs[xs.length - 1] + w));
+
+      const drawVectorCheckmark = (pdf, cx, cy, size = 2.5, color = [17, 24, 39], strokeWidth = 0.38) => {
+        pdf.setDrawColor(...color);
+        pdf.setLineWidth(strokeWidth);
+        pdf.setLineCap('round');
+        pdf.setLineJoin('round');
+        const p1x = cx - size * 0.32;
+        const p1y = cy;
+        const p2x = cx - size * 0.08;
+        const p2y = cy + size * 0.32;
+        const p3x = cx + size * 0.36;
+        const p3y = cy - size * 0.36;
+        pdf.line(p1x, p1y, p2x, p2y);
+        pdf.line(p2x, p2y, p3x, p3y);
+        pdf.setLineCap('butt');
+        pdf.setLineJoin('miter');
+      };
+
+      const writePdfText = (text, x, y, options = {}) => {
+        const tokens = String(text).split(/(✓|≥|≤)/);
+        const pieces = tokens.map((token) => {
+          if (token === '✓') {
+            const size = options.size || 6.5;
+            return { isCheck: true, width: size * 0.38, size };
+          }
+          if (token === '≥') return { isCheck: false, text: String.fromCharCode(0xB3), font: 'symbol', style: 'normal', size: (options.size || 6.5) + 1 };
+          if (token === '≤') return { isCheck: false, text: String.fromCharCode(0xA3), font: 'symbol', style: 'normal', size: (options.size || 6.5) + 1 };
+          return {
+            isCheck: false,
+            text: token,
+            font: 'helvetica',
+            style: options.italic ? 'italic' : options.bold ? 'bold' : 'normal',
+            size: options.size || 6.5,
+          };
+        });
+        const totalWidth = pieces.reduce((total, piece) => {
+          if (piece.isCheck) return total + piece.width;
+          pdf.setFont(piece.font, piece.style); pdf.setFontSize(piece.size);
+          return total + pdf.getTextWidth(piece.text);
+        }, 0);
+        let cursor = options.align === 'right' ? x - totalWidth : options.align === 'center' ? x - totalWidth / 2 : x;
+        pieces.forEach((piece) => {
+          if (piece.isCheck) {
+            drawVectorCheckmark(pdf, cursor + piece.width / 2, y - piece.size * 0.16, piece.size * 0.32, options.textColor || [17, 24, 39], 0.26);
+            cursor += piece.width;
+          } else {
+            pdf.setFont(piece.font, piece.style); pdf.setFontSize(piece.size);
+            pdf.text(piece.text, cursor, y);
+            cursor += pdf.getTextWidth(piece.text);
+          }
+        });
+      };
+      const drawCell = (left, top, width, height, text = '', options = {}) => {
+        if (options.fill) {
+          pdf.setFillColor(...options.fill);
+          pdf.rect(left, top, width, height, 'F');
+        }
+        pdf.setDrawColor(160, 160, 160);
+        pdf.setLineWidth(0.2);
+        pdf.rect(left, top, width, height);
+        pdf.setTextColor(...(options.textColor || [30, 30, 30]));
+        pdf.setFont('helvetica', options.bold ? 'bold' : 'normal');
+        pdf.setFontSize(options.size || 6.5);
+        if (text !== '' && text !== null && text !== undefined) {
+          const lines = pdf.splitTextToSize(String(text), Math.max(2, width - 2));
+          const lineHeight = (options.size || 6.5) * 0.42;
+          const startY = top + (height - lines.length * lineHeight) / 2 + lineHeight * 0.75;
+          lines.forEach((line, idx) => {
+            const align = options.align || 'center';
+            const textX = align === 'left' ? left + 1.8 : align === 'right' ? left + width - 1.8 : left + width / 2;
+            writePdfText(line, textX, startY + idx * lineHeight, { ...options, align });
+          });
+        }
+      };
+
+      // Header renderer for page top
+      const drawHeaderBlock = (yStart) => {
+        // Form Code top right
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(50, 50, 50);
+        pdf.text(formCode, pageWidth - margin, yStart, { align: 'right' });
+
+        // Form Title center
+        pdf.setFontSize(10);
+        pdf.text(formTitle, pageWidth / 2, yStart + 4, { align: 'center' });
+
+        // Metadata grid
+        pdf.setFontSize(7.5);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(30, 30, 30);
+
+        const gradeVal = String(dbClassInfo.grade || '').replace(/grade/gi, '').trim();
+        const sectionVal = dbClassInfo.section || '';
+        const teacherVal = dbClassInfo.teacher || '';
+        const schoolVal = dbClassInfo.school || '';
+        const dateVal = dbClassInfo.date || '';
+
+        const lineY1 = yStart + 11;
+        const lineY2 = yStart + 16;
+        const lineY3 = yStart + 21;
+
+        // Row 1: Baitang / Grade, Seksiyon / Section, Guro / Teacher
+        const lblBaitang = isTagalog ? 'Baitang:' : 'Grade:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblBaitang, margin, lineY1);
+        const wBaitangLbl = pdf.getTextWidth(lblBaitang);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(gradeVal, margin + wBaitangLbl + 2, lineY1);
+        pdf.line(margin + wBaitangLbl + 1, lineY1 + 0.8, margin + wBaitangLbl + 16, lineY1 + 0.8);
+
+        const lblSeksiyon = isTagalog ? 'Seksiyon:' : 'Section:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblSeksiyon, margin + 45, lineY1);
+        const wSeksiyonLbl = pdf.getTextWidth(lblSeksiyon);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(sectionVal, margin + 45 + wSeksiyonLbl + 2, lineY1);
+        pdf.line(margin + 45 + wSeksiyonLbl + 1, lineY1 + 0.8, margin + 45 + wSeksiyonLbl + 40, lineY1 + 0.8);
+
+        const lblGuro = isTagalog ? 'Guro:' : 'Teacher:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblGuro, pageWidth - margin - 65, lineY1);
+        const wGuroLbl = pdf.getTextWidth(lblGuro);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(teacherVal, pageWidth - margin - 65 + wGuroLbl + 2, lineY1);
+        pdf.line(pageWidth - margin - 65 + wGuroLbl + 1, lineY1 + 0.8, pageWidth - margin, lineY1 + 0.8);
+
+        // Row 2: Paaralan / School, Petsa / Date
+        const lblPaaralan = isTagalog ? 'Paaralan:' : 'School:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblPaaralan, margin, lineY2);
+        const wPaaralanLbl = pdf.getTextWidth(lblPaaralan);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(schoolVal, margin + wPaaralanLbl + 2, lineY2);
+        pdf.line(margin + wPaaralanLbl + 1, lineY2 + 0.8, margin + wPaaralanLbl + 85, lineY2 + 0.8);
+
+        const lblPetsa = isTagalog ? 'Petsa:' : 'Date:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblPetsa, pageWidth - margin - 65, lineY2);
+        const wPetsaLbl = pdf.getTextWidth(lblPetsa);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(dateVal, pageWidth - margin - 65 + wPetsaLbl + 2, lineY2);
+        pdf.line(pageWidth - margin - 65 + wPetsaLbl + 1, lineY2 + 0.8, pageWidth - margin, lineY2 + 0.8);
+
+        // Row 3: Antas ng Pangkatang Pagtatasa / Screening Test Level
+        const lblAntas = isTagalog ? 'Antas ng Pangkatang Pagtatasa:' : 'Screening Test Level:';
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(lblAntas, margin, lineY3);
+        const wAntasLbl = pdf.getTextWidth(lblAntas);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(gradeVal, margin + wAntasLbl + 2, lineY3);
+        pdf.line(margin + wAntasLbl + 1, lineY3 + 0.8, margin + wAntasLbl + 16, lineY3 + 0.8);
+
+        return yStart + 26;
+      };
+
+      // Draw 2-Row Table Header
+      const drawTableHeader = (topY) => {
+        const headerFill = [226, 226, 226];
+        const numFill = [212, 212, 212];
+        const h1 = 6;
+        const h2 = 6;
+        const totalH = h1 + h2; // 12mm
+
+        // Col 0: # (rowspan 2)
+        drawCell(xs[0], topY, widths[0], totalH, '#', { fill: numFill, bold: true, size: 6.5 });
+        // Col 1: PANGALAN (rowspan 2)
+        drawCell(xs[1], topY, widths[1], totalH, isTagalog ? 'PANGALAN' : 'NAME', { fill: headerFill, bold: true, align: 'left', size: 6.5 });
+        // Col 2: KASARIAN (rowspan 2)
+        drawCell(xs[2], topY, widths[2], totalH, isTagalog ? 'KASARIAN\nM o F' : 'SEX\nM or F', { fill: headerFill, bold: true, size: 4.8 });
+        // Col 3: NAKUHA (rowspan 2)
+        drawCell(xs[3], topY, widths[3], totalH, '', { fill: headerFill });
+        const takenCenterX = xs[3] + widths[3] / 2;
+        pdf.setTextColor(30, 30, 30);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(4.7);
+        pdf.text(isTagalog ? 'NAKUHA ANG' : 'TEST', takenCenterX, topY + 3.35, { align: 'center' });
+        pdf.text(isTagalog ? 'PAGTATASA' : 'TAKEN', takenCenterX, topY + 5.55, { align: 'center' });
+        const takenMarkX = takenCenterX - (isTagalog ? 1.9 : 2.45);
+        const takenMarkBaseline = topY + 8.7;
+        // Use a print glyph here (rather than a drawn stroke) so it shares the
+        // exact same text baseline as “o X” / “or X”.
+        pdf.setFont('ZapfDingbats', 'normal');
+        pdf.setFontSize(5.1);
+        pdf.text(String.fromCharCode(0x33), takenMarkX, takenMarkBaseline, { align: 'center' });
+        // ZapfDingbats has no bold variant; a tiny second pass makes only the
+        // check glyph print with the same visual weight as the bold header.
+        pdf.text(String.fromCharCode(0x33), takenMarkX + 0.08, takenMarkBaseline, { align: 'center' });
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(4.7);
+        pdf.text(isTagalog ? 'o X' : 'or X', takenMarkX + 1.15, takenMarkBaseline, { align: 'left' });
+        // Col 4-6: BILANG NG TAMANG SAGOT (colspan 3)
+        drawCell(xs[4], topY, widths[4] + widths[5] + widths[6], h1, isTagalog ? 'BILANG NG TAMANG SAGOT (AYON SA URI NG TANONG)' : 'NUMBER OF CORRECT RESPONSES', { fill: headerFill, bold: true, size: 4.7 });
+        // Sub-headers for Col 4, 5, 6
+        drawCell(xs[4], topY + h1, widths[4], h2, isTagalog ? 'LITERAL' : 'LITERAL', { fill: headerFill, bold: true, size: 4.6 });
+        drawCell(xs[5], topY + h1, widths[5], h2, isTagalog ? 'PAGHIHINUHA\n(INFERENTIAL)' : 'INFERENTIAL', { fill: headerFill, bold: true, size: 4.2 });
+        drawCell(xs[6], topY + h1, widths[6], h2, isTagalog ? 'KRITIKAL' : 'CRITICAL', { fill: headerFill, bold: true, size: 4.6 });
+        // Col 7: KABUUANG MARKA (rowspan 2)
+        drawCell(xs[7], topY, widths[7], totalH, isTagalog ? 'KABUUANG\nMARKA' : 'TOTAL\nSCORE', { fill: numFill, bold: true, size: 4.7 });
+        // Col 8: MARKANG < 14 (rowspan 2)
+        drawCell(xs[8], topY, widths[8], totalH, isTagalog ? 'MARKANG\n< 14' : 'SCORE\n< 14', { fill: headerFill, bold: true, size: 4.7 });
+        // Col 9: PANIMULANG SANGGUNIANG ANTAS (rowspan 2)
+        drawCell(xs[9], topY, widths[9], totalH, isTagalog ? 'PANIMULANG SANGGUNIANG\nANTAS' : 'STARTING POINT OF\nGRADED PASSAGE', { fill: headerFill, bold: true, size: 4.5 });
+        // Col 10: MARKANG >= 14 (rowspan 2)
+        drawCell(xs[10], topY, widths[10], totalH, isTagalog ? 'MARKANG\n≥ 14' : 'SCORE\n≥ 14', { fill: headerFill, bold: true, size: 4.7 });
+
+        return topY + totalH;
+      };
+
+      let currentY = drawHeaderBlock(8);
+      currentY = drawTableHeader(currentY);
+
+      // Pad male and female rows to at least 10 slots each for official layout
+      const paddedMaleRows = [...maleRows];
+      while (paddedMaleRows.length < 10) {
+        paddedMaleRows.push({ lrn: '', name: '', gender: 'M', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
+      }
+
+      const paddedFemaleRows = [...femaleRows];
+      while (paddedFemaleRows.length < 10) {
+        paddedFemaleRows.push({ lrn: '', name: '', gender: 'F', testTaken: '', literalNum: '', inferentialNum: '', criticalNum: '', totalNum: '', below14: '', above14: '', startingPoint: '' });
+      }
+
+      const rowH = 5.2;
+      const numFill = [212, 212, 212];
+      const totFill = [234, 234, 234];
+      const yellowFill = [254, 240, 138];
+      const greenFill = [16, 124, 65];
+
+      const checkPageBreak = (neededH) => {
+        if (currentY + neededH > pageHeight - margin - 20) {
+          pdf.addPage();
+          currentY = drawHeaderBlock(8);
+          currentY = drawTableHeader(currentY);
+        }
+      };
+
+      // 1. Render Male Rows
+      paddedMaleRows.forEach((row, i) => {
+        checkPageBreak(rowH);
+        const values = [
+          i + 1,
+          row.name || '',
+          row.name ? 'M' : '',
+          row.name ? (row.testTaken || '') : '',
+          row.name ? (row.literalNum ?? '') : '',
+          row.name ? (row.inferentialNum ?? '') : '',
+          row.name ? (row.criticalNum ?? '') : '',
+          row.name ? (row.totalNum ?? '') : '',
+          row.name ? (row.below14 || '—') : '',
+          row.name ? (row.startingPoint || '') : '',
+          row.name ? (row.above14 || '—') : '',
+        ];
+
+        values.forEach((val, colIdx) => {
+          let opts = {
+            fill: colIdx === 0 ? numFill : colIdx === 1 || colIdx === 7 ? totFill : null,
+            bold: colIdx === 0 || colIdx === 7,
+            align: colIdx === 1 || colIdx === 9 ? 'left' : 'center',
+            size: 6,
+          };
+          if (row.name) {
+            if (colIdx === 8 && val === '/') opts.textColor = [180, 83, 9]; // amber
+            if (colIdx === 10 && val === '/') opts.textColor = [4, 120, 87]; // emerald
+          }
+          drawCell(xs[colIdx], currentY, widths[colIdx], rowH, val, opts);
+        });
+        currentY += rowH;
+      });
+
+      // 2. Male Summary Bar (Yellow)
+      checkPageBreak(6.2);
+      const maleLabel = isTagalog ? 'KABUUANG BILANG NG LALAKI' : 'TOTAL NUMBER OF MALE';
+      drawCell(xs[0], currentY, widths[0] + widths[1], 6.2, maleLabel, { fill: yellowFill, bold: true, align: 'left', size: 6 });
+      drawCell(xs[2], currentY, widths[2], 6.2, maleTotals.count, { fill: yellowFill, bold: true, size: 6.5 });
+      drawCell(xs[3], currentY, widths[3], 6.2, '', { fill: yellowFill });
+
+      const maleBelowText = `${isTagalog ? 'Mababa sa 14:' : 'Below 14:'}  ${maleTotals.below14}`;
+      const maleBelowW = widths[4] + widths[5] + widths[6] + widths[7] + widths[8];
+      drawCell(xs[4], currentY, maleBelowW, 6.2, maleBelowText, { fill: yellowFill, bold: true, align: 'right', size: 6 });
+
+      const maleAboveText = `≥ 14:  ${maleTotals.above14}`;
+      const maleAboveW = widths[9] + widths[10];
+      drawCell(xs[9], currentY, maleAboveW, 6.2, maleAboveText, { fill: yellowFill, bold: true, align: 'right', size: 6 });
+      currentY += 6.2;
+
+      // 3. Render Female Rows
+      paddedFemaleRows.forEach((row, i) => {
+        checkPageBreak(rowH);
+        const values = [
+          i + 1,
+          row.name || '',
+          row.name ? 'F' : '',
+          row.name ? (row.testTaken || '') : '',
+          row.name ? (row.literalNum ?? '') : '',
+          row.name ? (row.inferentialNum ?? '') : '',
+          row.name ? (row.criticalNum ?? '') : '',
+          row.name ? (row.totalNum ?? '') : '',
+          row.name ? (row.below14 || '—') : '',
+          row.name ? (row.startingPoint || '') : '',
+          row.name ? (row.above14 || '—') : '',
+        ];
+
+        values.forEach((val, colIdx) => {
+          let opts = {
+            fill: colIdx === 0 ? numFill : colIdx === 1 || colIdx === 7 ? totFill : null,
+            bold: colIdx === 0 || colIdx === 7,
+            align: colIdx === 1 || colIdx === 9 ? 'left' : 'center',
+            size: 6,
+          };
+          if (row.name) {
+            if (colIdx === 8 && val === '/') opts.textColor = [180, 83, 9];
+            if (colIdx === 10 && val === '/') opts.textColor = [4, 120, 87];
+          }
+          drawCell(xs[colIdx], currentY, widths[colIdx], rowH, val, opts);
+        });
+        currentY += rowH;
+      });
+
+      // 4. Female Summary Bar (Yellow)
+      checkPageBreak(6.2);
+      const femaleLabel = isTagalog ? 'KABUUANG BILANG NG BABAE' : 'TOTAL NUMBER OF FEMALE';
+      drawCell(xs[0], currentY, widths[0] + widths[1], 6.2, femaleLabel, { fill: yellowFill, bold: true, align: 'left', size: 6 });
+      drawCell(xs[2], currentY, widths[2], 6.2, femaleTotals.count, { fill: yellowFill, bold: true, size: 6.5 });
+      drawCell(xs[3], currentY, widths[3], 6.2, '', { fill: yellowFill });
+
+      const femaleBelowText = `${isTagalog ? 'Mababa sa 14:' : 'Below 14:'}  ${femaleTotals.below14}`;
+      drawCell(xs[4], currentY, maleBelowW, 6.2, femaleBelowText, { fill: yellowFill, bold: true, align: 'right', size: 6 });
+
+      const femaleAboveText = `≥ 14:  ${femaleTotals.above14}`;
+      drawCell(xs[9], currentY, maleAboveW, 6.2, femaleAboveText, { fill: yellowFill, bold: true, align: 'right', size: 6 });
+      currentY += 6.2;
+
+      // 5. Class Combined Grand Total Bar (Green)
+      checkPageBreak(6.5);
+      const grandCount = maleTotals.count + femaleTotals.count;
+      const grandBelow = maleTotals.below14 + femaleTotals.below14;
+      const grandAbove = maleTotals.above14 + femaleTotals.above14;
+      const grandLabel = isTagalog ? 'KABUUANG BILANG NG KLASE (GRAND TOTAL)' : 'COMBINED CLASS GRAND TOTAL';
+
+      drawCell(xs[0], currentY, widths[0] + widths[1], 6.5, grandLabel, { fill: greenFill, textColor: [255, 255, 255], bold: true, align: 'left', size: 6 });
+      drawCell(xs[2], currentY, widths[2], 6.5, grandCount, { fill: greenFill, textColor: [255, 255, 255], bold: true, size: 6.5 });
+      drawCell(xs[3], currentY, widths[3], 6.5, '', { fill: greenFill });
+
+      const grandBelowText = `${isTagalog ? 'Kabuuan < 14:' : 'Total < 14:'}  ${grandBelow}`;
+      drawCell(xs[4], currentY, maleBelowW, 6.5, grandBelowText, { fill: greenFill, textColor: [255, 255, 255], bold: true, align: 'right', size: 6 });
+
+      const grandAboveText = `${isTagalog ? 'Kabuuan ≥ 14:' : 'Total ≥ 14:'}  ${grandAbove}`;
+      drawCell(xs[9], currentY, maleAboveW, 6.5, grandAboveText, { fill: greenFill, textColor: [255, 255, 255], bold: true, align: 'right', size: 6 });
+      currentY += 6.5;
+
+      // 6. Footnote
+      currentY += 3;
+      pdf.setTextColor(100, 100, 100);
+      const noteText = isTagalog
+        ? '*Ang mag-aaral na nagtamo ng kabuuang marka na  ≥ 14/20 ay hindi na kailangang kumuha ng Phil-IRI.'
+        : '*Students with a total score of ≥ 14/20 need not to take the PHIL-IRI.';
+      writePdfText(noteText, margin, currentY, { align: 'left', italic: true, size: 6.5 });
+
+      // 7. Signatures Block
+      currentY += 12;
+      checkPageBreak(18);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(40, 40, 40);
+
+      // Left: Binigyang-pansin: / Noted:
+      const leftNoteLbl = isTagalog ? 'Binigyang-pansin:' : 'Noted:';
+      pdf.text(leftNoteLbl, margin + 15, currentY);
+
+      const principalName = dbClassInfo.principalName || '';
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8.5);
+      pdf.text(principalName, margin + 65, currentY, { align: 'center' });
+      pdf.setDrawColor(40, 40, 40);
+      pdf.setLineWidth(0.3);
+      pdf.line(margin + 40, currentY + 1, margin + 90, currentY + 1);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.text(isTagalog ? 'Punong-guro' : 'School Principal', margin + 65, currentY + 5, { align: 'center' });
+
+      // Right: Inihanda ni: / Prepared:
+      const rightPrepLbl = isTagalog ? 'Inihanda ni:' : 'Prepared:';
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.text(rightPrepLbl, pageWidth - margin - 69, currentY, { align: 'right' });
+
+      const teacherName = dbClassInfo.teacher || '';
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8.5);
+      pdf.text(teacherName, pageWidth - margin - 40, currentY, { align: 'center' });
+      pdf.line(pageWidth - margin - 65, currentY + 1, pageWidth - margin - 15, currentY + 1);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.text(isTagalog ? 'Guro / Tagapayo' : 'Adviser', pageWidth - margin - 40, currentY + 5, { align: 'center' });
+
+      // Save PDF file
+      pdf.save(`${formCode.replaceAll(' ', '_')}_${dbClassInfo.section || 'Class_Record'}.pdf`);
+      triggerToast(`Downloaded ${formCode} as PDF.`);
+    } catch (error) {
+      console.error('Failed to generate Form 1 PDF:', error);
+      triggerToast('Failed to generate the PDF file.', 'error');
+    }
+  };
+
   // Save GST submission to backend database (Option B)
   const handleSaveRecord = async () => {
     try {
@@ -825,6 +1250,14 @@ export default function PhilIriForm1({ language }) {
           >
             <DownloadSimple size={15} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
+          >
+            <DownloadSimple size={15} weight="bold" className="text-brand-red" />
+            <span>Download PDF</span>
           </button>
           <button
             type="button"

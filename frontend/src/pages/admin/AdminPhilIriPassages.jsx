@@ -1,4 +1,5 @@
 import { getApiUrl } from '../../config/api.js';
+import { getCompactPageItems } from '../../lib/pagination.js';
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -38,6 +39,9 @@ const SET_COLORS = {
   'Set D': 'bg-orange-100/90 text-orange-950 border border-orange-200/80',
 };
 
+const FILIPINO_PASSAGE_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
+const ENGLISH_PASSAGE_GRADES = ['Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
+
 export default function AdminPhilIriPassages() {
   const [passages, setPassages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +55,7 @@ export default function AdminPhilIriPassages() {
   const [toast, setToast] = useState(null);
 
   const ITEMS_PER_PAGE = 8;
+  const filterGradeOptions = selectedLanguage === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
 
   // Modals state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -72,6 +77,7 @@ export default function AdminPhilIriPassages() {
     text: '',
     questions: [],
   });
+  const formGradeOptions = formData.language === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
 
   const fetchPassages = async (skipCache = false) => {
     try {
@@ -105,6 +111,18 @@ export default function AdminPhilIriPassages() {
   useEffect(() => {
     fetchPassages();
   }, []);
+
+  useEffect(() => {
+    if (selectedLanguage === 'English' && selectedGrade === 'Grade 1') {
+      setSelectedGrade('All');
+    }
+  }, [selectedLanguage, selectedGrade]);
+
+  useEffect(() => {
+    if (formData.language === 'English' && formData.grade === 'Grade 1') {
+      setFormData((prev) => ({ ...prev, grade: 'Grade 2' }));
+    }
+  }, [formData.language, formData.grade]);
 
   // Filtered passages list
   const filteredPassages = useMemo(() => {
@@ -462,19 +480,19 @@ export default function AdminPhilIriPassages() {
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Grades</option>
-                <option value="Grade 1">Grade 1</option>
-                <option value="Grade 2">Grade 2</option>
-                <option value="Grade 3">Grade 3</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="Grade 5">Grade 5</option>
-                <option value="Grade 6">Grade 6</option>
-                <option value="Grade 7">Grade 7</option>
+                {filterGradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
               </select>
 
               <select
                 value={selectedLanguage}
                 onChange={(e) => {
-                  setSelectedLanguage(e.target.value);
+                  const nextLanguage = e.target.value;
+                  setSelectedLanguage(nextLanguage);
+                  if (nextLanguage === 'English' && selectedGrade === 'Grade 1') {
+                    setSelectedGrade('All');
+                  }
                   setCurrentPage(1);
                 }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
@@ -719,7 +737,9 @@ export default function AdminPhilIriPassages() {
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+              {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                <span key={`ellipsis-${index}`} className="flex size-7 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+              ) : (
                 <button
                   key={pg}
                   type="button"
@@ -957,13 +977,9 @@ export default function AdminPhilIriPassages() {
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                         className="w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2 text-xs font-semibold text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
-                        <option value="Grade 1">Grade 1</option>
-                        <option value="Grade 2">Grade 2</option>
-                        <option value="Grade 3">Grade 3</option>
-                        <option value="Grade 4">Grade 4</option>
-                        <option value="Grade 5">Grade 5</option>
-                        <option value="Grade 6">Grade 6</option>
-                        <option value="Grade 7">Grade 7</option>
+                        {formGradeOptions.map((grade) => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -972,7 +988,14 @@ export default function AdminPhilIriPassages() {
                       <label className="text-xs font-bold text-ink/70 block mb-1">Language *</label>
                       <select
                         value={formData.language}
-                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                        onChange={(e) => {
+                          const nextLanguage = e.target.value;
+                          setFormData({
+                            ...formData,
+                            language: nextLanguage,
+                            grade: nextLanguage === 'English' && formData.grade === 'Grade 1' ? 'Grade 2' : formData.grade,
+                          });
+                        }}
                         className="w-full rounded-xl border border-ink/20 bg-white px-3.5 py-2 text-xs font-semibold text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Filipino">Filipino</option>

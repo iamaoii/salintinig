@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -352,44 +353,36 @@ class _SilentReadingAssessmentQuizPageState extends State<SilentReadingAssessmen
       });
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF1B64D8)),
-      ),
-    );
+    // Instantly launch background tasks for DB submission and draft cleanup
+    unawaited(() async {
+      try {
+        final user = AuthService.currentUser;
+        final studentId = user?.rawUser?['student_id']?.toString() ??
+            user?.rawUser?['studentId']?.toString() ??
+            user?.userId;
+        final lrn = user?.lrn;
 
-    try {
-      final user = AuthService.currentUser;
-      final studentId = user?.rawUser?['student_id']?.toString() ??
-          user?.rawUser?['studentId']?.toString() ??
-          user?.userId;
-      final lrn = user?.lrn;
+        final res = await ApiService.post('/students/assessment/submit', {
+          'studentId': studentId,
+          'lrn': lrn,
+          'passageId': widget.passageId,
+          'assessmentType': 'silent',
+          'score': correctCount,
+          'maxScore': _questions.length,
+          'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
+          'answers': answersPayload,
+        });
+        debugPrint('[SilentQuiz] Submission result: ${res.success}, msg: ${res.message ?? res.error}');
 
-      final res = await ApiService.post('/students/assessment/submit', {
-        'studentId': studentId,
-        'lrn': lrn,
-        'passageId': widget.passageId,
-        'assessmentType': 'silent',
-        'score': correctCount,
-        'maxScore': _questions.length,
-        'readingTimeSeconds': widget.readingTimeSeconds ?? 0,
-        'answers': answersPayload,
-      });
-      debugPrint('[SilentQuiz] Submission result: ${res.success}, msg: ${res.message ?? res.error}');
-
-      // Clear active quiz draft on successful completion
-    } catch (e) {
-      debugPrint('[SilentQuiz] submission error notice: $e');
-    } finally {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context); // Safely close progress dialog
+        await QuizProgressService.clearQuizDraft(widget.passageId, 'silent');
+      } catch (e) {
+        debugPrint('[SilentQuiz] submission error notice: $e');
       }
-    }
+    }());
 
     if (!mounted) return;
 
+    // Instant transition to Congratulations Page in < 0.05s!
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

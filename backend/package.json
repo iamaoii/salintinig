@@ -9,7 +9,8 @@
     "seed:vocab": "node scripts/seed_vocabulary_bank.js",
     "seed:sentences": "node scripts/seed_sentence_bank.js",
     "seed:badges": "node scripts/seed_badges.js",
-    "seed:stories": "node scripts/seed_story_library.js"
+    "seed:stories": "node scripts/seed_story_library.js",
+    "seed:mock-school": "node scripts/seed_mock_school_system.js"
   },
   "keywords": [],
   "author": "",

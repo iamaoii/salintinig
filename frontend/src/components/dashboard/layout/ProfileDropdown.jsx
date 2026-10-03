@@ -408,7 +408,7 @@ export default function ProfileDropdown({ customName, role: propRole }) {
                   <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs space-y-1">
                     <p className="font-bold text-ink text-sm">How do I monitor platform performance and system analytics?</p>
                     <p className="text-ink/70 leading-relaxed">
-                      Visit the <strong>Super Admin Dashboard</strong> or <strong>System Analytics</strong> tab to view total active schools, total students and teachers, total assessments conducted, and school-by-school reading proficiency breakdowns.
+                      Visit the <strong>Super Admin Dashboard</strong> to view platform totals. Use the <strong>Schools Directory</strong> to review each school’s users and assessment activity.
                     </p>
                   </div>
 

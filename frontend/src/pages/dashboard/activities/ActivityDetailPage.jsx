@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   CaretLeft,
+  CaretRight,
   MagnifyingGlass,
   BookOpen,
   Ear,
@@ -20,6 +21,8 @@ import PhilIriReviewDetail from '../phil-iri/PhilIriReviewDetail.jsx';
 import ToastNotification from '../../../components/common/ToastNotification.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { getApiUrl } from '../../../config/api.js';
+import { ActivityDetailSkeleton } from '../../../components/common/Skeleton.jsx';
+import { cacheService } from '../../../services/cacheService.js';
 
 const PROFILE_TAG = {
   Independent: 'bg-emerald-100 text-emerald-950 border border-emerald-200',
@@ -42,7 +45,16 @@ export default function ActivityDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchActivityDetail = () => {
-    setLoading(true);
+    const cacheKey = `activity_detail_${id}`;
+    const cachedData = cacheService.get(cacheKey);
+
+    if (cachedData) {
+      setActivityData(cachedData);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     const token = getToken();
     fetch(getApiUrl(`/api/teacher/assessments/activity-detail/${id}`), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -51,13 +63,16 @@ export default function ActivityDetailPage() {
       .then((data) => {
         if (data.success && data.activity) {
           setActivityData(data.activity);
-        } else {
+          cacheService.set(cacheKey, data.activity, 180000); // 3 mins cache
+        } else if (!cachedData) {
           setToastMessage({ text: data.error || 'Failed to load activity details.', type: 'error' });
         }
       })
       .catch((err) => {
         console.error('Error fetching activity detail:', err);
-        setToastMessage({ text: 'Error connecting to server.', type: 'error' });
+        if (!cachedData) {
+          setToastMessage({ text: 'Error connecting to server.', type: 'error' });
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -68,6 +83,9 @@ export default function ActivityDetailPage() {
 
   const students = activityData?.students || [];
   const passages = activityData?.passages || [];
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   const filteredStudents = useMemo(() => {
     return students.filter((std) => {
@@ -88,6 +106,19 @@ export default function ActivityDetailPage() {
       return nameMatch && statusMatch && profileMatch;
     });
   }, [students, searchQuery, statusFilter, profileFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, profileFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / ITEMS_PER_PAGE));
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStudents, currentPage]);
+
+  const startItem = filteredStudents.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, filteredStudents.length);
 
   const doneCount = useMemo(() => students.filter((s) => s.status === 'completed').length, [students]);
   const pendingCount = useMemo(() => students.length - doneCount, [students]);
@@ -117,7 +148,8 @@ export default function ActivityDetailPage() {
       });
       const data = await res.json();
       if (data.success) {
-        navigate('/teacher/class-activities/phil-iri');
+        cacheService.invalidate(`activity_detail_${id}`);
+        navigate('/teacher/phil-iri-assessments');
       } else {
         setToastMessage({ text: data.error || 'Failed to delete assessment.', type: 'error' });
       }
@@ -136,6 +168,7 @@ export default function ActivityDetailPage() {
         onBack={() => setActiveReviewData(null)}
         onVerified={() => {
           setActiveReviewData(null);
+          cacheService.invalidate(`activity_detail_${id}`);
           fetchActivityDetail();
         }}
       />
@@ -157,7 +190,7 @@ export default function ActivityDetailPage() {
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <BackButton to="/teacher/class-activities/phil-iri" />
+          <BackButton to="/teacher/phil-iri-assessments" />
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-ink/10 px-2 py-0.5 text-[11px] font-bold text-ink/70">
@@ -195,9 +228,7 @@ export default function ActivityDetailPage() {
       </div>
 
       {loading ? (
-        <div className="flex h-64 w-full items-center justify-center">
-          <div className="size-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent" />
-        </div>
+        <ActivityDetailSkeleton />
       ) : (
         <>
           {/* Key Metrics Overview Cards */}
@@ -214,23 +245,23 @@ export default function ActivityDetailPage() {
             </div>
 
             {/* Completed */}
-            <div className="flex items-center justify-between rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 shadow-2xs">
+            <div className="flex items-center justify-between rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
               <div>
                 <span className="text-xs font-semibold text-emerald-800">Completed</span>
                 <p className="text-2xl font-extrabold text-emerald-950 mt-0.5">{doneCount}</p>
               </div>
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                 <CheckCircle size={22} weight="bold" />
               </div>
             </div>
 
             {/* Pending */}
-            <div className="flex items-center justify-between rounded-2xl border border-amber-200/70 bg-amber-50/40 p-4 shadow-2xs">
+            <div className="flex items-center justify-between rounded-2xl border border-ink/10 bg-white p-4 shadow-2xs">
               <div>
                 <span className="text-xs font-semibold text-amber-800">Pending Evaluation</span>
                 <p className="text-2xl font-extrabold text-amber-950 mt-0.5">{pendingCount}</p>
               </div>
-              <div className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
                 <Clock size={22} weight="bold" />
               </div>
             </div>
@@ -336,14 +367,45 @@ export default function ActivityDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink/5">
-                  {filteredStudents.length > 0 ? (
-                    filteredStudents.map((std) => {
+                  {paginatedStudents.length > 0 ? (
+                    paginatedStudents.map((std) => {
                       const isCompleted = std.status === 'completed';
                       const badgeClass = PROFILE_TAG[std.readingLevelResult] || PROFILE_TAG['Pending Evaluation'];
                       const needsOralVerification = std.assessmentType === 'oral' && std.audioUrl && std.verificationStatus !== 'verified';
 
+                      const isNeedsReview = std.sessionStatus === 'needs_review' || std.sessionTerminalReason === 'NON_MONOTONIC_READING_LEVELS';
+
+                      const handleReviewClick = () => {
+                        if (std.attemptId) {
+                          navigate(`/teacher/phil-iri-assessments/view/${id}/review/${std.attemptId}`);
+                        } else {
+                          setActiveReviewData({
+                            attemptId: std.attemptId,
+                            studentId: std.studentId,
+                            sessionId: std.sessionId,
+                            sessionStatus: std.sessionStatus,
+                            sessionTerminalReason: std.sessionTerminalReason,
+                            studentName: std.studentName,
+                            passageTitle: std.passageTitle,
+                            passageSet: std.passageSet,
+                            gradeLevel: std.gradeLevel,
+                            language: std.passageLanguage,
+                            passageText: std.passageText,
+                            aiMiscues: std.aiMiscues,
+                            verifiedMiscues: std.verifiedMiscues,
+                            miscues: std.verifiedMiscues ?? std.aiMiscues,
+                            audioUrl: std.audioUrl,
+                            wpm: std.wpm,
+                            accuracyPct: std.accuracyPct,
+                            comprehensionScore: std.comprehensionScore,
+                            totalQuestions: std.totalQuestions,
+                            verificationStatus: std.verificationStatus,
+                          });
+                        }
+                      };
+
                       return (
-                        <tr key={std.assessmentId || std.studentId} className="hover:bg-cream/30 transition-colors">
+                        <tr key={std.assessmentId || std.studentId} className="group hover:bg-cream/30 transition-colors">
                           <td className="py-2.5 px-3 font-bold text-ink">
                             <div className="flex items-center gap-2.5">
                               <Avatar name={std.studentName} src={std.profileImage || std.profile_image || std.avatarUrl || std.avatar} size={28} />
@@ -356,13 +418,19 @@ export default function ActivityDetailPage() {
                             {std.passageTitle}
                           </td>
                           <td className="py-2.5 px-3">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                isCompleted ? 'bg-emerald-100 text-emerald-950' : 'bg-amber-100 text-amber-950'
-                              }`}
-                            >
-                              {isCompleted ? 'Completed' : 'Pending'}
-                            </span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  isNeedsReview
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : isCompleted
+                                    ? 'bg-emerald-100 text-emerald-950'
+                                    : 'bg-amber-50 text-amber-800'
+                                }`}
+                              >
+                                {isNeedsReview ? 'Needs Review' : isCompleted ? 'Completed' : 'Pending'}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-2.5 px-3">
                             <span className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${badgeClass}`}>
@@ -373,35 +441,22 @@ export default function ActivityDetailPage() {
                             {needsOralVerification ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setActiveReviewData({
-                                    attemptId: std.attemptId,
-                                    studentName: std.studentName,
-                                    passageTitle: std.passageTitle,
-                                    passageSet: std.passageSet,
-                                    gradeLevel: std.gradeLevel,
-                                    language: std.passageLanguage,
-                                    passageText: std.passageText,
-                                    aiMiscues: std.aiMiscues,
-                                    verifiedMiscues: std.verifiedMiscues,
-                                    miscues: std.verifiedMiscues ?? std.aiMiscues,
-                                    audioUrl: std.audioUrl,
-                                    wpm: std.wpm,
-                                    accuracyPct: std.accuracyPct,
-                                    comprehensionScore: std.comprehensionScore,
-                                    totalQuestions: std.totalQuestions,
-                                    verificationStatus: std.verificationStatus,
-                                  })
-                                }
-                                className="inline-flex items-center gap-1 rounded-lg bg-brand-blue px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-blue-700 transition-colors cursor-pointer"
+                                onClick={handleReviewClick}
+                                className="inline-flex items-center gap-1 rounded-lg bg-brand-blue px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
                               >
                                 <Microphone size={13} weight="bold" />
                                 Review Audio
                               </button>
+                            ) : std.attemptId || isCompleted ? (
+                              <button
+                                type="button"
+                                onClick={handleReviewClick}
+                                className="inline-flex items-center gap-1 rounded-lg border border-brand-blue/30 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-brand-blue shadow-2xs hover:bg-brand-blue hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
+                              >
+                                View Result
+                              </button>
                             ) : (
-                              <span className="text-[11px] text-ink/40 font-medium">
-                                {isCompleted ? 'Recorded' : 'Awaiting Test'}
-                              </span>
+                              <span className="text-[11px] text-ink/40 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Awaiting Test</span>
                             )}
                           </td>
                         </tr>
@@ -416,6 +471,39 @@ export default function ActivityDetailPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-ink/10 text-xs font-semibold text-ink/60">
+              <div>
+                Showing <span className="font-bold text-ink">{startItem}</span> to{' '}
+                <span className="font-bold text-ink">{endItem}</span> of{' '}
+                <span className="font-bold text-ink">{filteredStudents.length}</span> assessment records
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink hover:bg-cream disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    <CaretLeft size={14} weight="bold" />
+                  </button>
+                  <span className="text-xs font-bold text-ink px-1">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="flex size-8 items-center justify-center rounded-lg border border-ink/15 bg-white text-ink hover:bg-cream disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    <CaretRight size={14} weight="bold" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>

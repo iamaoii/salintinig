@@ -7,6 +7,7 @@ import { PhilIriForm4DetailSkeleton, SkeletonBlock } from '../../../components/c
 import { cacheService } from '../../../services/cacheService.js';
 import { getToken } from '../../../lib/auth.js';
 import { getApiUrl } from '../../../config/api.js';
+import { jsPDF } from 'jspdf';
 
 const FORM4_LEVELS = [
   { code: 'I', label: 'Grade 1' },
@@ -346,6 +347,492 @@ export default function PhilIriForm4Detail() {
     }
   };
 
+  const handleDownloadPDF = () => {
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const margin = 8;
+      const contentWidth = pageWidth - margin * 2; // 194mm
+
+      const borderCol = [160, 160, 160];
+
+      const drawVectorCheckmark = (pdf, cx, cy, size = 2.5, color = [16, 124, 65], strokeWidth = 0.38) => {
+        pdf.setDrawColor(...color);
+        pdf.setLineWidth(strokeWidth);
+        pdf.setLineCap('round');
+        pdf.setLineJoin('round');
+        const p1x = cx - size * 0.32;
+        const p1y = cy;
+        const p2x = cx - size * 0.08;
+        const p2y = cy + size * 0.32;
+        const p3x = cx + size * 0.36;
+        const p3y = cy - size * 0.36;
+        pdf.line(p1x, p1y, p2x, p2y);
+        pdf.line(p2x, p2y, p3x, p3y);
+        pdf.setLineCap('butt');
+        pdf.setLineJoin('miter');
+      };
+
+      const drawCell = (left, top, width, height, text = '', options = {}) => {
+        if (options.fill) {
+          pdf.setFillColor(...options.fill);
+          pdf.rect(left, top, width, height, 'F');
+        }
+        pdf.setDrawColor(...borderCol);
+        pdf.setLineWidth(0.2);
+        pdf.rect(left, top, width, height);
+
+        if (text === '✓') {
+          const color = options.textColor || [16, 124, 65];
+          drawVectorCheckmark(pdf, left + width / 2, top + height / 2 + 0.1, (options.size || 6.5) * 0.42, color, 0.38);
+          return;
+        }
+
+        pdf.setTextColor(...(options.textColor || [30, 30, 30]));
+        pdf.setFont('helvetica', options.italic ? 'italic' : options.bold ? 'bold' : 'normal');
+        pdf.setFontSize(options.size || 6.5);
+        if (text !== '' && text !== null && text !== undefined) {
+          const lines = pdf.splitTextToSize(String(text), Math.max(2, width - 2));
+          const lineHeight = (options.size || 6.5) * 0.42;
+          const startY = top + (height - lines.length * lineHeight) / 2 + lineHeight * 0.75;
+          lines.forEach((line, idx) => {
+            const align = options.align || 'center';
+            const textX = align === 'left' ? left + 1.8 : align === 'right' ? left + width - 1.8 : left + width / 2;
+            pdf.text(line, textX, startY + idx * lineHeight, { align });
+          });
+        }
+      };
+
+      const drawCheckbox = (x, y, checked, size = 3.2) => {
+        // Clean square checkbox border
+        pdf.setDrawColor(17, 24, 39);
+        pdf.setLineWidth(0.2);
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(x, y, size, size, 'FD');
+        if (checked) {
+          // Typical crisp continuous checkmark inside checkbox
+          drawVectorCheckmark(pdf, x + size / 2, y + size / 2 + 0.1, size * 0.7, [17, 24, 39], 0.38);
+        }
+      };
+
+      const drawDividerLine = (yPos) => {
+        // Form rules use the same thin black stroke as the web layout.
+        pdf.setDrawColor(17, 24, 39);
+        pdf.setLineWidth(0.12);
+        pdf.line(margin, yPos, pageWidth - margin, yPos);
+      };
+
+      // ── FORM HEADER ──
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(75, 85, 99);
+      pdf.text('PHIL-IRI FORM 4', pageWidth - margin, 9, { align: 'right' });
+
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('INDIVIDUAL SUMMARY RECORD (ISR) /', pageWidth / 2, 14, { align: 'center' });
+      pdf.text('TALAAN NG INDIBIDWAL NA PAGBASA (TIP)', pageWidth / 2, 18.5, { align: 'center' });
+
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(16, 124, 65);
+      pdf.text(getModeLabel(selectedMode).toUpperCase(), pageWidth / 2, 23.5, { align: 'center' });
+
+      // Student Info Lines
+      pdf.setFontSize(7);
+      pdf.setTextColor(30, 30, 30);
+      const yL1 = 30.5;
+      const yL2 = 36;
+      const yL3 = 41.5;
+
+      // Line 1: Name, Age, Grade/Section
+      // Match the web form grid: 6 / 2 / 4 columns on the first row,
+      // then 6 / 6 columns on the second row.
+      const nameEndX = margin + 97;
+      const ageStartX = margin + 100;
+      const ageEndX = margin + 129;
+      const gradeStartX = margin + 132;
+
+      pdf.setDrawColor(17, 24, 39);
+      // Keep the student-information rules as hairlines, like the web form.
+      // (0.3mm made the exported rules visibly heavier than the reference.)
+      pdf.setLineWidth(0.12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Name:', margin, yL1);
+      const wNameLbl = pdf.getTextWidth('Name:');
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(student.name || '—', margin + wNameLbl + 2, yL1);
+      pdf.line(margin + wNameLbl + 1, yL1 + 0.6, nameEndX, yL1 + 0.6);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Age:', ageStartX, yL1);
+      const wAgeLbl = pdf.getTextWidth('Age:');
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(String(student.age || '—'), ageStartX + wAgeLbl + 2, yL1);
+      pdf.line(ageStartX + wAgeLbl + 1, yL1 + 0.6, ageEndX, yL1 + 0.6);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Grade/Section:', gradeStartX, yL1);
+      const wGSLbl = pdf.getTextWidth('Grade/Section:');
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${student.grade}-${student.section}`, gradeStartX + wGSLbl + 2, yL1);
+      pdf.line(gradeStartX + wGSLbl + 1, yL1 + 0.6, pageWidth - margin, yL1 + 0.6);
+
+      // Line 2: School, Teacher
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('School:', margin, yL2);
+      const wSchoolLbl = pdf.getTextWidth('School:');
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(student.school || '—', margin + wSchoolLbl + 2, yL2);
+      pdf.line(margin + wSchoolLbl + 1, yL2 + 0.6, nameEndX, yL2 + 0.6);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Teacher:', ageStartX, yL2);
+      const wTeacherLbl = pdf.getTextWidth('Teacher:');
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(student.teacher || '—', ageStartX + wTeacherLbl + 2, yL2);
+      pdf.line(ageStartX + wTeacherLbl + 1, yL2 + 0.6, pageWidth - margin, yL2 + 0.6);
+
+      // Line 3: Language Checkboxes
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('English:', margin, yL3);
+      drawCheckbox(margin + pdf.getTextWidth('English:') + 2, yL3 - 2.4, isEnglishMode, 3);
+
+      pdf.text('Filipino:', margin + 32, yL3);
+      drawCheckbox(margin + 32 + pdf.getTextWidth('Filipino:') + 2, yL3 - 2.4, !isEnglishMode, 3);
+
+      // ── TABLE 1: WORD READING & COMPREHENSION LEVEL SUMMARY ──
+      let currentY = 47.5;
+      const colsT1 = [20, 16, 26, 14, 14, 14, 14, 14, 14, 34];
+      const scaleT1 = contentWidth / colsT1.reduce((a, b) => a + b, 0);
+      const wsT1 = colsT1.map((w) => w * scaleT1);
+      const xsT1 = [margin];
+      wsT1.forEach((w) => xsT1.push(xsT1[xsT1.length - 1] + w));
+
+      const fillD4 = [212, 212, 212];
+      const fillE2 = [226, 226, 226];
+      const fillF0 = [240, 240, 240];
+      const fillActive = [245, 250, 246];
+
+      // Header Row 1
+      drawCell(xsT1[0], currentY, wsT1[0], 5, 'Level Started', { fill: fillD4, bold: true, size: 5.5 });
+      drawCell(xsT1[1], currentY, wsT1[1], 5, 'Level', { fill: fillD4, bold: true, size: 5.5 });
+      drawCell(xsT1[2], currentY, wsT1[2], 5, 'Set', { fill: fillD4, bold: true, size: 5.5 });
+      drawCell(xsT1[3], currentY, wsT1[3] + wsT1[4] + wsT1[5], 5, 'Word Reading', { fill: fillE2, bold: true, size: 5.5 });
+      drawCell(xsT1[6], currentY, wsT1[6] + wsT1[7] + wsT1[8], 5, 'Comprehension', { fill: fillD4, bold: true, size: 5.5 });
+      drawCell(xsT1[9], currentY, wsT1[9], 5, 'Date Taken', { fill: fillD4, bold: true, size: 5.5 });
+
+      // Header Row 2
+      drawCell(xsT1[0], currentY + 5, wsT1[0], 5, 'Mark with an *', { fill: fillF0, italic: true, size: 4.8 });
+      drawCell(xsT1[1], currentY + 5, wsT1[1], 5, '', { fill: fillF0 });
+      drawCell(xsT1[2], currentY + 5, wsT1[2], 5, 'Indicate if A, B, C, or D', { fill: fillF0, italic: true, size: 4.6 });
+      ['Ind', 'Ins', 'Frus', 'Ind', 'Ins', 'Frus'].forEach((h, i) => {
+        drawCell(xsT1[3 + i], currentY + 5, wsT1[3 + i], 5, h, { fill: fillF0, bold: true, size: 5 });
+      });
+      drawCell(xsT1[9], currentY + 5, wsT1[9], 5, '', { fill: fillF0 });
+
+      currentY += 10;
+
+      FORM4_LEVELS.forEach((item) => {
+        const lvlCode = item.code;
+        const lvlData = levelMap[lvlCode];
+        const mark = (v) => (v ? '✓' : '—');
+        const isStartLevel = lvlCode === startingLevelCode;
+
+        const vals = [
+          isStartLevel ? '*' : '',
+          lvlCode,
+          lvlData?.set || '—',
+          mark(lvlData?.wordReading.ind),
+          mark(lvlData?.wordReading.ins),
+          mark(lvlData?.wordReading.frus),
+          mark(lvlData?.comprehension.ind),
+          mark(lvlData?.comprehension.ins),
+          mark(lvlData?.comprehension.frus),
+          lvlData?.dateTaken || '—',
+        ];
+
+        vals.forEach((v, idx) => {
+          const opts = {
+            fill: lvlData ? fillActive : null,
+            bold: Boolean(lvlData) || idx === 1,
+            size: 5.2,
+          };
+          if (v === '✓') opts.textColor = [16, 124, 65]; // GREEN CHECKMARK in 1st Part!
+          else if (v === '—') opts.textColor = [180, 180, 180];
+          drawCell(xsT1[idx], currentY, wsT1[idx], 4.4, v, opts);
+        });
+        currentY += 4.4;
+      });
+
+      // Keep the transition between the level summary and checklist breathable,
+      // matching the vertical rhythm of the on-screen form.
+      currentY += 5.5;
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(6);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('Legend: Ind - Independent; Ins - Instructional; Frus - Frustration', margin, currentY);
+
+      // Divider 3
+      currentY += 4.5;
+      drawDividerLine(currentY);
+
+      // ── TABLE 2: ORAL READING OBSERVATION CHECKLIST ──
+      currentY += 5.5;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('ORAL READING OBSERVATION CHECKLIST /', pageWidth / 2, currentY, { align: 'center' });
+      pdf.text('TALAAN NG MGA PUNA HABANG NAGBABASA', pageWidth / 2, currentY + 3.6, { align: 'center' });
+      // Leave a clear break between the two-line heading and the checklist table.
+      currentY += 8.5;
+
+      const wCheckText = contentWidth - 32;
+      const wCheckVal = 32;
+
+      drawCell(margin, currentY, wCheckText, 5, 'Behaviors while Reading (Paraan ng Pagbabasa)', { fill: fillE2, bold: true, align: 'left', size: 5.5 });
+      drawCell(margin + wCheckText, currentY, wCheckVal, 5, '', { fill: fillE2 });
+      const checkHeaderCenter = margin + wCheckText + wCheckVal / 2;
+      pdf.setTextColor(17, 24, 39);
+      drawVectorCheckmark(pdf, checkHeaderCenter - 2.5, currentY + 2.5, 2.0, [17, 24, 39], 0.35);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(5.5);
+      pdf.text('or X', checkHeaderCenter - 0.2, currentY + 3.2, { align: 'left' });
+      currentY += 5;
+
+      currentObservationChecklist.forEach((row) => {
+        drawCell(margin, currentY, wCheckText, 4.4, '', { fill: null });
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(5.2);
+        pdf.setTextColor(17, 24, 39);
+        pdf.text(row.behavior, margin + 1.8, currentY + 3.1);
+        const wEng = pdf.getTextWidth(row.behavior);
+        pdf.setFont('helvetica', 'italic');
+        pdf.setFontSize(5.2);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(` (${row.behaviorFilipino})`, margin + 1.8 + wEng, currentY + 3.1);
+
+        const resVal = row.result || '';
+        // Part 2 uses neutral printed marks: both check and X are black.
+        const resColor = [17, 24, 39];
+
+        drawCell(margin + wCheckText, currentY, wCheckVal, 4.4, resVal, { bold: true, size: 5.2, textColor: resColor });
+        currentY += 4.4;
+      });
+
+      // Divider 4
+      // Separate Part 2 from Part 3 so the two sections do not read as one block.
+      currentY += 4.5;
+      drawDividerLine(currentY);
+
+      // ── TABLE 3: SUMMARY OF COMPREHENSION RESPONSES ──
+      currentY += 5.5;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('SUMMARY OF COMPREHENSION RESPONSES /', pageWidth / 2, currentY, { align: 'center' });
+      pdf.text('TALAAN NG PAG-UNAWA', pageWidth / 2, currentY + 3.6, { align: 'center' });
+
+      currentY += 7.5;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(6.5);
+      pdf.text('English:', margin, currentY);
+      drawCheckbox(margin + pdf.getTextWidth('English:') + 2, currentY - 2.2, isEnglishMode, 2.8);
+
+      pdf.text('Filipino:', margin + 30, currentY);
+      drawCheckbox(margin + 30 + pdf.getTextWidth('Filipino:') + 2, currentY - 2.2, !isEnglishMode, 2.8);
+
+      currentY += 3.8;
+
+      // Table 3 Columns Setup (Total 194mm)
+      // Match the web grid: a compact passage-level column followed by eight
+      // evenly spaced question columns.
+      const colPassage = 28;
+      const colQ = 9; // 8 * 9 = 72
+      const colScoreType = 32;
+      const colScore = 16;
+      const colPct = 16;
+      const colLevel = 30;
+
+      const xsT3 = [margin];
+      const wsT3 = [colPassage, colQ, colQ, colQ, colQ, colQ, colQ, colQ, colQ, colScoreType, colScore, colPct, colLevel];
+      wsT3.forEach((w) => xsT3.push(xsT3[xsT3.length - 1] + w));
+
+      const fillHeader3 = [232, 232, 232];
+      const fillSubQ = [240, 240, 240];
+
+      // ── TABLE 3 HEADER (3 ROWS GRID LAYOUT) ──
+      const topT3 = currentY;
+      const modeHeaderH = 5.5;
+      // Taller middle header keeps the vertical Passage Level choices fully
+      // inside their merged cell before the Q1–Q8 row starts.
+      const responseHeaderH = 13;
+      // Give the stacked passage-level checkboxes breathing room before the
+      // standalone Q1–Q8 row begins.
+      const questionHeaderH = 6;
+      const passageHeaderH = modeHeaderH + responseHeaderH; // 18.5mm
+      const table3HeaderH = passageHeaderH + questionHeaderH; // 24.5mm
+
+      // 1. Passage Level (Col 0, spans Row 1 and Row 2)
+      drawCell(xsT3[0], topT3, wsT3[0], passageHeaderH, '', { fill: fillHeader3 });
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(5.8);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('Passage', xsT3[0] + 1.5, topT3 + 2.6);
+      pdf.text('Level', xsT3[0] + 1.5, topT3 + 4.6);
+
+      // Spread A–D vertically inside Passage Level box, matching the web form.
+      const setPositions = [
+        { code: 'A', x: xsT3[0] + 1.5, y: topT3 + 6.0 },
+        { code: 'B', x: xsT3[0] + 1.5, y: topT3 + 9.2 },
+        { code: 'C', x: xsT3[0] + 1.5, y: topT3 + 12.4 },
+        { code: 'D', x: xsT3[0] + 1.5, y: topT3 + 15.6 },
+      ];
+      setPositions.forEach((pos) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(5);
+        pdf.text(pos.code, pos.x, pos.y + 1.85);
+        drawCheckbox(pos.x + 5, pos.y - 0.35, usedSets.has(pos.code), 2.2);
+      });
+
+      // 2. Pre-Test (Col 1..4, Row 1)
+      const wPre = wsT3[1] + wsT3[2] + wsT3[3] + wsT3[4];
+      drawCell(xsT3[1], topT3, wPre, modeHeaderH, '', { fill: fillHeader3 });
+      drawCheckbox(xsT3[1] + 2, topT3 + 1.4, !isPostMode, 2.6);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(5.8);
+      pdf.text('Pre-Test', xsT3[1] + 5.5, topT3 + 2.6);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(4.5);
+      pdf.setTextColor(80, 80, 80);
+      pdf.text('Panimulang Pagtatasa', xsT3[1] + 5.5, topT3 + 4.6);
+
+      // 3. Post-Test (Col 5..12, Row 1)
+      const wPost = wsT3[5] + wsT3[6] + wsT3[7] + wsT3[8] + wsT3[9] + wsT3[10] + wsT3[11] + wsT3[12];
+      drawCell(xsT3[5], topT3, wPost, modeHeaderH, '', { fill: fillHeader3 });
+      drawCheckbox(xsT3[5] + 2, topT3 + 1.4, isPostMode, 2.6);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(5.8);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('Post Test', xsT3[5] + 5.5, topT3 + 2.6);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(4.5);
+      pdf.setTextColor(80, 80, 80);
+      pdf.text('Panapos na Pagtatasa', xsT3[5] + 5.5, topT3 + 4.6);
+
+      // Row 2: Responses to Questions and right-hand summary headers (Row 2 only, height = responseHeaderH)
+      const wResp = wsT3[1] + wsT3[2] + wsT3[3] + wsT3[4] + wsT3[5] + wsT3[6] + wsT3[7] + wsT3[8];
+      drawCell(xsT3[1], topT3 + modeHeaderH, wResp, responseHeaderH, 'Responses to Questions\nSagot sa mga Tanong', { fill: fillHeader3, bold: true, size: 5.2 });
+      drawCell(xsT3[9], topT3 + modeHeaderH, wsT3[9], responseHeaderH, 'Score per\nType of\nQuestion', { fill: fillHeader3, bold: true, size: 5 });
+      drawCell(xsT3[10], topT3 + modeHeaderH, wsT3[10], responseHeaderH, 'Score\nMarka', { fill: fillHeader3, bold: true, size: 5.2 });
+      drawCell(xsT3[11], topT3 + modeHeaderH, wsT3[11], responseHeaderH, '%', { fill: fillHeader3, bold: true, size: 5.8 });
+      drawCell(xsT3[12], topT3 + modeHeaderH, wsT3[12], responseHeaderH, 'Reading\nLevel\nAntas ng Pagbasa', { fill: fillHeader3, bold: true, size: 5 });
+
+      // Row 3: Standalone 3rd header row across all columns (Passage Level empty cell + Q1–Q8 sub-headers + right empty cells)
+      const topRow3 = topT3 + passageHeaderH;
+      drawCell(xsT3[0], topRow3, wsT3[0], questionHeaderH, '', { fill: fillSubQ });
+
+      ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Q8'].forEach((q, idx) => {
+        drawCell(xsT3[1 + idx], topRow3, wsT3[1 + idx], questionHeaderH, q, { fill: fillSubQ, bold: true, size: 5 });
+      });
+
+      drawCell(xsT3[9], topRow3, wsT3[9], questionHeaderH, '', { fill: fillSubQ });
+      drawCell(xsT3[10], topRow3, wsT3[10], questionHeaderH, '', { fill: fillSubQ });
+      drawCell(xsT3[11], topRow3, wsT3[11], questionHeaderH, '', { fill: fillSubQ });
+      drawCell(xsT3[12], topRow3, wsT3[12], questionHeaderH, '', { fill: fillSubQ });
+
+      currentY = topT3 + table3HeaderH;
+
+      // ── TABLE 3 DATA ROWS (LEVELS I TO VII) ──
+      FORM4_LEVELS.forEach((item) => {
+        const lvlCode = item.code;
+        const lvlData = levelMap[lvlCode];
+        const answers = lvlData?.answers || [];
+        const rowH = 6.8;
+
+        // Col 0: Level Code
+        drawCell(xsT3[0], currentY, wsT3[0], rowH, lvlCode, {
+          fill: lvlData ? fillActive : null,
+          bold: true,
+          align: 'left',
+          size: 5.8,
+        });
+
+        // Col 1..8: Q1..Q8
+        for (let q = 0; q < 8; q++) {
+          const ans = answers[q];
+          let qMark = '';
+          const qColor = [17, 24, 39];
+          if (ans) {
+            if (ans.is_correct) {
+              qMark = '✓';
+            } else {
+              qMark = 'x';
+            }
+          }
+          drawCell(xsT3[1 + q], currentY, wsT3[1 + q], rowH, qMark, {
+            fill: lvlData ? fillActive : null,
+            bold: true,
+            size: 5.5,
+            textColor: qColor,
+          });
+        }
+
+        // Col 9: Score per Type of Question (L, I, C)
+        drawCell(xsT3[9], currentY, wsT3[9], rowH, '', { fill: lvlData ? fillActive : null });
+        const litDenom = lvlData ? lvlData.literalTotal : 3;
+        const infDenom = lvlData ? lvlData.inferentialTotal : 3;
+        const critDenom = lvlData ? lvlData.criticalTotal : 2;
+
+        const lVal = licByMode[selectedMode]?.[lvlCode]?.l ?? (lvlData ? `${lvlData.literalCount}/${litDenom}` : '_/_');
+        const iVal = licByMode[selectedMode]?.[lvlCode]?.i ?? (lvlData ? `${lvlData.inferentialCount}/${infDenom}` : '_/_');
+        const cVal = licByMode[selectedMode]?.[lvlCode]?.c ?? (lvlData ? `${lvlData.criticalCount}/${critDenom}` : '_/_');
+
+        const yLIC = currentY + 1.8;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(4.6);
+        pdf.setTextColor(30, 30, 30);
+
+        pdf.text(`L=  ${lVal}`, xsT3[9] + 1.8, yLIC);
+        if (lVal && lVal !== '_/_') pdf.line(xsT3[9] + 5.5, yLIC + 0.5, xsT3[9] + 5.5 + pdf.getTextWidth(lVal), yLIC + 0.5);
+
+        pdf.text(`I=  ${iVal}`, xsT3[9] + 1.8, yLIC + 2.0);
+        if (iVal && iVal !== '_/_') pdf.line(xsT3[9] + 5.5, yLIC + 2.5, xsT3[9] + 5.5 + pdf.getTextWidth(iVal), yLIC + 2.5);
+
+        pdf.text(`C=  ${cVal}`, xsT3[9] + 1.8, yLIC + 4.2);
+        if (cVal && cVal !== '_/_') pdf.line(xsT3[9] + 5.5, yLIC + 4.7, xsT3[9] + 5.5 + pdf.getTextWidth(cVal), yLIC + 4.7);
+
+        // Col 10: Score
+        const scoreStr = lvlData ? `${lvlData.compScore}/${lvlData.totalItems}` : '';
+        drawCell(xsT3[10], currentY, wsT3[10], rowH, scoreStr, { fill: lvlData ? fillActive : null, bold: true, size: 5.8 });
+
+        // Col 11: %
+        const pctStr = lvlData ? `${lvlData.compPct}%` : '';
+        drawCell(xsT3[11], currentY, wsT3[11], rowH, pctStr, { fill: lvlData ? fillActive : null, bold: true, size: 5.8 });
+
+        // Col 12: Reading Level
+        const lvlStr = lvlData ? lvlData.compLevel : '';
+        drawCell(xsT3[12], currentY, wsT3[12], rowH, lvlStr, { fill: lvlData ? fillActive : null, bold: true, size: 5.5 });
+
+        currentY += rowH;
+      });
+
+      // Give the legend a clear separation from the final Table 3 row.
+      currentY += 4.5;
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(6);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('Legend: L - Literal; I - Inferential; C - Critical', margin, currentY);
+
+      // Save PDF file
+      pdf.save(`PHIL_IRI_FORM_4_${student.lrn || rawLrn}_${selectedMode.toUpperCase()}.pdf`);
+      triggerToast(`Downloaded PHIL-IRI FORM 4 (${selectedMode.toUpperCase()}) as PDF.`, 'success');
+    } catch (error) {
+      console.error('Failed to generate Form 4 PDF:', error);
+      triggerToast('Failed to generate the PDF file.', 'error');
+    }
+  };
+
   // Export official Form 4 to Excel (.xlsx) using ExcelJS matching Web UI exact layout
   const handleExportXLSX = async () => {
     try {
@@ -407,57 +894,86 @@ export default function PhilIriForm4Detail() {
 
       worksheet.addRow([]);
 
-      // Metadata Rows (Rows 5-7)
+      // Metadata Rows (Rows 5-7) — follows the web form's 6 / 2 / 4 grid.
+      // A value range gets a continuous black rule; underlining text alone
+      // leaves gaps and does not resemble the on-screen form.
+      const metadataRule = { style: 'thin', color: { argb: 'FF111827' } };
+      const styleMetadataValue = (rowNumber, startColumn, endColumn, align = 'left', indent = 1) => {
+        for (let column = startColumn; column <= endColumn; column += 1) {
+          const cell = worksheet.getCell(rowNumber, column);
+          cell.border = { bottom: metadataRule };
+          cell.alignment = { horizontal: align, vertical: 'middle', indent: align == 'left' ? indent : 0 };
+        }
+        const valueCell = worksheet.getCell(rowNumber, startColumn);
+        valueCell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF111827' } };
+      };
+
       const r5 = worksheet.addRow([
         'Name:', student.name, '', '', '',
-        'Age:', student.age || '—',
-        'Grade/Section:', `${student.grade}-${student.section}`, '', '', '', ''
+        'Age:', String(student.age || '—'),
+        'Grade/Section:', '', `${student.grade || '—'}-${student.section || '—'}`, '', '', ''
       ]);
       const n5 = r5.number;
-      r5.height = 22;
+      r5.height = 20;
       worksheet.mergeCells(`B${n5}:E${n5}`);
       worksheet.mergeCells(`H${n5}:I${n5}`);
       worksheet.mergeCells(`J${n5}:M${n5}`);
-      r5.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
-      r5.getCell(2).font = { name: 'Arial', size: 9.5, bold: true, underline: true };
-      r5.getCell(6).font = { name: 'Arial', size: 9.5, bold: true };
-      r5.getCell(7).font = { name: 'Arial', size: 9.5, underline: true };
-      r5.getCell(8).font = { name: 'Arial', size: 9.5, bold: true };
-      r5.getCell(10).font = { name: 'Arial', size: 9.5, bold: true, underline: true };
+      [1, 6, 8].forEach((column) => {
+        r5.getCell(column).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF111827' } };
+        r5.getCell(column).alignment = {
+          horizontal: column == 1 ? 'left' : 'right',
+          vertical: 'middle',
+        };
+      });
+      styleMetadataValue(n5, 2, 5);
+      styleMetadataValue(n5, 7, 7, 'center');
+      styleMetadataValue(n5, 10, 13);
 
       const r6 = worksheet.addRow([
         'School:', student.school, '', '', '',
-        'Teacher:', student.teacher, '', '', '', '', '', ''
+        'Teacher:', '', '', '', student.teacher, '', '', ''
       ]);
       const n6 = r6.number;
-      r6.height = 22;
+      r6.height = 20;
       worksheet.mergeCells(`B${n6}:E${n6}`);
-      worksheet.mergeCells(`G${n6}:M${n6}`);
-      r6.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
-      r6.getCell(2).font = { name: 'Arial', size: 9.5, underline: true };
-      r6.getCell(6).font = { name: 'Arial', size: 9.5, bold: true };
-      r6.getCell(7).font = { name: 'Arial', size: 9.5, underline: true };
+      worksheet.mergeCells(`F${n6}:I${n6}`);
+      worksheet.mergeCells(`J${n6}:M${n6}`);
+      [1, 6].forEach((column) => {
+        r6.getCell(column).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF111827' } };
+        r6.getCell(column).alignment = {
+          horizontal: column == 1 ? 'left' : 'right',
+          vertical: 'middle',
+        };
+      });
+      styleMetadataValue(n6, 2, 5);
+      styleMetadataValue(n6, 10, 13);
 
-      const langText = isEnglishMode ? 'English:  [ ✓ ]      Filipino:  [     ]' : 'English:  [     ]      Filipino:  [ ✓ ]';
-      const r7 = worksheet.addRow([langText]);
+      const r7 = worksheet.addRow([
+        'English:', isEnglishMode ? '[ ✓ ]' : '[   ]', '',
+        'Filipino:', !isEnglishMode ? '[ ✓ ]' : '[   ]', '', '', '', '', '', '', '', ''
+      ]);
       const n7 = r7.number;
-      r7.height = 22;
-      worksheet.mergeCells(`A${n7}:M${n7}`);
-      r7.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
+      r7.height = 20;
+      worksheet.mergeCells(`B${n7}:C${n7}`);
+      worksheet.mergeCells(`E${n7}:F${n7}`);
+      [1, 2, 4, 5].forEach((column) => {
+        r7.getCell(column).font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF111827' } };
+        r7.getCell(column).alignment = { horizontal: column == 2 || column == 5 ? 'center' : column == 4 ? 'right' : 'left', vertical: 'middle' };
+      });
 
       worksheet.addRow([]);
 
       // ── TABLE 1: WORD READING & COMPREHENSION LEVEL SUMMARY ──
       const rT1Sub1 = worksheet.addRow([
-        'Level Started', 'Level', 'Set',
-        'Word Reading', '', '',
-        'Comprehension', '', '',
-        'Date Taken', '', '', ''
+        'LEVEL STARTED', 'LEVEL', 'SET',
+        'WORD READING', '', '',
+        'COMPREHENSION', '', '',
+        'DATE TAKEN', '', '', ''
       ]);
       const nT1_1 = rT1Sub1.number;
 
       const rT1Sub2 = worksheet.addRow([
-        'Mark with an *', '', 'Indicate A, B, C or D',
+        'Mark with an *', '', 'Indicate if A. B. C. or D',
         'Ind', 'Ins', 'Frus',
         'Ind', 'Ins', 'Frus',
         '', '', '', ''
@@ -467,24 +983,26 @@ export default function PhilIriForm4Detail() {
       rT1Sub1.height = 22;
       rT1Sub2.height = 22;
 
-      worksheet.mergeCells(`B${nT1_1}:B${nT1_2}`);
       worksheet.mergeCells(`D${nT1_1}:F${nT1_1}`);
       worksheet.mergeCells(`G${nT1_1}:I${nT1_1}`);
-      worksheet.mergeCells(`J${nT1_1}:M${nT1_2}`);
+      worksheet.mergeCells(`J${nT1_1}:M${nT1_1}`);
+      worksheet.mergeCells(`J${nT1_2}:M${nT1_2}`);
 
-      rT1Sub1.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: 'Arial', size: 9.5, bold: true };
-        c.fill = fillSubHeader;
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      });
-
-      rT1Sub2.eachCell({ includeEmpty: true }, (c, col) => {
-        c.font = { name: 'Arial', size: 8.5, italic: col === 1 || col === 3, bold: col >= 4 && col <= 9 };
-        c.fill = fillSubHeaderSub;
-        c.border = borderThin;
-        c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      });
+      for (let r = nT1_1; r <= nT1_2; r += 1) {
+        for (let c = 1; c <= 13; c += 1) {
+          const cell = worksheet.getCell(r, c);
+          cell.fill = fillSubHeader;
+          cell.border = borderThin;
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          if (r === nT1_1) {
+            cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: 'FF111827' } };
+          } else {
+            const isItalic = c === 1 || c === 3;
+            const isBoldMark = c >= 4 && c <= 9;
+            cell.font = { name: 'Arial', size: 8.5, italic: isItalic, bold: isBoldMark, color: { argb: 'FF111827' } };
+          }
+        }
+      }
 
       FORM4_LEVELS.forEach((item) => {
         const lvlCode = item.code;
@@ -498,30 +1016,39 @@ export default function PhilIriForm4Detail() {
         const insComp = lvlData ? lvlData.comprehension.ins : false;
         const frusComp = lvlData ? lvlData.comprehension.frus : false;
         const dateTaken = lvlData?.dateTaken || '—';
-        const setVal = lvlData?.set || '—';
+        const rawSet = lvlData?.set || '—';
+        const setVal = rawSet !== '—' ? (rawSet.startsWith('Set') ? rawSet : `Set ${rawSet}`) : '—';
 
         const row = worksheet.addRow([
           isStartLevel ? '*' : '',
           lvlCode,
           setVal,
-          indWR ? '✓' : '-',
-          insWR ? '✓' : '-',
-          frusWR ? '✓' : '-',
-          indComp ? '✓' : '-',
-          insComp ? '✓' : '-',
-          frusComp ? '✓' : '-',
+          indWR ? '✓' : '—',
+          insWR ? '✓' : '—',
+          frusWR ? '✓' : '—',
+          indComp ? '✓' : '—',
+          insComp ? '✓' : '—',
+          frusComp ? '✓' : '—',
           dateTaken, '', '', ''
         ]);
         const rNum = row.number;
         worksheet.mergeCells(`J${rNum}:M${rNum}`);
         row.height = 20;
 
-        row.eachCell({ includeEmpty: true }, (c, col) => {
-          c.font = { name: 'Arial', size: 9, bold: Boolean(lvlData) };
+        for (let col = 1; col <= 13; col += 1) {
+          const c = row.getCell(col);
+          const val = c.value;
+          const isCheckmark = val === '✓';
+          c.font = {
+            name: 'Arial',
+            size: 9.5,
+            bold: Boolean(lvlData) || isCheckmark,
+            color: { argb: isCheckmark ? 'FF107C41' : 'FF111827' }
+          };
           c.border = borderThin;
           c.alignment = { horizontal: 'center', vertical: 'middle' };
           if (lvlData) c.fill = fillActiveRow;
-        });
+        }
       });
 
       const rT1Legend = worksheet.addRow(['Legend: Ind - Independent; Ins - Instructional; Frus - Frustration']);
@@ -579,58 +1106,76 @@ export default function PhilIriForm4Detail() {
       rT3Title.getCell(1).font = { name: 'Arial', size: 10, bold: true };
       rT3Title.getCell(1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
+      const langText = `English: ${isEnglishMode ? '[✓]' : '[ ]'}    Filipino: ${isEnglishMode ? '[ ]' : '[✓]'}`;
       const rT3Lang = worksheet.addRow([langText]);
       const nT3L = rT3Lang.number;
       rT3Lang.height = 22;
       worksheet.mergeCells(`A${nT3L}:M${nT3L}`);
       rT3Lang.getCell(1).font = { name: 'Arial', size: 9.5, bold: true };
 
+      const passageLevelStr = `Passage Level\nA [${usedSets.has('A') ? '✓' : ' '}]  B [${usedSets.has('B') ? '✓' : ' '}]\nC [${usedSets.has('C') ? '✓' : ' '}]  D [${usedSets.has('D') ? '✓' : ' '}]`;
+      const preTestStr = `[ ${!isPostMode ? '✓' : ' '} ] Pre-Test`;
+      const postTestStr = `[ ${isPostMode ? '✓' : ' '} ] Post Test`;
+
       const rT3Sub1 = worksheet.addRow([
-        `Passage Level\nA [${usedSets.has('A') ? '✓' : ' '}]  B [${usedSets.has('B') ? '✓' : ' '}]\nC [${usedSets.has('C') ? '✓' : ' '}]  D [${usedSets.has('D') ? '✓' : ' '}]`,
-        `[ ${!isPostMode ? '✓' : ' '} ] Pre-Test (Panimulang Pagtatasa)`, '', '', '',
-        `[ ${isPostMode ? '✓' : ' '} ] Post Test (Panapos na Pagtatasa)`, '', '', '',
+        passageLevelStr,
+        preTestStr, '', '', '',
+        postTestStr, '', '', '',
         'Score per\nType of\nQuestion',
-        'Score\n(Marka)',
+        'Score\nMarka',
         '%',
-        'Reading Level\n(Antas ng Pagbasa)'
+        'Reading Level\nAntas ng Pagbasa'
       ]);
       const nT3_1 = rT3Sub1.number;
 
       const rT3Sub2 = worksheet.addRow([
         '',
-        'Responses to Questions (Sagot sa mga Tanong)', '', '', '', '', '', '', '',
+        'Panimulang Pagtatasa', '', '', '',
+        'Panapos na Pagtatasa', '', '', '',
         '', '', '', ''
       ]);
       const nT3_2 = rT3Sub2.number;
 
       const rT3Sub3 = worksheet.addRow([
-        '', 'Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Q8', '', '', '', ''
+        '',
+        'Responses to Questions (Sagot sa mga Tanong)', '', '', '', '', '', '', '',
+        '', '', '', ''
       ]);
       const nT3_3 = rT3Sub3.number;
 
-      rT3Sub1.height = 26;
-      rT3Sub2.height = 24;
-      rT3Sub3.height = 20;
+      const rT3Sub4 = worksheet.addRow([
+        '', 'Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Q8', '', '', '', ''
+      ]);
+      const nT3_4 = rT3Sub4.number;
 
-      // Multi-row header vertical and horizontal merges
-      worksheet.mergeCells(`A${nT3_1}:A${nT3_3}`);
+      rT3Sub1.height = 20;
+      rT3Sub2.height = 18;
+      rT3Sub3.height = 22;
+      rT3Sub4.height = 20;
+
+      // Multi-row header vertical and horizontal merges across 4 rows
+      worksheet.mergeCells(`A${nT3_1}:A${nT3_4}`);
       worksheet.mergeCells(`B${nT3_1}:E${nT3_1}`);
       worksheet.mergeCells(`F${nT3_1}:I${nT3_1}`);
-      worksheet.mergeCells(`B${nT3_2}:I${nT3_2}`);
+      worksheet.mergeCells(`B${nT3_2}:E${nT3_2}`);
+      worksheet.mergeCells(`F${nT3_2}:I${nT3_2}`);
+      worksheet.mergeCells(`B${nT3_3}:I${nT3_3}`);
 
-      worksheet.mergeCells(`J${nT3_1}:J${nT3_3}`);
-      worksheet.mergeCells(`K${nT3_1}:K${nT3_3}`);
-      worksheet.mergeCells(`L${nT3_1}:L${nT3_3}`);
-      worksheet.mergeCells(`M${nT3_1}:M${nT3_3}`);
+      worksheet.mergeCells(`J${nT3_1}:J${nT3_4}`);
+      worksheet.mergeCells(`K${nT3_1}:K${nT3_4}`);
+      worksheet.mergeCells(`L${nT3_1}:L${nT3_4}`);
+      worksheet.mergeCells(`M${nT3_1}:M${nT3_4}`);
 
-      [rT3Sub1, rT3Sub2, rT3Sub3].forEach((rowObj, rIdx) => {
-        rowObj.eachCell({ includeEmpty: true }, (c) => {
-          c.font = { name: 'Arial', size: 8.5, bold: true };
-          c.fill = rIdx === 2 ? fillSubHeaderSub : fillSubHeader;
-          c.border = borderThin;
-          c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        });
-      });
+      for (let r = nT3_1; r <= nT3_4; r += 1) {
+        for (let c = 1; c <= 13; c += 1) {
+          const cell = worksheet.getCell(r, c);
+          cell.fill = fillSubHeader;
+          cell.border = borderThin;
+          const isItalic = r === nT3_2 && c >= 2 && c <= 9;
+          cell.font = { name: 'Arial', size: 9, bold: !isItalic, italic: isItalic, color: { argb: 'FF111827' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        }
+      }
 
       FORM4_LEVELS.forEach((item) => {
         const lvlCode = item.code;
@@ -665,13 +1210,21 @@ export default function PhilIriForm4Detail() {
         ]);
         row.height = 38;
 
-        row.eachCell({ includeEmpty: true }, (c, col) => {
-          c.font = { name: 'Arial', size: 9, bold: Boolean(lvlData) };
+        for (let col = 1; col <= 13; col += 1) {
+          const c = row.getCell(col);
+          const val = String(c.value || '');
+          const isCheckmark = val === '✓';
+          c.font = {
+            name: 'Arial',
+            size: 9.5,
+            bold: Boolean(lvlData) || isCheckmark,
+            color: { argb: isCheckmark ? 'FF107C41' : 'FF111827' }
+          };
           c.border = borderThin;
           c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: col === 10 };
           if (col === 1) c.alignment = { horizontal: 'left', vertical: 'middle' };
           if (lvlData) c.fill = fillActiveRow;
-        });
+        }
       });
 
       const rT3Legend = worksheet.addRow(['Legend: L - Literal; I - Inferential; C - Critical']);
@@ -740,8 +1293,18 @@ export default function PhilIriForm4Detail() {
 
           <button
             type="button"
+            onClick={handleDownloadPDF}
+            disabled={loading}
+            className="order-2 flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+          >
+            <DownloadSimple size={15} weight="bold" className="text-red-600" />
+            <span>Download PDF</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportXLSX}
-            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
+            className="order-1 flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
           >
             <DownloadSimple size={15} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
@@ -751,7 +1314,7 @@ export default function PhilIriForm4Detail() {
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="order-3 flex items-center gap-1.5 rounded-lg bg-[#107c41] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0b542c] transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <FloppyDisk size={15} weight="bold" />
             <span>{isSaving ? 'Saving to DB...' : 'Save Record'}</span>

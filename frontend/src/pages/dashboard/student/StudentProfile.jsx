@@ -2,30 +2,20 @@ import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { ChartLineUp, Clock, Prohibit, UserSwitch, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { jsPDF } from 'jspdf';
+import { Clock, Prohibit, UserSwitch, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../../components/dashboard/progress/StatCard.jsx';
-import AccuracyTrendChart from '../../../components/dashboard/progress/AccuracyTrendChart.jsx';
 import AchievementActivityRow from '../../../components/dashboard/activity/AchievementActivityRow.jsx';
 import BadgeCard from '../../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
 import { StudentProfileSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { decodeSecureToken } from '../../../lib/securityToken.js';
+import systemLogo from '../../../assets/logo/logo.png';
 
-import { students as mockStudentsData } from '../../../data/students.js';
 import { defaultBadges, defaultStories } from '../../../data/studentAchievements.js';
-
-const LEVEL_BADGE = {
-  Frustration: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
-  Frustrational: 'bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#B91C1C]/20',
-  Instruction: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
-  Instructional: 'bg-[#FEF08A] text-[#854D0E] font-bold border border-[#CA8A04]/20',
-  Independent: 'bg-[#D1FAE5] text-[#047857] font-bold border border-[#047857]/20',
-  Pending: 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
-  'Pending Evaluation': 'bg-slate-100 text-slate-700 font-bold border border-slate-300',
-};
 
 const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Badges', 'Stories'];
 
@@ -49,6 +39,8 @@ export default function StudentProfile() {
   const lrn = decodeSecureToken('st', rawLrn);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Phil-IRI Records');
+  const [profileLanguage, setProfileLanguage] = useState('fil');
+  const [profilePeriod, setProfilePeriod] = useState('pre_test');
   
   const cacheKey = `student_profile_${lrn || rawLrn}`;
   const cachedData = cacheService.get(cacheKey);
@@ -89,6 +81,15 @@ export default function StudentProfile() {
     section: 'Unassigned',
     level: 'Pending Evaluation',
   };
+  const selectedAdaptiveProfile = (student.oralAdaptiveProfiles || []).find((profile) => {
+    const language = String(profile.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    return language === profileLanguage && String(profile.period || 'pre_test').toLowerCase() === profilePeriod;
+  });
+  const formatGrade = (value) => {
+    if (!value) return '—';
+    const grade = String(value).match(/\d+/)?.[0];
+    return grade ? `Grade ${grade}` : String(value);
+  };
 
   // Map real database badges or default badge assets (only unlocked badges)
   const badges = (student.badges && student.badges.length > 0)
@@ -122,13 +123,461 @@ export default function StudentProfile() {
           ...act,
           onAction: (a) => {
             if (a.attemptId) {
-              navigate(`/teacher/class-activities/phil-iri/review/${a.attemptId}`);
+              navigate(`/teacher/phil-iri-assessments/review/${a.attemptId}`);
             } else if (a.id) {
-              navigate(`/teacher/class-activities/phil-iri/view/${a.id}`);
+              navigate(`/teacher/phil-iri-assessments/view/${a.id}`);
             }
           },
         }))
     : [];
+  const oralEvidence = activities
+    .filter((activity) =>
+      activity.assessmentType === 'oral'
+      && (String(activity.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil') === profileLanguage
+      && String(activity.assessmentPeriod || 'pre_test').toLowerCase() === profilePeriod
+    )
+    .sort((first, second) => new Date(first.completedAt || 0) - new Date(second.completedAt || 0));
+  const evidenceAverage = (key) => oralEvidence.length
+    ? Math.round(oralEvidence.reduce((total, activity) => total + Number(activity[key] || 0), 0) / oralEvidence.length)
+    : 0;
+  const buildDiagnosticEvidence = (profile, evidenceItems) => [
+    ['Independent', 'independent', profile?.independentLevel, 'bg-emerald-50 text-emerald-800'],
+    ['Instructional', 'instructional', profile?.instructionalLevel, 'bg-amber-50 text-amber-900'],
+    ['Frustrational', 'frustrational', profile?.frustrationalLevel, 'bg-rose-50 text-rose-800'],
+  ].map(([label, key, level, style]) => {
+    const grade = String(level || '').match(/\d+/)?.[0];
+    const resultPrefix = key === 'frustrational' ? 'frustr' : key;
+    const evidence = evidenceItems.find((activity) =>
+      grade && String(activity.passageGradeLevel || '').match(/\d+/)?.[0] === grade
+      && (!activity.readingLevelResult || String(activity.readingLevelResult).toLowerCase().startsWith(resultPrefix))
+    ) || evidenceItems.find((activity) => String(activity.readingLevelResult || '').toLowerCase().startsWith(resultPrefix));
+    return { label, level, style, evidence };
+  });
+  const diagnosticEvidence = buildDiagnosticEvidence(selectedAdaptiveProfile, oralEvidence);
+  const reportProfiles = (student.oralAdaptiveProfiles || []).map((profile) => {
+    const language = String(profile.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
+    const period = String(profile.period || 'pre_test').toLowerCase();
+    const evidenceItems = activities.filter((activity) => activity.assessmentType === 'oral'
+      && (String(activity.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil') === language
+      && String(activity.assessmentPeriod || 'pre_test').toLowerCase() === period);
+    return { profile, language, period, evidenceItems, boundaries: buildDiagnosticEvidence(profile, evidenceItems) };
+  });
+  const canGenerateReport = !loading && Boolean(student && student.name);
+
+  const generateStudentReport = async () => {
+    if (!canGenerateReport) return;
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+
+    const drawFooter = () => {
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.3);
+        pdf.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(
+          'SalinTinig Official Student Assessment Document • Confidential Educational Record',
+          margin,
+          pageHeight - 9
+        );
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth - margin,
+          pageHeight - 9,
+          { align: 'right' }
+        );
+      }
+    };
+
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width || 300;
+          canvas.height = img.height || 300;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(null);
+        img.src = systemLogo;
+      });
+    } catch (_) {
+      logoDataUrl = null;
+    }
+
+    let y = 14;
+
+    // Header Banner
+    if (logoDataUrl) {
+      pdf.addImage(logoDataUrl, 'PNG', margin, y, 16, 16);
+    }
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('SalinTinig', margin + 19, y + 6);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(22, 95, 213);
+    pdf.text('COMPREHENSIVE STUDENT READING & PERFORMANCE REPORT', margin + 19, y + 12);
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('Phil-IRI & Adaptive Literacy Assessment System', margin + 19, y + 16);
+
+    y += 20;
+    pdf.setDrawColor(22, 95, 213);
+    pdf.setLineWidth(0.8);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 6;
+
+    // Student Demographics Card (Thin Black Border)
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.2);
+    pdf.rect(margin, y, contentWidth, 24);
+
+    const col1 = margin + 4;
+    const col2 = margin + 70;
+    const col3 = margin + 130;
+
+    const drawField = (x, lineY, label, val) => {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(90, 90, 90);
+      pdf.text(label, x, lineY);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text(String(val || '—'), x, lineY + 4.5);
+    };
+
+    drawField(col1, y + 5, 'FULL NAME', student.name);
+    drawField(col2, y + 5, 'LEARNER REFERENCE NO. (LRN)', student.lrn || '—');
+    drawField(col3, y + 5, 'GRADE & SECTION', `${student.grade || '—'}${student.section ? ` / ${student.section}` : ''}`);
+
+    drawField(col1, y + 15, 'TOTAL ASSESSMENTS TAKEN', `${activities.length} completed record(s)`);
+    drawField(col2, y + 15, 'REPORT DATE', new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }));
+
+    y += 32;
+
+    // Executive Performance Summary (Thin Black Outline Cards)
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('Executive Reading Performance Summary', margin, y);
+    y += 6;
+
+    const overallAvgAccuracy = evidenceAverage('accuracyScore');
+    const overallAvgComp = evidenceAverage('comprehensionScore');
+    const overallAvgSpeed = evidenceAverage('readingSpeed');
+
+    const metrics = [
+      { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: 'Oral Reading Precision' },
+      { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: 'Understanding & Recall' },
+      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: 'Words Per Second Rate' },
+    ];
+
+    const cardW = (contentWidth - 8) / 3;
+    metrics.forEach((m, idx) => {
+      const cx = margin + idx * (cardW + 4);
+      pdf.setFillColor(255, 255, 255);
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.2);
+      pdf.rect(cx, y, cardW, 20);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(90, 90, 90);
+      pdf.text(m.label, cx + 4, y + 5.5);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor(22, 95, 213);
+      pdf.text(m.val, cx + 4, y + 13);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(6.5);
+      pdf.setTextColor(110, 110, 110);
+      pdf.text(m.desc, cx + 4, y + 17.5);
+    });
+
+    y += 28;
+
+    const checkOverflow = (neededHeight) => {
+      if (y + neededHeight > pageHeight - 20) {
+        pdf.addPage();
+        y = 18;
+      }
+    };
+
+    // Diagnostic Reading Profiles (Classic Grid Table with Black Outlines)
+    if (reportProfiles.length > 0) {
+      checkOverflow(35);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text('Phil-IRI Diagnostic Oral Reading Profiles', margin, y);
+      y += 7;
+
+      reportProfiles.forEach((rp) => {
+        const periodLabel = rp.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+        const langLabel = rp.language === 'en' ? 'English' : 'Filipino';
+
+        checkOverflow(40);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(`${periodLabel} — ${langLabel} Oral Reading Profile`, margin, y);
+        y += 6;
+
+        // Calculate total table height
+        let tableRowsHeight = 0;
+        const processedRows = rp.boundaries.map((b) => {
+          const basisText = b.evidence
+            ? `${b.evidence.passageTitle || b.evidence.passageSet} (${b.evidence.passageSet}) — Acc: ${b.evidence.accuracyScore}%, Comp: ${b.evidence.comprehensionScore}%`
+            : 'No reviewed assessment evidence recorded';
+          const basisLines = pdf.splitTextToSize(basisText, contentWidth - 94);
+          const rowH = Math.max(7, basisLines.length * 3.8 + 2);
+          tableRowsHeight += rowH;
+          return { b, basisLines, rowH };
+        });
+
+        const headerH = 6.5;
+        const totalTableH = headerH + tableRowsHeight;
+
+        checkOverflow(totalTableH + 5);
+
+        const tableStartY = y;
+
+        // Header Fill
+        pdf.setFillColor(245, 247, 250);
+        pdf.rect(margin, tableStartY, contentWidth, headerH, 'F');
+
+        // Header Labels
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text('RESULT BOUNDARY', margin + 3, tableStartY + 4.5);
+        pdf.text('CONFIRMED GRADE LEVEL', margin + 48, tableStartY + 4.5);
+        pdf.text('TEACHER-REVIEWED EVIDENCE BASIS', margin + 93, tableStartY + 4.5);
+
+        let currentY = tableStartY + headerH;
+
+        processedRows.forEach(({ b, basisLines, rowH }) => {
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setLineWidth(0.15);
+          pdf.line(margin, currentY, margin + contentWidth, currentY);
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(8);
+          if (b.label === 'Independent') pdf.setTextColor(4, 120, 87);
+          else if (b.label === 'Instructional') pdf.setTextColor(180, 83, 9);
+          else pdf.setTextColor(185, 28, 28);
+          pdf.text(b.label, margin + 3, currentY + 4.5);
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(8);
+          pdf.setTextColor(15, 23, 42);
+          pdf.text(formatGrade(b.level), margin + 48, currentY + 4.5);
+
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(51, 65, 85);
+          pdf.text(basisLines, margin + 93, currentY + 4.5);
+
+          currentY += rowH;
+        });
+
+        // Outer Border
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.2);
+        pdf.rect(margin, tableStartY, contentWidth, totalTableH);
+
+        // Vertical Column Dividers
+        pdf.setDrawColor(200, 200, 200);
+        pdf.line(margin + 45, tableStartY, margin + 45, tableStartY + totalTableH);
+        pdf.line(margin + 90, tableStartY, margin + 90, tableStartY + totalTableH);
+
+        y = tableStartY + totalTableH + 10;
+      });
+    }
+
+    // Phil-IRI Assessment Attempt History (Fixed Column Positions No Overlap)
+    if (activities.length > 0) {
+      checkOverflow(30);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text('Phil-IRI Assessment Attempt History', margin, y);
+      y += 7;
+
+      const headerH = 6.5;
+      const rowH = 6.5;
+      const totalTableH = headerH + activities.length * rowH;
+
+      checkOverflow(Math.min(totalTableH + 5, 40));
+
+      const tableStartY = y;
+
+      // Header Fill
+      pdf.setFillColor(245, 247, 250);
+      pdf.rect(margin, tableStartY, contentWidth, headerH, 'F');
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7);
+      pdf.setTextColor(15, 23, 42);
+
+      pdf.text('PASSAGE TITLE / RECORD', margin + 3, tableStartY + 4.5);
+      pdf.text('TYPE / LANG', margin + 61, tableStartY + 4.5);
+      pdf.text('ACCURACY', margin + 89, tableStartY + 4.5);
+      pdf.text('COMPREHENSION', margin + 113, tableStartY + 4.5);
+      pdf.text('RESULT LEVEL', margin + 147, tableStartY + 4.5);
+
+      let currentY = tableStartY + headerH;
+
+      activities.forEach((act) => {
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.15);
+        pdf.line(margin, currentY, margin + contentWidth, currentY);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+        pdf.setTextColor(15, 23, 42);
+        const title = act.passageTitle || act.title || act.passageSet || 'Assessment Attempt';
+        pdf.text(title.length > 26 ? `${title.substring(0, 24)}...` : title, margin + 3, currentY + 4.5);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(51, 65, 85);
+        const typeLang = `${act.assessmentType ? act.assessmentType.toUpperCase() : 'ORAL'} / ${act.language ? act.language.toUpperCase() : 'FIL'}`;
+        pdf.text(typeLang, margin + 61, currentY + 4.5);
+
+        pdf.text(`${act.accuracyScore ?? '—'}%`, margin + 89, currentY + 4.5);
+        pdf.text(`${act.comprehensionScore ?? '—'}%`, margin + 113, currentY + 4.5);
+
+        pdf.setFont('helvetica', 'bold');
+        const resText = act.readingLevelResult || act.level || 'Completed';
+        pdf.text(resText, margin + 147, currentY + 4.5);
+
+        currentY += rowH;
+      });
+
+      // Outer Border
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.2);
+      pdf.rect(margin, tableStartY, contentWidth, totalTableH);
+
+      // Vertical Column Dividers (Fixed Positions)
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(margin + 58, tableStartY, margin + 58, tableStartY + totalTableH);
+      pdf.line(margin + 86, tableStartY, margin + 86, tableStartY + totalTableH);
+      pdf.line(margin + 110, tableStartY, margin + 110, tableStartY + totalTableH);
+      pdf.line(margin + 144, tableStartY, margin + 144, tableStartY + totalTableH);
+
+      y = tableStartY + totalTableH + 12;
+    }
+
+    // Achievements & Milestones
+    checkOverflow(35);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('Student Reading Achievements & Milestones', margin, y);
+    y += 7;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(22, 95, 213);
+    pdf.text(`Unlocked Badges (${badges.length})`, margin, y);
+    y += 5;
+
+    if (badges.length > 0) {
+      const badgeList = badges.map((b) => b.name).join(' • ');
+      const bLines = pdf.splitTextToSize(badgeList, contentWidth);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(bLines, margin, y);
+      y += bLines.length * 4 + 4;
+    } else {
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text('No achievement badges unlocked yet.', margin, y);
+      y += 6;
+    }
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(22, 95, 213);
+    pdf.text(`Completed Reading Stories (${stories.length})`, margin, y);
+    y += 5;
+
+    if (stories.length > 0) {
+      const storyList = stories.map((s) => s.title).join(' • ');
+      const sLines = pdf.splitTextToSize(storyList, contentWidth);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(sLines, margin, y);
+      y += sLines.length * 4 + 6;
+    } else {
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text('No reading stories completed yet.', margin, y);
+      y += 6;
+    }
+
+    // Teacher Observations & Signatures (Sharp Thin Black Border)
+    checkOverflow(40);
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.2);
+    pdf.rect(margin, y, contentWidth, 32);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('TEACHER REMARKS & LITERACY INTERVENTION RECOMMENDATIONS', margin + 4, y + 6);
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text('[ ] Individual Remediation Recommended   [ ] Peer Reading Buddy Program   [ ] Maintain Independent Progress', margin + 4, y + 12);
+
+    pdf.setDrawColor(200, 200, 200);
+    pdf.setLineWidth(0.15);
+    pdf.line(margin + 4, y + 18, margin + contentWidth - 4, y + 18);
+    pdf.line(margin + 4, y + 25, margin + contentWidth - 4, y + 25);
+    drawFooter();
+
+    const cleanName = String(student.name || 'Student')
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-|-$/g, '');
+    const filename = `SalinTinig-Reading-Profile-${cleanName}.pdf`;
+    pdf.save(filename);
+  };
 
   const [recordsPage, setRecordsPage] = useState(1);
   const [storiesPage, setStoriesPage] = useState(1);
@@ -176,14 +625,11 @@ export default function StudentProfile() {
                 <p className="text-xs font-semibold text-ink/70">Full name</p>
                 <p className="text-xl font-bold text-ink">{student.name}</p>
               </div>
-              <span className={`rounded-lg px-3 py-1 text-xs font-bold ${LEVEL_BADGE[student.level] || LEVEL_BADGE['Pending']}`}>
-                {student.level || 'Pending Evaluation'}
-              </span>
             </div>
             <div className="flex flex-wrap gap-6">
               <div>
                 <p className="text-xs font-semibold text-ink/70">Grade Level</p>
-                <p className="text-base font-bold text-ink">{student.grade || 'Grade 4'}</p>
+                <p className="text-base font-bold text-ink">{student.grade ? formatGrade(student.grade) : 'Unassigned'}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-ink/70">Section</p>
@@ -199,7 +645,10 @@ export default function StudentProfile() {
 
         <button
           type="button"
-          className="flex shrink-0 items-center gap-2.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-blue-700"
+          onClick={generateStudentReport}
+          disabled={!canGenerateReport}
+          title={canGenerateReport ? 'Open a printable individual Phil-IRI report' : 'A reviewed oral adaptive profile is required before generating a report'}
+          className="flex shrink-0 items-center gap-2.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Icon icon="ph:article" className="size-5" />
           Generate report
@@ -208,35 +657,50 @@ export default function StudentProfile() {
 
       <div className="mt-10 flex flex-col gap-6 xl:flex-row">
         <div className="flex w-full flex-col gap-3 xl:max-w-[540px]">
-          <div className="flex items-center gap-2">
-            <ChartLineUp size={16} className="text-ink" />
-            <p className="text-sm font-medium text-ink">Accuracy Trend</p>
-          </div>
-          <div className="rounded-[10px] border border-ink/10 bg-cream p-3">
-            <AccuracyTrendChart
-              sessions={student.sessions && student.sessions.length > 0 ? student.sessions : ['S1']}
-              accuracy={student.accuracyTrend && student.accuracyTrend.length > 0 ? student.accuracyTrend : [0]}
-              comprehension={student.comprehensionTrend && student.comprehensionTrend.length > 0 ? student.comprehensionTrend : [0]}
-            />
+          <div className="rounded-2xl border border-ink/10 bg-white p-4 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold text-ink">Oral Reading Adaptive Profile</p>
+                <p className="text-[11px] text-ink/55">Final diagnostic boundaries and their assessment basis</p>
+              </div>
+              <div className="flex gap-1.5">
+                <select value={profilePeriod} onChange={(event) => setProfilePeriod(event.target.value)} className="rounded-lg border border-ink/15 bg-white px-2 py-1.5 text-[11px] font-semibold text-ink outline-none">
+                  <option value="pre_test">Pre-Test</option><option value="post_test">Post-Test</option>
+                </select>
+                <select value={profileLanguage} onChange={(event) => setProfileLanguage(event.target.value)} className="rounded-lg border border-ink/15 bg-white px-2 py-1.5 text-[11px] font-semibold text-ink outline-none">
+                  <option value="fil">Filipino</option><option value="en">English</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3 overflow-hidden rounded-xl border border-ink/10">
+              <div className="grid grid-cols-[1.1fr_.8fr_1.35fr] gap-2 bg-ink/[0.04] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-ink/55"><span>Result</span><span>Grade</span><span>Assessment basis</span></div>
+              {diagnosticEvidence.map((boundary) => (
+                <div key={boundary.label} className="grid grid-cols-[1.1fr_.8fr_1.35fr] items-center gap-2 border-t border-ink/10 px-3 py-2.5 text-xs">
+                  <span className={`w-fit rounded-md px-2 py-1 text-[10px] font-bold ${boundary.style}`}>{boundary.label}</span>
+                  <span className="font-bold text-ink">{formatGrade(boundary.level)}</span>
+                  {boundary.evidence ? <div className="min-w-0"><p className="truncate font-semibold text-ink">{boundary.evidence.passageTitle || boundary.evidence.passageSet}</p><p className="text-[10px] text-ink/60">{boundary.evidence.passageSet} · {boundary.evidence.accuracyScore}% Acc · {boundary.evidence.comprehensionScore}% Comp</p></div> : <span className="text-[10px] text-ink/50">No reviewed result yet</span>}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
-              value={student.avgAccuracy || 0}
+              value={evidenceAverage('accuracyScore')}
               unit="%"
               label={'Average\nAccuracy'}
               iconName="ph:target"
               iconBg="bg-[#DBEAFE] text-[#2563EB]"
             />
             <StatCard
-              value={student.avgComprehension || 0}
+              value={evidenceAverage('comprehensionScore')}
               unit="%"
               label={'Average\nComprehension'}
               iconName="ph:lightbulb"
               iconBg="bg-[#D1FAE5] text-[#059669]"
             />
             <StatCard
-              value={student.avgWps || 0}
+              value={evidenceAverage('readingSpeed')}
               unit=" WPS"
               label={'Average\nReading Speed'}
               iconName="ph:gauge"

@@ -926,7 +926,7 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
 
     try {
       debugPrint('[SentenceArrangement] Submitting attempt: session=$_sessionId, diff=$_sessionDifficulty, lang=$_sessionLanguage, total=$totalSentences, score=$score, xp=$_earnedXp');
-      final res = await ApiService.post('/students/sentence/attempt', {
+      final attemptTask = ApiService.post('/students/sentence/attempt', {
         'sessionId': _sessionId,
         'language': _sessionLanguage,
         'difficulty': _sessionDifficulty,
@@ -937,8 +937,10 @@ class _SentenceArrangementPageState extends State<SentenceArrangementPage>
         'itemsDetail': itemsDetail,
       });
 
-      // Now sync streak with backend to get authoritative updated streak
-      await StreakService.recordActivityCompletion();
+      final streakTask = StreakService.recordActivityCompletion();
+      final results = await Future.wait([attemptTask, streakTask]);
+      final res = results[0] as ApiResponse;
+
       final newStreakCount = await StreakService.getStreakCount();
 
       if (!wasCompletedBefore && mounted) {

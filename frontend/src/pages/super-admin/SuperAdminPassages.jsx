@@ -1,4 +1,5 @@
 import { getApiUrl } from '../../config/api.js';
+import { getCompactPageItems } from '../../lib/pagination.js';
 import { useState, useMemo, useEffect } from 'react';
 import {
   Article,
@@ -66,6 +67,9 @@ const SET_CONFIGS = [
   },
 ];
 
+const FILIPINO_PASSAGE_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
+const ENGLISH_PASSAGE_GRADES = ['Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'];
+
 export default function SuperAdminPassages() {
   const [passages, setPassages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +114,29 @@ export default function SuperAdminPassages() {
     text: '',
     questions: [],
   });
+  const filterGradeOptions = selectedLanguage === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
+  const setsGradeOptions = setsLanguage === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
+  const formGradeOptions = formData.language === 'English' ? ENGLISH_PASSAGE_GRADES : FILIPINO_PASSAGE_GRADES;
+
+  useEffect(() => {
+    if (selectedLanguage === 'English' && selectedGrade === 'Grade 1') {
+      setSelectedGrade('All');
+    }
+  }, [selectedLanguage, selectedGrade]);
+
+  useEffect(() => {
+    if (setsLanguage === 'English' && setsGrade === 'Grade 1') {
+      setSetsGrade('Grade 2');
+      setPickerSlotKey(null);
+      setPickerSearchQuery('');
+    }
+  }, [setsLanguage, setsGrade]);
+
+  useEffect(() => {
+    if (formData.language === 'English' && formData.grade === 'Grade 1') {
+      setFormData((prev) => ({ ...prev, grade: 'Grade 2' }));
+    }
+  }, [formData.language, formData.grade]);
 
   const fetchPassages = async (skipCache = false) => {
     try {
@@ -538,19 +565,19 @@ export default function SuperAdminPassages() {
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
               >
                 <option value="All">All Grades</option>
-                <option value="Grade 1">Grade 1</option>
-                <option value="Grade 2">Grade 2</option>
-                <option value="Grade 3">Grade 3</option>
-                <option value="Grade 4">Grade 4</option>
-                <option value="Grade 5">Grade 5</option>
-                <option value="Grade 6">Grade 6</option>
-                <option value="Grade 7">Grade 7</option>
+                {filterGradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
               </select>
 
               <select
                 value={selectedLanguage}
                 onChange={(e) => {
-                  setSelectedLanguage(e.target.value);
+                  const nextLanguage = e.target.value;
+                  setSelectedLanguage(nextLanguage);
+                  if (nextLanguage === 'English' && selectedGrade === 'Grade 1') {
+                    setSelectedGrade('All');
+                  }
                   setCurrentPage(1);
                 }}
                 className="rounded-full border border-ink/20 bg-cream px-3.5 py-1.5 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
@@ -830,7 +857,9 @@ export default function SuperAdminPassages() {
               </button>
 
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                ) : (
                   <button
                     key={pg}
                     type="button"
@@ -934,13 +963,9 @@ export default function SuperAdminPassages() {
                         onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                         className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
-                        <option value="Grade 1">Grade 1</option>
-                        <option value="Grade 2">Grade 2</option>
-                        <option value="Grade 3">Grade 3</option>
-                        <option value="Grade 4">Grade 4</option>
-                        <option value="Grade 5">Grade 5</option>
-                        <option value="Grade 6">Grade 6</option>
-                        <option value="Grade 7">Grade 7</option>
+                        {formGradeOptions.map((grade) => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -950,7 +975,14 @@ export default function SuperAdminPassages() {
                       </label>
                       <select
                         value={formData.language}
-                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                        onChange={(e) => {
+                          const nextLanguage = e.target.value;
+                          setFormData({
+                            ...formData,
+                            language: nextLanguage,
+                            grade: nextLanguage === 'English' && formData.grade === 'Grade 1' ? 'Grade 2' : formData.grade,
+                          });
+                        }}
                         className="w-full rounded-xl border border-ink/20 bg-cream px-3 py-2 text-xs font-medium text-ink outline-none cursor-pointer focus:border-brand-blue"
                       >
                         <option value="Filipino">Filipino</option>
@@ -1124,7 +1156,7 @@ export default function SuperAdminPassages() {
                       <h3 className="text-base font-bold text-ink">Phil-IRI Set Slot Assignments</h3>
                     </div>
                     <p className="text-xs text-ink/50 mt-0.5">
-                      Select which passages from the general bank populate Set A, B, C, and D for Grades 4, 5, and 6.
+                      Select which passages from the general bank populate Set A, B, C, and D for each test period.
                     </p>
                   </div>
                 )}
@@ -1150,7 +1182,11 @@ export default function SuperAdminPassages() {
                     <button
                       key={stg}
                       type="button"
-                      onClick={() => setSetsStage(stg)}
+                      onClick={() => {
+                        setSetsStage(stg);
+                        setPickerSlotKey(null);
+                        setPickerSearchQuery('');
+                      }}
                       className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         setsStage === stg
                           ? 'bg-brand-blue text-white shadow-xs'
@@ -1168,10 +1204,14 @@ export default function SuperAdminPassages() {
                     <span className="text-xs font-semibold text-ink/60">Grade Level:</span>
                     <select
                       value={setsGrade}
-                      onChange={(e) => setSetsGrade(e.target.value)}
+                      onChange={(e) => {
+                        setSetsGrade(e.target.value);
+                        setPickerSlotKey(null);
+                        setPickerSearchQuery('');
+                      }}
                       className="rounded-xl border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink outline-none cursor-pointer focus:border-brand-blue shadow-2xs"
                     >
-                      {['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].map((g) => (
+                      {setsGradeOptions.map((g) => (
                         <option key={g} value={g}>{g}</option>
                       ))}
                     </select>
@@ -1184,7 +1224,14 @@ export default function SuperAdminPassages() {
                       <button
                         key={lang}
                         type="button"
-                        onClick={() => setSetsLanguage(lang)}
+                        onClick={() => {
+                          setSetsLanguage(lang);
+                          if (lang === 'English' && setsGrade === 'Grade 1') {
+                            setSetsGrade('Grade 2');
+                          }
+                          setPickerSlotKey(null);
+                          setPickerSearchQuery('');
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           setsLanguage === lang
                             ? 'bg-white text-brand-blue shadow-2xs'
@@ -1332,8 +1379,10 @@ export default function SuperAdminPassages() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {pickerFilteredPassages.map((passage) => {
-                      const isAssignedToOther = passage.set && passage.set !== 'Unassigned' && passage.set !== pickerSlotKey;
-                      const isCurrentSlot = passage.set === pickerSlotKey;
+                      const passageStage = passage.stage || 'Pre-Test';
+                      const isSameStage = passageStage === setsStage;
+                      const isAssignedToOther = isSameStage && passage.set && passage.set !== 'Unassigned' && passage.set !== pickerSlotKey;
+                      const isCurrentSlot = isSameStage && passage.set === pickerSlotKey;
 
                       return (
                         <div

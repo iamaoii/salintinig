@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,14 +53,12 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   List<Map<String, dynamic>> _assignedList = [];
   List<Map<String, dynamic>> _inProgressBooks = [];
   Map<dynamic, bool> _activeDrafts = {};
-  Map<String, dynamic>? _readingProfiles;
   String _selectedHeaderLang = 'fil'; // 'fil' or 'en'
   Timer? _carouselTimer;
 
   dynamic _realtimeSubscription;
 
   static List<Map<String, dynamic>>? _cachedAssignedList;
-  static Map<String, dynamic>? _cachedReadingProfiles;
 
   int _streakCount = 0;
 
@@ -70,9 +69,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
     if (_cachedAssignedList != null) {
       _assignedList = List<Map<String, dynamic>>.from(_cachedAssignedList!);
       _isLoadingAssignments = false;
-    }
-    if (_cachedReadingProfiles != null) {
-      _readingProfiles = _cachedReadingProfiles;
     }
     if (LibraryService.cachedProgress != null && LibraryService.cachedProgress!.isNotEmpty) {
       _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
@@ -179,14 +175,9 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
       debugPrint('[OverviewPhilIRI] raw data=${res.data}');
       if (res.success && res.data != null) {
         final activitiesList = res.data['assignedActivities'];
-        final rpData = res.data['readingProfiles'];
         if (mounted) {
           setState(() {
             _isLoadingAssignments = false;
-            if (rpData is Map<String, dynamic>) {
-              _readingProfiles = rpData;
-              _cachedReadingProfiles = rpData;
-            }
             if (activitiesList != null && activitiesList is List) {
               _assignedList = List<Map<String, dynamic>>.from(activitiesList);
               _assignedList.sort((a, b) {
@@ -493,7 +484,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                          ),
                                         // Foreground content
                                         Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 14.0),
+                                          padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 22.0),
                                           child: Column(
                                             children: [
                                               Row(
@@ -506,7 +497,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                         Text(
                                                           'Hello, ${AuthService.currentUser?.nickname?.isNotEmpty == true ? AuthService.currentUser!.nickname! : (AuthService.currentUser?.firstName ?? 'Student')}!',
                                                           style: GoogleFonts.inter(
-                                                            fontSize: 24.5,
+                                                            fontSize: 28.0,
                                                             fontWeight:
                                                                 FontWeight.w800,
                                                             color: Colors.white,
@@ -514,7 +505,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                             height: 1.15,
                                                           ),
                                                         ),
-                                                        const SizedBox(height: 2),
+                                                        const SizedBox(height: 5),
                                                         Text(
                                                           AuthService
                                                                           .currentUser
@@ -532,7 +523,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                                     ? 'Grade ${AuthService.currentUser?.gradeLevel}'
                                                                     : ''),
                                                           style: GoogleFonts.inter(
-                                                            fontSize: 14,
+                                                            fontSize: 15.5,
                                                             color: Colors.white
                                                                 .withValues(
                                                                   alpha: 0.8,
@@ -546,7 +537,7 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                     ),
                                                   ),
                                                   UserAvatar(
-                                                    size: 52,
+                                                    size: 56,
                                                     onTap: () {
                                                       Navigator.push(
                                                         context,
@@ -565,8 +556,8 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
                                                 ],
                                               ),
                                               const SizedBox(height: 10),
-                                              // ── Integrated Phil-IRI Levels Inside Header ──
-                                              _buildHeaderIntegratedProfileStrip(),
+                                              
+                                              
                                             ],
                                           ),
                                         ),
@@ -1890,232 +1881,6 @@ class _StudentOverviewPageState extends State<StudentOverviewPage> {
   }
 
 
-
-  // ── Integrated Phil-IRI Reading Profile Strip inside Header (Option 2 - Exact Original Size) ──
-  Widget _buildHeaderIntegratedProfileStrip() {
-    final isFil = _selectedHeaderLang == 'fil';
-    final oralLevel = isFil
-        ? (_readingProfiles?['filOralProfile']?.toString() ?? 'Pending')
-        : (_readingProfiles?['engOralProfile']?.toString() ?? 'Pending');
-    final listeningLevel = isFil
-        ? (_readingProfiles?['filListeningProfile']?.toString() ?? 'Pending')
-        : (_readingProfiles?['engListeningProfile']?.toString() ?? 'Pending');
-    final silentLevel = isFil
-        ? (_readingProfiles?['filSilentProfile']?.toString() ?? 'Pending')
-        : (_readingProfiles?['engSilentProfile']?.toString() ?? 'Pending');
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedHeaderLang = isFil ? 'en' : 'fil';
-        });
-        _startCarouselTimer();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 7.0),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.15),
-            width: 1.0,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Top Micro-Header: Label + Tag + Carousel Dots ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Phil-IRI',
-                      style: GoogleFonts.inter(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Container(
-                        key: ValueKey<String>(_selectedHeaderLang),
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          isFil ? 'Filipino' : 'English',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // ── Carousel Indicator Dots ──
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: isFil ? 10 : 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: !isFil ? 10 : 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: !isFil ? Colors.white : Colors.white.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-
-            // ── Modalities Row with Slide + Fade Transition ──
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.0, 0.15),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOut,
-                    )),
-                    child: child,
-                  ),
-                );
-              },
-              child: Row(
-                key: ValueKey<String>(_selectedHeaderLang),
-                children: [
-                  Expanded(
-                    child: _buildHeaderModalityItem('Oral', oralLevel, PhIcons.userSoundBold),
-                  ),
-                  Container(
-                    height: 22,
-                    width: 1,
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                  Expanded(
-                    child: _buildHeaderModalityItem('Listening', listeningLevel, PhIcons.earBold),
-                  ),
-                  Container(
-                    height: 22,
-                    width: 1,
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                  Expanded(
-                    child: _buildHeaderModalityItem('Silent', silentLevel, PhIcons.bookOpenBold),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderModalityItem(String type, String level, String iconSvg) {
-    Color dotColor;
-    Color levelTextColor;
-    String displayLevel;
-
-    final lvl = level.toLowerCase().trim();
-    if (lvl.contains('independ')) {
-      dotColor = const Color(0xFF34D399); // Emerald 400
-      levelTextColor = const Color(0xFFA7F3D0); // Emerald 200
-      displayLevel = 'Independent';
-    } else if (lvl.contains('instruct')) {
-      dotColor = const Color(0xFFFBBF24); // Amber 400
-      levelTextColor = const Color(0xFFFDE68A); // Amber 200
-      displayLevel = 'Instructional';
-    } else if (lvl.contains('frustrat')) {
-      dotColor = const Color(0xFFF87171); // Red 400
-      levelTextColor = const Color(0xFFFECACA); // Red 200
-      displayLevel = 'Frustration';
-    } else {
-      dotColor = Colors.white.withValues(alpha: 0.5);
-      levelTextColor = Colors.white.withValues(alpha: 0.85);
-      displayLevel = 'Pending';
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Iconify(
-              iconSvg,
-              size: 12,
-              color: Colors.white.withValues(alpha: 0.75),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              type,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 5.5,
-              height: 5.5,
-              decoration: BoxDecoration(
-                color: dotColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                displayLevel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: levelTextColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildUnifiedOverviewCard({
     required int totalXp,

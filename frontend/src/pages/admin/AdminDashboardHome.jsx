@@ -18,6 +18,7 @@ import {
   Check,
   X,
   UserCheck,
+  ClipboardText,
   ChartPie,
 } from '@phosphor-icons/react';
 import ToastNotification from '../../components/common/ToastNotification.jsx';
@@ -86,6 +87,7 @@ export default function AdminDashboardHome() {
 
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const isMounted = true;
 
   // Fetch live system metrics
   const fetchStats = async () => {
@@ -113,14 +115,10 @@ export default function AdminDashboardHome() {
     }
   };
 
-  const [isMounted, setIsMounted] = useState(false);
-
   useEffect(() => {
     fetchRequests();
     fetchStats();
     fetchAnalytics();
-    const timer = setTimeout(() => setIsMounted(true), 100);
-
     const handleSYChange = () => {
       fetchStats();
       fetchAnalytics();
@@ -128,7 +126,6 @@ export default function AdminDashboardHome() {
     window.addEventListener('schoolYearChanged', handleSYChange);
     return () => {
       window.removeEventListener('schoolYearChanged', handleSYChange);
-      clearTimeout(timer);
     };
   }, []);
 
@@ -450,8 +447,21 @@ export default function AdminDashboardHome() {
         )}
       </div>
 
-      {/* Phil-IRI School Reading Profile Analytics Dashboard Widget */}
       <div className="rounded-2xl border border-ink/10 bg-cream p-4 shadow-[0px_5px_5px_0px_rgba(26,24,22,0.06)]">
+        <div className="flex items-center justify-between gap-3 border-b border-ink/10 pb-3">
+          <div className="flex items-center gap-2"><ClipboardText size={20} className="text-brand-red" /><div><h2 className="text-sm font-bold text-ink">Phil-IRI Implementation Status</h2><p className="text-xs text-ink/50">School workflow progress for GST and teacher-reviewed assessments</p></div></div>
+          <button type="button" onClick={() => navigate('/admin/phil-iri/reports')} className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"><span>View Reports</span><ArrowRight size={12} /></button>
+        </div>
+        {loadingAnalytics ? <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-ink/5" />)}</div> : <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">{[
+          ['GST Forms Submitted', analytics?.gstForms || 0, FileCsv, 'text-amber-700 bg-amber-100'],
+          ['Assessments Assigned', analytics?.assessmentsAssigned || 0, ClipboardText, 'text-brand-blue bg-brand-blue/10'],
+          ['Completed Attempts', analytics?.completedAttempts || 0, CheckCircle, 'text-emerald-700 bg-emerald-100'],
+          ['Awaiting Review', analytics?.awaitingReview || 0, Clock, 'text-rose-700 bg-rose-100'],
+        ].map(([label, value, IconComponent, iconStyle]) => <div key={label} className="relative rounded-xl border border-ink/10 bg-white p-3"><div className={`absolute right-3 top-3 flex size-8 items-center justify-center rounded-lg ${iconStyle}`}><IconComponent size={17} /></div><p className="text-2xl font-bold text-ink">{value}</p><p className="mt-1 text-[11px] font-medium text-ink/60">{label}</p></div>)}</div>}
+      </div>
+
+      {/* Legacy reading-level card kept out of the UI while the previous cached payload expires. */}
+      <div className="hidden">
         <div className="flex items-center justify-between pb-3 border-b border-ink/10">
           <div className="flex items-center gap-2">
             <ChartPie size={20} className="text-brand-red" />

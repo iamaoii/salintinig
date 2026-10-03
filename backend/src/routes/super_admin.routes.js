@@ -46,7 +46,4 @@ router.put('/stories/:id', sa.updateStory);
 router.patch('/stories/:id/status', sa.setStoryStatus);
 router.delete('/stories/:id', sa.deleteStory);
 
-// System Analytics
-router.get('/analytics', sa.getSystemAnalytics);
-
 module.exports = router;

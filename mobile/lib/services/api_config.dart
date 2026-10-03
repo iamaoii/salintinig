@@ -1,35 +1,65 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
   static String? customHost;
 
-  static String get baseUrl {
-    // 1. Check explicit API_BASE_URL from .env
-    final envUrl = dotenv.env['API_BASE_URL'];
-    if (envUrl != null && envUrl.isNotEmpty) {
-      return envUrl;
+  /// Get candidate base URLs ordered by preference for the current environment.
+  static List<String> get candidateBaseUrls {
+    final list = <String>[];
+
+    void addHost(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return;
+      var h = raw.trim();
+      if (!h.startsWith('http://') && !h.startsWith('https://')) {
+        h = 'http://$h';
+      }
+      if (!h.endsWith('/api')) {
+        if (h.endsWith('/')) {
+          h = '${h}api';
+        } else {
+          h = '$h/api';
+        }
+      }
+      list.add(h);
     }
 
-    // 2. Check custom host or LAN IP from .env
+    final envUrl = dotenv.env['API_BASE_URL'];
+    if (envUrl != null && envUrl.isNotEmpty) {
+      addHost(envUrl);
+    }
+
     if (customHost != null && customHost!.isNotEmpty) {
-      return 'http://$customHost/api';
+      addHost(customHost);
     }
 
     final envHost = dotenv.env['API_HOST'];
     if (envHost != null && envHost.isNotEmpty) {
-      return 'http://$envHost/api';
+      addHost(envHost);
     }
 
-    // 3. Fallbacks for local development
+    // Default LAN IP fallback for physical devices connected on host Wi-Fi
+    addHost('192.168.111.185:5000');
+
+    // Android Emulator host loopback alias
+    addHost('10.0.2.2:5000');
+
+    // Web / iOS Simulator / Desktop loopback
+    addHost('localhost:5000');
+    addHost('127.0.0.1:5000');
+
+    return list.toSet().toList();
+  }
+
+  static String get baseUrl {
+    final candidates = candidateBaseUrls;
     if (kIsWeb) {
-      return 'http://localhost:5000/api';
-    } else if (Platform.isAndroid) {
-      return 'http://127.0.0.1:5000/api';
-    } else {
-      return 'http://localhost:5000/api';
+      return candidates.firstWhere(
+        (url) => url.contains('localhost') || url.contains('127.0.0.1'),
+        orElse: () => candidates.first,
+      );
     }
+    return candidates.first;
   }
 
   static String get rootUrl {

@@ -11,7 +11,6 @@ import { isLoggedIn, getUserRole } from './lib/auth.js';
 
 import DashboardLayout from './pages/dashboard/DashboardLayout.jsx';
 import OverviewLayout from './pages/dashboard/overview/OverviewLayout.jsx';
-import OverviewActivities from './pages/dashboard/overview/OverviewActivities.jsx';
 import OverviewForms from './pages/dashboard/overview/OverviewForms.jsx';
 import OverviewPeople from './pages/dashboard/overview/OverviewPeople.jsx';
 import AccountSettings from './pages/dashboard/settings/AccountSettings.jsx';
@@ -47,7 +46,6 @@ import AdminFacultyAssignment from './pages/admin/AdminFacultyAssignment.jsx';
 import AdminAccountRequests from './pages/admin/AdminAccountRequests.jsx';
 import AdminPhilIriReports from './pages/admin/AdminPhilIriReports.jsx';
 import AdminPhilIriPassages from './pages/admin/AdminPhilIriPassages.jsx';
-import AdminPhilIriAssessment from './pages/admin/AdminPhilIriAssessment.jsx';
 import AdminNotifications from './pages/admin/AdminNotifications.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
 import AdminRecordsLayout from './pages/admin/AdminRecordsLayout.jsx';
@@ -61,7 +59,6 @@ import SuperAdminSchoolDetail from './pages/super-admin/SuperAdminSchoolDetail.j
 import SuperAdminPhilIriLayout from './pages/super-admin/SuperAdminPhilIriLayout.jsx';
 import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
 import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
-import SuperAdminAnalytics from './pages/super-admin/SuperAdminAnalytics.jsx';
 import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
 
 function HomeRedirect() {
@@ -103,6 +100,7 @@ export default function App() {
           <Route path="teachers" element={<AdminTeacherRecords />} />
         </Route>
         <Route path="records/students/:lrn" element={<AdminStudentProfile />} />
+        <Route path="records/students/:lrn/review/:attemptId" element={<PhilIriReviewPage />} />
         <Route path="records/teachers/:id" element={<TeacherProfile />} />
 
         <Route path="sections" element={<AdminSectionsLayout />}>
@@ -115,8 +113,7 @@ export default function App() {
 
         {/* Phil-IRI Group — layout with sub-tabs inside */}
         <Route path="phil-iri" element={<AdminPhilIriLayout />}>
-          <Route index element={<Navigate to="assessment" replace />} />
-          <Route path="assessment" element={<AdminPhilIriAssessment />} />
+          <Route index element={<Navigate to="reports" replace />} />
           <Route path="passages" element={<AdminPhilIriPassages />} />
           <Route path="reports" element={<AdminPhilIriReports />} />
           <Route path="form-2" element={<PhilIriForm2 />} />
@@ -133,7 +130,7 @@ export default function App() {
         <Route path="teachers" element={<Navigate to="/admin/records/teachers" replace />} />
         <Route path="faculty-assignment" element={<Navigate to="/admin/sections/list" replace />} />
         <Route path="reports" element={<Navigate to="/admin/phil-iri/reports" replace />} />
-        <Route path="activities" element={<Navigate to="/admin/phil-iri/assessment" replace />} />
+        <Route path="activities" element={<Navigate to="/admin/phil-iri/reports" replace />} />
         <Route path="settings" element={<Navigate to="/admin/account" replace />} />
         <Route path="profile" element={<Navigate to="/admin/account" replace />} />
       </Route>
@@ -163,9 +160,6 @@ export default function App() {
         {/* Stories Library */}
         <Route path="stories" element={<SuperAdminStories />} />
 
-        {/* System Analytics */}
-        <Route path="analytics" element={<SuperAdminAnalytics />} />
-
         {/* Account & Notifications */}
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="account" element={<SuperAdminSettings />} />
@@ -186,7 +180,6 @@ export default function App() {
 
         <Route path="overview" element={<OverviewLayout />}>
           <Route index element={<Navigate to="forms" replace />} />
-          <Route path="activities" element={<OverviewActivities />} />
           <Route path="forms" element={<OverviewForms />} />
           <Route path="people" element={<OverviewPeople />} />
         </Route>
@@ -225,17 +218,23 @@ export default function App() {
         <Route path="phil-iri-records/export-success" element={<PhilIriExportSuccess />} />
         <Route path="phil-iri-passages" element={<PhilIriPassageBank />} />
 
-        {/* Class Activities Sub-System */}
-        <Route path="class-activities" element={<Navigate to="phil-iri" replace />} />
-        <Route path="class-activities/phil-iri" element={<ClassActivities />} />
-        <Route path="class-activities/adaptive" element={<ClassActivities />} />
-        <Route path="class-activities/practice" element={<ClassActivities />} />
+        {/* Phil-IRI Assessments Sub-System */}
+        <Route path="phil-iri-assessments" element={<ClassActivities />} />
+        <Route path="phil-iri-assessments/assign" element={<PhilIriAssignPage />} />
+        <Route path="phil-iri-assessments/edit/:editId" element={<PhilIriAssignPage />} />
+        <Route path="phil-iri-assessments/view/:id" element={<ActivityDetailPage />} />
+        <Route path="phil-iri-assessments/view/:id/review/:attemptId" element={<PhilIriReviewPage />} />
+        <Route path="phil-iri-assessments/review/:attemptId" element={<PhilIriReviewPage />} />
 
-        {/* Phil-IRI Assessment Routes */}
-        <Route path="class-activities/phil-iri/assign" element={<PhilIriAssignPage />} />
+        {/* Redirects & Legacy Backwards Compatibility */}
+        <Route path="class-activities" element={<Navigate to="/teacher/phil-iri-assessments" replace />} />
+        <Route path="class-activities/phil-iri" element={<Navigate to="/teacher/phil-iri-assessments" replace />} />
+        <Route path="class-activities/phil-iri/assign" element={<Navigate to="/teacher/phil-iri-assessments/assign" replace />} />
         <Route path="class-activities/phil-iri/edit/:editId" element={<PhilIriAssignPage />} />
         <Route path="class-activities/phil-iri/view/:id" element={<ActivityDetailPage />} />
         <Route path="class-activities/phil-iri/review/:attemptId" element={<PhilIriReviewPage />} />
+        <Route path="class-activities/adaptive" element={<ClassActivities />} />
+        <Route path="class-activities/practice" element={<ClassActivities />} />
 
         {/* Practice Activity Routes */}
         <Route path="class-activities/practice/create" element={<ActivityFormPage />} />

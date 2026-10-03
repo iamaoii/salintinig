@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const COLORS = ['#165fd5', '#d53f24', '#0f9d58', '#c2790a', '#7c3aed', '#0891b2'];
 
@@ -15,6 +15,10 @@ function initialsFor(name) {
 
 export default function Avatar({ name = '', src, size = 32, className = '', color }) {
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [src]);
 
   if (src && !imgError) {
     let imgSrc = src;

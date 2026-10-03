@@ -18,3 +18,11 @@ export function getApiUrl(path = '') {
   }
   return `${API_BASE_URL}${normalizedPath}`;
 }
+
+export function getSocketUrl() {
+  if (API_BASE_URL) return API_BASE_URL;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:5000';
+  }
+  return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
+}

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -818,11 +819,12 @@ class _PracticeQuizPageState extends State<PracticeQuizPage> {
 
     final timeSpentSeconds = DateTime.now().difference(_startTime).inSeconds;
 
-    await QuizProgressService.clearQuizDraft(_passageKey, 'practice');
-    await ReadingPreferencesService.saveStoryHighlights(_passageKey, []);
+    unawaited(QuizProgressService.clearQuizDraft(_passageKey, 'practice'));
+    unawaited(ReadingPreferencesService.saveStoryHighlights(_passageKey, []));
 
     if (!mounted) return;
 
+    // Instant navigation in < 0.01s!
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

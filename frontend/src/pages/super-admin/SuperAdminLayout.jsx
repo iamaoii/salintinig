@@ -7,7 +7,6 @@ import {
   Buildings,
   BookOpen,
   BookBookmark,
-  ChartBar,
   Bell,
   List,
   X,
@@ -23,7 +22,6 @@ const NAV_ITEMS = [
   { to: '/super-admin/schools', label: 'Schools', icon: Buildings, group: 'schools' },
   { to: '/super-admin/phil-iri', label: 'Phil-IRI', icon: BookOpen, group: 'phil-iri' },
   { to: '/super-admin/stories', label: 'Stories', icon: BookBookmark },
-  { to: '/super-admin/analytics', label: 'Analytics', icon: ChartBar },
 ];
 
 export default function SuperAdminLayout() {
@@ -75,11 +73,6 @@ export default function SuperAdminLayout() {
           fetch(getApiUrl('/api/super-admin/dashboard/stats'), { headers })
             .then((r) => r.json())
             .then((d) => d.success && cacheService.set('sa_dashboard_stats', { stats: d.stats, schoolsOverview: d.schoolsOverview }));
-        }
-        if (!cacheService.get('sa_analytics')) {
-          fetch(getApiUrl('/api/super-admin/analytics'), { headers })
-            .then((r) => r.json())
-            .then((d) => d.success && cacheService.set('sa_analytics', d.analytics));
         }
         if (!cacheService.get('sa_schools')) {
           fetch(getApiUrl('/api/super-admin/schools'), { headers })

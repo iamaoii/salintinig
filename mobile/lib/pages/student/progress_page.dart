@@ -9,25 +9,18 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/widgets/student_sidebar_drawer.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/pages/student/assessment/phil_iri_assessment_page.dart';
-import 'package:salintinig/pages/student/assessment/listening/listening_assessment_instructions_page.dart';
-import 'package:salintinig/pages/student/assessment/listening/listening_result_page.dart';
 import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_assessment_instructions_page.dart';
-import 'package:salintinig/pages/student/assessment/oral_reading/oral_reading_result_page.dart';
-import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_assessment_instructions_page.dart';
-import 'package:salintinig/pages/student/assessment/silent_reading/silent_reading_result_page.dart';
 import 'package:salintinig/pages/student/library/continue_reading_page.dart';
 import 'package:salintinig/pages/student/library/story_preview_page.dart';
 import 'package:salintinig/pages/student/library/library_page.dart';
 import 'package:salintinig/pages/student/badges_page.dart';
 import 'package:salintinig/pages/student/activities/activities_page.dart';
-import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/library_service.dart';
 import 'package:salintinig/services/streak_service.dart';
 import 'package:salintinig/services/badge_service.dart';
 import 'package:salintinig/services/analytics_service.dart';
-import 'package:salintinig/services/quiz_progress_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salintinig/widgets/streak_celebration_modal.dart';
 
@@ -47,7 +40,32 @@ class _ProgressPageState extends State<ProgressPage>
   bool _hasPracticedToday = false;
   bool _isLoadingPhilIri = false;
   List<Map<String, dynamic>> _assignedActivities = [];
+  List<Map<String, dynamic>> _oralAdaptiveProfiles = [];
   List<Map<String, String>> _weeklyTrackerDays = [];
+
+  Map<String, dynamic>? _getOralAdaptiveProfile() {
+    final selectedLanguage = _selectedPhilIriLang == 'en' ? 'en' : 'fil';
+    final selectedPeriod = _selectedPhilIriPeriod == 'post' ? 'post' : 'pre';
+    for (final profile in _oralAdaptiveProfiles) {
+      final language = (profile['language'] ?? 'fil').toString().toLowerCase();
+      final period = (profile['period'] ?? 'pre_test').toString().toLowerCase();
+      final languageMatches =
+          language == selectedLanguage ||
+          (selectedLanguage == 'en' && language.startsWith('eng')) ||
+          (selectedLanguage == 'fil' && language.startsWith('fil'));
+      final periodMatches = selectedPeriod == 'post'
+          ? period.contains('post')
+          : !period.contains('post');
+      if (languageMatches && periodMatches) return profile;
+    }
+    return null;
+  }
+
+  String _adaptiveGrade(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty || text == '—' || text == '-') return 'Not confirmed';
+    return text.toLowerCase().startsWith('grade') ? text : 'Grade $text';
+  }
 
   Map<String, dynamic>? _getAssignedItem(String type) {
     if (_assignedActivities.isEmpty) return null;
@@ -55,12 +73,22 @@ class _ProgressPageState extends State<ProgressPage>
     final targetPeriod = _selectedPhilIriPeriod.toLowerCase().trim();
 
     for (final act in _assignedActivities) {
-      final actType = (act['assessmentType'] ?? act['type'] ?? '').toString().toLowerCase().trim();
-      final actLang = (act['rawLanguage'] ?? act['language'] ?? 'fil').toString().toLowerCase().trim();
-      final actStage = (act['stage'] ?? act['testType'] ?? act['period'] ?? '').toString().toLowerCase().trim();
+      final actType = (act['assessmentType'] ?? act['type'] ?? '')
+          .toString()
+          .toLowerCase()
+          .trim();
+      final actLang = (act['rawLanguage'] ?? act['language'] ?? 'fil')
+          .toString()
+          .toLowerCase()
+          .trim();
+      final actStage = (act['stage'] ?? act['testType'] ?? act['period'] ?? '')
+          .toString()
+          .toLowerCase()
+          .trim();
       final selLang = _selectedPhilIriLang.toLowerCase().trim();
-      
-      bool langMatches = actLang == selLang || 
+
+      bool langMatches =
+          actLang == selLang ||
           (selLang == 'fil' && (actLang == 'fil' || actLang == 'filipino')) ||
           (selLang == 'en' && (actLang == 'en' || actLang == 'english'));
 
@@ -71,7 +99,8 @@ class _ProgressPageState extends State<ProgressPage>
       if (targetPeriod == 'post') {
         periodMatches = actStage.contains('post');
       } else {
-        periodMatches = actStage.contains('pre') || (!actStage.contains('post'));
+        periodMatches =
+            actStage.contains('pre') || (!actStage.contains('post'));
       }
 
       if (actType == normalizedTargetType && langMatches && periodMatches) {
@@ -93,11 +122,14 @@ class _ProgressPageState extends State<ProgressPage>
         final jsonStr = prefs.getString('cached_assigned_activities');
         if (jsonStr != null && jsonStr.isNotEmpty) {
           final List list = jsonDecode(jsonStr) as List;
-          _cachedProgressAssignedActivities = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _cachedProgressAssignedActivities = list
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
         }
         final attemptsStr = prefs.getString('cached_attempts_status');
         if (attemptsStr != null && attemptsStr.isNotEmpty) {
-          _cachedAttemptsStatus = jsonDecode(attemptsStr) as Map<String, dynamic>;
+          _cachedAttemptsStatus =
+              jsonDecode(attemptsStr) as Map<String, dynamic>;
         }
       });
     } catch (_) {}
@@ -110,7 +142,9 @@ class _ProgressPageState extends State<ProgressPage>
     if (attempts['oral'] == true || attempts['oral_status'] == 'completed') {
       PhilIriAssessmentPage.isOralReadingDone = true;
       PhilIriAssessmentPage.isOralReadingPendingReview = false;
-    } else if (attempts['oral_in_review'] == true || attempts['oral_status'] == 'pending_review' || attempts['oral_status'] == 'submitted') {
+    } else if (attempts['oral_in_review'] == true ||
+        attempts['oral_status'] == 'pending_review' ||
+        attempts['oral_status'] == 'submitted') {
       PhilIriAssessmentPage.isOralReadingPendingReview = true;
     }
     if (attempts['silent'] == true) {
@@ -126,8 +160,11 @@ class _ProgressPageState extends State<ProgressPage>
       _loadAssignedCacheFromDisk();
     }
 
-    if (_cachedProgressAssignedActivities != null && _cachedProgressAssignedActivities!.isNotEmpty) {
-      _assignedActivities = List<Map<String, dynamic>>.from(_cachedProgressAssignedActivities!);
+    if (_cachedProgressAssignedActivities != null &&
+        _cachedProgressAssignedActivities!.isNotEmpty) {
+      _assignedActivities = List<Map<String, dynamic>>.from(
+        _cachedProgressAssignedActivities!,
+      );
       _isLoadingPhilIri = false;
     }
     if (_cachedAttemptsStatus != null) {
@@ -145,7 +182,9 @@ class _ProgressPageState extends State<ProgressPage>
 
     // 0ms instant render from in-memory caches
     if (LibraryService.cachedProgress != null) {
-      _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+      _inProgressBooks = LibraryService.filterInProgress(
+        LibraryService.cachedProgress!,
+      );
     }
 
     StreakService.streakNotifier.addListener(_onStreakChanged);
@@ -215,7 +254,9 @@ class _ProgressPageState extends State<ProgressPage>
   void _onLibraryProgressChanged() {
     if (!mounted) return;
     setState(() {
-      _inProgressBooks = LibraryService.filterInProgress(LibraryService.progressNotifier.value);
+      _inProgressBooks = LibraryService.filterInProgress(
+        LibraryService.progressNotifier.value,
+      );
     });
   }
 
@@ -245,7 +286,9 @@ class _ProgressPageState extends State<ProgressPage>
       // 1. Instant 0-delay render from cached memory
       if (LibraryService.cachedProgress != null && mounted) {
         setState(() {
-          _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+          _inProgressBooks = LibraryService.filterInProgress(
+            LibraryService.cachedProgress!,
+          );
         });
       }
       await _loadLocalStreakInstantly();
@@ -265,7 +308,9 @@ class _ProgressPageState extends State<ProgressPage>
         if (mounted) {
           setState(() {
             if (LibraryService.cachedProgress != null) {
-              _inProgressBooks = LibraryService.filterInProgress(LibraryService.cachedProgress!);
+              _inProgressBooks = LibraryService.filterInProgress(
+                LibraryService.cachedProgress!,
+              );
             }
             _streakCount = streak;
             _hasPracticedToday = practicedToday;
@@ -274,7 +319,9 @@ class _ProgressPageState extends State<ProgressPage>
         }
 
         // Only show loading indicator if we don't have any cached assigned activities at all
-        if (_assignedActivities.isEmpty && _cachedProgressAssignedActivities == null && mounted) {
+        if (_assignedActivities.isEmpty &&
+            _cachedProgressAssignedActivities == null &&
+            mounted) {
           setState(() {
             _isLoadingPhilIri = true;
           });
@@ -284,13 +331,20 @@ class _ProgressPageState extends State<ProgressPage>
         if (res.success && res.data != null && mounted) {
           final attempts = res.data['attemptsStatus'];
           final activitiesList = res.data['assignedActivities'];
+          final adaptiveProfiles = res.data['oralAdaptiveProfiles'];
           setState(() {
             _isLoadingPhilIri = false;
             if (activitiesList != null && activitiesList is List) {
-              _assignedActivities = List<Map<String, dynamic>>.from(activitiesList);
-              _cachedProgressAssignedActivities = List<Map<String, dynamic>>.from(_assignedActivities);
+              _assignedActivities = List<Map<String, dynamic>>.from(
+                activitiesList,
+              );
+              _cachedProgressAssignedActivities =
+                  List<Map<String, dynamic>>.from(_assignedActivities);
               SharedPreferences.getInstance().then((prefs) {
-                prefs.setString('cached_assigned_activities', jsonEncode(_assignedActivities));
+                prefs.setString(
+                  'cached_assigned_activities',
+                  jsonEncode(_assignedActivities),
+                );
               });
             }
             if (attempts != null && attempts is Map) {
@@ -300,6 +354,11 @@ class _ProgressPageState extends State<ProgressPage>
               SharedPreferences.getInstance().then((prefs) {
                 prefs.setString('cached_attempts_status', jsonEncode(map));
               });
+            }
+            if (adaptiveProfiles != null && adaptiveProfiles is List) {
+              _oralAdaptiveProfiles = adaptiveProfiles
+                  .map((profile) => Map<String, dynamic>.from(profile as Map))
+                  .toList();
             }
           });
         } else if (mounted) {
@@ -349,16 +408,12 @@ class _ProgressPageState extends State<ProgressPage>
           } else if (index == 2) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const LibraryPage(),
-              ),
+              MaterialPageRoute(builder: (context) => const LibraryPage()),
             );
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const ActivitiesPage(),
-              ),
+              MaterialPageRoute(builder: (context) => const ActivitiesPage()),
             );
           }
         },
@@ -366,7 +421,8 @@ class _ProgressPageState extends State<ProgressPage>
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragEnd: (details) {
-          if (details.primaryVelocity != null && details.primaryVelocity! > 200) {
+          if (details.primaryVelocity != null &&
+              details.primaryVelocity! > 200) {
             _scaffoldKey.currentState?.openDrawer();
           }
         },
@@ -384,7 +440,10 @@ class _ProgressPageState extends State<ProgressPage>
                     children: [
                       // 1. Navigation Row (App Bar)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 12.0,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -425,164 +484,210 @@ class _ProgressPageState extends State<ProgressPage>
                             if (mounted) setState(() {});
                           },
                           child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                            padding: const EdgeInsets.only(left: 20.0, right: 20.0, bottom: 24.0),
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            padding: const EdgeInsets.only(
+                              left: 20.0,
+                              right: 20.0,
+                              bottom: 24.0,
+                            ),
                             child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 12),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 12),
 
-                              _buildStreakCard(),
-                              const SizedBox(height: 28),
+                                _buildStreakCard(),
+                                const SizedBox(height: 32),
 
-
-
-                              // ── Section: Your Badges ──
-                              _buildSectionHeader(
-                                icon: PhIcons.shieldBold,
-                                title: 'Your Badges',
-                                rightWidget: GestureDetector(
-                                  onTap: () {
-                                    Feedback.forTap(context);
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const BadgesPage(),
+                                // ── Section: Your Badges ──
+                                _buildSectionHeader(
+                                  icon: PhIcons.shieldBold,
+                                  title: 'Your Badges',
+                                  rightWidget: GestureDetector(
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const BadgesPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      'See all',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryBlue,
                                       ),
-                                    );
-                                  },
-                                  child: Text(
-                                    'See all',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: primaryBlue,
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildBadgesCard(),
-                              const SizedBox(height: 28),
+                                const SizedBox(height: 14),
+                                _buildBadgesCard(),
+                                const SizedBox(height: 32),
 
-                              // ── Section: Phil-IRI Reading Profile (Tap header badge to switch Pre-Test / Post-Test) ──
-                              _buildSectionHeader(
-                                icon: PhIcons.examBold,
-                                title: 'Phil - IRI Reading Profile',
-                                rightWidget: GestureDetector(
-                                  onTap: () {
-                                    Feedback.forTap(context);
-                                    setState(() {
-                                      _selectedPhilIriPeriod = _selectedPhilIriPeriod == 'pre' ? 'post' : 'pre';
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.easeInOut,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: _selectedPhilIriPeriod == 'pre'
-                                          ? const Color(0xFF1B64D8).withValues(alpha: 0.1)
-                                          : const Color(0xFF10B981).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(100),
-                                      border: Border.all(
-                                        color: _selectedPhilIriPeriod == 'pre'
-                                            ? const Color(0xFF1B64D8).withValues(alpha: 0.3)
-                                            : const Color(0xFF10B981).withValues(alpha: 0.3),
-                                        width: 1.0,
+                                // ── Section: Phil-IRI Reading Profile (Tap header badge to switch Pre-Test / Post-Test) ──
+                                _buildSectionHeader(
+                                  icon: PhIcons.examBold,
+                                  title: 'Phil - IRI Reading Profile',
+                                  rightWidget: GestureDetector(
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      setState(() {
+                                        _selectedPhilIriPeriod =
+                                            _selectedPhilIriPeriod == 'pre'
+                                            ? 'post'
+                                            : 'pre';
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 250,
                                       ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        AnimatedSwitcher(
-                                          duration: const Duration(milliseconds: 220),
-                                          transitionBuilder: (Widget child, Animation<double> animation) {
-                                            return FadeTransition(
-                                              opacity: animation,
-                                              child: ScaleTransition(
-                                                scale: Tween<double>(begin: 0.88, end: 1.0).animate(animation),
-                                                child: child,
+                                      curve: Curves.easeInOut,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _selectedPhilIriPeriod == 'pre'
+                                            ? const Color(
+                                                0xFF1B64D8,
+                                              ).withValues(alpha: 0.1)
+                                            : const Color(
+                                                0xFF10B981,
+                                              ).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(
+                                          100,
+                                        ),
+                                        border: Border.all(
+                                          color: _selectedPhilIriPeriod == 'pre'
+                                              ? const Color(
+                                                  0xFF1B64D8,
+                                                ).withValues(alpha: 0.3)
+                                              : const Color(
+                                                  0xFF10B981,
+                                                ).withValues(alpha: 0.3),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 220,
+                                            ),
+                                            transitionBuilder:
+                                                (
+                                                  Widget child,
+                                                  Animation<double> animation,
+                                                ) {
+                                                  return FadeTransition(
+                                                    opacity: animation,
+                                                    child: ScaleTransition(
+                                                      scale: Tween<double>(
+                                                        begin: 0.88,
+                                                        end: 1.0,
+                                                      ).animate(animation),
+                                                      child: child,
+                                                    ),
+                                                  );
+                                                },
+                                            child: Text(
+                                              _selectedPhilIriPeriod == 'pre'
+                                                  ? 'Pre-Test'
+                                                  : 'Post-Test',
+                                              key: ValueKey<String>(
+                                                _selectedPhilIriPeriod,
                                               ),
-                                            );
-                                          },
-                                          child: Text(
-                                            _selectedPhilIriPeriod == 'pre' ? 'Pre-Test' : 'Post-Test',
-                                            key: ValueKey<String>(_selectedPhilIriPeriod),
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: _selectedPhilIriPeriod == 'pre'
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color:
+                                                    _selectedPhilIriPeriod ==
+                                                        'pre'
+                                                    ? const Color(0xFF1B64D8)
+                                                    : const Color(0xFF059669),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          AnimatedRotation(
+                                            turns:
+                                                _selectedPhilIriPeriod == 'pre'
+                                                ? 0.0
+                                                : 0.5,
+                                            duration: const Duration(
+                                              milliseconds: 250,
+                                            ),
+                                            curve: Curves.easeInOut,
+                                            child: Icon(
+                                              Icons.swap_horiz_rounded,
+                                              size: 14,
+                                              color:
+                                                  _selectedPhilIriPeriod ==
+                                                      'pre'
                                                   ? const Color(0xFF1B64D8)
                                                   : const Color(0xFF059669),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        AnimatedRotation(
-                                          turns: _selectedPhilIriPeriod == 'pre' ? 0.0 : 0.5,
-                                          duration: const Duration(milliseconds: 250),
-                                          curve: Curves.easeInOut,
-                                          child: Icon(
-                                            Icons.swap_horiz_rounded,
-                                            size: 14,
-                                            color: _selectedPhilIriPeriod == 'pre'
-                                                ? const Color(0xFF1B64D8)
-                                                : const Color(0xFF059669),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildUnifiedPhilIriCard(primaryBlue),
-                              const SizedBox(height: 28),
-
-                              // ── Section: Continue Reading ──
-                              _buildSectionHeader(
-                                icon: PhIcons.bookOpenBold,
-                                title: 'Continue Reading',
-                                rightWidget: GestureDetector(
-                                  onTap: () {
-                                    Feedback.forTap(context);
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const ContinueReadingPage(),
+                                        ],
                                       ),
-                                    ).then((_) {
-                                      if (mounted) _fetchLiveProgressData();
-                                    });
-                                  },
-                                  child: Text(
-                                    'See all',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: primaryBlue,
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildContinueReadingCard(),
-                              const SizedBox(height: 28),
+                                const SizedBox(height: 14),
+                                _buildUnifiedPhilIriCard(primaryBlue),
+                                const SizedBox(height: 32),
 
-                              // ── Section: Analytics (Duolingo Style Gamified Dashboard) ──
-                              _buildSectionHeader(
-                                icon: PhIcons.chartBarBold,
-                                title: 'Analytics',
-                              ),
-                              const SizedBox(height: 16),
-                              _buildDuolingoAnalytics(primaryBlue),
-                              const SizedBox(height: 24),
-                            ],
+                                // ── Section: Continue Reading ──
+                                _buildSectionHeader(
+                                  icon: PhIcons.bookOpenBold,
+                                  title: 'Continue Reading',
+                                  rightWidget: GestureDetector(
+                                    onTap: () {
+                                      Feedback.forTap(context);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ContinueReadingPage(),
+                                        ),
+                                      ).then((_) {
+                                        if (mounted) _fetchLiveProgressData();
+                                      });
+                                    },
+                                    child: Text(
+                                      'See all',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                _buildContinueReadingCard(),
+                                const SizedBox(height: 32),
+
+                                // ── Section: Analytics (Duolingo Style Gamified Dashboard) ──
+                                _buildSectionHeader(
+                                  icon: PhIcons.chartBarBold,
+                                  title: 'Analytics',
+                                ),
+                                const SizedBox(height: 16),
+                                _buildDuolingoAnalytics(primaryBlue),
+                                const SizedBox(height: 32),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     ],
                   ),
                 ),
@@ -602,11 +707,7 @@ class _ProgressPageState extends State<ProgressPage>
   }) {
     return Row(
       children: [
-        Iconify(
-          icon,
-          color: const Color(0xFF1B64D8),
-          size: 22,
-        ),
+        Iconify(icon, color: const Color(0xFF1B64D8), size: 22),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -632,10 +733,7 @@ class _ProgressPageState extends State<ProgressPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -653,10 +751,7 @@ class _ProgressPageState extends State<ProgressPage>
           GestureDetector(
             onTap: () {
               Feedback.forTap(context);
-              StreakCelebrationModal.show(
-                context,
-                streakCount: _streakCount,
-              );
+              StreakCelebrationModal.show(context, streakCount: _streakCount);
             },
             child: SizedBox(
               height: 125,
@@ -678,8 +773,12 @@ class _ProgressPageState extends State<ProgressPage>
                               shape: BoxShape.circle,
                               gradient: RadialGradient(
                                 colors: [
-                                  const Color(0xFFF97316).withValues(alpha: _glowAnimation.value),
-                                  const Color(0xFFF97316).withValues(alpha: 0.0),
+                                  const Color(
+                                    0xFFF97316,
+                                  ).withValues(alpha: _glowAnimation.value),
+                                  const Color(
+                                    0xFFF97316,
+                                  ).withValues(alpha: 0.0),
                                 ],
                               ),
                             ),
@@ -689,7 +788,9 @@ class _ProgressPageState extends State<ProgressPage>
                     Icon(
                       Icons.local_fire_department_rounded,
                       size: 140,
-                      color: _hasPracticedToday ? const Color(0xFFF97316) : const Color(0xFFCBD5E1),
+                      color: _hasPracticedToday
+                          ? const Color(0xFFF97316)
+                          : const Color(0xFFCBD5E1),
                     ),
                   ],
                 ),
@@ -750,10 +851,7 @@ class _ProgressPageState extends State<ProgressPage>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFFE2E8F0),
-            width: 1.0,
-          ),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -770,17 +868,33 @@ class _ProgressPageState extends State<ProgressPage>
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 child: ColorFiltered(
                   colorFilter: badge.isUnlocked
-                      ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
+                      ? const ColorFilter.mode(
+                          Colors.transparent,
+                          BlendMode.multiply,
+                        )
                       : const ColorFilter.matrix([
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0,      0,      0,      0.4, 0,
+                          0.2126,
+                          0.7152,
+                          0.0722,
+                          0,
+                          0,
+                          0.2126,
+                          0.7152,
+                          0.0722,
+                          0,
+                          0,
+                          0.2126,
+                          0.7152,
+                          0.0722,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0.4,
+                          0,
                         ]),
-                  child: Image.asset(
-                    badge.badgeAsset,
-                    fit: BoxFit.contain,
-                  ),
+                  child: Image.asset(badge.badgeAsset, fit: BoxFit.contain),
                 ),
               ),
             );
@@ -796,10 +910,7 @@ class _ProgressPageState extends State<ProgressPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
       ),
       padding: const EdgeInsets.all(20.0),
       child: Row(
@@ -827,10 +938,7 @@ class _ProgressPageState extends State<ProgressPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
       ),
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -918,10 +1026,12 @@ class _ProgressPageState extends State<ProgressPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: days
-          .map((day) => _buildDayTrackerItem(
-                day['label'] as String,
-                day['state'] as String,
-              ))
+          .map(
+            (day) => _buildDayTrackerItem(
+              day['label'] as String,
+              day['state'] as String,
+            ),
+          )
           .toList(),
     );
   }
@@ -980,10 +1090,236 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-
-
-  // ── Unified Phil-IRI Reading Profile Container (Merged Card Design) ──
+  // The Stage 2 oral result is a three-boundary adaptive profile, not one
+  // overall level. Listening and silent assessments intentionally do not
+  // appear in this card because this screen is for oral adaptive progress.
   Widget _buildUnifiedPhilIriCard(Color primaryBlue) {
+    if (_isLoadingPhilIri) return _buildPhilIriSkeletonCard();
+
+    final profile = _getOralAdaptiveProfile();
+    final oralItem = _getAssignedItem('oral');
+    final oralStatus = (oralItem?['status'] ?? '').toString().toLowerCase();
+    final isPendingReview =
+        oralStatus == 'pending_review' || oralStatus == 'submitted';
+    final isFinalized =
+        (profile?['status'] ?? '').toString().toLowerCase() == 'completed';
+    final boundaries = [
+      (
+        'Independent',
+        profile?['independentLevel'],
+        const Color(0xFF059669),
+        const Color(0xFFECFDF5),
+      ),
+      (
+        'Instructional',
+        profile?['instructionalLevel'],
+        const Color(0xFFD97706),
+        const Color(0xFFFFFBEB),
+      ),
+      (
+        'Frustrational',
+        profile?['frustrationalLevel'],
+        const Color(0xFFE11D48),
+        const Color(0xFFFFF1F2),
+      ),
+    ];
+    final confirmed = boundaries
+        .where(
+          (item) => item.$2 != null && item.$2.toString().trim().isNotEmpty,
+        )
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 38,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _buildPhilIriLangTab('fil', 'Filipino')),
+                Expanded(child: _buildPhilIriLangTab('en', 'English')),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: primaryBlue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Iconify(
+                  PhIcons.userSoundBold,
+                  color: primaryBlue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Oral Reading Level',
+                      style: GoogleFonts.lexend(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isFinalized
+                          ? 'Diagnostic Profile Ready'
+                          : isPendingReview
+                          ? 'Teacher Reviewing Submission'
+                          : profile != null
+                          ? '$confirmed of 3 Levels Confirmed'
+                          : 'No Assessment Assigned Yet',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  _selectedPhilIriPeriod == 'pre' ? 'Pre-Test' : 'Post-Test',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: primaryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...boundaries.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: item.$4,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: item.$3.withValues(alpha: .28)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: item.$3,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.$1,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _adaptiveGrade(item.$2),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: item.$3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (oralItem != null && !isFinalized) ...[
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 40,
+              child: ElevatedButton(
+                onPressed: isPendingReview
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                OralReadingAssessmentInstructionsPage(
+                                  item: oralItem,
+                                ),
+                          ),
+                        ).then((_) => _fetchLiveProgressData());
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryBlue,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFE2E8F0),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+                child: Text(
+                  isPendingReview
+                      ? 'Under Teacher Review'
+                      : 'Continue Oral Assessment',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /* Legacy single-level/mobile-modality profile removed from the active
+     Stage 2 flow. The adaptive profile card above is now the sole view. */
+  /*
+  Widget _buildLegacyPhilIriCard(Color primaryBlue) {
     if (_isLoadingPhilIri) {
       return _buildPhilIriSkeletonCard();
     }
@@ -993,38 +1329,98 @@ class _ProgressPageState extends State<ProgressPage>
     final silentItem = _getAssignedItem('silent');
 
     final oralStatus = (oralItem?['status'] ?? '').toString().toLowerCase();
-    final bool isOralDone = oralItem != null &&
+    final bool isOralDone =
+        oralItem != null &&
         (oralItem['isCompleted'] == true || oralStatus == 'completed');
-    final bool isOralPendingReview = oralItem != null &&
+    final bool isOralPendingReview =
+        oralItem != null &&
         !isOralDone &&
         (oralStatus == 'pending_review' || oralStatus == 'submitted');
-    final bool isOralClosed = oralItem != null &&
+    final bool isOralClosed =
+        oralItem != null &&
         !isOralDone &&
         !isOralPendingReview &&
         oralStatus == 'closed';
 
-    final listeningStatus = (listeningItem?['status'] ?? '').toString().toLowerCase();
-    final bool isListeningDone = listeningItem != null &&
-        (listeningItem['isCompleted'] == true || listeningStatus == 'completed');
-    final bool isListeningClosed = listeningItem != null &&
+    // Check oral reading level if done
+    final rawOralLevel = (oralItem?['readingLevel'] ?? oralItem?['level'] ?? '')
+        .toString()
+        .toLowerCase();
+    final bool isFrustrational =
+        rawOralLevel.contains('frustration') ||
+        rawOralLevel.contains('non-reader');
+    final bool isInstructionalOrIndependent =
+        rawOralLevel.contains('instructional') ||
+        rawOralLevel.contains('independent');
+
+    // Compute display hero reading level label
+    String displayHeroLevel = 'Evaluation Pending';
+    Color heroBadgeColor = const Color(0xFF2563EB);
+    Color heroBgLight = const Color(0xFFEFF6FF);
+    Color heroBorder = const Color(0xFFBFDBFE);
+
+    if (isOralDone) {
+      if (rawOralLevel.contains('independent')) {
+        displayHeroLevel = 'Independent Level';
+        heroBadgeColor = const Color(0xFF16A34A);
+        heroBgLight = const Color(0xFFF0FDF4);
+        heroBorder = const Color(0xFFBBF7D0);
+      } else if (rawOralLevel.contains('instructional')) {
+        displayHeroLevel = 'Instructional Level';
+        heroBadgeColor = const Color(0xFF2563EB);
+        heroBgLight = const Color(0xFFEFF6FF);
+        heroBorder = const Color(0xFFBFDBFE);
+      } else if (rawOralLevel.contains('frustration')) {
+        displayHeroLevel = 'Frustration Level';
+        heroBadgeColor = const Color(0xFFD97706);
+        heroBgLight = const Color(0xFFFFFBEB);
+        heroBorder = const Color(0xFFFDE68A);
+      } else if (rawOralLevel.contains('non-reader')) {
+        displayHeroLevel = 'Non-Reader';
+        heroBadgeColor = const Color(0xFFDC2626);
+        heroBgLight = const Color(0xFFFEF2F2);
+        heroBorder = const Color(0xFFFECACA);
+      } else {
+        displayHeroLevel = 'Assessment Completed';
+      }
+    } else if (isOralPendingReview) {
+      displayHeroLevel = 'Under Teacher Review';
+      heroBadgeColor = const Color(0xFFD97706);
+      heroBgLight = const Color(0xFFFFFBEB);
+      heroBorder = const Color(0xFFFDE68A);
+    }
+
+    final listeningStatus = (listeningItem?['status'] ?? '')
+        .toString()
+        .toLowerCase();
+    final bool isListeningDone =
+        listeningItem != null &&
+        (listeningItem['isCompleted'] == true ||
+            listeningStatus == 'completed');
+    final bool isListeningClosed =
+        listeningItem != null &&
         !isListeningDone &&
         listeningStatus == 'closed';
 
     final silentStatus = (silentItem?['status'] ?? '').toString().toLowerCase();
-    final bool isSilentDone = silentItem != null &&
+    final bool isSilentDone =
+        silentItem != null &&
         (silentItem['isCompleted'] == true || silentStatus == 'completed');
-    final bool isSilentClosed = silentItem != null &&
-        !isSilentDone &&
-        silentStatus == 'closed';
+    final bool isSilentClosed =
+        silentItem != null && !isSilentDone && silentStatus == 'closed';
+
+    // Conditional status logic
+    final bool isListeningNotRequired =
+        isOralDone && isInstructionalOrIndependent && !isListeningDone;
+    final bool isSilentNotRequired =
+        isOralDone && isFrustrational && !isSilentDone;
+    final bool isPendingOral = !isOralDone && !isOralPendingReview;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1052,9 +1448,82 @@ class _ProgressPageState extends State<ProgressPage>
               ],
             ),
           ),
+          const SizedBox(height: 14),
+
+          // 2. Hero Phil-IRI Reading Level Status Card
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: heroBgLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: heroBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: heroBadgeColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PHIL-IRI READING PROFILE LEVEL',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: heroBadgeColor,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        displayHeroLevel,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: heroBorder),
+                  ),
+                  child: Text(
+                    _selectedPhilIriPeriod == 'pre' ? 'Pre-Test' : 'Post-Test',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: heroBadgeColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
 
-          // 2. Modality Rows inside the card
+          // 3. Modality 1: Oral Reading Assessment
           _buildMergedAssessmentItemRow(
             title: 'Oral Reading Assessment',
             subTitle: 'Word Reading & Comprehension',
@@ -1070,9 +1539,8 @@ class _ProgressPageState extends State<ProgressPage>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => OralReadingAssessmentInstructionsPage(
-                    item: oralItem,
-                  ),
+                  builder: (context) =>
+                      OralReadingAssessmentInstructionsPage(item: oralItem),
                 ),
               ).then((_) {
                 _fetchLiveProgressData();
@@ -1086,7 +1554,9 @@ class _ProgressPageState extends State<ProgressPage>
                 );
                 return;
               }
-              final passageId = oralItem != null ? QuizProgressService.extractPassageId(oralItem) : null;
+              final passageId = oralItem != null
+                  ? QuizProgressService.extractPassageId(oralItem)
+                  : null;
               final lang = oralItem?['rawLanguage'] ?? oralItem?['language'];
               Navigator.push(
                 context,
@@ -1101,12 +1571,26 @@ class _ProgressPageState extends State<ProgressPage>
           ),
           const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
 
+          // 4. Modality 2: Listening Assessment
           _buildMergedAssessmentItemRow(
             title: 'Listening Assessment',
-            subTitle: 'Listening Comprehension Score',
+            subTitle: isListeningNotRequired
+                ? 'Not needed (Oral is Instructional/Independent)'
+                : isPendingOral && listeningItem == null
+                ? 'Required if Oral Reading is Frustration level'
+                : 'Listening Comprehension Score',
             isDone: isListeningDone,
             isClosed: isListeningClosed,
-            isNotAvailable: listeningItem == null,
+            isNotAvailable:
+                listeningItem == null &&
+                !isListeningNotRequired &&
+                !isPendingOral,
+            isNotRequired:
+                isListeningNotRequired ||
+                (isPendingOral && listeningItem == null),
+            notRequiredLabel: isListeningNotRequired
+                ? 'Not Required'
+                : 'Unlocks Later',
             iconSvg: PhIcons.earBold,
             iconBg: const Color(0xFFFEF3C7),
             iconCol: const Color(0xFFF59E0B),
@@ -1115,36 +1599,47 @@ class _ProgressPageState extends State<ProgressPage>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ListeningAssessmentInstructionsPage(
-                    item: listeningItem,
-                  ),
+                  builder: (context) =>
+                      ListeningAssessmentInstructionsPage(item: listeningItem),
                 ),
               ).then((completed) {
                 _fetchLiveProgressData();
               });
             },
             onViewResult: () {
-              final passageId = listeningItem != null ? QuizProgressService.extractPassageId(listeningItem) : null;
-              final lang = listeningItem?['rawLanguage'] ?? listeningItem?['language'];
+              final passageId = listeningItem != null
+                  ? QuizProgressService.extractPassageId(listeningItem)
+                  : null;
+              final lang =
+                  listeningItem?['rawLanguage'] ?? listeningItem?['language'];
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ListeningResultPage(
-                    passageId: passageId,
-                    language: lang,
-                  ),
+                  builder: (context) =>
+                      ListeningResultPage(passageId: passageId, language: lang),
                 ),
               );
             },
           ),
           const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
 
+          // 5. Modality 3: Silent Reading Assessment
           _buildMergedAssessmentItemRow(
             title: 'Silent Reading Assessment',
-            subTitle: 'Silent Comprehension & Speed',
+            subTitle: isSilentNotRequired
+                ? 'Not needed (Oral is Frustration level)'
+                : isPendingOral && silentItem == null
+                ? 'Required if Oral Reading is Instructional level'
+                : 'Silent Comprehension & Speed',
             isDone: isSilentDone,
             isClosed: isSilentClosed,
-            isNotAvailable: silentItem == null,
+            isNotAvailable:
+                silentItem == null && !isSilentNotRequired && !isPendingOral,
+            isNotRequired:
+                isSilentNotRequired || (isPendingOral && silentItem == null),
+            notRequiredLabel: isSilentNotRequired
+                ? 'Not Required'
+                : 'Unlocks Later',
             iconSvg: PhIcons.bookOpenBold,
             iconBg: const Color(0xFFD1FAE5),
             iconCol: const Color(0xFF10B981),
@@ -1153,17 +1648,19 @@ class _ProgressPageState extends State<ProgressPage>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SilentReadingAssessmentInstructionsPage(
-                    item: silentItem,
-                  ),
+                  builder: (context) =>
+                      SilentReadingAssessmentInstructionsPage(item: silentItem),
                 ),
               ).then((_) {
                 _fetchLiveProgressData();
               });
             },
             onViewResult: () {
-              final passageId = silentItem != null ? QuizProgressService.extractPassageId(silentItem) : null;
-              final lang = silentItem?['rawLanguage'] ?? silentItem?['language'];
+              final passageId = silentItem != null
+                  ? QuizProgressService.extractPassageId(silentItem)
+                  : null;
+              final lang =
+                  silentItem?['rawLanguage'] ?? silentItem?['language'];
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -1180,9 +1677,7 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-
-
-
+  */
 
   Widget _buildPhilIriLangTab(String langKey, String label) {
     bool isActive = _selectedPhilIriLang == langKey;
@@ -1220,6 +1715,9 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
+  /* Legacy modality-row helper. The new Stage 2 profile intentionally uses
+     its own three-boundary layout instead. */
+  /*
   Widget _buildMergedAssessmentItemRow({
     required String title,
     required String subTitle,
@@ -1233,22 +1731,17 @@ class _ProgressPageState extends State<ProgressPage>
     required VoidCallback onStart,
     required VoidCallback onViewResult,
     bool isNotAvailable = false,
+    bool isNotRequired = false,
+    String notRequiredLabel = 'Not Required',
   }) {
     return Row(
       children: [
         Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(
-            color: iconBg,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
           alignment: Alignment.center,
-          child: Iconify(
-            iconSvg,
-            color: iconCol,
-            size: 22,
-          ),
+          child: Iconify(iconSvg, color: iconCol, size: 22),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1270,7 +1763,9 @@ class _ProgressPageState extends State<ProgressPage>
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: const Color(0xFF64748B),
+                  color: isNotRequired
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -1312,7 +1807,10 @@ class _ProgressPageState extends State<ProgressPage>
             ),
             child: Text(
               'View Result',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           )
         else if (isClosed)
@@ -1326,6 +1824,22 @@ class _ProgressPageState extends State<ProgressPage>
               'Closed',
               style: GoogleFonts.inter(
                 fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
+          )
+        else if (isNotRequired)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              notRequiredLabel,
+              style: GoogleFonts.inter(
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF94A3B8),
               ),
@@ -1366,7 +1880,10 @@ class _ProgressPageState extends State<ProgressPage>
             ),
             child: Text(
               'Start',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
       ],
@@ -1374,8 +1891,12 @@ class _ProgressPageState extends State<ProgressPage>
   }
 
   // ── Continue Reading Card (Matching Library Page) ──
+  */
+
   Widget _buildContinueReadingCard() {
-    final continueReadingBooks = LibraryService.filterInProgress(_inProgressBooks);
+    final continueReadingBooks = LibraryService.filterInProgress(
+      _inProgressBooks,
+    );
 
     const cardBg = Colors.white;
     const tagBg = Color(0xFFEFF6FF);
@@ -1427,10 +1948,8 @@ class _ProgressPageState extends State<ProgressPage>
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => StoryPreviewPage(
-              bookTitle: bookTitle,
-              book: book,
-            ),
+            builder: (context) =>
+                StoryPreviewPage(bookTitle: bookTitle, book: book),
           ),
         );
         if (mounted) _fetchLiveProgressData();
@@ -1456,10 +1975,7 @@ class _ProgressPageState extends State<ProgressPage>
               width: 110,
               height: 160,
               child: StyledBookCover(
-                book: {
-                  'title': bookTitle,
-                  'author': bookAuthor,
-                },
+                book: {'title': bookTitle, 'author': bookAuthor},
                 index: 0,
                 enableTap: false,
               ),
@@ -1474,7 +1990,10 @@ class _ProgressPageState extends State<ProgressPage>
                 children: [
                   // Language Tag Row
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: tagBg,
                       borderRadius: BorderRadius.circular(100),
@@ -1546,7 +2065,9 @@ class _ProgressPageState extends State<ProgressPage>
                     child: LinearProgressIndicator(
                       value: progressVal,
                       backgroundColor: const Color(0xFFF1F5F9),
-                      valueColor: const AlwaysStoppedAnimation<Color>(primaryBlue),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        primaryBlue,
+                      ),
                       minHeight: 6,
                     ),
                   ),
@@ -1609,8 +2130,6 @@ class _ProgressPageState extends State<ProgressPage>
     );
   }
 
-
-
   Widget _buildAnalyticsSkeletonLoader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1624,30 +2143,33 @@ class _ProgressPageState extends State<ProgressPage>
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Row(
-            children: List.generate(3, (i) => Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
+            children: List.generate(
+              3,
+              (i) => Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    width: 40,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(4),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 40,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            )),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -1704,28 +2226,31 @@ class _ProgressPageState extends State<ProgressPage>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   crossAxisAlignment: CrossAxisAlignment.end,
-                  children: List.generate(7, (index) => Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Container(
-                        width: 20,
-                        height: index % 2 == 0 ? 45 : 25,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(100),
+                  children: List.generate(
+                    7,
+                    (index) => Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: index % 2 == 0 ? 45 : 25,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 12,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(3),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 12,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
                         ),
-                      ),
-                    ],
-                  )),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1757,7 +2282,9 @@ class _ProgressPageState extends State<ProgressPage>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF1B64D8).withValues(alpha: 0.15)),
+            border: Border.all(
+              color: const Color(0xFF1B64D8).withValues(alpha: 0.15),
+            ),
           ),
           child: Row(
             children: [
@@ -1881,22 +2408,31 @@ class _ProgressPageState extends State<ProgressPage>
         if (data == null && AnalyticsService.cachedAnalytics == null) {
           return _buildAnalyticsSkeletonLoader();
         }
-        final totalXp = data?.totalXp ?? (BadgeService.cachedBadges.length * 15 + _streakCount * 10);
+        final totalXp =
+            data?.totalXp ??
+            (BadgeService.cachedBadges.length * 15 + _streakCount * 10);
         final streak = data?.currentStreak ?? _streakCount;
         final stories = data?.completedStoriesCount ?? 0;
         final weekly = data?.weeklyActivity ?? [];
         final skills = data?.skills ?? {};
-        final smartTip = data?.smartTip ??
+        final smartTip =
+            data?.smartTip ??
             "Welcome! Complete daily practice exercises and read stories to see your learning stats grow!";
 
-        final vocabAcc = (skills['vocabulary']?['accuracy'] as num?)?.toInt() ?? 0;
-        final vocabCount = (skills['vocabulary']?['count'] as num?)?.toInt() ?? 0;
+        final vocabAcc =
+            (skills['vocabulary']?['accuracy'] as num?)?.toInt() ?? 0;
+        final vocabCount =
+            (skills['vocabulary']?['count'] as num?)?.toInt() ?? 0;
         final sentAcc = (skills['sentence']?['accuracy'] as num?)?.toInt() ?? 0;
         final sentCount = (skills['sentence']?['count'] as num?)?.toInt() ?? 0;
-        final pronAcc = (skills['pronunciation']?['accuracy'] as num?)?.toInt() ?? 0;
-        final pronCount = (skills['pronunciation']?['count'] as num?)?.toInt() ?? 0;
-        final compAcc = (skills['comprehension']?['accuracy'] as num?)?.toInt() ?? 0;
-        final compCount = (skills['comprehension']?['count'] as num?)?.toInt() ?? stories;
+        final pronAcc =
+            (skills['pronunciation']?['accuracy'] as num?)?.toInt() ?? 0;
+        final pronCount =
+            (skills['pronunciation']?['count'] as num?)?.toInt() ?? 0;
+        final compAcc =
+            (skills['comprehension']?['accuracy'] as num?)?.toInt() ?? 0;
+        final compCount =
+            (skills['comprehension']?['count'] as num?)?.toInt() ?? stories;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2004,11 +2540,7 @@ class _ProgressPageState extends State<ProgressPage>
               label: 'Total XP',
             ),
           ),
-          Container(
-            height: 36,
-            width: 1.0,
-            color: const Color(0xFFF1F5F9),
-          ),
+          Container(height: 36, width: 1.0, color: const Color(0xFFF1F5F9)),
           Expanded(
             child: _buildOverviewColumn(
               iconSvg: PhIcons.fireBold,
@@ -2017,11 +2549,7 @@ class _ProgressPageState extends State<ProgressPage>
               label: 'Streak',
             ),
           ),
-          Container(
-            height: 36,
-            width: 1.0,
-            color: const Color(0xFFF1F5F9),
-          ),
+          Container(height: 36, width: 1.0, color: const Color(0xFFF1F5F9)),
           Expanded(
             child: _buildOverviewColumn(
               iconSvg: PhIcons.booksRegular,
@@ -2047,11 +2575,7 @@ class _ProgressPageState extends State<ProgressPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Iconify(
-              iconSvg,
-              color: iconColor,
-              size: 20,
-            ),
+            Iconify(iconSvg, color: iconColor, size: 20),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -2126,7 +2650,10 @@ class _ProgressPageState extends State<ProgressPage>
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1B64D8).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(100),
@@ -2159,7 +2686,7 @@ class _ProgressPageState extends State<ProgressPage>
                 final bool isCompleted = item.isNotEmpty
                     ? (item['completed'] == true)
                     : (_weeklyTrackerDays.length > index &&
-                        _weeklyTrackerDays[index]['state'] == 'done');
+                          _weeklyTrackerDays[index]['state'] == 'done');
                 final int score = (item['score'] as num?)?.toInt() ?? 0;
                 final bool isToday = index == todayIndex;
 
@@ -2168,11 +2695,15 @@ class _ProgressPageState extends State<ProgressPage>
                     : 0.12;
 
                 final Color barColor = isCompleted
-                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    ? (isToday
+                          ? const Color(0xFFF97316)
+                          : const Color(0xFF1B64D8))
                     : const Color(0xFFF1F5F9);
 
                 final Color textColor = isCompleted
-                    ? (isToday ? const Color(0xFFF97316) : const Color(0xFF1B64D8))
+                    ? (isToday
+                          ? const Color(0xFFF97316)
+                          : const Color(0xFF1B64D8))
                     : const Color(0xFF94A3B8);
 
                 return Column(
@@ -2234,10 +2765,10 @@ class _ProgressPageState extends State<ProgressPage>
     final String statusLabel = !hasData
         ? 'Not Started'
         : accuracy >= 85
-            ? 'Mastered'
-            : accuracy >= 60
-                ? 'Improving'
-                : 'Needs Practice';
+        ? 'Mastered'
+        : accuracy >= 60
+        ? 'Improving'
+        : 'Needs Practice';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2260,11 +2791,7 @@ class _ProgressPageState extends State<ProgressPage>
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: Iconify(
-                  iconSvg,
-                  color: accentColor,
-                  size: 18,
-                ),
+                child: Iconify(iconSvg, color: accentColor, size: 18),
               ),
               Text(
                 hasData ? '$accuracy%' : '--',
@@ -2375,8 +2902,4 @@ class _ProgressPageState extends State<ProgressPage>
       ),
     );
   }
-
-
 }
-
-

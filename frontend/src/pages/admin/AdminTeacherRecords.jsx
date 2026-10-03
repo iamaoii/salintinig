@@ -1,4 +1,5 @@
 import { getApiUrl } from '../../config/api.js';
+import { getCompactPageItems } from '../../lib/pagination.js';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
@@ -195,10 +196,12 @@ export default function AdminTeacherRecords() {
       const data = await res.json();
       if (res.ok && data.success && data.allSections) {
         setAvailableSections(data.allSections);
+        return data.allSections;
       }
     } catch (err) {
       console.warn('Could not fetch sections:', err);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -368,6 +371,23 @@ export default function AdminTeacherRecords() {
       const seenEmpIdInFile = new Set();
       const seenEmailInFile = new Set();
       const validRecords = [];
+      const latestSections = await fetchSections();
+      if (!Array.isArray(latestSections)) {
+        setIsUploading(false);
+        setUploadSummary({
+          success: false,
+          errors: ['Unable to load the live section list. Please try again before uploading.'],
+        });
+        setUploadStep('summary');
+        return;
+      }
+      const sectionsForUpload = latestSections;
+      const sectionLookup = new Map(
+        sectionsForUpload.map((item) => [
+          `${String(item.gradeLevel || '').trim().toLowerCase()}::${String(item.sectionName || '').trim().toLowerCase()}`,
+          item,
+        ])
+      );
 
       rawRows.forEach((row, i) => {
         const empId = String(
@@ -393,6 +413,10 @@ export default function AdminTeacherRecords() {
         ).trim().toLowerCase();
 
         const gender = String(row['Sex / Gender'] || row.Gender || row.gender || row.Sex || 'Male').trim();
+        const gradeAssigned = String(row['Assigned Grade'] || row['Grade Level'] || row.gradeAssigned || row.grade || 'Unassigned').trim();
+        const sectionAssigned = String(row['Assigned Section'] || row.Section || row.sectionAssigned || row.section || 'Unassigned').trim();
+        const hasSectionAssignment = gradeAssigned !== 'Unassigned' || sectionAssigned !== 'Unassigned';
+        const matchedSection = sectionLookup.get(`${gradeAssigned.toLowerCase()}::${sectionAssigned.toLowerCase()}`);
 
         // 1. Missing Required Fields Check
         if (!empId) {
@@ -403,6 +427,9 @@ export default function AdminTeacherRecords() {
         }
         if (!lastName) {
           validationErrors.push(`Row ${i + 1}: Missing Last Name.`);
+        }
+        if (hasSectionAssignment && (!matchedSection || gradeAssigned === 'Unassigned' || sectionAssigned === 'Unassigned')) {
+          validationErrors.push(`Row ${i + 1}: Invalid grade/section assignment "${gradeAssigned} - ${sectionAssigned}".`);
         }
 
         // 2. Duplicate Employee ID in file
@@ -439,6 +466,9 @@ export default function AdminTeacherRecords() {
           lastName,
           gender,
           email,
+          gradeAssigned: matchedSection?.gradeLevel || 'Unassigned',
+          sectionAssigned: matchedSection?.sectionName || 'Unassigned',
+          isFacultyInCharge: String(row['Faculty In Charge'] || row.isFacultyInCharge || '').trim().toLowerCase(),
         });
       });
 
@@ -493,17 +523,172 @@ export default function AdminTeacherRecords() {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,DepEd Employee ID,First Name,Middle Name,Last Name,Sex / Gender,DepEd Email Address\nEMP-2024-099,Maria,Santos,Dela Cruz,Female,maria.delacruz@deped.gov.ph';
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'SalinTinig_Teacher_Import_Template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Teacher CSV Template downloaded.');
+  const handleDownloadTemplate = async () => {
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'SalinTinig System';
+      workbook.lastModifiedBy = 'SalinTinig Admin';
+      workbook.created = new Date();
+
+      // Sheet 1: Teacher Import Template
+      const worksheet = workbook.addWorksheet('Teacher Import List', {
+        views: [{ showGridLines: true }],
+      });
+
+      // Columns definition with auto-fit widths & numFmt @ for Employee ID
+      worksheet.columns = [
+        { header: 'DepEd Employee ID', key: 'empId', width: 22, style: { numFmt: '@' } },
+        { header: 'First Name', key: 'firstName', width: 20 },
+        { header: 'Middle Name', key: 'middleName', width: 20 },
+        { header: 'Last Name', key: 'lastName', width: 20 },
+        { header: 'Sex / Gender', key: 'gender', width: 16 },
+        { header: 'DepEd Email Address', key: 'email', width: 34 },
+        { header: 'Assigned Grade', key: 'grade', width: 16 },
+        { header: 'Assigned Section', key: 'section', width: 18 },
+        { header: 'Faculty In Charge', key: 'facultyInCharge', width: 18 },
+      ];
+
+      // Style Header Row (Row 1)
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 28;
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF334155' }, // Simple Slate Dark
+        };
+        cell.font = {
+          name: 'Calibri',
+          size: 11,
+          bold: true,
+          color: { argb: 'FFFFFFFF' }, // White
+        };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: 'left',
+          wrapText: true,
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF1E293B' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF475569' } },
+          right: { style: 'thin', color: { argb: 'FF475569' } },
+        };
+      });
+
+      // Add Sample Data Rows
+      const sampleRows = [
+        {
+          empId: 'EMP-2024-099',
+          firstName: 'Maria',
+          middleName: 'Santos',
+          lastName: 'Dela Cruz',
+          gender: 'Female',
+          email: 'maria.delacruz@deped.gov.ph',
+          grade: 'Grade 5',
+          section: 'Maya',
+          facultyInCharge: 'No',
+        },
+        {
+          empId: 'EMP-2024-100',
+          firstName: 'Robert',
+          middleName: 'Gomez',
+          lastName: 'Reyes',
+          gender: 'Male',
+          email: 'robert.reyes@deped.gov.ph',
+          grade: 'Grade 4',
+          section: 'Fyang',
+          facultyInCharge: 'Yes',
+        },
+      ];
+
+      sampleRows.forEach((rowData) => {
+        const row = worksheet.addRow(rowData);
+        row.height = 22;
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Calibri', size: 10.5 };
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          };
+          if (colNumber === 1) {
+            cell.numFmt = '@';
+            cell.value = String(rowData.empId);
+          }
+        });
+      });
+
+      // Sheet 2: Instructions & Field Rules
+      const guideSheet = workbook.addWorksheet('Upload Instructions', {
+        views: [{ showGridLines: true }],
+      });
+      guideSheet.columns = [
+        { header: 'Column Name', key: 'col', width: 24 },
+        { header: 'Required?', key: 'req', width: 18 },
+        { header: 'Accepted Format / Valid Values', key: 'fmt', width: 45 },
+        { header: 'Description & Guidance', key: 'desc', width: 50 },
+      ];
+
+      const gHeader = guideSheet.getRow(1);
+      gHeader.height = 26;
+      gHeader.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+
+      const instructions = [
+        { col: 'DepEd Employee ID', req: 'YES (Mandatory)', fmt: 'Text / ID (e.g. EMP-2024-099)', desc: 'DepEd Employee ID or Unique Teacher Registration ID.' },
+        { col: 'First Name', req: 'YES (Mandatory)', fmt: 'Text (e.g. Maria)', desc: 'Teacher given first name.' },
+        { col: 'Middle Name', req: 'Optional', fmt: 'Text (e.g. Santos)', desc: 'Teacher middle name.' },
+        { col: 'Last Name', req: 'YES (Mandatory)', fmt: 'Text (e.g. Dela Cruz)', desc: 'Teacher surname.' },
+        { col: 'Sex / Gender', req: 'YES (Mandatory)', fmt: 'Male or Female', desc: 'Teacher gender.' },
+        { col: 'DepEd Email Address', req: 'YES (Mandatory)', fmt: 'Valid email (e.g. name@deped.gov.ph)', desc: 'Official DepEd email used for account login.' },
+        { col: 'Assigned Grade', req: 'Optional', fmt: 'Grade 1 to Grade 7', desc: 'Assigned class grade level.' },
+        { col: 'Assigned Section', req: 'Optional', fmt: 'Text (e.g. Maya, Fyang)', desc: 'Assigned section name.' },
+        { col: 'Faculty In Charge', req: 'Optional', fmt: 'Yes or No', desc: 'Set to Yes if teacher is Grade Level Coordinator.' },
+      ];
+
+      instructions.forEach((ins) => {
+        const row = guideSheet.addRow(ins);
+        row.height = 20;
+        row.eachCell((cell, colIdx) => {
+          cell.font = { name: 'Calibri', size: 10 };
+          cell.alignment = { vertical: 'middle', horizontal: colIdx === 2 ? 'center' : 'left' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          };
+          if (colIdx === 2) {
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: ins.req.startsWith('YES') ? 'FFD97706' : 'FF64748B' } };
+          }
+        });
+      });
+
+      // Write to Excel file buffer & trigger browser download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'SalinTinig_Teacher_Import_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('Teacher Excel Template (.xlsx) downloaded successfully.');
+    } catch (err) {
+      console.error('Error generating Excel template:', err);
+      showToast('Failed to generate template.');
+    }
   };
 
   return (
@@ -752,7 +937,9 @@ export default function AdminTeacherRecords() {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  {getCompactPageItems(totalPages, currentPage).map((pg, index) => pg === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex size-8 items-center justify-center text-xs font-bold text-ink/45" aria-hidden="true">…</span>
+                  ) : (
                     <button
                       key={pg}
                       type="button"

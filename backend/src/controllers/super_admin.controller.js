@@ -1025,71 +1025,6 @@ async function setStoryStatus(req, res) {
 // ─────────────────────────────────────────────
 
 /**
- * GET /api/super-admin/analytics
- */
-async function getSystemAnalytics(req, res) {
-  try {
-    if (!process.env.DATABASE_URL) return res.json({ success: true, analytics: {} });
-
-    const [
-      schoolsRes,
-      levelBreakdownRes,
-      langBreakdownRes,
-      monthlyAssessmentsRes,
-    ] = await Promise.all([
-      db.query(`
-        SELECT
-          s.school_id,
-          s.school_name,
-          s.division,
-          (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'student' AND status = 'active') AS student_count,
-          (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'teacher' AND status = 'active') AS teacher_count,
-          (SELECT COUNT(*)::int FROM users WHERE school_id = s.school_id AND role = 'admin' AND status = 'active') AS admin_count,
-          (SELECT COUNT(*)::int FROM assessments a
-            JOIN students st ON a.student_id = st.student_id
-            JOIN users u ON st.user_id = u.user_id
-            WHERE u.school_id = s.school_id) AS assessment_count
-        FROM schools s
-        ORDER BY s.school_name
-      `).catch(() => ({ rows: [] })),
-      db.query(`
-        SELECT profile_level AS reading_level_result, COUNT(*)::int AS count
-        FROM student_reading_profiles
-        GROUP BY profile_level
-        ORDER BY count DESC
-      `).catch(() => ({ rows: [] })),
-      db.query(`
-        SELECT language, COUNT(*)::int AS count
-        FROM phil_iri_passages
-        GROUP BY language
-      `).catch(() => ({ rows: [] })),
-      db.query(`
-        SELECT
-          TO_CHAR(created_at, 'Mon YYYY') AS month,
-          COUNT(*)::int AS count
-        FROM assessments
-        GROUP BY TO_CHAR(created_at, 'Mon YYYY'), DATE_TRUNC('month', created_at)
-        ORDER BY DATE_TRUNC('month', created_at) DESC
-        LIMIT 6
-      `).catch(() => ({ rows: [] })),
-    ]);
-
-    return res.json({
-      success: true,
-      analytics: {
-        schoolBreakdown: schoolsRes.rows,
-        readingLevelBreakdown: levelBreakdownRes.rows,
-        languageBreakdown: langBreakdownRes.rows,
-        monthlyAssessments: monthlyAssessmentsRes.rows.reverse(),
-      },
-    });
-  } catch (err) {
-    console.error('SA getSystemAnalytics error:', err.message);
-    return res.status(500).json({ success: false, error: 'Failed to fetch analytics.' });
-  }
-}
-
-/**
  * DELETE /api/super-admin/schools/:id
  */
 async function deleteSchool(req, res) {
@@ -1167,5 +1102,4 @@ module.exports = {
   updateStory,
   setStoryStatus,
   deleteStory,
-  getSystemAnalytics,
 };
