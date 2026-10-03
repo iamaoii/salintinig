@@ -2617,12 +2617,41 @@ async function getStudentActiveAssignment(req, res) {
       }
     }
 
+    // Stage 2 oral assessment returns a three-boundary adaptive profile,
+    // not a single overall Phil-IRI level.
+    let oralAdaptiveProfiles = [];
+    if (targetStudentId) {
+      try {
+        const { rows } = await db.query(
+          `SELECT DISTINCT ON (LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')))
+             LOWER(COALESCE(language, 'fil')) AS language,
+             LOWER(COALESCE(assessment_period, 'pre_test')) AS period,
+             independent_level AS "independentLevel",
+             instructional_level AS "instructionalLevel",
+             frustration_level AS "frustrationalLevel",
+             status,
+             current_grade_level AS "currentGradeLevel",
+             step_count AS "stepCount"
+           FROM phil_iri_adaptive_sessions
+           WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'
+           ORDER BY LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')),
+             CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 0 ELSE 1 END,
+             completed_at DESC NULLS LAST, started_at DESC NULLS LAST`,
+          [targetStudentId]
+        );
+        oralAdaptiveProfiles = rows || [];
+      } catch (adaptiveProfileError) {
+        console.warn('[getStudentActiveAssignment] adaptive profile query notice:', adaptiveProfileError.message);
+      }
+    }
+
     return res.json({
       success: true,
       hasAssignment: assignedActivities.length > 0,
       assignedActivities,
       attemptsStatus,
       readingProfiles,
+      oralAdaptiveProfiles,
       studentId: targetStudentId,
       lrn: resolvedLrn,
       gradeLevel: targetGrade,
