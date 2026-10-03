@@ -649,9 +649,9 @@ export default function PhilIriForm2() {
           <button
             type="button"
             onClick={handleDownloadPDF}
-            className="flex items-center gap-1.5 rounded-lg bg-brand-blue px-3.5 py-1.5 text-xs font-bold text-white hover:bg-brand-blue/90 transition-colors cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs"
           >
-            <DownloadSimple size={16} weight="bold" />
+            <DownloadSimple size={16} weight="bold" className="text-brand-red" />
             <span>Download PDF</span>
           </button>
         </div>

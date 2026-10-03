@@ -8,6 +8,7 @@ import { PhilIriForm3DetailSkeleton } from '../../../components/common/Skeleton.
 import { encodeSecureToken, decodeSecureToken } from '../../../lib/securityToken.js';
 import { getToken } from '../../../lib/auth.js';
 import { getApiUrl } from '../../../config/api.js';
+import { jsPDF } from 'jspdf';
 
 export default function PhilIriForm3Detail({ formKey, label, backTo }) {
   const { lrn: rawLrn } = useParams();
@@ -232,6 +233,305 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
 
   const formTitle = formTitleMap[formKey] || 'Markahang Papel ng Panggradong Lebel na Teksto';
   const pageFormCode = isTagalog ? 'PHIL-IRI FORM 3A' : 'PHIL-IRI FORM 3B';
+
+  // Vector PDF export: preserves selectable text and the official Form 3 layout.
+  const handleDownloadPDF = () => {
+    if (!record) return;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 12;
+      const contentWidth = pageWidth - margin * 2;
+      const border = [156, 163, 175];
+      const gray = [212, 212, 212];
+      const lightGray = [240, 240, 240];
+
+      const drawVectorCheckmark = (pdf, cx, cy, size = 2.5, color = [16, 124, 65], strokeWidth = 0.38) => {
+        pdf.setDrawColor(...color);
+        pdf.setLineWidth(strokeWidth);
+        pdf.setLineCap('round');
+        pdf.setLineJoin('round');
+        const p1x = cx - size * 0.32;
+        const p1y = cy;
+        const p2x = cx - size * 0.08;
+        const p2y = cy + size * 0.32;
+        const p3x = cx + size * 0.36;
+        const p3y = cy - size * 0.36;
+        pdf.line(p1x, p1y, p2x, p2y);
+        pdf.line(p2x, p2y, p3x, p3y);
+        pdf.setLineCap('butt');
+        pdf.setLineJoin('miter');
+      };
+
+      const writeText = (text, x, y, { size = 8, bold = false, italic = false, align = 'left' } = {}) => {
+        const tokens = String(text ?? '').split(/(✓)/);
+        const pieces = tokens.map((part) => {
+          if (part === '✓') {
+            const width = size * 0.45;
+            return { isCheck: true, width, size };
+          }
+          pdf.setFont('helvetica', italic ? 'italic' : bold ? 'bold' : 'normal');
+          pdf.setFontSize(size);
+          return { isCheck: false, value: part, width: pdf.getTextWidth(part), font: 'helvetica', style: italic ? 'italic' : bold ? 'bold' : 'normal', size };
+        });
+        const totalWidth = pieces.reduce((sum, p) => sum + p.width, 0);
+        let cursor = align === 'center' ? x - totalWidth / 2 : align === 'right' ? x - totalWidth : x;
+        pieces.forEach((part) => {
+          if (part.isCheck) {
+            drawVectorCheckmark(pdf, cursor + part.width / 2, y - part.size * 0.08, part.size * 0.42, [16, 124, 65], 0.35);
+            cursor += part.width;
+          } else {
+            pdf.setFont(part.font, part.style);
+            pdf.setFontSize(part.size);
+            pdf.text(part.value, cursor, y);
+            cursor += part.width;
+          }
+        });
+      };
+
+      const drawCell = (x, y, width, height, text = '', options = {}) => {
+        if (options.fill) {
+          pdf.setFillColor(...options.fill);
+          pdf.rect(x, y, width, height, 'F');
+        }
+        pdf.setDrawColor(...border);
+        pdf.setLineWidth(0.2);
+        pdf.rect(x, y, width, height);
+        pdf.setTextColor(...(options.color || [17, 24, 39]));
+        const size = options.size || 8;
+        const lines = text === '' ? [] : pdf.splitTextToSize(String(text), Math.max(3, width - 3));
+        const lineHeight = size * 0.43;
+        const startY = y + (height - lines.length * lineHeight) / 2 + lineHeight * 0.78;
+        lines.forEach((line, index) => {
+          const align = options.align || 'center';
+          writeText(line, align === 'left' ? x + 1.8 : align === 'right' ? x + width - 1.8 : x + width / 2, startY + lineHeight * index, { ...options, size, align });
+        });
+      };
+
+      const drawMetadataLine = (label, value, x, y, width) => {
+        pdf.setTextColor(17, 24, 39);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        pdf.text(label, x, y);
+        const labelWidth = pdf.getTextWidth(label);
+        const lineStart = x + labelWidth + 2;
+        writeText(value || '—', lineStart + 1, y, { size: 7.5, bold: true });
+        pdf.setDrawColor(55, 65, 81);
+        pdf.setLineWidth(0.25);
+        pdf.line(lineStart, y + 1, x + width, y + 1);
+      };
+
+      const drawCheckbox = (x, y, checked) => {
+        const size = 3.1;
+        pdf.setDrawColor(17, 24, 39);
+        pdf.setLineWidth(0.35);
+        pdf.rect(x, y, size, size);
+        if (checked) {
+          drawVectorCheckmark(pdf, x + size / 2, y + size / 2 + 0.1, size * 0.7, [17, 24, 39], 0.38);
+        }
+      };
+
+      const drawDocumentHeader = () => {
+        pdf.setTextColor(55, 65, 81);
+        writeText(pageFormCode, pageWidth - margin, 11, { size: 8, bold: true, align: 'right' });
+        writeText(formTitle.toUpperCase(), pageWidth / 2, 17, { size: 10, bold: true, align: 'center' });
+        writeText(isTagalog ? 'Panimulang Pagtatasa sa Filipino' : 'Pre-Test Assessment in English', pageWidth / 2, 22, { size: 8, bold: true, align: 'center' });
+        if (record.set !== '—' && record.level !== '—') {
+          writeText(`Set ${record.set} (${record.level})`, pageWidth / 2, 27, { size: 8, bold: true, align: 'center' });
+        }
+
+        drawMetadataLine('Pangalan:', studentDisplay.name, margin, 36, 82);
+        drawMetadataLine('Edad:', studentDisplay.age, margin + 87, 36, 34);
+        drawMetadataLine('Baitang/Seksiyon:', `${studentDisplay.grade || '—'}-${studentDisplay.section || '—'}`, margin + 126, 36, contentWidth - 126);
+        drawMetadataLine('Paaralan:', studentDisplay.school, margin, 43, 122);
+        drawMetadataLine('Guro:', studentDisplay.teacher, margin + 127, 43, contentWidth - 127);
+
+        writeText('Pre-Test:', margin, 50.5, { size: 6.5, bold: true });
+        drawCheckbox(margin + 15.5, 47.7, record.testType === 'Pre-Test');
+        writeText('Post test:', margin + 24, 50.5, { size: 6.5, bold: true });
+        drawCheckbox(margin + 39.5, 47.7, record.testType === 'Post-Test');
+        drawMetadataLine('Level:', record.level, margin + 56, 51, 35);
+        drawMetadataLine('Set:', record.set, margin + 96, 51, 28);
+        drawMetadataLine('Petsa:', record.date, margin + 129, 51, contentWidth - 129);
+      };
+
+      drawDocumentHeader();
+      let y = 58;
+      const pdfPassageText = record.passageText || '';
+      const pdfPassageTitle = pdfPassageText.trim() ? record.passageTitle : '';
+      drawCell(margin, y, contentWidth, 8, pdfPassageTitle, { size: 9, bold: true });
+      y += 8;
+
+      const miscueStyles = {
+        omission: { color: [225, 29, 72], code: 'OMI' },
+        substitution: { color: [217, 119, 6], code: 'SUB' },
+        mispronunciation: { color: [234, 88, 12], code: 'MIS' },
+        insertion: { color: [37, 99, 235], code: 'INS' },
+        repetition: { color: [79, 70, 229], code: 'REP' },
+        transposition: { color: [13, 148, 136], code: 'TRA' },
+        reversal: { color: [124, 58, 237], code: 'REV' },
+        self_correction: { color: [5, 150, 105], code: 'SC' },
+      };
+      const taggedMiscues = record.rawMiscues || [];
+      // Compact A4 layout: preserves a readable one-page Form 3 for standard passages.
+      const passageFontSize = 6.5;
+      const passageLineHeight = 4.5;
+      const richPassageLines = [[]];
+      let globalWordPosition = 0;
+      let currentLineWidth = 0;
+      const addPassageSegment = (text, options = {}) => {
+        pdf.setFont('helvetica', options.bold ? 'bold' : 'normal');
+        pdf.setFontSize(options.size || passageFontSize);
+        const segmentWidth = pdf.getTextWidth(text);
+        if (currentLineWidth > 0 && currentLineWidth + segmentWidth > contentWidth - 8) {
+          richPassageLines.push([]);
+          currentLineWidth = 0;
+        }
+        richPassageLines[richPassageLines.length - 1].push({ text, ...options, width: segmentWidth });
+        currentLineWidth += segmentWidth;
+      };
+
+      pdfPassageText.split(/(\s+)/).forEach((token) => {
+        if (!token) return;
+        if (/^\s+$/.test(token)) {
+          if (token.includes('\n')) {
+            richPassageLines.push([]);
+            currentLineWidth = 0;
+          } else {
+            addPassageSegment(' ');
+          }
+          return;
+        }
+        globalWordPosition += 1;
+        const miscue = taggedMiscues.find((item) => Number(item.word_position) === globalWordPosition);
+        const type = (miscue?.miscue_type || miscue?.type || '').toLowerCase();
+        const style = miscueStyles[type];
+        addPassageSegment(token, style ? { bold: true, color: style.color, underline: type === 'omission' } : {});
+        if (style) {
+          const spokenWord = miscue.spoken_word ? `: "${miscue.spoken_word}"` : '';
+          addPassageSegment(` [${style.code}${spokenWord}]`, { bold: true, color: style.color, size: 6.5 });
+        }
+      });
+      const printablePassageLines = richPassageLines.filter((line) => line.length > 0).slice(0, 62);
+      const passageHeight = Math.max(70, Math.min(115, printablePassageLines.length * passageLineHeight + 12));
+      drawCell(margin, y, contentWidth, passageHeight, '', { size: 7.5 });
+      // Keep the title inside the same continuous passage box; remove the internal divider.
+      pdf.setDrawColor(255, 255, 255);
+      pdf.setLineWidth(0.45);
+      pdf.line(margin + 0.15, y, margin + contentWidth - 0.15, y);
+      printablePassageLines.forEach((line, index) => {
+        let cursor = margin + 4;
+        line.forEach((segment) => {
+          pdf.setTextColor(...(segment.color || [31, 41, 55]));
+          pdf.setFont('helvetica', segment.bold ? 'bold' : 'normal');
+          pdf.setFontSize(segment.size || passageFontSize);
+          pdf.text(segment.text, cursor, y + 6 + index * passageLineHeight);
+          if (segment.underline) {
+            pdf.setDrawColor(...segment.color);
+            pdf.setLineWidth(0.25);
+            pdf.line(cursor, y + 6.7 + index * passageLineHeight, cursor + segment.width, y + 6.7 + index * passageLineHeight);
+          }
+          cursor += segment.width;
+        });
+      });
+      y += passageHeight;
+      drawCell(margin, y, contentWidth, 10, '', { size: 6.5 });
+      writeText(`${isTagalog ? 'Level' : 'Level'}: ${record.level}`, margin + contentWidth - 4, y + 4, { size: 6.8, bold: true, align: 'right' });
+      writeText(`${isTagalog ? 'Bilang ng mga salita' : 'Number of words'}: ${record.wordCount}`, margin + contentWidth - 4, y + 7.5, { size: 6.8, bold: true, align: 'right' });
+      y += 13;
+      // Keep Form 3 continuous. A new page is added only when the remaining page area
+      // cannot hold the first complete assessment block.
+      if (y + 46 > pageHeight - margin) {
+        pdf.addPage();
+        y = 12;
+      }
+      drawCell(margin, y, contentWidth, 6, 'PART A: PAGTATASA SA PAG-UNAWA (COMPREHENSION) & RATE NG PAGBASA', { fill: gray, size: 6.5, bold: true, align: 'left' });
+      y += 6;
+      const metricWidth = contentWidth / 4;
+      const metricHeaders = ['Kabuuang Oras ng Pagbasa', 'Rate ng Pagbasa (WPM)', 'Marka sa Pag-unawa', 'Antas ng Pag-unawa'];
+      const metricValues = [`${record.readingTimeMinutes} minuto`, `${record.readingRateWpm} salita / minuto`, `${record.compMarka} / ${record.compTotal || 7} (${record.compPercentage}%)`, record.compLevel];
+      metricHeaders.forEach((header, index) => drawCell(margin + metricWidth * index, y, metricWidth, 8, header, { fill: lightGray, size: 5.5, bold: true }));
+      y += 8;
+      metricValues.forEach((value, index) => {
+        const fill = index === 3
+          ? record.compLevel === 'Independent' ? [209, 250, 229] : record.compLevel === 'Instructional' ? [254, 243, 199] : [255, 228, 230]
+          : null;
+        drawCell(margin + metricWidth * index, y, metricWidth, 7, value, { fill, size: 6, bold: true });
+      });
+      y += 10;
+
+      const answers = record.answers || [];
+      const totalQuestions = record.compTotal || answers.length;
+      const answerRows = Math.ceil(totalQuestions / 2);
+      for (let index = 0; index < answerRows; index += 1) {
+        [0, 1].forEach((column) => {
+          const number = index + 1 + column * answerRows;
+          if (number > totalQuestions) return;
+          const answer = answers.find((item) => Number(item.number) === number);
+          const value = answer?.letter || (answer?.answer_text?.length === 1 ? answer.answer_text.toLowerCase() : '');
+          writeText(`${number}.`, margin + 8 + column * 85, y + 3, { size: 6.5, bold: true, align: 'right' });
+          pdf.setDrawColor(31, 41, 55);
+          pdf.line(margin + 12 + column * 85, y + 3.8, margin + 67 + column * 85, y + 3.8);
+          writeText(value, margin + 39 + column * 85, y + 3, { size: 6.5, bold: true, align: 'center' });
+        });
+        y += 5;
+      }
+      y += 4;
+
+      const partBHeight = 6 + 8 + record.miscues.length * 5.6 + 4 * 6;
+      if (y + partBHeight > pageHeight - margin) {
+        pdf.addPage();
+        y = 12;
+      }
+
+      drawCell(margin, y, contentWidth, 6, 'PART B: WORD READING (PAGBASA) — URI AT BILANG NG MALI (MISCUES)', { fill: gray, size: 6.5, bold: true, align: 'left' });
+      y += 6;
+      const numberWidth = 12;
+      const typeWidth = 118;
+      const countWidth = contentWidth - numberWidth - typeWidth;
+      drawCell(margin, y, numberWidth, 8, '#', { fill: gray, size: 6, bold: true });
+      drawCell(margin + numberWidth, y, typeWidth, 8, 'Types of Miscues\n(Uri ng Mali)', { fill: [226, 226, 226], size: 5.7, bold: true, align: 'left' });
+      drawCell(margin + numberWidth + typeWidth, y, countWidth, 8, 'Number of Miscues\n(Bilang ng Salitang mali ang basa)', { fill: [226, 226, 226], size: 5.2, bold: true });
+      y += 8;
+      record.miscues.forEach((miscue) => {
+        drawCell(margin, y, numberWidth, 5.6, miscue.id, { fill: [234, 234, 234], size: 6, bold: true });
+        drawCell(margin + numberWidth, y, typeWidth, 5.6, `${miscue.nameEn} (${miscue.nameFil})`, { size: 5.8, align: 'left' });
+        drawCell(margin + numberWidth + typeWidth, y, countWidth, 5.6, miscue.count, { size: 6, bold: true });
+        y += 5.6;
+      });
+      const summaryRows = [
+        ['Total Miscues (Kabuuan):', totalMiscues, lightGray],
+        ['Number of Words in the Passage (Bilang ng Salita):', record.wordCount, null],
+        ['Word Reading Score (% ng Pagbasa):', `${wordReadingScore}%`, null],
+        [
+          'Word Reading Level (Antas ng Pagbasa):',
+          wordReadingLevel,
+          wordReadingLevel === 'INDEPENDENT'
+            ? [16, 124, 65]
+            : wordReadingLevel === 'INSTRUCTIONAL'
+            ? [217, 119, 6]
+            : wordReadingLevel === 'FRUSTRATION'
+            ? [190, 24, 93]
+            : lightGray,
+        ],
+      ];
+      summaryRows.forEach(([label, value, fill], index) => {
+        const hasReadingLevel = wordReadingLevel !== '—';
+        const color = index === summaryRows.length - 1 && fill && hasReadingLevel ? [255, 255, 255] : [17, 24, 39];
+        drawCell(margin, y, numberWidth + typeWidth, 6, label, { fill, color, size: 6, bold: true, align: 'right' });
+        drawCell(margin + numberWidth + typeWidth, y, countWidth, 6, value, { fill, color, size: 6, bold: true });
+        y += 6;
+      });
+
+      pdf.save(`${pageFormCode.replaceAll(' ', '_')}_${studentDisplay.lrn || 'student'}_Attempt${selectedAttemptIndex + 1}.pdf`);
+      triggerToast(`Downloaded ${pageFormCode} as PDF.`);
+    } catch (error) {
+      console.error('Failed to generate Form 3 PDF:', error);
+      triggerToast('Failed to generate the PDF file.', 'error');
+    }
+  };
 
   const studentDisplay = studentInfo || {
     name: '—',
@@ -967,6 +1267,15 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
             <DownloadSimple size={15} weight="bold" className="text-[#107c41]" />
             <span>Export .XLSX</span>
           </button>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            disabled={loading || !record}
+            className="flex items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-cream transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+          >
+            <DownloadSimple size={15} weight="bold" className="text-red-600" />
+            <span>Download PDF</span>
+          </button>
         </div>
       </div>
 
@@ -1300,10 +1609,11 @@ export default function PhilIriForm3Detail({ formKey, label, backTo }) {
                 );
               })()}
 
-              <div className="mt-4 flex flex-col items-end text-xs font-semibold text-gray-800 pt-2 border-t border-gray-300 space-y-0.5">
+              <div className="mt-4 flex flex-col items-end space-y-0.5 border-t border-gray-300 pt-2 text-xs font-semibold text-gray-800">
                 <span>Level: {record.level}</span>
                 <span>Bilang ng mga salita: {record.wordCount}</span>
               </div>
+
             </div>
 
             {/* ── PART A & PART B SECTION ── */}
