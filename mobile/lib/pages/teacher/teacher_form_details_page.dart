@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/teacher/teacher_gst_student_list_page.dart';
 import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
@@ -627,21 +626,8 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     Color borderColor = const Color(0xFFE2E8F0),
     Color accentColor = const Color(0xFF1D4ED8),
   }) {
-    return GestureDetector(
-      onTap: () {
-        Feedback.forTap(context);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TeacherGstStudentListPage(
-              filterType: filterType,
-              formTitle: widget.formTitle,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
@@ -700,8 +686,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

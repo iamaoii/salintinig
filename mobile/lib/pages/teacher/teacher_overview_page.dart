@@ -259,7 +259,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                                       children: [
                                         Iconify(
                                           Ph.presentation_chart,
-                                          color: Colors.grey[700],
+                                          color: const Color(0xFFD34426),
                                           size: 24,
                                         ),
                                         const SizedBox(width: 8),
@@ -1005,6 +1005,12 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
           children: [
             Row(
               children: [
+                Iconify(
+                  PhIcons.examBold,
+                  color: const Color(0xFFD34426),
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
                 Text(
                   'Phil-IRI Assessments',
                   style: GoogleFonts.inter(
@@ -1337,7 +1343,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                                       style: GoogleFonts.inter(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.grey[700],
+                                        color: const Color(0xFFD34426),
                                       ),
                                     ),
                                   ),
@@ -1730,8 +1736,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     return Expanded(
       child: GestureDetector(
         onTap: () => onTap(key),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+        child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
@@ -1786,8 +1791,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _adaptiveBoundary = key),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+        child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: bgColor,
@@ -1949,7 +1953,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[700],
+                    color: const Color(0xFFD34426),
                   ),
                 ),
                 const SizedBox(height: 2),
