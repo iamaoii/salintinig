@@ -4,22 +4,23 @@
  * Migrates ALL data from OLD Supabase project → NEW Supabase project
  *
  * Usage:
- *   1. Fill in NEW_DB_URL below with your new Supabase connection string
- *   2. Run: node scripts/migrate_to_new_db.js
+ *   1. Ensure backend/.env has DATABASE_URL set to your OLD/source database.
+ *   2. Ensure NEW_DB_URL below is set to your NEW/target database.
+ *   3. Run: node backend/scripts/migrate_to_new_db.js
  * =============================================================================
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 
 // ─── OLD DB (source) ─────────────────────────────────────────────────────────
-// Reads from your current .env DATABASE_URL
+// Reads from backend/.env DATABASE_URL
 const OLD_DB_URL = process.env.DATABASE_URL;
 
 // ─── NEW DB (destination) ─────────────────────────────────────────────────────
-// TODO: Paste your NEW Supabase connection string here (Transaction Pooler, port 6543)
-// Format: postgresql://postgres.[NEW-PROJECT-REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
-const NEW_DB_URL = 'postgresql://postgres.[NEW-PROJECT-REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres';
+// Original Supabase Project Connection String (Transaction Pooler, port 6543)
+const NEW_DB_URL = 'YOUR_DB_URL';
 
 // ─── TABLES in FK-safe insertion order ───────────────────────────────────────
 // Order matters! Parent tables must come before child tables.
@@ -103,58 +104,131 @@ function escapeValue(val) {
 }
 
 // ─── TABLE-SPECIFIC ROW TRANSFORMS ──────────────────────────────────────────
-// Applied before insertion to fix schema differences between old and new DB.
-const ROW_TRANSFORMS = {
-  // Add any future row transforms here if needed
-};
+const ROW_TRANSFORMS = {};
+
+/**
+ * Ensures table and all columns exist on destination database by copying schema definition from source
+ */
+async function ensureTableExistsOnDest(sourcePool, destPool, tableName) {
+  // Query column definitions from source
+  const colRes = await sourcePool.query(`
+    SELECT column_name, data_type, udt_name, is_nullable, column_default, character_maximum_length
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = $1
+    ORDER BY ordinal_position;
+  `, [tableName]);
+
+  if (colRes.rows.length === 0) return;
+
+  const colDefs = colRes.rows.map(col => {
+    let typeStr = col.udt_name === 'uuid' ? 'UUID' : 
+                  col.udt_name === 'jsonb' ? 'JSONB' :
+                  col.udt_name === 'timestamptz' ? 'TIMESTAMP WITH TIME ZONE' :
+                  col.udt_name === 'timestamp' ? 'TIMESTAMP' :
+                  col.udt_name === 'bool' ? 'BOOLEAN' :
+                  col.udt_name === 'int4' ? 'INT' :
+                  col.udt_name === 'int8' ? 'BIGINT' :
+                  col.udt_name === 'float8' ? 'DOUBLE PRECISION' :
+                  col.data_type === 'USER-DEFINED' ? col.udt_name :
+                  col.data_type;
+
+    if (col.character_maximum_length && (col.data_type.includes('char') || col.data_type.includes('varchar'))) {
+      typeStr += `(${col.character_maximum_length})`;
+    }
+
+    let colLine = `"${col.column_name}" ${typeStr}`;
+    if (col.column_default) {
+      colLine += ` DEFAULT ${col.column_default}`;
+    }
+    return colLine;
+  });
+
+  const createTableSql = `
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      ${colDefs.join(',\n  ')}
+    );
+  `;
+
+  await destPool.query(createTableSql);
+
+  // Also add missing columns if table existed but was missing new columns
+  for (const col of colRes.rows) {
+    let typeStr = col.udt_name === 'uuid' ? 'UUID' : 
+                  col.udt_name === 'jsonb' ? 'JSONB' :
+                  col.udt_name === 'timestamptz' ? 'TIMESTAMP WITH TIME ZONE' :
+                  col.udt_name === 'timestamp' ? 'TIMESTAMP' :
+                  col.udt_name === 'bool' ? 'BOOLEAN' :
+                  col.udt_name === 'int4' ? 'INT' :
+                  col.udt_name === 'int8' ? 'BIGINT' :
+                  col.udt_name === 'float8' ? 'DOUBLE PRECISION' :
+                  col.data_type === 'USER-DEFINED' ? col.udt_name :
+                  col.data_type;
+
+    if (col.character_maximum_length && (col.data_type.includes('char') || col.data_type.includes('varchar'))) {
+      typeStr += `(${col.character_maximum_length})`;
+    }
+
+    const alterSql = `
+      ALTER TABLE "${tableName}" 
+      ADD COLUMN IF NOT EXISTS "${col.column_name}" ${typeStr};
+    `;
+    try {
+      await destPool.query(alterSql);
+    } catch (e) {
+      // ignore
+    }
+  }
+}
 
 /**
  * Migrates a single table from source → destination
  */
 async function migrateTable(sourcePool, destPool, tableName) {
+  // Ensure destination table exists
+  await ensureTableExistsOnDest(sourcePool, destPool, tableName);
+
   // Fetch all rows from source
   const result = await sourcePool.query(`SELECT * FROM "${tableName}" ORDER BY 1`);
   let rows = result.rows;
 
   if (rows.length === 0) {
-    logInfo(`  ${tableName}: 0 rows (skipped)`);
     return 0;
   }
 
-  // Apply table-specific transforms if defined
+  // Apply row transforms if defined
   if (ROW_TRANSFORMS[tableName]) {
-    rows = rows.map(ROW_TRANSFORMS[tableName]);
+    rows = rows.map((r) => ROW_TRANSFORMS[tableName](r));
   }
 
-  const columns = Object.keys(rows[0]);
-  const columnList = columns.map((c) => `"${c}"`).join(', ');
+  // Build columns list from first row keys
+  const cols = Object.keys(rows[0]);
+  const colNamesQuoted = cols.map((c) => `"${c}"`).join(', ');
 
-  // Insert in batches of 100 to avoid hitting statement size limits
-  const BATCH_SIZE = 100;
-  let inserted = 0;
+  // Insert in batches of 200 rows
+  const BATCH_SIZE = 200;
+  let insertedCount = 0;
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-
-    const valueRows = batch.map((row) => {
-      const vals = columns.map((col) => escapeValue(row[col]));
+    const valueTuples = batch.map((row) => {
+      const vals = cols.map((c) => escapeValue(row[c]));
       return `(${vals.join(', ')})`;
     });
 
-    const sql = `
-      INSERT INTO "${tableName}" (${columnList})
-      VALUES ${valueRows.join(',\n')}
+    const insertSql = `
+      INSERT INTO "${tableName}" (${colNamesQuoted})
+      VALUES ${valueTuples.join(',\n')}
       ON CONFLICT DO NOTHING;
     `;
 
-    await destPool.query(sql);
-    inserted += batch.length;
+    await destPool.query(insertSql);
+    insertedCount += batch.length;
   }
 
-  return inserted;
+  return insertedCount;
 }
 
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
+// ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log('\n========================================');
@@ -163,7 +237,7 @@ async function main() {
 
   // Validate config
   if (!OLD_DB_URL) {
-    logError('OLD_DB_URL is missing. Make sure your .env has DATABASE_URL set.');
+    logError('OLD_DB_URL is missing. Make sure backend/.env has DATABASE_URL set.');
     process.exit(1);
   }
 
@@ -207,6 +281,46 @@ async function main() {
   } catch (err) {
     logError(`Failed to connect to NEW database: ${err.message}`);
     process.exit(1);
+  }
+
+  // Ensure PostgreSQL views exist on destination
+  log('Ensuring PostgreSQL views exist on destination...');
+  try {
+    await destPool.query(`
+      CREATE OR REPLACE VIEW reading_profiles AS
+      SELECT 
+          s.student_id,
+
+          -- Filipino 3-Modality Breakdown
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_profile_label,
+          (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_accuracy_rate,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_comprehension_rate,
+          (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_oral_speed_wpm,
+
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_listening_profile_label,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_listening_comprehension_rate,
+
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_profile_label,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_comprehension_rate,
+          (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'fil' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS fil_silent_speed_wpm,
+
+          -- English 3-Modality Breakdown
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_profile_label,
+          (SELECT accuracy_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_accuracy_rate,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_comprehension_rate,
+          (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'oral' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_oral_speed_wpm,
+
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_listening_profile_label,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'listening' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_listening_comprehension_rate,
+
+          (SELECT profile_level FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_profile_label,
+          (SELECT comprehension_rate FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_comprehension_rate,
+          (SELECT speed_wpm FROM student_reading_profiles srp WHERE srp.student_id = s.student_id AND srp.language = 'en' AND srp.assessment_type = 'silent' ORDER BY srp.updated_at DESC LIMIT 1) AS eng_silent_speed_wpm
+      FROM students s;
+    `);
+    logSuccess('Destination views created successfully.');
+  } catch (viewErr) {
+    logInfo(`View creation notice: ${viewErr.message}`);
   }
 
   // Disable FK checks on destination temporarily
