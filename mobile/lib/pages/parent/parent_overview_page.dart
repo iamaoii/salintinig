@@ -5,6 +5,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/parent/parent_announcements_page.dart';
+import 'package:salintinig/pages/parent/parent_assessment_result_detail_page.dart';
 import 'package:salintinig/pages/parent/parent_phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/parent/parent_progress_reports_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,10 +32,11 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
   late String _childGradeSection;
   late String _parentName;
   late String _studentFirstName;
-  final String _readingLevel = 'Instructional Level';
-  final double _oralAccuracy = 88.5;
-  final double _comprehension = 85.0;
-  final int _wordsPerMinute = 82;
+  String _readingLevel = 'Pending Evaluation';
+  double _oralAccuracy = 0;
+  double _comprehension = 0;
+  int _wordsPerMinute = 0;
+  bool _hasFinalizedResult = false;
   bool _isLoadingAssignments = true;
   List<Map<String, dynamic>> _assignedActivities = [];
 
@@ -94,7 +96,16 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
     _childAccessCode = await _restoreAccessCode();
     // Extract child LRN
     final user = AuthService.currentUser?.rawUser;
-    final child = widget.linkedChild ?? await _restoreLinkedChild() ?? user?['linkedChild'] ?? user?['student'] ?? user;
+    final restoredChild = await _restoreLinkedChild();
+    final child = widget.linkedChild ?? restoredChild ?? user?['linkedChild'] ?? user?['student'] ?? user;
+    if (child is Map) {
+      final resolvedChild = Map<String, dynamic>.from(child);
+      if (mounted) {
+        setState(() => _applyChildDetails(resolvedChild));
+      } else {
+        _applyChildDetails(resolvedChild);
+      }
+    }
     _childLrn = (child?['lrn'] ?? child?['studentLrn'] ?? '').toString().trim();
     await _loadChildAssignments();
   }
@@ -130,6 +141,20 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
+
+        _hasFinalizedResult = _assignedActivities.any((item) => item['isFinalResult'] == true);
+        final profile = data['readingProfile'];
+        if (_hasFinalizedResult && profile is Map) {
+          _readingLevel = (profile['profileLevel'] ?? 'Pending Evaluation').toString();
+          _oralAccuracy = (profile['avgAccuracy'] as num?)?.toDouble() ?? 0;
+          _comprehension = (profile['avgComprehension'] as num?)?.toDouble() ?? 0;
+          _wordsPerMinute = (profile['avgWpm'] as num?)?.round() ?? 0;
+        } else {
+          _readingLevel = 'Pending Evaluation';
+          _oralAccuracy = 0;
+          _comprehension = 0;
+          _wordsPerMinute = 0;
+        }
       }
     } catch (_) {
       // Keep the empty state when the child has no assigned assessments yet.
@@ -137,9 +162,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
     if (mounted) setState(() => _isLoadingAssignments = false);
   }
 
-  void _applyChildDetails() {
+  void _applyChildDetails([Map<String, dynamic>? resolvedChild]) {
     final user = AuthService.currentUser?.rawUser;
-    final child = widget.linkedChild ?? user?['linkedChild'] ?? user?['student'] ?? user;
+    final child = resolvedChild ?? widget.linkedChild ?? user?['linkedChild'] ?? user?['student'] ?? user;
 
     final fullName = (child?['name'] ?? child?['studentName'] ?? 'Student')
         .toString()
@@ -155,7 +180,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
         .toString()
         .trim();
     _selectedChild = lastName.isNotEmpty ? '$_studentFirstName $lastName' : _studentFirstName;
-    _parentName = child?['parentName'] ?? 'Parent';
+    _parentName = (child?['parentName'] ?? child?['parent_name'] ?? user?['parentName'] ?? user?['parent_name'] ?? 'Parent').toString();
     final grade = child?['gradeLevel'] ?? child?['grade'] ?? 'Grade 4';
     final section = (child?['sectionName'] ??
             child?['section_name'] ??
@@ -170,9 +195,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
   }
 
   Future<void> _refreshOverview() async {
-    await AuthService.fetchMe();
+    final restoredChild = await _restoreLinkedChild();
     if (!mounted) return;
-    setState(_applyChildDetails);
+    setState(() => _applyChildDetails(restoredChild));
     // Reset loading state and reload
     setState(() => _isLoadingAssignments = true);
     await _loadChildAssignments();
@@ -684,20 +709,8 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                 _buildNoAssignmentsCard()
               else
                 ..._assignedActivities.take(3).expand((activity) {
-                  final type = (activity['assessmentType'] ?? activity['type'] ?? '').toString().toLowerCase();
-                  final isListening = type == 'listening';
-                  final isOral = type == 'oral';
                   return [
-                    _buildPhilIriItemCard(
-                      title: (activity['title'] ?? 'Phil-IRI Assessment').toString(),
-                      statusTag: (activity['status'] ?? 'open').toString().toUpperCase(),
-                      typeTag: type.toUpperCase(),
-                      icon: isListening ? PhIcons.earBold : (isOral ? PhIcons.userSoundBold : PhIcons.bookOpenBold),
-                      iconColor: isListening ? const Color(0xFFEAB308) : (isOral ? const Color(0xFF1B64D8) : const Color(0xFF10B981)),
-                      iconBg: isListening ? const Color(0xFFFEF9C3) : (isOral ? const Color(0xFFD0E1F9) : const Color(0xFFD1FAE5)),
-                      statusText: 'View Details',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ParentPhilIriAssessmentPage())),
-                    ),
+                    _buildPhilIriOverviewCard(activity),
                     const SizedBox(height: 10),
                   ];
                 }),
@@ -721,7 +734,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                       title: 'Phil-IRI Level',
                       value: _readingLevel,
                       badgeColor: const Color(0xFF059669),
-                      badgeText: 'Grade 4 Standard',
+                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -729,9 +742,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                     child: _buildStatCard(
                       icon: Ph.timer,
                       title: 'Reading Speed',
-                      value: '$_wordsPerMinute WPM',
+                      value: _hasFinalizedResult ? '$_wordsPerMinute WPM' : '—',
                       badgeColor: const Color(0xFF2563EB),
-                      badgeText: '+5 WPM vs GST',
+                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
                     ),
                   ),
                 ],
@@ -743,9 +756,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                     child: _buildStatCard(
                       icon: Ph.check_circle,
                       title: 'Oral Accuracy',
-                      value: '${_oralAccuracy.toStringAsFixed(1)}%',
+                      value: _hasFinalizedResult ? '${_oralAccuracy.toStringAsFixed(0)}%' : '—',
                       badgeColor: const Color(0xFF1B64D8),
-                      badgeText: 'GST Post-Test',
+                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -753,9 +766,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                     child: _buildStatCard(
                       icon: Ph.brain,
                       title: 'Comprehension',
-                      value: '${_comprehension.toStringAsFixed(0)}%',
+                      value: _hasFinalizedResult ? '${_comprehension.toStringAsFixed(0)}%' : '—',
                       badgeColor: const Color(0xFF7C3AED),
-                      badgeText: '8 / 10 Answers',
+                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
                     ),
                   ),
                 ],
@@ -1138,148 +1151,284 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
     );
   }
 
-  Widget _buildPhilIriItemCard({
-    required String title,
-    required String statusTag,
-    required String typeTag,
-    required String icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String statusText,
-    VoidCallback? onTap,
-  }) {
+  Widget _buildPhilIriOverviewCard(Map<String, dynamic> item) {
+    final type = (item['assessmentType'] ?? item['type'] ?? 'oral').toString().toLowerCase();
+    final isListening = type == 'listening';
+    final isOral = type == 'oral';
+
+    final typeColor = isListening
+        ? const Color(0xFFD97706)
+        : (isOral ? const Color(0xFF1B64D8) : const Color(0xFF10B981));
+    final typeBg = isListening
+        ? const Color(0xFFFEF3C7)
+        : (isOral ? const Color(0xFFEFF6FF) : const Color(0xFFD1FAE5));
+    final typeIcon = isListening
+        ? PhIcons.earBold
+        : (isOral ? PhIcons.userSoundBold : PhIcons.bookOpenBold);
+    final typeLabel = isListening
+        ? 'Listening'
+        : (isOral ? 'Oral Reading' : 'Silent Reading');
+
+    final passageTitle = (item['passageTitle'] ?? item['title'] ?? 'Phil-IRI Assessment').toString().trim();
+    final period = (item['period'] ?? 'Pre-Test').toString().trim();
+    final language = (item['language'] ?? 'Filipino').toString().trim();
+
+    final status = (item['status'] ?? 'open').toString().toLowerCase();
+    final readingLevel = (item['readingLevelResult'] ?? '').toString().trim();
+    final accuracy = item['accuracyPercentage'];
+    final comp = item['comprehensionScore'];
+    final wpm = item['readingRateWpm'];
+    final isAwaitingTeacherReview = item['isAwaitingTeacherReview'] == true
+        || (isOral && (status == 'pending_review' || status == 'submitted'));
+    final isCompleted = !isAwaitingTeacherReview
+        && (item['isFinalResult'] == true
+            || item['isCompleted'] == true
+            || status == 'completed');
+
+    // Build concise metric text summary
+    final metrics = <String>[];
+    if (!isAwaitingTeacherReview) {
+      if (accuracy != null) metrics.add('$accuracy% Acc');
+      if (comp != null) metrics.add('$comp% Comp');
+      if (wpm != null && wpm > 0) metrics.add('$wpm WPM');
+    }
+
+    // Subtitle string: "Oral Reading • Pre-Test • Filipino"
+    final subtitleParts = [typeLabel, period, language].where((s) => s.isNotEmpty).toList();
+    final subtitle = subtitleParts.join(' • ');
+
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Left Circle Icon + Title
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Iconify(icon, color: iconColor, size: 26),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Feedback.forTap(context);
+            if (isCompleted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ParentAssessmentResultDetailPage(
+                    item: item,
+                    studentName: _selectedChild,
+                  ),
+                ),
+              );
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentPhilIriAssessmentPage(),
+                ),
+              );
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: Type icon + Titles + Level/Status badge
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                      fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF18181B),
-                        height: 1.3,
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: typeBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Iconify(typeIcon, color: typeColor, size: 22),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
-                            borderRadius: BorderRadius.circular(100),
-                            border: Border.all(color: const Color(0xFF86EFAC)),
-                          ),
-                          child: Text(
-                            statusTag,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            passageTitle,
                             style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF166534),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.2,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(100),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Text(
-                            typeTag,
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
                             style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                               color: const Color(0xFF64748B),
+                              height: 1.3,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildOverviewTrailingBadge(
+                      status: status,
+                      isCompleted: isCompleted,
+                      readingLevel: readingLevel,
+                      isAwaitingTeacherReview: isAwaitingTeacherReview,
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 9),
-          // Row 2: Status Indicator & Primary Blue Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Iconify(
-                    Ph.check_circle_fill,
-                    color: Color(0xFF10B981),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
+
+                if (isAwaitingTeacherReview) ...[
+                  const SizedBox(height: 10),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 10),
                   Text(
-                    'Available for Student',
+                    'Awaiting teacher verification. Results are not final yet.',
                     style: GoogleFonts.inter(
-                    fontSize: 11,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF475569),
+                      color: const Color(0xFFB45309),
+                      height: 1.35,
                     ),
                   ),
                 ],
-              ),
-              ElevatedButton(
-                onPressed: onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B64D8),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100),
+
+                // Bottom row: Metrics summary + Arrow hint (if completed or has scores)
+                if (metrics.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          metrics.join('   •   '),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                      const Iconify(
+                        Ph.caret_right,
+                        color: Color(0xFF94A3B8),
+                        size: 15,
+                      ),
+                    ],
                   ),
-                ),
-                child: Text(
-                  statusText,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
+                ],
+              ],
+            ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewTrailingBadge({
+    required String status,
+    required bool isCompleted,
+    required String readingLevel,
+    required bool isAwaitingTeacherReview,
+  }) {
+    if (isAwaitingTeacherReview) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'In Review',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFFB45309),
+          ),
+        ),
+      );
+    }
+
+    if (readingLevel.isNotEmpty) {
+      final lvl = readingLevel.toLowerCase();
+      final Color textColor;
+      final Color bgColor;
+
+      if (lvl.contains('indep')) {
+        textColor = const Color(0xFF047857);
+        bgColor = const Color(0xFFD1FAE5);
+      } else if (lvl.contains('frust')) {
+        textColor = const Color(0xFFB91C1C);
+        bgColor = const Color(0xFFFEE2E2);
+      } else {
+        textColor = const Color(0xFFB45309);
+        bgColor = const Color(0xFFFEF3C7);
+      }
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          readingLevel,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
+        ),
+      );
+    }
+
+    if (isCompleted || status == 'completed') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD1FAE5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Completed',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF047857),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'Pending',
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF1D4ED8),
+        ),
       ),
     );
   }

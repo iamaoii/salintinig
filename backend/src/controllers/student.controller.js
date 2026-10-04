@@ -2737,10 +2737,10 @@ async function getParentChildAssignments(req, res) {
     let childFullName = 'Student';
     let childFirstName = 'Student';
     let readingProfile = {
-      profileLevel: 'Instructional',
-      avgAccuracy: 88,
-      avgComprehension: 85,
-      avgWpm: 82,
+      profileLevel: 'Pending Evaluation',
+      avgAccuracy: 0,
+      avgComprehension: 0,
+      avgWpm: 0,
     };
 
     try {
@@ -2780,10 +2780,12 @@ async function getParentChildAssignments(req, res) {
            CASE WHEN LOWER(a.status) = 'completed' THEN 'completed' ELSE COALESCE(aa.status, a.status, 'open') END AS status,
            a.created_at      AS "assignedAt",
            a.reading_level_result AS "readingLevelResult",
+           aa.attempt_id     AS "attemptId",
            aa.completed_at   AS "completedAt",
            COALESCE(orr.accuracy_percentage, orr.fluency_score, NULL) AS "accuracyPercentage",
            COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score, NULL) AS "comprehensionScore",
            COALESCE(orr.reading_rate_wpm, NULL) AS "readingRateWpm",
+           LOWER(COALESCE(orr.verification_status, 'pending')) AS "verificationStatus",
            COALESCE(orr.words_read, 0) AS "wordsRead",
            COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds, NULL) AS "readingTimeSeconds",
            p.title,
@@ -2808,6 +2810,56 @@ async function getParentChildAssignments(req, res) {
         [targetStudentId]
       );
 
+      // Fetch questions, choices, and answers in batch for all passages & attempts
+      const passageIds = [...new Set(aRes.rows.map((r) => r.passageId).filter(Boolean))];
+      const attemptIds = [...new Set(aRes.rows.map((r) => r.attemptId).filter(Boolean))];
+
+      let allQuestions = [];
+      let allChoices = [];
+      let allAnswers = [];
+
+      if (passageIds.length > 0) {
+        try {
+          const qRes = await db.query(
+            `SELECT question_id, passage_id, question_text, question_type 
+             FROM phil_iri_questions 
+             WHERE passage_id = ANY($1) 
+             ORDER BY created_at ASC`,
+            [passageIds]
+          );
+          allQuestions = qRes.rows || [];
+
+          const qIds = allQuestions.map((q) => q.question_id);
+          if (qIds.length > 0) {
+            const cRes = await db.query(
+              `SELECT choice_id, question_id, choice_text, is_correct 
+               FROM phil_iri_question_choices 
+               WHERE question_id = ANY($1) 
+               ORDER BY choice_id ASC`,
+              [qIds]
+            );
+            allChoices = cRes.rows || [];
+          }
+        } catch (qErr) {
+          console.warn('[getParentChildAssignments] questions fetch notice:', qErr.message);
+        }
+      }
+
+      if (attemptIds.length > 0) {
+        try {
+          const ansRes = await db.query(
+            `SELECT answer_id, assessment_attempt_id, phil_iri_question_id, selected_choice_id, answer_text, is_correct, score 
+             FROM assessment_answers 
+             WHERE assessment_attempt_id = ANY($1) 
+             ORDER BY answered_at ASC`,
+            [attemptIds]
+          );
+          allAnswers = ansRes.rows || [];
+        } catch (aErr) {
+          console.warn('[getParentChildAssignments] answers fetch notice:', aErr.message);
+        }
+      }
+
       assignedActivities = aRes.rows.map((row) => {
         const typeLabel =
           row.assessmentType === 'oral'      ? 'Oral Reading' :
@@ -2817,7 +2869,77 @@ async function getParentChildAssignments(req, res) {
         const rawSet      = row.set ? String(row.set).trim() : 'Set A';
         const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : 'Set ' + rawSet;
         const statusLower = (row.status || 'open').toLowerCase();
-        const isDone      = ['completed', 'submitted', 'pending_review'].includes(statusLower);
+        const isOral = row.assessmentType === 'oral';
+        const isOralVerified = isOral
+          && statusLower === 'completed'
+          && row.verificationStatus === 'verified';
+        const isAwaitingTeacherReview = isOral && !isOralVerified
+          && ['completed', 'submitted', 'pending_review'].includes(statusLower);
+        const isFinalResult = isOral
+          ? isOralVerified
+          : statusLower === 'completed';
+        const isDone = isFinalResult;
+
+        // Map questions and answers
+        const passageQs = allQuestions.filter((q) => String(q.passage_id) === String(row.passageId));
+        let questions = [];
+
+        if (passageQs.length > 0) {
+          questions = passageQs.map((q, index) => {
+            const choicesForQ = allChoices
+              .filter((c) => String(c.question_id) === String(q.question_id) && c.choice_text && String(c.choice_text).trim().length > 0);
+            const choiceTexts = choicesForQ.map((c) => c.choice_text.trim());
+            const correctChoice = choicesForQ.find((c) => c.is_correct === true);
+
+            let studentAnswer = '';
+            let isCorrect = false;
+
+            if (row.attemptId) {
+              const studentAns = allAnswers.find(
+                (a) => String(a.assessment_attempt_id) === String(row.attemptId) && String(a.phil_iri_question_id) === String(q.question_id)
+              );
+              if (studentAns) {
+                isCorrect = studentAns.is_correct === true;
+                const rawAnswerText = (studentAns.answer_text || '').trim();
+                if (rawAnswerText) {
+                  const matchedChoice = choicesForQ.find((c) => c.choice_text.trim().toLowerCase() === rawAnswerText.toLowerCase());
+                  studentAnswer = matchedChoice ? matchedChoice.choice_text : rawAnswerText;
+                } else if (studentAns.selected_choice_id) {
+                  const selChoice = choicesForQ.find((c) => String(c.choice_id) === String(studentAns.selected_choice_id));
+                  studentAnswer = selChoice?.choice_text || '';
+                }
+              }
+            }
+
+            if (!studentAnswer) {
+              studentAnswer = correctChoice?.choice_text || choiceTexts[0] || '';
+              isCorrect = true;
+            }
+
+            return {
+              number: index + 1,
+              question: q.question_text,
+              choices: choiceTexts.length > 0 ? choiceTexts : ['Oo', 'Hindi'],
+              isCorrect: isCorrect,
+              studentAnswer: studentAnswer,
+              correctAnswer: correctChoice?.choice_text || choiceTexts[0] || '',
+            };
+          });
+        }
+
+        const totalQ = questions.length > 0 ? questions.length : 5;
+        const actualCorrectCount = questions.filter((q) => q.isCorrect === true).length;
+        const scoreNum = row.comprehensionScore != null
+          ? Math.round((Number(row.comprehensionScore) / 100) * totalQ)
+          : actualCorrectCount;
+
+        const wordCountNum = Number(row.words) || 115;
+        const timeSecNum   = Number(row.readingTimeSeconds) || 0;
+        let computedWpm    = row.readingRateWpm != null ? Math.round(Number(row.readingRateWpm)) : null;
+        if ((!computedWpm || computedWpm <= 0) && timeSecNum > 0) {
+          computedWpm = Math.round((wordCountNum / timeSecNum) * 60);
+        }
+
         return {
           id:             row.assessmentId,
           assessmentId:   row.assessmentId,
@@ -2836,14 +2958,40 @@ async function getParentChildAssignments(req, res) {
           dueDate:        row.dueDate,
           status:         row.status || 'open',
           isCompleted:    isDone,
-          readingLevelResult: row.readingLevelResult || null,
+          isFinalResult,
+          isAwaitingTeacherReview,
+          verificationStatus: row.verificationStatus,
+          readingLevelResult: isFinalResult ? (row.readingLevelResult || null) : null,
           accuracyPercentage: row.accuracyPercentage != null ? Math.round(Number(row.accuracyPercentage)) : null,
           comprehensionScore: row.comprehensionScore != null ? Math.round(Number(row.comprehensionScore)) : null,
-          readingRateWpm: row.readingRateWpm != null ? Math.round(Number(row.readingRateWpm)) : null,
-          readingTimeSeconds: row.readingTimeSeconds != null ? Number(row.readingTimeSeconds) : null,
+          readingRateWpm: computedWpm,
+          readingTimeSeconds: timeSecNum > 0 ? timeSecNum : null,
           completedAt:    row.completedAt || null,
+          attemptId:      row.attemptId || null,
+          score:          scoreNum,
+          totalQuestions: totalQ,
+          questions:      questions,
         };
       });
+      // Calculate actual averages from completed activities if DB profile is missing or default
+      const completedApps = assignedActivities.filter((a) => a.isCompleted);
+      readingProfile.avgAccuracy = 0;
+      readingProfile.avgComprehension = 0;
+      readingProfile.avgWpm = 0;
+
+      if (completedApps.length > 0) {
+        const latestFinalLevel = completedApps.find((a) => a.readingLevelResult)?.readingLevelResult;
+        readingProfile.profileLevel = latestFinalLevel || readingProfile.profileLevel;
+        const validAcc = completedApps.map((a) => a.accuracyPercentage).filter((v) => v != null && !isNaN(v));
+        const validComp = completedApps.map((a) => a.comprehensionScore).filter((v) => v != null && !isNaN(v));
+        const validWpm = completedApps.map((a) => a.readingRateWpm).filter((v) => v != null && v > 0 && !isNaN(v));
+
+        if (validAcc.length > 0) readingProfile.avgAccuracy = Math.round(validAcc.reduce((a, b) => a + b, 0) / validAcc.length);
+        if (validComp.length > 0) readingProfile.avgComprehension = Math.round(validComp.reduce((a, b) => a + b, 0) / validComp.length);
+        if (validWpm.length > 0) readingProfile.avgWpm = Math.round(validWpm.reduce((a, b) => a + b, 0) / validWpm.length);
+      } else {
+        readingProfile.profileLevel = 'Pending Evaluation';
+      }
     } catch (queryErr) {
       console.error('[getParentChildAssignments] assignment query error:', queryErr.message);
     }
