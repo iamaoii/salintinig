@@ -105,8 +105,8 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
       // FORM 2, FORM 3A, FORM 3B, FORM 4
       doneCount = 0;
       notDoneCount = 35;
-      progressColor = const Color(0xFFF87171);
-      secondaryColor = const Color(0xFFFEE2E2);
+      progressColor = formTitle == 'FORM 2' ? const Color(0xFF059669) : const Color(0xFF2563EB);
+      secondaryColor = formTitle == 'FORM 2' ? const Color(0xFFD1FAE5) : const Color(0xFFDBEAFE);
       hasGSTCards = false;
     }
 

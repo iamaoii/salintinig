@@ -1914,8 +1914,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         } else {
           doneCount = 0;
           notDoneCount = 35;
-          progressColor = const Color(0xFFF87171);
-          secondaryColor = const Color(0xFFFEE2E2);
+          progressColor = title == 'FORM 2' ? const Color(0xFF059669) : const Color(0xFF2563EB);
+          secondaryColor = title == 'FORM 2' ? const Color(0xFFD1FAE5) : const Color(0xFFDBEAFE);
           hasGSTCards = false;
         }
 
