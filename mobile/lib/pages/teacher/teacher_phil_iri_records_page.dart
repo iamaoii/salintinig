@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_form_details_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/notification_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
@@ -20,6 +21,13 @@ class TeacherPhilIriRecordsPage extends StatefulWidget {
 
 class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isLoadingRecords = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
 
   final List<Map<String, dynamic>> _forms = [
     {
@@ -101,8 +109,19 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
 
   Future<void> _refreshRecords() async {
     Feedback.forTap(context);
-    NotificationService().fetchNotifications();
-    await Future.delayed(const Duration(milliseconds: 300));
+    await _loadRecords(forceRefresh: true);
+  }
+
+  Future<void> _loadRecords({bool forceRefresh = false}) async {
+    if (mounted) setState(() => _isLoadingRecords = true);
+    try {
+      await Future.wait([
+        AuthService.fetchClassStudents(forceRefresh: forceRefresh),
+        NotificationService().fetchNotifications(),
+      ]);
+    } finally {
+      if (mounted) setState(() => _isLoadingRecords = false);
+    }
   }
 
   @override
@@ -172,7 +191,10 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // List of Forms
+                    // Form cards are shown only after the class context has loaded.
+                    if (_isLoadingRecords)
+                      _buildRecordsSkeleton()
+                    else
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -283,5 +305,55 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
       ),
     ),
   );
+  }
+
+  Widget _buildRecordsSkeleton() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 5,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => Container(
+        height: 78,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(width: 76, height: 14, color: const Color(0xFFE2E8F0)),
+                  const SizedBox(height: 8),
+                  Container(width: 170, height: 11, color: const Color(0xFFF1F5F9)),
+                ],
+              ),
+            ),
+            Container(
+              width: 56,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

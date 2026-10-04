@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/teacher_portal_cache_service.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 import 'package:salintinig/widgets/user_avatar.dart';
 import 'dart:math' as math;
@@ -50,7 +51,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     _loadFormSummary();
   }
 
-  Future<void> _loadFormSummary() async {
+  Future<void> _loadFormSummary({bool forceRefresh = false}) async {
     if (mounted) {
       setState(() {
         _isLoadingSummary = true;
@@ -58,7 +59,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     }
 
     try {
-      final roster = await AuthService.fetchClassStudents(forceRefresh: true);
+      final roster = await AuthService.fetchClassStudents(forceRefresh: forceRefresh);
       final students = roster
           .map((student) => Map<String, dynamic>.from(student))
           .toList();
@@ -315,7 +316,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
 
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _loadFormSummary,
+                onRefresh: () => _loadFormSummary(forceRefresh: true),
                 color: const Color(0xFFD34426),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
@@ -1233,15 +1234,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     final language = isFilipino ? 'fil' : 'en';
     var attempts = <Map<String, dynamic>>[];
     try {
-      final response = await ApiService.get(
-        '/teacher/phil-iri/form3-attempts/${Uri.encodeComponent(lrn)}?language=$language',
-      );
-      if (response.success && response.data?['attempts'] is List) {
-        attempts = (response.data['attempts'] as List)
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
-      }
+      attempts = await TeacherPortalCacheService.fetchForm3Attempts(lrn, language);
     } catch (_) {
       // The sheet still opens with an empty state if the attempt history is unavailable.
     }
@@ -1310,20 +1303,15 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
     final name = (student['name'] ?? 'Learner').toString().trim();
     if (lrn.isEmpty) return;
 
-    List<Map<String, dynamic>> toAttempts(dynamic response) {
-      if (response is! ApiResponse || !response.success || response.data?['attempts'] is! List) return [];
-      return (response.data['attempts'] as List).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-    }
-
     var filipinoAttempts = <Map<String, dynamic>>[];
     var englishAttempts = <Map<String, dynamic>>[];
     try {
-      final responses = await Future.wait([
-        ApiService.get('/teacher/phil-iri/form3-attempts/${Uri.encodeComponent(lrn)}?language=fil'),
-        ApiService.get('/teacher/phil-iri/form3-attempts/${Uri.encodeComponent(lrn)}?language=en'),
+      final attempts = await Future.wait([
+        TeacherPortalCacheService.fetchForm3Attempts(lrn, 'fil'),
+        TeacherPortalCacheService.fetchForm3Attempts(lrn, 'en'),
       ]);
-      filipinoAttempts = toAttempts(responses[0]);
-      englishAttempts = toAttempts(responses[1]);
+      filipinoAttempts = attempts[0];
+      englishAttempts = attempts[1];
     } catch (_) {
       // Present the ISR empty state if either attempt lookup is unavailable.
     }

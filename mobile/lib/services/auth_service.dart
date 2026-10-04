@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:salintinig/services/teacher_portal_cache_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salintinig/pages/common/home_page.dart';
@@ -307,18 +308,36 @@ class AuthService {
   }
 
   static List<Map<String, dynamic>>? _cachedClassStudents;
+  static DateTime? _classStudentsCachedAt;
+  static Future<List<Map<String, dynamic>>>? _classStudentsRequest;
+  static const Duration _classStudentsCacheTtl = Duration(minutes: 3);
 
   static List<Map<String, dynamic>>? get cachedClassStudents => _cachedClassStudents;
 
   static Future<List<Map<String, dynamic>>> fetchClassStudents({bool forceRefresh = false}) async {
-    if (!forceRefresh && _cachedClassStudents != null) {
+    final hasFreshCache = _cachedClassStudents != null &&
+        _classStudentsCachedAt != null &&
+        DateTime.now().difference(_classStudentsCachedAt!) < _classStudentsCacheTtl;
+    if (!forceRefresh && hasFreshCache) {
       return _cachedClassStudents!;
     }
+    if (_classStudentsRequest != null) return _classStudentsRequest!;
+
+    _classStudentsRequest = _fetchClassStudents();
+    try {
+      return await _classStudentsRequest!;
+    } finally {
+      _classStudentsRequest = null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchClassStudents() async {
     try {
       final res = await ApiService.get('/teacher/class-students');
       if (res.success && res.data != null && res.data['students'] != null) {
         final List list = res.data['students'] as List;
         _cachedClassStudents = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _classStudentsCachedAt = DateTime.now();
         return _cachedClassStudents!;
       }
     } catch (e) {
@@ -330,6 +349,8 @@ class AuthService {
   /// Clear all cached app data in memory
   static void clearAllCache() {
     _cachedClassStudents = null;
+    _classStudentsCachedAt = null;
+    TeacherPortalCacheService.invalidate();
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
   }

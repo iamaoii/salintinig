@@ -70,9 +70,9 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
     _fetchStudents();
   }
 
-  Future<void> _fetchStudents() async {
+  Future<void> _fetchStudents({bool forceRefresh = false}) async {
     try {
-      final rawList = await AuthService.fetchClassStudents(forceRefresh: true);
+      final rawList = await AuthService.fetchClassStudents(forceRefresh: forceRefresh);
       if (mounted) {
         setState(() {
           _students = rawList;
@@ -135,7 +135,7 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
             ),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchStudents,
+                onRefresh: () => _fetchStudents(forceRefresh: true),
                 color: const Color(0xFFD34426),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

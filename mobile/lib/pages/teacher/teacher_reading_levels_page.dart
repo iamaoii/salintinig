@@ -56,19 +56,19 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'reading_profiles',
-            callback: (payload) => _fetchStudents(),
+            callback: (payload) => _fetchStudents(forceRefresh: true),
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'assessments',
-            callback: (payload) => _fetchStudents(),
+            callback: (payload) => _fetchStudents(forceRefresh: true),
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'students',
-            callback: (payload) => _fetchStudents(),
+            callback: (payload) => _fetchStudents(forceRefresh: true),
           )
           .subscribe();
     } catch (e) {
@@ -76,9 +76,9 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
     }
   }
 
-  Future<void> _fetchStudents() async {
+  Future<void> _fetchStudents({bool forceRefresh = false}) async {
     try {
-      final rawList = await AuthService.fetchClassStudents(forceRefresh: true);
+      final rawList = await AuthService.fetchClassStudents(forceRefresh: forceRefresh);
       if (mounted) {
         setState(() {
           _students = rawList;
@@ -237,7 +237,7 @@ class _TeacherReadingLevelsPageState extends State<TeacherReadingLevelsPage> {
               child: _isLoading
                   ? _buildSkeletonLoading()
                   : RefreshIndicator(
-                      onRefresh: _fetchStudents,
+                      onRefresh: () => _fetchStudents(forceRefresh: true),
                       color: const Color(0xFFD34426),
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

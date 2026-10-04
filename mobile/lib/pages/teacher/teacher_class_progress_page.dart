@@ -62,25 +62,25 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'reading_profiles',
-            callback: (payload) => _fetchClassStudents(),
+            callback: (payload) => _fetchClassStudents(forceRefresh: true),
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'assessments',
-            callback: (payload) => _fetchClassStudents(),
+            callback: (payload) => _fetchClassStudents(forceRefresh: true),
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'students',
-            callback: (payload) => _fetchClassStudents(),
+            callback: (payload) => _fetchClassStudents(forceRefresh: true),
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'student_grade_history',
-            callback: (payload) => _fetchClassStudents(),
+            callback: (payload) => _fetchClassStudents(forceRefresh: true),
           )
           .subscribe();
     } catch (e) {
@@ -122,9 +122,9 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
     _femaleCount = females;
   }
 
-  Future<void> _fetchClassStudents() async {
+  Future<void> _fetchClassStudents({bool forceRefresh = false}) async {
     try {
-      final rawList = await AuthService.fetchClassStudents(forceRefresh: true);
+      final rawList = await AuthService.fetchClassStudents(forceRefresh: forceRefresh);
       if (mounted) {
         setState(() {
           _applyStudentData(rawList);
@@ -183,7 +183,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
 
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchClassStudents,
+                onRefresh: () => _fetchClassStudents(forceRefresh: true),
                 color: const Color(0xFFD34426),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(

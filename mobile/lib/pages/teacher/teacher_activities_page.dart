@@ -6,6 +6,7 @@ import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/teacher/assign_phil_iri_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/notification_service.dart';
+import 'package:salintinig/services/teacher_portal_cache_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
@@ -42,36 +43,32 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
     _fetchActivitiesData();
   }
 
-  Future<void> _fetchActivitiesData() async {
-    if (_philIriActivities.isEmpty) {
+  Future<void> _fetchActivitiesData({bool forceRefresh = false}) async {
+    final cachedActivities = TeacherPortalCacheService.cachedActivities;
+    if (cachedActivities != null && _philIriActivities.isEmpty) {
+      _philIriActivities = cachedActivities.map((item) => Map<String, dynamic>.from(item)).toList();
+      _pendingReviews = (TeacherPortalCacheService.cachedPendingReviews ?? [])
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    if (_philIriActivities.isEmpty && cachedActivities == null) {
       setState(() => _isLoading = true);
     }
 
     try {
-      final results = await Future.wait([
-        ApiService.get('/teacher/assessments/phil-iri-activities'),
-        ApiService.get('/teacher/assessments/pending-reviews'),
+      await Future.wait([
+        TeacherPortalCacheService.warm(forceRefresh: forceRefresh),
         NotificationService().fetchNotifications(),
       ]);
 
-      final res = results[0] as ApiResponse;
-      final pRes = results[1] as ApiResponse;
-
-      if (res.success && res.data != null && res.data['activities'] is List) {
-        final List raw = res.data['activities'];
-        _philIriActivities = raw
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
+      final activities = TeacherPortalCacheService.cachedActivities;
+      final pendingReviews = TeacherPortalCacheService.cachedPendingReviews;
+      if (activities != null) {
+        _philIriActivities = activities.map((item) => Map<String, dynamic>.from(item)).toList();
         _cachedPhilIriActivities = _philIriActivities;
       }
-
-      if (pRes.success &&
-          pRes.data != null &&
-          pRes.data['pendingReviews'] is List) {
-        final List pRaw = pRes.data['pendingReviews'];
-        _pendingReviews = pRaw
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
+      if (pendingReviews != null) {
+        _pendingReviews = pendingReviews.map((item) => Map<String, dynamic>.from(item)).toList();
         _cachedPendingReviews = _pendingReviews;
       }
     } catch (_) {}
@@ -128,7 +125,8 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       });
 
       if (res.success && mounted) {
-        _fetchActivitiesData();
+        TeacherPortalCacheService.invalidate();
+        _fetchActivitiesData(forceRefresh: true);
       } else {
         setState(() {
           activity['activityStatus'] = newStatus;
@@ -190,6 +188,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       final String actId = (activity['id'] ?? '').toString();
       try {
         await ApiService.delete('/teacher/assessments/$actId');
+        TeacherPortalCacheService.invalidate();
       } catch (_) {}
 
       setState(() {
@@ -701,7 +700,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       ),
     );
     if (result == true) {
-      _fetchActivitiesData();
+      _fetchActivitiesData(forceRefresh: true);
     }
   }
 
@@ -754,7 +753,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _fetchActivitiesData,
+                onRefresh: () => _fetchActivitiesData(forceRefresh: true),
                 color: const Color(0xFFD34426),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
@@ -920,14 +919,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
                       // Activities List / Loading / Empty State
                       if (_isLoading)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 36),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFFD34426),
-                            ),
-                          ),
-                        )
+                        _buildActivitiesSkeleton()
                       else if (_filteredActivities.isEmpty)
                         Container(
                           width: double.infinity,
@@ -1455,6 +1447,57 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivitiesSkeleton() {
+    return Column(
+      children: List.generate(
+        3,
+        (_) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(width: 150, height: 14, color: const Color(0xFFE2E8F0)),
+                    const SizedBox(height: 9),
+                    Container(width: 105, height: 11, color: const Color(0xFFF1F5F9)),
+                    const SizedBox(height: 11),
+                    Container(width: 78, height: 20, color: const Color(0xFFFFF1F2)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 58,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ],
           ),
         ),
       ),

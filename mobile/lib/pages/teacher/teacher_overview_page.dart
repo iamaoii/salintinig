@@ -9,10 +9,10 @@ import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
 import 'package:salintinig/pages/teacher/teacher_form_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_phil_iri_records_page.dart';
 import 'package:salintinig/pages/teacher/assign_phil_iri_page.dart';
-import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/notification_service.dart';
 import 'package:salintinig/services/teacher_prefetch_service.dart';
+import 'package:salintinig/services/teacher_portal_cache_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
 
@@ -58,19 +58,16 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
 
   Future<void> _refreshTeacherProfile() async {
     try {
-      final results = await Future.wait([
+      await Future.wait([
         AuthService.fetchMe(),
         AuthService.fetchClassStudents(forceRefresh: false),
-        ApiService.get('/teacher/assessments/phil-iri-activities'),
+        TeacherPortalCacheService.warm(),
         NotificationService().fetchNotifications(),
       ]);
 
-      final res = results[2] as ApiResponse;
-      if (res.success && res.data != null && res.data['activities'] is List) {
-        final List raw = res.data['activities'];
-        _overviewActivities = raw
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList();
+      final cachedActivities = TeacherPortalCacheService.cachedActivities;
+      if (cachedActivities != null) {
+        _overviewActivities = cachedActivities.map((item) => Map<String, dynamic>.from(item)).toList();
         _cachedOverviewActivities = _overviewActivities;
       }
     } catch (_) {}
@@ -237,7 +234,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // ── Hero Header Card (Grade 4 - Fyang) ──
+                                // ── Hero Header Card ──
                                 _buildHeroHeaderCard(),
                                 const SizedBox(height: 20),
 

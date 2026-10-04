@@ -29,7 +29,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
 
     final rawSection = user?.sectionName ?? '';
     final grade = user?.gradeLevel ?? '';
-    String displaySectionTitle = 'Grade 4 - Fyang';
+    String displaySectionTitle = '';
     if (rawSection.toLowerCase().startsWith('grade')) {
       displaySectionTitle = rawSection;
     } else if (rawSection.isNotEmpty && grade.isNotEmpty) {
