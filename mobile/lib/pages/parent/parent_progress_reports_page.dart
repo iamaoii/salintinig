@@ -35,37 +35,14 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
           icon: Iconify(Ph.list, color: Colors.black, size: 28),
         ),
         centerTitle: true,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/logo/logo_v2.webp',
-              height: 32,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'SalinTinig',
-              style: GoogleFonts.inter(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ParentAnnouncementsPage()),
-              );
-            },
-            icon: Iconify(Ph.bell, color: Colors.black, size: 28),
+        title: Text(
+          'Student Progress',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Colors.black,
           ),
-          const SizedBox(width: 4),
-        ],
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -141,7 +118,7 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Detailed Phil-IRI assessment metrics, reading speed, and oral accuracy analysis.',
+                      'Track reading progress, recent practice, and Phil-IRI assessment results.',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.95),

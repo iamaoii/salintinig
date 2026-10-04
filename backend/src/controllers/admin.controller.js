@@ -633,14 +633,25 @@ async function verifyParentAccessCode(req, res) {
              s.lrn,
              s.first_name AS student_first_name,
              CONCAT(s.first_name, ' ', COALESCE(s.middle_name || ' ', ''), s.last_name) AS name,
-             COALESCE(c.grade_level, 'Grade 4') AS grade,
+             COALESCE(c.grade_level, sgh.grade_level, 'Grade 4') AS grade,
              COALESCE(c.section_name, 'Unassigned') AS section,
              sp.access_code,
              COALESCE(NULLIF(p.parent_name, ''), 'Parent') AS parent_name
            FROM students s
            JOIN student_parents sp ON s.student_id = sp.student_id
            LEFT JOIN parents p ON sp.parent_id = p.parent_id
-           LEFT JOIN student_grade_history sgh ON s.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+           LEFT JOIN (
+             SELECT DISTINCT ON (sgh_inner.student_id)
+               sgh_inner.student_id,
+               sgh_inner.class_id,
+               sgh_inner.grade_level
+             FROM student_grade_history sgh_inner
+             LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
+             LEFT JOIN school_years sy_c ON c_inner.school_year_id = sy_c.school_year_id
+             LEFT JOIN school_years sy_direct ON sgh_inner.school_year_id = sy_direct.school_year_id
+             WHERE (sy_c.is_active = true OR sy_direct.is_active = true OR sgh_inner.promotion_status = 'active')
+             ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
+           ) sgh ON s.student_id = sgh.student_id
            LEFT JOIN classes c ON sgh.class_id = c.class_id
            WHERE TRIM(s.lrn) = $1 AND UPPER(TRIM(sp.access_code)) = $2
            LIMIT 1`,

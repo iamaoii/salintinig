@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ParentLoginPage extends StatefulWidget {
   const ParentLoginPage({super.key});
@@ -300,13 +301,22 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                                               });
 
                                               if (response.success) {
-                                                final childData = response.data?['student'];
-                                                navigator.pushReplacement(
+                                                final rawChild = response.data?['student'];
+                                                // Inject the accessCode into the child map so
+                                                // ParentOverviewPage can persist and reuse it
+                                                final childData = rawChild is Map<String, dynamic>
+                                                    ? <String, dynamic>{...rawChild, 'accessCode': parentCode}
+                                                    : <String, dynamic>{'accessCode': parentCode};
+
+                                                await AuthService.loginParent(childData, parentCode);
+
+                                                navigator.pushAndRemoveUntil(
                                                   MaterialPageRoute(
                                                     builder: (context) => ParentOverviewPage(
                                                       linkedChild: childData,
                                                     ),
                                                   ),
+                                                  (route) => false,
                                                 );
                                               } else {
                                                 setState(() {

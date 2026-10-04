@@ -176,7 +176,48 @@ class AuthService {
       if (userJsonStr != null && userJsonStr.isNotEmpty) {
         final map = jsonDecode(userJsonStr) as Map<String, dynamic>;
         _currentUser = UserSession.fromJson(map);
+      } else {
+        // Fallback: Check if parent was logged in via access code
+        final parentChildStr = prefs.getString('parent_linked_child');
+        if (parentChildStr != null && parentChildStr.isNotEmpty) {
+          final child = jsonDecode(parentChildStr) as Map<String, dynamic>;
+          final accessCode = prefs.getString('parent_access_code') ?? '';
+          final sessionMap = <String, dynamic>{
+            'user_id': child['studentId']?.toString() ?? child['lrn']?.toString() ?? 'parent',
+            'email': 'parent_${child['lrn'] ?? ''}',
+            'role': 'parent',
+            'status': 'Active',
+            'linkedChild': child,
+            'student': child,
+            'accessCode': accessCode,
+            ...child,
+          };
+          _currentUser = UserSession.fromJson(sessionMap);
+        }
       }
+    } catch (_) {}
+  }
+
+  /// Log in parent with verified student details and access code (persisted session)
+  static Future<void> loginParent(Map<String, dynamic> childData, String accessCode) async {
+    final sessionMap = <String, dynamic>{
+      'user_id': childData['studentId']?.toString() ?? childData['lrn']?.toString() ?? 'parent',
+      'email': 'parent_${childData['lrn'] ?? ''}',
+      'role': 'parent',
+      'status': 'Active',
+      'linkedChild': childData,
+      'student': childData,
+      'accessCode': accessCode,
+      ...childData,
+    };
+    _currentUser = UserSession.fromJson(sessionMap);
+    await _saveSession(sessionMap);
+    // Clear leftover student/teacher token so it doesn't cause 401 on /auth/me
+    await ApiService.setAuthToken(null);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('parent_linked_child', jsonEncode(childData));
+      await prefs.setString('parent_access_code', accessCode);
     } catch (_) {}
   }
 
@@ -363,6 +404,9 @@ class AuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_session');
+      // Also clear parent portal persisted data
+      await prefs.remove('parent_linked_child');
+      await prefs.remove('parent_access_code');
     } catch (_) {}
   }
 
@@ -374,7 +418,9 @@ class AuthService {
     final activePortal = portalName ??
         (role == 'student' ? 'student portal' : (role == 'parent' ? 'parent portal' : 'teacher portal'));
 
-    final btnColor = (role == 'student') ? const Color(0xFF1B64D8) : const Color(0xFFD34426);
+    final btnColor = (role == 'student' || role == 'parent' || activePortal.contains('parent'))
+        ? const Color(0xFF1B64D8)
+        : const Color(0xFFD34426);
 
     showDialog(
       context: context,

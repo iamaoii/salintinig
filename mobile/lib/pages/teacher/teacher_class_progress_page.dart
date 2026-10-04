@@ -604,121 +604,264 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Iconify(Ph.users_three, color: Colors.black87, size: 28),
-              const SizedBox(width: 8),
-              _isLoadingStudents
-                  ? Container(
-                      width: 44,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    )
-                  : Text(
-                      '$_totalStudents',
-                      style: GoogleFonts.inter(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                        height: 1.0,
-                      ),
-                    ),
-              const SizedBox(width: 6),
-              Text(
-                'Total\nStudents',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                  height: 1.1,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isSmallScreen = constraints.maxWidth < 360;
+
+              if (isSmallScreen) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _isLoadingStudents
-                        ? Container(
-                            width: 18,
-                            height: 15,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(4),
+                    Row(
+                      children: [
+                        Iconify(Ph.users_three, color: Colors.black87, size: 28),
+                        const SizedBox(width: 8),
+                        _isLoadingStudents
+                            ? Container(
+                                width: 44,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              )
+                            : Text(
+                                '$_totalStudents',
+                                style: GoogleFonts.inter(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                  height: 1.0,
+                                ),
+                              ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Total Students',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
                             ),
-                          )
-                        : Text(
-                            '$_maleCount ',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF1D4ED8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _isLoadingStudents
+                                    ? Container(
+                                        width: 18,
+                                        height: 15,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[300],
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      )
+                                    : Text(
+                                        '$_maleCount ',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF1D4ED8),
+                                        ),
+                                      ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'Males',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                    const SizedBox(width: 2),
-                    Text(
-                      'Males',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1D4ED8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    _isLoadingStudents
-                        ? Container(
-                            width: 18,
-                            height: 15,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(4),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
                             ),
-                          )
-                        : Text(
-                            '$_femaleCount ',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF1D4ED8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _isLoadingStudents
+                                    ? Container(
+                                        width: 18,
+                                        height: 15,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[300],
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      )
+                                    : Text(
+                                        '$_femaleCount ',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF1D4ED8),
+                                        ),
+                                      ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'Females',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                    const SizedBox(width: 2),
-                    Text(
-                      'Females',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1D4ED8),
-                      ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ),
-            ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Iconify(Ph.users_three, color: Colors.black87, size: 26),
+                  const SizedBox(width: 6),
+                  _isLoadingStudents
+                      ? Container(
+                          width: 44,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        )
+                      : Text(
+                          '$_totalStudents',
+                          style: GoogleFonts.inter(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
+                            height: 1.0,
+                          ),
+                        ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Total\nStudents',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _isLoadingStudents
+                            ? Container(
+                                width: 18,
+                                height: 15,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              )
+                            : Text(
+                                '$_maleCount ',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF1D4ED8),
+                                ),
+                              ),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Males',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _isLoadingStudents
+                            ? Container(
+                                width: 18,
+                                height: 15,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              )
+                            : Text(
+                                '$_femaleCount ',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF1D4ED8),
+                                ),
+                              ),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Females',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

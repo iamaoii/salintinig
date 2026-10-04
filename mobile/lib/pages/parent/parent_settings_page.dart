@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/pages/parent/parent_announcements_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 
 class ParentSettingsPage extends StatefulWidget {
   const ParentSettingsPage({super.key});
@@ -581,11 +582,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     Feedback.forTap(context);
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                      (route) => false,
-                    );
+                    AuthService.showLogoutDialog(context, portalName: 'parent portal');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,

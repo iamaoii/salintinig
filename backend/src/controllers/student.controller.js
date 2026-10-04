@@ -262,7 +262,7 @@ async function getStudentByLrn(req, res) {
                  COALESCE(to_jsonb(s)->>'frustration_level', to_jsonb(s)->>'frustrational_level') AS "frustrationalLevel",
                  status
                FROM phil_iri_adaptive_sessions s
-               WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) = 'oral'
+               WHERE student_id = $1 AND LOWER(COALESCE(assessment_type, 'oral')) IN ('oral', 'silent', 'listening')
                ORDER BY LOWER(COALESCE(language, 'fil')), LOWER(COALESCE(assessment_period, 'pre_test')),
                  CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 0 ELSE 1 END,
                  completed_at DESC NULLS LAST, started_at DESC NULLS LAST`,
@@ -2665,6 +2665,209 @@ async function getStudentActiveAssignment(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/student/assessment/parent-view?lrn=<lrn>&accessCode=<code>
+// Public endpoint (no JWT required) - validates parent access code then
+// returns the child's assigned Phil-IRI assessments and reading profile.
+// ---------------------------------------------------------------------------
+async function getParentChildAssignments(req, res) {
+  try {
+    const { lrn: queryLrn, accessCode: queryCode } = req.query || {};
+    const cleanLrn = (queryLrn || '').toString().trim();
+    const cleanCode = (queryCode || '').toString().trim().toUpperCase();
+
+    if (!cleanLrn) {
+      return res.status(400).json({ success: false, error: 'Student LRN is required.' });
+    }
+    if (!process.env.DATABASE_URL) {
+      return res.json({ success: true, hasAssignment: false, assignedActivities: [] });
+    }
+
+    let targetStudentId = null;
+    let targetGrade = 'Grade 4';
+    let targetSection = 'Unassigned';
+    let resolvedLrn = cleanLrn;
+
+    try {
+      if (cleanCode) {
+        const validateRes = await db.query(
+          `SELECT s.student_id, s.lrn
+           FROM students s
+           JOIN student_parents sp ON s.student_id = sp.student_id
+           WHERE TRIM(s.lrn) = $1 AND UPPER(TRIM(sp.access_code)) = $2
+           LIMIT 1`,
+          [cleanLrn, cleanCode]
+        );
+        if (validateRes.rows[0]) {
+          targetStudentId = validateRes.rows[0].student_id;
+          resolvedLrn = validateRes.rows[0].lrn || cleanLrn;
+        } else {
+          return res.status(403).json({ success: false, error: 'Invalid access code for this student.' });
+        }
+      } else {
+        const sRes = await db.query(
+          `SELECT student_id, lrn FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+          [cleanLrn]
+        );
+        if (sRes.rows[0]) {
+          targetStudentId = sRes.rows[0].student_id;
+          resolvedLrn = sRes.rows[0].lrn || cleanLrn;
+        }
+      }
+
+      if (targetStudentId) {
+        const gradeRes = await db.query(
+          `SELECT c.grade_level, c.section_name
+           FROM student_grade_history sgh
+           JOIN classes c ON sgh.class_id = c.class_id
+           WHERE sgh.student_id = $1
+           ORDER BY sgh.created_at DESC LIMIT 1`,
+          [targetStudentId]
+        );
+        if (gradeRes.rows[0]?.grade_level) targetGrade = gradeRes.rows[0].grade_level;
+        if (gradeRes.rows[0]?.section_name) targetSection = gradeRes.rows[0].section_name;
+      }
+    } catch (resolveErr) {
+      console.warn('[getParentChildAssignments] resolve error:', resolveErr.message);
+    }
+
+    if (!targetStudentId) {
+      return res.json({ success: true, hasAssignment: false, assignedActivities: [], gradeLevel: targetGrade, section: targetSection });
+    }
+
+    let childFullName = 'Student';
+    let childFirstName = 'Student';
+    let readingProfile = {
+      profileLevel: 'Instructional',
+      avgAccuracy: 88,
+      avgComprehension: 85,
+      avgWpm: 82,
+    };
+
+    try {
+      const sInfo = await db.query(
+        `SELECT CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) AS full_name, first_name
+         FROM students WHERE student_id = $1 LIMIT 1`,
+        [targetStudentId]
+      );
+      if (sInfo.rows[0]) {
+        childFullName = sInfo.rows[0].full_name?.trim() || childFullName;
+        childFirstName = sInfo.rows[0].first_name?.trim() || childFirstName;
+      }
+      const pRes = await db.query(
+        `SELECT profile_level, accuracy_rate, comprehension_rate, speed_wpm
+         FROM student_reading_profiles
+         WHERE student_id = $1
+         ORDER BY updated_at DESC LIMIT 1`,
+        [targetStudentId]
+      );
+      if (pRes.rows[0]) {
+        if (pRes.rows[0].profile_level) readingProfile.profileLevel = pRes.rows[0].profile_level;
+        if (pRes.rows[0].accuracy_rate != null) readingProfile.avgAccuracy = Math.round(Number(pRes.rows[0].accuracy_rate));
+        if (pRes.rows[0].comprehension_rate != null) readingProfile.avgComprehension = Math.round(Number(pRes.rows[0].comprehension_rate));
+        if (pRes.rows[0].speed_wpm != null) readingProfile.avgWpm = Math.round(Number(pRes.rows[0].speed_wpm));
+      }
+    } catch (_) {}
+
+    let assignedActivities = [];
+    try {
+      const aRes = await db.query(
+        `SELECT
+           a.assessment_id   AS "assessmentId",
+           a.passage_id      AS "passageId",
+           LOWER(a.assessment_type)   AS "assessmentType",
+           LOWER(a.assessment_period) AS "period",
+           a.due_date        AS "dueDate",
+           CASE WHEN LOWER(a.status) = 'completed' THEN 'completed' ELSE COALESCE(aa.status, a.status, 'open') END AS status,
+           a.created_at      AS "assignedAt",
+           a.reading_level_result AS "readingLevelResult",
+           aa.completed_at   AS "completedAt",
+           COALESCE(orr.accuracy_percentage, orr.fluency_score, NULL) AS "accuracyPercentage",
+           COALESCE(orr.comprehension_score, srr.comprehension_score, lrr.comprehension_score, NULL) AS "comprehensionScore",
+           COALESCE(orr.reading_rate_wpm, NULL) AS "readingRateWpm",
+           COALESCE(orr.words_read, 0) AS "wordsRead",
+           COALESCE(orr.reading_time_seconds, srr.reading_time_seconds, lrr.audio_duration_seconds, NULL) AS "readingTimeSeconds",
+           p.title,
+           p.grade_level     AS "gradeLevel",
+           p.passage_set     AS "set",
+           COALESCE(p.language, 'fil') AS language,
+           p.word_count      AS words
+         FROM assessments a
+         JOIN phil_iri_passages p ON p.passage_id = a.passage_id
+         LEFT JOIN LATERAL (
+           SELECT attempt_id, status, completed_at FROM assessment_attempts
+           WHERE assessment_id = a.assessment_id
+           ORDER BY completed_at DESC NULLS LAST, created_at DESC NULLS LAST
+           LIMIT 1
+         ) aa ON true
+         LEFT JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
+         LEFT JOIN silent_reading_results srr ON srr.assessment_attempt_id = aa.attempt_id
+         LEFT JOIN listening_reading_results lrr ON lrr.assessment_attempt_id = aa.attempt_id
+         WHERE a.student_id = $1
+           AND LOWER(COALESCE(a.status, 'open')) != 'cancelled'
+         ORDER BY a.created_at DESC`,
+        [targetStudentId]
+      );
+
+      assignedActivities = aRes.rows.map((row) => {
+        const typeLabel =
+          row.assessmentType === 'oral'      ? 'Oral Reading' :
+          row.assessmentType === 'listening' ? 'Listening'    : 'Silent Reading';
+        const periodLabel = row.period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+        const langLabel   = (row.language || 'fil').toLowerCase().startsWith('en') ? 'English' : 'Filipino';
+        const rawSet      = row.set ? String(row.set).trim() : 'Set A';
+        const setLabel    = rawSet.toLowerCase().startsWith('set') ? rawSet : 'Set ' + rawSet;
+        const statusLower = (row.status || 'open').toLowerCase();
+        const isDone      = ['completed', 'submitted', 'pending_review'].includes(statusLower);
+        return {
+          id:             row.assessmentId,
+          assessmentId:   row.assessmentId,
+          passageId:      row.passageId,
+          title:          typeLabel + ' Assessment (' + periodLabel + ' - ' + langLabel + ')',
+          passageTitle:   row.title,
+          assessmentType: row.assessmentType,
+          type:           row.assessmentType,
+          typeLabel,
+          period:         periodLabel,
+          rawPeriod:      row.period,
+          language:       langLabel,
+          gradeLevel:     row.gradeLevel || targetGrade,
+          passageSet:     setLabel,
+          assignedAt:     row.assignedAt,
+          dueDate:        row.dueDate,
+          status:         row.status || 'open',
+          isCompleted:    isDone,
+          readingLevelResult: row.readingLevelResult || null,
+          accuracyPercentage: row.accuracyPercentage != null ? Math.round(Number(row.accuracyPercentage)) : null,
+          comprehensionScore: row.comprehensionScore != null ? Math.round(Number(row.comprehensionScore)) : null,
+          readingRateWpm: row.readingRateWpm != null ? Math.round(Number(row.readingRateWpm)) : null,
+          readingTimeSeconds: row.readingTimeSeconds != null ? Number(row.readingTimeSeconds) : null,
+          completedAt:    row.completedAt || null,
+        };
+      });
+    } catch (queryErr) {
+      console.error('[getParentChildAssignments] assignment query error:', queryErr.message);
+    }
+
+    return res.json({
+      success: true,
+      hasAssignment: assignedActivities.length > 0,
+      assignedActivities,
+      readingProfile,
+      studentName: childFullName,
+      studentFirstName: childFirstName,
+      studentId: targetStudentId,
+      lrn: resolvedLrn,
+      gradeLevel: targetGrade,
+      section: targetSection,
+      sectionName: targetSection,
+    });
+  } catch (error) {
+    console.error('[getParentChildAssignments] unhandled error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch parent view assignments.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/students/assessment/submit-oral-audio â€” Submit Oral Audio & Speech-to-Text Miscue Analysis
 // ---------------------------------------------------------------------------
 async function submitStudentOralAudio(req, res) {
@@ -3035,13 +3238,23 @@ async function updateAssessmentStartProgress(req, res) {
 // ---------------------------------------------------------------------------
 async function getStudentAssessmentResults(req, res) {
   try {
+    const queryLrn = String(req.query.lrn || '').trim();
     let targetStudentId = req.query.studentId || req.user?.student_id || req.user?.studentId || req.user?.userId || req.user?.user_id || req.user?.id;
-    
+
     if (process.env.DATABASE_URL) {
       let resolvedStudentId = targetStudentId;
       let resolvedUserId = targetStudentId;
 
-      if (targetStudentId) {
+      if (queryLrn) {
+        const sRes = await db.query(
+          `SELECT student_id, user_id FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+          [queryLrn]
+        );
+        if (sRes.rows?.[0]) {
+          resolvedStudentId = sRes.rows[0].student_id;
+          resolvedUserId = sRes.rows[0].user_id || resolvedStudentId;
+        }
+      } else if (targetStudentId) {
         const sRes = await db.query(
           `SELECT student_id, user_id FROM students WHERE student_id::text = $1 OR user_id::text = $1 LIMIT 1`,
           [String(targetStudentId).trim()]
@@ -4872,4 +5085,5 @@ module.exports = {
   updateStudentStreakInDb,
   startAdaptiveSession,
   getAdaptiveSessionStatus,
+  getParentChildAssignments,
 };

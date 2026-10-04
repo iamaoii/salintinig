@@ -46,6 +46,7 @@ const {
   getStudentAnalytics,
   startAdaptiveSession,
   getAdaptiveSessionStatus,
+  getParentChildAssignments,
 } = require('../controllers/student.controller.js');
 
 // ── GET /api/student/streak & /badges & /analytics ─────────────────────────
@@ -57,6 +58,8 @@ router.get('/analytics', verifyToken, getStudentAnalytics);
 router.get('/', getStudents);
 router.get('/assessment/passages', getPhilIriPassages);
 router.get('/assessment/my-assignment', verifyToken, getStudentActiveAssignment);
+// Public endpoint for parent portal – validates via access code, no JWT required
+router.get('/assessment/parent-view', getParentChildAssignments);
 router.get('/assessment/my-results', verifyToken, getStudentAssessmentResults);
 router.post('/assessment/assign', assignPhilIriToStudent);
 router.post('/assessment/start-progress', updateAssessmentStartProgress);

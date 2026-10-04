@@ -3,10 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/common/home_page.dart';
+import 'package:salintinig/pages/parent/parent_phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'package:salintinig/pages/parent/parent_progress_reports_page.dart';
 import 'package:salintinig/pages/parent/parent_settings_page.dart';
+
+import 'package:salintinig/services/auth_service.dart';
 
 class ParentAnnouncementsPage extends StatefulWidget {
   const ParentAnnouncementsPage({super.key});
@@ -81,7 +83,7 @@ class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          icon: Iconify(Ph.list, color: Colors.black, size: 28),
+          icon: Iconify(Ph.list_bold, color: Colors.black, size: 28),
         ),
         centerTitle: true,
         title: Row(
@@ -106,7 +108,7 @@ class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
         actions: [
           IconButton(
             onPressed: () {},
-            icon: Iconify(Ph.bell, color: Colors.black, size: 28),
+            icon: Iconify(Ph.bell_bold, color: Colors.black, size: 28),
           ),
           const SizedBox(width: 4),
         ],
@@ -140,7 +142,7 @@ class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Center(
-                        child: Iconify(Ph.megaphone, color: Colors.white, size: 26),
+                        child: Iconify(Ph.megaphone_bold, color: Colors.white, size: 26),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -246,7 +248,7 @@ class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
                                 CircleAvatar(
                                   radius: 14,
                                   backgroundColor: primaryBlue.withValues(alpha: 0.1),
-                                  child: Iconify(Ph.user, color: primaryBlue, size: 14),
+                                  child: Iconify(Ph.user_bold, color: primaryBlue, size: 14),
                                 ),
                                 const SizedBox(width: 8),
                                 Column(
@@ -394,36 +396,24 @@ Widget buildParentSidebarDrawer(BuildContext context, {required int activeIndex}
                 children: [
                   _buildDrawerTile(
                     context,
-                    icon: Ph.house,
+                    icon: Ph.house_bold,
                     label: 'Home',
                     isSelected: activeIndex == 0,
                     onTap: () => navigateTo(0, const ParentOverviewPage()),
                   ),
                   _buildDrawerTile(
                     context,
-                    icon: PhIcons.examRegular,
+                    icon: PhIcons.examBold,
                     label: 'Phil-IRI Assessment',
                     isSelected: activeIndex == 1,
-                    onTap: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Opening Phil-IRI Assessment...'), behavior: SnackBarBehavior.floating),
-                      );
-                    },
+                    onTap: () => navigateTo(1, const ParentPhilIriAssessmentPage()),
                   ),
                   _buildDrawerTile(
                     context,
-                    icon: PhIcons.hourglassRegular,
+                    icon: PhIcons.hourglassBold,
                     label: 'Student Progress',
                     isSelected: activeIndex == 2,
                     onTap: () => navigateTo(2, const ParentProgressReportsPage()),
-                  ),
-                  _buildDrawerTile(
-                    context,
-                    icon: Ph.bell,
-                    label: 'Announcements',
-                    isSelected: activeIndex == 3,
-                    onTap: () => navigateTo(3, const ParentAnnouncementsPage()),
                   ),
                 ],
               ),
@@ -441,7 +431,7 @@ Widget buildParentSidebarDrawer(BuildContext context, {required int activeIndex}
                 children: [
                   _buildDrawerTile(
                     context,
-                    icon: Ph.gear,
+                    icon: Ph.gear_bold,
                     label: 'Settings',
                     isSelected: activeIndex == 5,
                     onTap: () => navigateTo(5, const ParentSettingsPage()),
@@ -449,16 +439,12 @@ Widget buildParentSidebarDrawer(BuildContext context, {required int activeIndex}
                   const SizedBox(height: 4),
                   _buildDrawerTile(
                     context,
-                    icon: Ph.sign_out,
+                    icon: Ph.sign_out_bold,
                     label: 'Log Out',
                     isSelected: false,
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const HomePage()),
-                        (route) => false,
-                      );
+                      AuthService.showLogoutDialog(context, portalName: 'parent portal');
                     },
                   ),
                 ],
