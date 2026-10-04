@@ -227,7 +227,7 @@ class _ParentBadgesPageState extends State<ParentBadgesPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: badges.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (context, index) => const SizedBox(height: 14),
       itemBuilder: (_, index) {
         final badge = badges[index];
         final unlocked = badge['isUnlocked'] == true;
@@ -416,7 +416,7 @@ class _ParentBadgesPageState extends State<ParentBadgesPage> {
         child: Image.asset(
           _asset(badge),
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(
+          errorBuilder: (context, error, stackTrace) => const Icon(
             Icons.military_tech_rounded,
             size: 40,
             color: Color(0xFFF59E0B),

@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
-import 'package:salintinig/pages/auth/registration_page.dart';
+import 'package:salintinig/pages/auth/teacher_contact_admin_page.dart';
 import 'package:salintinig/pages/auth/forgot_password_page.dart';
 import 'package:salintinig/pages/auth/force_change_password_page.dart';
 import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
@@ -39,7 +39,7 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const RegistrationPage(),
+        builder: (context) => const TeacherContactAdminPage(),
       ),
     ).then((_) {
       _resetState();

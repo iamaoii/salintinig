@@ -513,12 +513,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS account_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     school_id VARCHAR(50) REFERENCES schools(school_id) ON DELETE CASCADE,
-    teacher_no VARCHAR(100),
+    role VARCHAR(50) DEFAULT 'Teacher',
+    id_number VARCHAR(100),
     first_name VARCHAR(100),
     middle_name VARCHAR(100),
     last_name VARCHAR(100),
     sex VARCHAR(20) DEFAULT 'Male',
     email VARCHAR(255) NOT NULL,
+    parent_email VARCHAR(255),
+    grade_level VARCHAR(50),
     status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -623,3 +626,6 @@ CREATE INDEX IF NOT EXISTS idx_sentence_bank_difficulty ON sentence_bank(difficu
 CREATE INDEX IF NOT EXISTS idx_pronunciation_attempts_student ON pronunciation_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_attempts_student ON vocabulary_attempts(student_id);
 CREATE INDEX IF NOT EXISTS idx_sentence_attempts_student ON sentence_attempts(student_id, session_id);
+CREATE INDEX IF NOT EXISTS idx_account_requests_school_status ON account_requests(school_id, status);
+CREATE INDEX IF NOT EXISTS idx_account_requests_id_number ON account_requests(id_number);
+

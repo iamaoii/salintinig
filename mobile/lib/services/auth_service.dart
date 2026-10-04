@@ -279,6 +279,22 @@ class AuthService {
     return response;
   }
 
+  /// Fetch list of public active schools for registration/contact admin
+  static Future<List<Map<String, dynamic>>> getPublicSchools() async {
+    try {
+      final response = await ApiService.get('/auth/public-schools');
+      if (response.success && response.data != null && response.data['schools'] != null) {
+        final List schoolsList = response.data['schools'];
+        return schoolsList.map((s) => Map<String, dynamic>.from(s)).toList();
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return [
+      {'school_id': '109283', 'school_name': 'San Jose Elementary School', 'division': 'Bulacan'},
+    ];
+  }
+
   /// Request account creation (Contact Admin)
   static Future<ApiResponse> contactAdmin({
     required String role,
@@ -291,6 +307,8 @@ class AuthService {
     String? schoolId,
     String? gradeLevel,
     String? section,
+    String? parentEmail,
+    String? message,
   }) async {
     return await ApiService.post('/auth/contact-admin', {
       'role': role,
@@ -303,6 +321,8 @@ class AuthService {
       'schoolId': schoolId ?? '',
       'gradeLevel': gradeLevel ?? '',
       'section': section ?? '',
+      'parentEmail': parentEmail ?? '',
+      'message': message ?? '',
     });
   }
 

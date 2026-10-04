@@ -5,6 +5,11 @@ const { encodeActivityId, decodeActivityId, encodeSecureToken, decodeSecureToken
 // Helpers
 // ---------------------------------------------------------------------------
 
+function generateParentAccessCode() {
+  const randomNum = Math.floor(10000 + Math.random() * 90000);
+  return `PAC-${randomNum}`;
+}
+
 function generateTempPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
   let tempPass = 'St-';
@@ -719,7 +724,7 @@ async function getAccountRequests(req, res) {
       try {
         const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(
-          `SELECT request_id, school_id, teacher_no, first_name, middle_name, last_name, sex, email, status, created_at
+          `SELECT request_id, school_id, id_number, first_name, middle_name, last_name, sex, email, status, COALESCE(role, 'Teacher') AS role, grade_level, parent_email, created_at
            FROM account_requests
            WHERE (school_id = $1 OR school_id IS NULL)
            ORDER BY created_at DESC`,
@@ -760,48 +765,134 @@ async function approveAccountRequest(req, res) {
 
     const tempPassword = generateTempPassword();
     const hashedPassword = hashPassword(tempPassword);
-    const generatedTeacherNo = `EMP-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const isStudent = (targetRequest.role || '').toLowerCase() === 'student';
+    const userRole = isStudent ? 'student' : 'teacher';
 
     if (process.env.DATABASE_URL) {
       try {
         const { rows: userRows } = await db.query(
           `INSERT INTO users (school_id, email, password_hash, role, status, must_change_password)
-           VALUES ($1, $2, $3, 'teacher', 'active', true)
+           VALUES ($1, $2, $3, $4, 'active', true)
            ON CONFLICT (email) DO UPDATE SET school_id = $1, password_hash = $3, must_change_password = true, status = 'active'
            RETURNING user_id`,
-          [targetRequest.school_id, targetRequest.email, hashedPassword]
+          [targetRequest.school_id, targetRequest.email, hashedPassword, userRole]
         );
 
         if (userRows?.length > 0) {
           const userId = userRows[0].user_id;
-          const firstName = targetRequest.first_name || 'Teacher';
+          const firstName = targetRequest.first_name || (isStudent ? 'Student' : 'Teacher');
           const middleName = targetRequest.middle_name || null;
-          const lastName = targetRequest.last_name || 'Faculty';
-          const teacherNo = targetRequest.teacher_no || generatedTeacherNo;
+          const lastName = targetRequest.last_name || 'User';
           const sex = targetRequest.sex || 'Male';
 
-          await db.query(
-            `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name, sex)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6`,
-            [userId, teacherNo, firstName, middleName, lastName, sex]
-          );
+          if (isStudent) {
+            const lrn = targetRequest.id_number || `${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+            const pacCode = generateParentAccessCode();
+
+            const { rows: stdRows } = await db.query(
+              `INSERT INTO students (user_id, lrn, first_name, middle_name, last_name, sex, nickname)
+               VALUES ($1, $2, $3, $4, $5, $6, $3)
+               ON CONFLICT (lrn) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6
+               RETURNING student_id`,
+              [
+                userId,
+                lrn,
+                firstName,
+                middleName,
+                lastName,
+                sex,
+              ]
+            );
+
+            if (stdRows && stdRows[0]) {
+              const studentId = stdRows[0].student_id;
+              
+              let parentId = null;
+              if (targetRequest.parent_email) {
+                const { rows: pRows } = await db.query(
+                  `INSERT INTO parents (parent_name, email)
+                   VALUES ($1, $2)
+                   ON CONFLICT (email) DO UPDATE SET parent_name = EXCLUDED.parent_name
+                   RETURNING parent_id`,
+                  [`Parent of ${firstName}`, targetRequest.parent_email]
+                );
+                if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+              } else {
+                const { rows: pRows } = await db.query(
+                  `INSERT INTO parents (parent_name)
+                   VALUES ($1)
+                   RETURNING parent_id`,
+                  [`Parent of ${firstName}`]
+                );
+                if (pRows && pRows[0]) parentId = pRows[0].parent_id;
+              }
+
+              if (parentId) {
+                await db.query(
+                  `INSERT INTO student_parents (student_id, parent_id, access_code)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (student_id) DO UPDATE SET parent_id = EXCLUDED.parent_id, access_code = EXCLUDED.access_code`,
+                  [studentId, parentId, pacCode]
+                );
+              }
+
+              // 2. Link student to active school year & grade level in student_grade_history
+              try {
+                const { rows: syRows } = await db.query(
+                  `SELECT school_year_id FROM school_years WHERE (school_id = $1 OR school_id IS NULL) AND is_active = true ORDER BY created_at DESC LIMIT 1`,
+                  [targetRequest.school_id]
+                );
+                const activeSyId = syRows && syRows[0] ? syRows[0].school_year_id : null;
+
+                if (activeSyId) {
+                  const reqGrade = targetRequest.grade_level || 'Grade 4';
+                  await db.query(
+                    `INSERT INTO student_grade_history (student_id, school_year_id, grade_level, promotion_status)
+                     VALUES ($1, $2, $3, 'active')
+                     ON CONFLICT (student_id, school_year_id) DO UPDATE SET grade_level = $3`,
+                    [studentId, activeSyId, reqGrade]
+                  );
+                }
+              } catch (ghErr) {
+                console.warn('Student grade history creation notice:', ghErr.message);
+              }
+            }
+
+            sendWelcomeEmailWithTempPassword({
+              toEmail: targetRequest.email,
+              fullName: targetRequest.full_name || `${firstName} ${lastName}`,
+              role: 'Student',
+              tempPassword,
+              identifier: lrn,
+            });
+          } else {
+            const generatedTeacherNo = `EMP-2026-${Math.floor(100 + Math.random() * 900)}`;
+            const teacherNo = targetRequest.id_number || generatedTeacherNo;
+
+            await db.query(
+              `INSERT INTO teachers (user_id, teacher_no, first_name, middle_name, last_name, sex)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (teacher_no) DO UPDATE SET first_name = $3, middle_name = $4, last_name = $5, sex = $6`,
+              [userId, teacherNo, firstName, middleName, lastName, sex]
+            );
+
+            sendWelcomeEmailWithTempPassword({
+              toEmail: targetRequest.email,
+              fullName: targetRequest.full_name || `${firstName} ${lastName}`,
+              role: 'Teacher',
+              tempPassword,
+              identifier: teacherNo,
+            });
+          }
 
           await db.query(
             "UPDATE account_requests SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE request_id = $1",
             [requestId]
           );
-
-          sendWelcomeEmailWithTempPassword({
-            toEmail: targetRequest.email,
-            fullName: targetRequest.full_name || `${firstName} ${lastName}`,
-            role: 'Teacher',
-            tempPassword,
-            identifier: teacherNo,
-          });
         }
       } catch (dbErr) {
-        console.warn('Approve account request DB notice:', dbErr.message);
+        console.error('❌ Approve account request DB Error:', dbErr);
+        return res.status(500).json({ success: false, error: `DB Error: ${dbErr.message}` });
       }
     }
 

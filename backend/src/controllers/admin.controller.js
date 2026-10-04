@@ -825,7 +825,7 @@ async function getAccountRequests(req, res) {
       try {
         const schoolId = await getAdminSchoolId(req);
         const { rows } = await db.query(
-          `SELECT request_id, school_id, teacher_no, first_name, middle_name, last_name, sex, email, status, created_at
+          `SELECT request_id, school_id, id_number, first_name, middle_name, last_name, sex, email, status, COALESCE(role, 'Teacher') AS role, grade_level, parent_email, created_at
            FROM account_requests
            WHERE (school_id = $1 OR school_id IS NULL)
            ORDER BY created_at DESC`,

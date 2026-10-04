@@ -1,7 +1,7 @@
 const db = require('../config/db.js');
 const { supabase, uploadImageToSupabase, deleteImageFromSupabase } = require('../config/supabase.js');
 const jwt = require('jsonwebtoken');
-const { sendPasswordResetEmail, sendTeacherAccountRequestEmail } = require('../services/emailService.js');
+const { sendPasswordResetEmail } = require('../services/emailService.js');
 
 function createToken(user) {
   const secret = process.env.JWT_SECRET || 'salintinig_super_secret_jwt_key_2026';
@@ -1179,27 +1179,145 @@ async function register(req, res) {
 }
 
 /**
+ * GET /api/auth/public-schools — Fetch list of active schools for registration/contact admin dropdown
+ */
+async function getPublicSchools(req, res) {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.json({
+        success: true,
+        schools: [
+          { school_id: '109283', school_name: 'San Jose Elementary School', division: 'Bulacan' },
+        ],
+      });
+    }
+
+    const { rows } = await db.query(
+      `SELECT school_id, school_name, division, official_email 
+       FROM schools 
+       WHERE status IS NULL OR status = 'active'
+       ORDER BY school_name ASC`
+    );
+
+    return res.json({ success: true, schools: rows });
+  } catch (error) {
+    console.error('getPublicSchools error:', error.message);
+    return res.status(500).json({ success: false, error: 'Failed to fetch active schools list.' });
+  }
+}
+
+/**
  * Contact Admin Request Handler — Saves activation request in DB & sends Resend notification to School Admin
  */
 async function contactAdmin(req, res) {
   try {
-    const { schoolId, teacherNo, firstName, middleName, lastName, sex, email, contactNumber, gradeSubject } = req.body;
+    const { schoolId, teacherNo, firstName, middleName, lastName, sex, email, role, idNo, gradeLevel, section, message } = req.body;
 
-    if (!schoolId || !firstName || !lastName || !email) {
+    const targetSchoolId = schoolId ? schoolId.trim() : '109283';
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
+    const cleanFirstName = firstName ? firstName.trim() : (role === 'Student' ? 'Student' : 'User');
+    const cleanLastName = lastName ? lastName.trim() : 'Request';
+    const computedFullName = [cleanFirstName, middleName ? middleName.trim() : '', cleanLastName].filter(Boolean).join(' ');
+
+    if (!cleanEmail) {
       return res.status(400).json({
         success: false,
-        error: 'School ID, First Name, Last Name, and Email are required.',
+        error: 'Please enter a valid email address.',
       });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanSchoolId = schoolId.trim();
-    const cleanTeacherNo = teacherNo ? teacherNo.trim() : null;
-    const cleanFirstName = firstName.trim();
-    const cleanMiddleName = middleName ? middleName.trim() : null;
-    const cleanLastName = lastName.trim();
-    const cleanSex = sex || 'Male';
-    const computedFullName = [cleanFirstName, cleanMiddleName, cleanLastName].filter(Boolean).join(' ');
+    // 0. If Student role, validate LRN format & check if LRN is already registered
+    if (role === 'Student' && idNo && idNo.trim()) {
+      const cleanLrn = idNo.trim();
+      if (!/^\d{12}$/.test(cleanLrn)) {
+        return res.status(400).json({
+          success: false,
+          error: 'LRN must be exactly 12 numeric digits.',
+        });
+      }
+
+      if (process.env.DATABASE_URL) {
+        try {
+          const { rows: matchedStudent } = await db.query(
+            `SELECT first_name, middle_name, last_name FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
+            [cleanLrn]
+          );
+          if (matchedStudent && matchedStudent.length > 0) {
+            const studentFullName = [
+              matchedStudent[0].first_name,
+              matchedStudent[0].middle_name,
+              matchedStudent[0].last_name
+            ].filter(Boolean).join(' ');
+            return res.status(400).json({
+              success: false,
+              error: `LRN ${cleanLrn} is already assigned to student ${studentFullName}. Each student LRN is unique and cannot be registered again.`,
+            });
+          }
+        } catch (dbErr) {
+          console.warn('LRN uniqueness check DB notice:', dbErr.message);
+        }
+      }
+    }
+
+    // 0b. Check if Employee ID / LRN is already registered or has a pending activation request
+    const cleanIdNumber = (teacherNo || idNo) ? (teacherNo || idNo).trim() : '';
+    if (cleanIdNumber) {
+      if (process.env.DATABASE_URL) {
+        try {
+          // Check registered teachers or students
+          if (role === 'Student') {
+            const { rows: matchedStudent } = await db.query(
+              `SELECT s.first_name, s.middle_name, s.last_name 
+               FROM students s 
+               WHERE LOWER(s.lrn) = LOWER($1)
+               LIMIT 1`,
+              [cleanIdNumber]
+            );
+            if (matchedStudent && matchedStudent.length > 0) {
+              const studentFullName = [matchedStudent[0].first_name, matchedStudent[0].middle_name, matchedStudent[0].last_name].filter(Boolean).join(' ');
+              return res.status(400).json({
+                success: false,
+                error: `Student LRN ${cleanIdNumber} is already registered to student ${studentFullName}.`,
+              });
+            }
+          } else {
+            const { rows: matchedTeacher } = await db.query(
+              `SELECT t.first_name, t.middle_name, t.last_name 
+               FROM teachers t 
+               WHERE LOWER(t.teacher_no) = LOWER($1)
+               LIMIT 1`,
+              [cleanIdNumber]
+            );
+            if (matchedTeacher && matchedTeacher.length > 0) {
+              const teacherFullName = [matchedTeacher[0].first_name, matchedTeacher[0].middle_name, matchedTeacher[0].last_name].filter(Boolean).join(' ');
+              return res.status(400).json({
+                success: false,
+                error: `Teacher ID / Employee ID ${cleanIdNumber} is already assigned to teacher ${teacherFullName}. Each employee ID is unique and cannot be registered again.`,
+              });
+            }
+          }
+
+          // Check pending account requests table
+          const { rows: matchedPendingReq } = await db.query(
+            `SELECT first_name, middle_name, last_name, status, role
+             FROM account_requests
+             WHERE LOWER(id_number) = LOWER($1) AND LOWER(status) = 'pending'
+             LIMIT 1`,
+            [cleanIdNumber]
+          );
+          if (matchedPendingReq && matchedPendingReq.length > 0) {
+            const reqFullName = [matchedPendingReq[0].first_name, matchedPendingReq[0].middle_name, matchedPendingReq[0].last_name].filter(Boolean).join(' ');
+            const reqRole = matchedPendingReq[0].role || 'Teacher';
+            return res.status(400).json({
+              success: false,
+              error: `A pending activation request already exists for ${reqRole} ID / LRN ${cleanIdNumber} (${reqFullName}). Please wait for your school administrator to approve your request.`,
+            });
+          }
+        } catch (dbErr) {
+          console.warn('ID uniqueness check DB notice:', dbErr.message);
+        }
+      }
+    }
 
     // 1. Verify if user already has an active account
     if (process.env.DATABASE_URL) {
@@ -1216,19 +1334,25 @@ async function contactAdmin(req, res) {
         }
 
         // Save request in account_requests table
+        const parsedParentEmail = req.body.parentEmail || (req.body.parent_email ? req.body.parent_email.trim() : null);
+        const cleanIdNumber = idNo || teacherNo || req.body.id_number || req.body.lrn || null;
+
         await db.query(
-          `INSERT INTO account_requests (school_id, teacher_no, first_name, middle_name, last_name, sex, email)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          `INSERT INTO account_requests (school_id, id_number, first_name, middle_name, last_name, sex, email, role, grade_level, parent_email)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
-            cleanSchoolId,
-            cleanTeacherNo,
+            targetSchoolId,
+            cleanIdNumber,
             cleanFirstName,
-            cleanMiddleName,
+            middleName ? middleName.trim() : null,
             cleanLastName,
-            cleanSex,
+            sex || 'Male',
             cleanEmail,
+            role || 'Teacher',
+            gradeLevel || null,
+            parsedParentEmail || null,
           ]
-        );
+        ).catch((e) => console.warn('Insert account_requests notice:', e.message));
       } catch (dbErr) {
         console.warn('Account request DB notice:', dbErr.message);
       }
@@ -1242,7 +1366,7 @@ async function contactAdmin(req, res) {
       try {
         const { rows: adminUserRows } = await db.query(
           `SELECT user_id, email FROM users WHERE school_id = $1 AND role = 'admin' LIMIT 1`,
-          [cleanSchoolId]
+          [targetSchoolId]
         );
         if (adminUserRows && adminUserRows.length > 0) {
           adminUserId = adminUserRows[0].user_id;
@@ -1254,7 +1378,7 @@ async function contactAdmin(req, res) {
         if (adminEmail === 'admin@gmail.com') {
           const { rows: schoolRows } = await db.query(
             'SELECT official_email FROM schools WHERE school_id = $1 LIMIT 1',
-            [cleanSchoolId]
+            [targetSchoolId]
           );
           if (schoolRows && schoolRows.length > 0 && schoolRows[0].official_email) {
             adminEmail = schoolRows[0].official_email;
@@ -1266,26 +1390,16 @@ async function contactAdmin(req, res) {
           `INSERT INTO notifications (school_id, user_id, title, message, notification_type)
            VALUES ($1, $2, $3, $4, 'account_request')`,
           [
-            cleanSchoolId,
+            targetSchoolId,
             adminUserId,
-            `New Account Request from ${computedFullName}`,
-            `${computedFullName} (${cleanEmail}) requested teacher account activation for School ID ${cleanSchoolId}.`
+            `New ${role || 'Account'} Request from ${computedFullName}`,
+            `${computedFullName} (${cleanEmail}) requested ${role || 'account'} activation for School ID ${targetSchoolId}. ${message || ''}`.trim()
           ]
-        );
+        ).catch(() => {});
       } catch (e) {
         console.warn('Admin email resolution notice:', e.message);
       }
     }
-
-    // 3. Dispatch Resend notification email to School Admin
-    sendTeacherAccountRequestEmail({
-      adminEmail,
-      computedFullName,
-      cleanTeacherNo,
-      cleanSex,
-      cleanEmail,
-      cleanSchoolId,
-    });
 
     return res.json({
       success: true,
@@ -1391,6 +1505,7 @@ module.exports = {
   updateProfile,
   logout,
   contactAdmin,
+  getPublicSchools,
   forgotPassword,
   getResetStatus,
   verifyResetCode,

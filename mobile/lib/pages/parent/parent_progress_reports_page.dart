@@ -671,7 +671,7 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                     child: Image.asset(
                       (badge['badgeAsset'] ?? 'assets/badges/first_step_badge.webp').toString(),
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (context, error, stackTrace) => const Icon(
                         Icons.workspace_premium,
                         size: 44,
                         color: Color(0xFFD97706),

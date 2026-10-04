@@ -9,6 +9,7 @@ const adminController = require('../controllers/admin.controller.js');
 router.post('/login', authController.login);
 router.post('/verify-parent-code', adminController.verifyParentAccessCode);
 router.post('/contact-admin', authController.contactAdmin);
+router.get('/public-schools', authController.getPublicSchools);
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/reset-status', authController.getResetStatus);
 router.post('/verify-reset-code', authController.verifyResetCode);
