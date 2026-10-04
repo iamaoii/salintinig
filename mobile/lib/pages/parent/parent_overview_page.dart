@@ -217,157 +217,12 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
 
   void _showAnnouncementsModal() {
     Feedback.forTap(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.75,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Iconify(Ph.bell, color: const Color(0xFF1B64D8), size: 24),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Class Announcements',
-                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    _buildAnnouncementCard(
-                      teacherName: 'Section Adviser',
-                      date: 'Latest update',
-                      title: 'Phil-IRI Post-Test Assessment Window',
-                      body: '$_studentFirstName is demonstrating excellent reading fluency in Filipino stories. Please continue encouraging 15 minutes of daily practice at home before the upcoming ORT assessment window.',
-                      isPinned: true,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAnnouncementCard(
-                      teacherName: 'Section Adviser',
-                      date: 'Class advisory',
-                      title: 'Parent-Teacher Reading Conference',
-                      body: '$_childGradeSection reading assessment progress reviews will be coordinated by the adviser. Please wait for the confirmed schedule.',
-                      isPinned: false,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAnnouncementCard(
-                      teacherName: 'SalinTinig System',
-                      date: 'System update',
-                      title: 'New Story Passages Available',
-                      body: '5 new Level 4 reading passages have been added to $_studentFirstName\'s library for oral reading practice.',
-                      isPinned: false,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ParentAnnouncementsPage()),
     );
   }
 
-  Widget _buildAnnouncementCard({
-    required String teacherName,
-    required String date,
-    required String title,
-    required String body,
-    required bool isPinned,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isPinned ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isPinned ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor: const Color(0xFF1B64D8).withValues(alpha: 0.1),
-                    child: Iconify(Ph.user, color: const Color(0xFF1B64D8), size: 14),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    teacherName,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E293B),
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                date,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            body,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.grey[700],
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
 
@@ -431,7 +286,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
               parent: BouncingScrollPhysics(),
             ),
             padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
-            child: Column(
+            child: _isLoadingAssignments
+                ? ParentPortalSkeletons.overview()
+                : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Hero Header Card (Blue Theme)
@@ -626,9 +483,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
               ),
               const SizedBox(height: 12),
 
-              if (_isLoadingAssignments)
-                ParentPortalSkeletons.overview()
-              else if (_assignedActivities.isEmpty)
+              if (_assignedActivities.isEmpty)
                 _buildNoAssignmentsCard()
               else
                 ..._assignedActivities.take(3).expand((activity) {
