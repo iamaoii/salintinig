@@ -2011,7 +2011,7 @@ async function deleteAssessment(req, res) {
         try {
           // Check if student has any remaining verified assessment for this type/period/language
           const latestRes = await db.query(
-            `SELECT a.reading_level_result, ORR.word_accuracy_pct, ORR.words_per_minute, aa.score
+            `SELECT a.reading_level_result, ORR.accuracy_percentage, ORR.reading_rate_wpm, aa.score
              FROM assessments a
              JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id
              LEFT JOIN oral_reading_results ORR ON ORR.assessment_attempt_id = aa.attempt_id
@@ -2037,7 +2037,7 @@ async function deleteAssessment(req, res) {
                WHERE student_id = $4
                  AND LOWER(language) = LOWER($5)
                  AND LOWER(assessment_type) = LOWER($6)`,
-              [prev.reading_level_result, prev.word_accuracy_pct, prev.words_per_minute, studentId, lang, type]
+              [prev.reading_level_result, prev.accuracy_percentage, prev.reading_rate_wpm, studentId, lang, type]
             );
           } else {
             // No remaining verified assessments: delete the student reading profile entry
