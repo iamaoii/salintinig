@@ -116,7 +116,6 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
   String get _displayLrn => (_resolvedData?['lrn'] ?? widget.lrn).toString().trim();
   String get _displayGrade => (_resolvedData?['grade'] ?? _resolvedData?['gradeLevel'] ?? _resolvedData?['grade_level'] ?? widget.grade).toString().trim();
   String get _displaySection => (_resolvedData?['section'] ?? _resolvedData?['sectionName'] ?? _resolvedData?['section_name'] ?? widget.section).toString().trim();
-  String get _displayLevel => (_resolvedData?['level'] ?? _resolvedData?['readingLevel'] ?? widget.level).toString().trim();
   String? get _avatarUrl => (_resolvedData?['profileImage'] ?? _resolvedData?['profile_image'] ?? _resolvedData?['avatarUrl'])?.toString();
 
   Map<String, dynamic>? get _selectedAdaptiveProfile {
@@ -435,10 +434,10 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
         ),
         heading('Student Reading Achievements & Milestones'),
         pw.Text('Unlocked Badges ($_badgesVal)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-        pw.Text(_badgesVal == 0 ? 'No achievement badges unlocked yet.' : ((_resolvedData?['badges'] as List?) ?? []).map((item) => item is Map ? item['badgeName'] ?? item['name'] : item).join(' - '), style: const pw.TextStyle(fontSize: 8)),
+        pw.Text(_badgesVal == 0 ? 'No achievement badges unlocked yet.' : ((_resolvedData?['badges'] as List?) ?? []).map((item) => item is Map ? (item['badgeName'] ?? item['name'] ?? '').toString() : item.toString()).where((s) => s.isNotEmpty).join(' - '), style: const pw.TextStyle(fontSize: 8)),
         pw.SizedBox(height: 6),
         pw.Text('Completed Reading Stories ($_storiesVal)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-        pw.Text(_storiesVal == 0 ? 'No reading stories completed yet.' : ((_resolvedData?['stories'] as List?) ?? []).map((item) => item is Map ? item['title'] : item).join(' - '), style: const pw.TextStyle(fontSize: 8)),
+        pw.Text(_storiesVal == 0 ? 'No reading stories completed yet.' : ((_resolvedData?['stories'] as List?) ?? []).map((item) => item is Map ? (item['title'] ?? '').toString() : item.toString()).where((s) => s.isNotEmpty).join(' - '), style: const pw.TextStyle(fontSize: 8)),
         heading('Teacher Remarks & Literacy Intervention Recommendations'),
         pw.Container(height: 72, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border.all()), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text('[ ] Individual Remediation Recommended   [ ] Peer Reading Buddy Program   [ ] Maintain Independent Progress', style: const pw.TextStyle(fontSize: 7)),
@@ -447,185 +446,39 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
       ],
     ));
     final cleanName = _displayName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
-    await Printing.sharePdf(bytes: await doc.save(), filename: 'SalinTinig-Reading-Profile-${cleanName.isEmpty ? 'Student' : cleanName}.pdf');
+    final fileName = 'SalinTinig-Reading-Profile-${cleanName.isEmpty ? 'Student' : cleanName}.pdf';
+    final pdfBytes = await doc.save();
+
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: fileName,
+      );
+    } catch (_) {
+      await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
+    }
   }
 
-  void _showGenerateReportModal() {
+  bool _isGeneratingPdf = false;
+
+  Future<void> _triggerPdfGeneration() async {
+    if (_isGeneratingPdf) return;
     Feedback.forTap(context);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        bool isGenerating = false;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Iconify(Ph.article_bold, color: Color(0xFF1B64D8), size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Generate Student Report',
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                              ),
-                            ),
-                            Text(
-                              _displayName,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFCFAF7),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildReportOptionRow('Phil-IRI Reading Level', _displayLevel),
-                        const Divider(height: 16),
-                        _buildReportOptionRow('Reading Speed (WPS)', '$_wpsVal wps'),
-                        const Divider(height: 16),
-                        _buildReportOptionRow('Overall Accuracy', '$_accuracyVal%'),
-                        const Divider(height: 16),
-                        _buildReportOptionRow('Comprehension Score', '$_comprehensionVal%'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: isGenerating
-                        ? null
-                        : () async {
-                            setModalState(() {
-                              isGenerating = true;
-                            });
-                            try {
-                              await _generateStudentReport();
-                            } catch (error) {
-                              if (!context.mounted) return;
-                              setModalState(() {
-                                isGenerating = false;
-                              });
-                              AppToast.error(context, 'Unable to export the report. Please try again.');
-                              return;
-                            }
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-                            AppToast.success(context, 'Report for $_displayName is ready to save or share.');
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B64D8),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    child: isGenerating
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Generating PDF Report...',
-                                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.download_rounded, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Export PDF Report',
-                                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+    setState(() => _isGeneratingPdf = true);
+    try {
+      await _generateStudentReport();
+      if (!mounted) return;
+      AppToast.success(context, 'Report for $_displayName is ready.');
+    } catch (e, stack) {
+      debugPrint('[TeacherStudentDetailsPage] PDF report export error: $e\n$stack');
+      if (!mounted) return;
+      AppToast.error(context, 'Unable to export PDF report: $e');
+    } finally {
+      if (mounted) setState(() => _isGeneratingPdf = false);
+    }
   }
 
-  Widget _buildReportOptionRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: Colors.grey[700],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-      ],
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +577,7 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _showGenerateReportModal,
+                        onPressed: _isGeneratingPdf ? null : _triggerPdfGeneration,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryBlue,
                           foregroundColor: Colors.white,
@@ -735,20 +588,39 @@ class _TeacherStudentDetailsPageState extends State<TeacherStudentDetailsPage> {
                           elevation: 2,
                           shadowColor: primaryBlue.withValues(alpha: 0.3),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Iconify(Ph.article_bold, color: Colors.white, size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Generate report',
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                        child: _isGeneratingPdf
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Generating PDF...',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Iconify(Ph.article_bold, color: Colors.white, size: 20),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Generate report',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
                     const SizedBox(height: 20),

@@ -24,7 +24,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
   final List<Map<String, dynamic>> _forms = [
     {
       'title': 'FORM 1A',
-      'subtitle': 'Filipino GST',
+      'subtitle': 'Talaan ng Pangkatang Pagtatasa ng Klase (TPPK)',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFFEF08A),
@@ -34,7 +34,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 1B',
-      'subtitle': 'English GST',
+      'subtitle': 'Screening Test Class Reading Record (STCRR)',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFDBEAFE),
@@ -43,18 +43,8 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
       'buttonColor': const Color(0xFFEAB308),
     },
     {
-      'title': 'FORM 2',
-      'subtitle': 'School Reading Profile',
-      'bgColor': Colors.white,
-      'borderColor': const Color(0xFFE2E8F0),
-      'iconBg': const Color(0xFFD1FAE5),
-      'iconColor': const Color(0xFF059669),
-      'icon': Ph.article,
-      'buttonColor': const Color(0xFF1D4ED8),
-    },
-    {
       'title': 'FORM 3A',
-      'subtitle': 'Filipino ORT Assessment',
+      'subtitle': 'Talaan ng Indibidwal na Pagtatasa sa Pagbabasa',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFFEF08A),
@@ -64,7 +54,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 3B',
-      'subtitle': 'English ORT Assessment',
+      'subtitle': 'Individual Reading Profile',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFDBEAFE),
@@ -74,7 +64,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 4',
-      'subtitle': 'Individual Summary Record',
+      'subtitle': 'Running Record Form',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFD1FAE5),
@@ -230,87 +220,86 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
 
                         return InkWell(
                           onTap: () => _onFormOpen(title, subtitle),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           child: Container(
-                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: bgColor,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: borderColor),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              // Icon container
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: iconBg,
-                                  borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                                child: Center(
-                                  child: Iconify(icon, color: iconColor, size: 22),
+                              ],
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Left Icon Container
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: iconBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Center(
+                                    child: Iconify(icon, color: iconColor, size: 24),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Title & Subtitle
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black,
+                                const SizedBox(width: 14),
+                                // Middle Title & Subtitle
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        title,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF0F172A),
+                                          letterSpacing: -0.2,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      subtitle,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[600],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        subtitle,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF64748B),
+                                          height: 1.25,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              // Open Button
-                              ElevatedButton(
-                                onPressed: () => _onFormOpen(title, subtitle),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: buttonColor,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
+                                const SizedBox(width: 10),
+                                // Right Open Pill Button
+                                Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(
+                                  decoration: BoxDecoration(
+                                    color: buttonColor,
                                     borderRadius: BorderRadius.circular(100),
                                   ),
-                                ),
-                                child: Text(
-                                  'Open',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                  child: Text(
+                                    'Open',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      );
+                        );
                     },
                     ),
                     const SizedBox(height: 24),

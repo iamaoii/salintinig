@@ -1811,47 +1811,59 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   }
 
   Widget _buildRecordsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.35,
+    return Column(
       children: [
         _buildRecordCard(
           title: 'FORM 1A',
-          subtitle: 'Filipino GST',
+          subtitle: 'Talaan ng Pangkatang Pagtatasa ng Klase (TPPK)',
+          icon: Ph.users_three,
+          iconBg: const Color(0xFFFEF08A),
+          iconColor: const Color(0xFFCA8A04),
+          buttonColor: const Color(0xFF059669),
           bgColor: Colors.white,
           hasBorder: true,
         ),
+        const SizedBox(height: 12),
         _buildRecordCard(
           title: 'FORM 1B',
-          subtitle: 'English GST',
+          subtitle: 'Screening Test Class Reading Record (STCRR)',
+          icon: Ph.users_three,
+          iconBg: const Color(0xFFDBEAFE),
+          iconColor: const Color(0xFF2563EB),
+          buttonColor: const Color(0xFFEAB308),
           bgColor: Colors.white,
           hasBorder: true,
         ),
-        _buildRecordCard(
-          title: 'FORM 2',
-          subtitle: 'School Reading Profile',
-          bgColor: Colors.white,
-          hasBorder: true,
-        ),
+        const SizedBox(height: 12),
         _buildRecordCard(
           title: 'FORM 3A',
-          subtitle: 'Filipino ORT\nAssessment',
+          subtitle: 'Talaan ng Indibidwal na Pagtatasa sa Pagbabasa',
+          icon: Ph.user_circle,
+          iconBg: const Color(0xFFFEF08A),
+          iconColor: const Color(0xFFCA8A04),
+          buttonColor: const Color(0xFF1D4ED8),
           bgColor: Colors.white,
           hasBorder: true,
         ),
+        const SizedBox(height: 12),
         _buildRecordCard(
           title: 'FORM 3B',
-          subtitle: 'English ORT\nAssessment',
+          subtitle: 'Individual Reading Profile',
+          icon: Ph.user_circle,
+          iconBg: const Color(0xFFDBEAFE),
+          iconColor: const Color(0xFF2563EB),
+          buttonColor: const Color(0xFF1D4ED8),
           bgColor: Colors.white,
           hasBorder: true,
         ),
+        const SizedBox(height: 12),
         _buildRecordCard(
           title: 'FORM 4',
-          subtitle: 'Individual Summary\nRecord',
+          subtitle: 'Running Record Form',
+          icon: Ph.user,
+          iconBg: const Color(0xFFD1FAE5),
+          iconColor: const Color(0xFF059669),
+          buttonColor: const Color(0xFF1D4ED8),
           bgColor: Colors.white,
           hasBorder: true,
         ),
@@ -1862,10 +1874,14 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
   Widget _buildRecordCard({
     required String title,
     required String subtitle,
+    required String icon,
+    required Color iconBg,
+    required Color iconColor,
+    required Color buttonColor,
     required Color bgColor,
     bool hasBorder = false,
   }) {
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         Feedback.forTap(context);
 
@@ -1920,10 +1936,11 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
           ),
         );
       },
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: hasBorder ? Border.all(color: const Color(0xFFE2E8F0)) : null,
           boxShadow: [
             BoxShadow(
@@ -1933,43 +1950,66 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFFD34426),
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF64748B),
-                    height: 1.25,
-                  ),
-                ),
-              ],
+            // Left Icon Container
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: Iconify(icon, color: iconColor, size: 24),
+              ),
             ),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: const Icon(
-                Icons.arrow_circle_right_rounded,
-                color: Color(0xFF1B64D8),
-                size: 28,
+            const SizedBox(width: 14),
+            // Middle Title & Subtitle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF64748B),
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Right Open Pill Button
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: buttonColor,
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                'Open',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
