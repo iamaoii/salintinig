@@ -918,30 +918,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                       ),
                       const SizedBox(height: 18),
 
-                      // Section Title & Activities List
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Phil-IRI Assessments',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black,
-                            ),
-                          ),
-                          Text(
-                            '${_filteredActivities.length} items',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
                       // Activities List / Loading / Empty State
                       if (_isLoading)
                         const Padding(
@@ -1027,12 +1003,12 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                                 act['status'] != 'closed';
                             final int done =
                                 int.tryParse(
-                                  act['doneCount']?.toString() ?? '0',
+                                  (act['done'] ?? act['doneCount'])?.toString() ?? '0',
                                 ) ??
                                 0;
                             final int pending =
                                 int.tryParse(
-                                  act['pendingCount']?.toString() ?? '0',
+                                  (act['pending'] ?? act['pendingCount'])?.toString() ?? '0',
                                 ) ??
                                 0;
 
