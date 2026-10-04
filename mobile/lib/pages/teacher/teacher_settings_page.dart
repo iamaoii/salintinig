@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -20,7 +21,7 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
   bool _dailyReminder = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 19, minute: 0);
   bool _achievementAlerts = true;
-  bool _isSubmittingPassword = false;
+  bool _isClearingCache = false;
 
   @override
   void initState() {
@@ -73,6 +74,18 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _reminderTime,
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFD34426),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && picked != _reminderTime) {
       setModalState(() => _reminderTime = picked);
@@ -81,23 +94,210 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     }
   }
 
+  // Clear App Cache with exact memory & temp cleanup visual feedback
   Future<void> _clearAppCache() async {
     Feedback.forTap(context);
-    AuthService.clearAllCache();
-    await AuthService.fetchClassStudents(forceRefresh: true);
-    if (mounted) {
-      AppToast.success(context, 'App cache cleared successfully!');
+    setState(() => _isClearingCache = true);
+
+    int freedBytes = 0;
+    try {
+      final tempDir = Directory.systemTemp;
+      if (tempDir.existsSync()) {
+        final entities = tempDir.listSync();
+        for (final entity in entities) {
+          try {
+            if (entity is File) {
+              final name = entity.path.toLowerCase();
+              if (name.contains('mic_test') ||
+                  name.endsWith('.m4a') ||
+                  name.endsWith('.tmp') ||
+                  name.endsWith('.webp') ||
+                  name.endsWith('.jpg') ||
+                  name.endsWith('.png')) {
+                freedBytes += entity.lengthSync();
+                entity.deleteSync();
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      AuthService.clearAllCache();
+      await AuthService.fetchClassStudents(forceRefresh: true);
+      await Future.delayed(const Duration(milliseconds: 500));
+    } catch (e) {
+      debugPrint('[TeacherSettingsPage] Error clearing cache: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingCache = false);
+        AppToast.success(
+          context,
+          freedBytes > 0
+              ? 'Temporary cache cleared (${(freedBytes / 1024).toStringAsFixed(1)} KB freed). Account remains logged in!'
+              : 'Temporary cache cleared successfully! Account remains logged in.',
+        );
+      }
     }
   }
 
+  // 1. Profile Details Modal
+  void _showProfileDetails() {
+    Feedback.forTap(context);
+    final user = AuthService.currentUser;
+    final fullName = user?.displayName ?? 'Teacher';
+    final raw = user?.rawUser;
+    final title = raw?['title'] ??
+        raw?['position'] ??
+        (user?.gradeLevel.isNotEmpty == true
+            ? 'Grade ${user?.gradeLevel} Teacher'
+            : 'Grade Teacher');
+    final school =
+        raw?['school_name'] ?? raw?['schoolName'] ?? raw?['school'] ?? 'N/A';
+    final empNo = raw?['teacher_no'] ??
+        raw?['teacherNo'] ??
+        raw?['id_no'] ??
+        raw?['employeeId'] ??
+        'N/A';
+    final email = user?.email.isNotEmpty == true ? user!.email : 'N/A';
+    final sec = user?.sectionName ?? '';
+    final grade = user?.gradeLevel ?? '';
+    final assignedClass = sec.toLowerCase().startsWith('grade')
+        ? sec
+        : (sec.isNotEmpty && grade.isNotEmpty
+            ? 'Grade $grade - $sec'
+            : (sec.isNotEmpty
+                ? sec
+                : (grade.isNotEmpty ? 'Grade $grade' : 'Assigned Class')));
 
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        const primaryColor = Color(0xFFD34426);
+        const textDark = Color(0xFF18181B);
+        const textGray = Color(0xFF71717A);
 
-  // 2. Change Password Modal
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE4E4E7),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Iconify(
+                          Ph.user_bold,
+                          size: 20,
+                          color: primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Profile Details',
+                        style: GoogleFonts.inter(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: textDark,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Iconify(
+                      Ph.x_bold,
+                      size: 20,
+                      color: textGray,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildModalInfoRow('Full Name', fullName),
+              _buildModalInfoRow('Designation / Position', title.toString()),
+              _buildModalInfoRow('Employee ID', empNo.toString()),
+              _buildModalInfoRow('Email Address', email),
+              _buildModalInfoRow('School', school.toString()),
+              _buildModalInfoRow('Assigned Class', assignedClass),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildModalInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF71717A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.black,
+            ),
+          ),
+          const Divider(height: 16, color: Color(0xFFF4F4F5)),
+        ],
+      ),
+    );
+  }
+
+  // 2. Change Password Modal (matching student side with eye visibility toggles)
   void _showChangePasswordModal() {
     Feedback.forTap(context);
     final currentController = TextEditingController();
     final newController = TextEditingController();
     final confirmController = TextEditingController();
+
+    bool isSubmittingPassword = false;
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
 
     showModalBottomSheet(
       context: context,
@@ -106,6 +306,55 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
+            const primaryColor = Color(0xFFD34426);
+            const textDark = Color(0xFF18181B);
+            const textGray = Color(0xFF71717A);
+            const borderColor = Color(0xFFE4E4E7);
+
+            InputDecoration buildInputDecoration(
+              String labelText,
+              String hintText,
+              bool isObscured,
+              VoidCallback onToggle,
+            ) {
+              return InputDecoration(
+                labelText: labelText,
+                hintText: hintText,
+                labelStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textGray,
+                ),
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFFA1A1AA),
+                ),
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                filled: true,
+                fillColor: const Color(0xFFFAFAFA),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: primaryColor, width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Iconify(
+                    isObscured ? Ph.eye_slash : Ph.eye,
+                    size: 20,
+                    color: textGray,
+                  ),
+                  onPressed: onToggle,
+                ),
+              );
+            }
+
             return Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -117,57 +366,125 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
-                top: 24,
+                top: 16,
                 bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE4E4E7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Change Password',
-                        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Iconify(
+                              Ph.lock_key_bold,
+                              size: 20,
+                              color: primaryColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Change Password',
+                            style: GoogleFonts.inter(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: textDark,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: const Iconify(
+                          Ph.x_bold,
+                          size: 20,
+                          color: textGray,
+                        ),
                         onPressed: () => Navigator.pop(modalCtx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
-                  const Divider(height: 24),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ensure your account is using a strong password that you can easily remember.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: textGray,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   TextField(
                     controller: currentController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Current Password',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    obscureText: obscureCurrent,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: textDark,
+                    ),
+                    decoration: buildInputDecoration(
+                      'Current Password',
+                      'Enter current password',
+                      obscureCurrent,
+                      () => setModalState(() => obscureCurrent = !obscureCurrent),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: newController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'New Password',
-                      hintText: 'Minimum 6 characters',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    obscureText: obscureNew,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: textDark,
+                    ),
+                    decoration: buildInputDecoration(
+                      'New Password',
+                      'Minimum 6 characters',
+                      obscureNew,
+                      () => setModalState(() => obscureNew = !obscureNew),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: confirmController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Confirm New Password',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    obscureText: obscureConfirm,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: textDark,
+                    ),
+                    decoration: buildInputDecoration(
+                      'Confirm New Password',
+                      'Re-enter new password',
+                      obscureConfirm,
+                      () => setModalState(() => obscureConfirm = !obscureConfirm),
                     ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: _isSubmittingPassword
+                    onPressed: isSubmittingPassword
                         ? null
                         : () async {
                             final current = currentController.text.trim();
@@ -175,53 +492,92 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                             final confirm = confirmController.text.trim();
 
                             if (current.isEmpty) {
-                              AppToast.warning(context, 'Please enter your current password.');
+                              AppToast.warning(
+                                context,
+                                'Please enter your current password.',
+                              );
                               return;
                             }
                             if (newPass.length < 6) {
-                              AppToast.warning(context, 'New password must be at least 6 characters.');
+                              AppToast.warning(
+                                context,
+                                'New password must be at least 6 characters.',
+                              );
                               return;
                             }
                             if (newPass != confirm) {
-                              AppToast.error(context, 'Passwords do not match!');
+                              AppToast.error(
+                                context,
+                                'Passwords do not match!',
+                              );
                               return;
                             }
 
-                            setModalState(() => _isSubmittingPassword = true);
+                            setModalState(() => isSubmittingPassword = true);
 
                             try {
-                              final res = await ApiService.post('/auth/change-password', {
-                                'currentPassword': current,
-                                'newPassword': newPass,
-                              });
+                              final res = await ApiService.post(
+                                '/auth/change-password',
+                                {
+                                  'currentPassword': current,
+                                  'newPassword': newPass,
+                                },
+                              );
 
                               if (res.success) {
                                 if (modalCtx.mounted) Navigator.pop(modalCtx);
-                                if (mounted) AppToast.success(context, 'Password updated successfully!');
+                                if (mounted) {
+                                  AppToast.success(
+                                    context,
+                                    'Password updated successfully!',
+                                  );
+                                }
                               } else {
-                                if (mounted) AppToast.error(context, res.error ?? res.message ?? 'Failed to update password.');
+                                if (mounted) {
+                                  AppToast.error(
+                                    context,
+                                    res.error ??
+                                        res.message ??
+                                        'Failed to update password.',
+                                  );
+                                }
                               }
                             } catch (e) {
                               if (mounted) {
-                                AppToast.error(context, 'Network error updating password.');
+                                AppToast.error(
+                                  context,
+                                  'Network error updating password.',
+                                );
                               }
                             } finally {
-                              setModalState(() => _isSubmittingPassword = false);
+                              setModalState(() => isSubmittingPassword = false);
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD34426),
+                      backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    child: _isSubmittingPassword
+                    child: isSubmittingPassword
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
                           )
-                        : Text('Update Password', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+                        : Text(
+                            'Update Password',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -232,17 +588,21 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     );
   }
 
-  // 3. Notification Settings Modal
+  // 3. Notification Settings Modal (matching student card container layout & test notification)
   void _showNotificationSettingsModal() {
     Feedback.forTap(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      isScrollControlled: true,
+      builder: (modalCtx) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalCtx, setModalState) {
             const primaryColor = Color(0xFFD34426);
+            const textDark = Color(0xFF18181B);
             const textGray = Color(0xFF71717A);
+            const cardBg = Color(0xFFF8FAFC);
+            const borderColor = Color(0xFFE2E8F0);
 
             return Container(
               decoration: const BoxDecoration(
@@ -252,61 +612,348 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                   topRight: Radius.circular(24),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Top Drag Handle & Header
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE4E4E7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Notification Settings',
-                        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Iconify(
+                              Ph.bell_bold,
+                              size: 20,
+                              color: primaryColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Notification Settings',
+                            style: GoogleFonts.inter(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: textDark,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
+                        icon: const Iconify(
+                          Ph.x_bold,
+                          size: 20,
+                          color: textGray,
+                        ),
+                        onPressed: () => Navigator.pop(modalCtx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
-                  const Divider(height: 24),
-                  SwitchListTile.adaptive(
-                    title: Text('Daily Practice Reminder', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
-                    subtitle: Text('Reminds you to read daily', style: GoogleFonts.inter(fontSize: 12, color: textGray)),
-                    value: _dailyReminder,
-                    activeTrackColor: primaryColor.withValues(alpha: 0.5),
-                    activeThumbColor: primaryColor,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setModalState(() => _dailyReminder = val);
-                      setState(() => _dailyReminder = val);
-                      _saveNotificationPreferences();
-                    },
-                  ),
-                  if (_dailyReminder) ...[
-                    ListTile(
-                      title: Text('Reminder Time', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                      trailing: Text(_formatTimeOfDay(_reminderTime), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: primaryColor)),
-                      onTap: () => _selectReminderTime(context, setModalState),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  SwitchListTile.adaptive(
-                    title: Text('Achievement Alerts', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
-                    subtitle: Text('Get notified when you unlock badges', style: GoogleFonts.inter(fontSize: 12, color: textGray)),
-                    value: _achievementAlerts,
-                    activeTrackColor: primaryColor.withValues(alpha: 0.5),
-                    activeThumbColor: primaryColor,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setModalState(() => _achievementAlerts = val);
-                      setState(() => _achievementAlerts = val);
-                      _saveNotificationPreferences();
-                    },
-                  ),
                   const SizedBox(height: 16),
+
+                  // Section 1: Daily Practice & Reminders Card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.alarm_bold,
+                              size: 20,
+                              color: primaryColor,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Daily Practice Reminder',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Reminds you to conduct reading assessments daily',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _dailyReminder,
+                              activeTrackColor: primaryColor.withValues(alpha: 0.5),
+                              activeThumbColor: primaryColor,
+                              onChanged: (val) {
+                                setModalState(() => _dailyReminder = val);
+                                setState(() => _dailyReminder = val);
+                                _saveNotificationPreferences();
+                              },
+                            ),
+                          ],
+                        ),
+                        if (_dailyReminder) ...[
+                          const Divider(height: 20, color: borderColor),
+                          InkWell(
+                            onTap: () => _selectReminderTime(context, setModalState),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Scheduled Time',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: primaryColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _formatTimeOfDay(_reminderTime),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 20, color: borderColor),
+                          Row(
+                            children: [
+                              const Iconify(
+                                Ph.fire_bold,
+                                size: 18,
+                                color: Color(0xFFF97316),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Assessment Deadline Warning',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: textDark,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Alert at 8:00 PM if class assessments are pending',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: textGray,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _achievementAlerts,
+                                activeTrackColor: const Color(0xFFF97316).withValues(alpha: 0.5),
+                                activeThumbColor: const Color(0xFFF97316),
+                                onChanged: (val) {
+                                  setModalState(() => _achievementAlerts = val);
+                                  setState(() => _achievementAlerts = val);
+                                  _saveNotificationPreferences();
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Section 2: Class Alerts Card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.trophy_bold,
+                              size: 20,
+                              color: Color(0xFFEAB308),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Student Progress & Milestones',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Get notified when students reach reading goals',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _achievementAlerts,
+                              activeTrackColor: primaryColor.withValues(alpha: 0.5),
+                              activeThumbColor: primaryColor,
+                              onChanged: (val) {
+                                setModalState(() => _achievementAlerts = val);
+                                setState(() => _achievementAlerts = val);
+                                _saveNotificationPreferences();
+                              },
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 20, color: borderColor),
+                        Row(
+                          children: [
+                            const Iconify(
+                              Ph.book_open_bold,
+                              size: 20,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Classroom Submissions',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Alert when students submit reading tasks',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _achievementAlerts,
+                              activeTrackColor: primaryColor.withValues(alpha: 0.5),
+                              activeThumbColor: primaryColor,
+                              onChanged: (val) {
+                                setModalState(() => _achievementAlerts = val);
+                                setState(() => _achievementAlerts = val);
+                                _saveNotificationPreferences();
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Section 3: Instant Sample Test Action Button
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await LocalNotificationService.showInstantNotification(
+                        title: 'SalinTinig Teacher Alert',
+                        body: 'Notifications are working perfectly! You will receive class reading updates.',
+                      );
+                      if (modalCtx.mounted) {
+                        AppToast.success(
+                          modalCtx,
+                          'Sample notification sent to your device status bar!',
+                        );
+                      }
+                    },
+                    icon: const Iconify(
+                      Ph.paper_plane_tilt_bold,
+                      size: 18,
+                      color: primaryColor,
+                    ),
+                    label: Text(
+                      'Test Sample Notification',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: primaryColor,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: primaryColor, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             );
@@ -323,6 +970,9 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        const textDark = Color(0xFF18181B);
+        const textGray = Color(0xFF71717A);
+
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -331,35 +981,77 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               topRight: Radius.circular(24),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE4E4E7),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'About SalinTinig',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                  Row(
+                    children: [
+                      Text(
+                        'About SalinTinig',
+                        style: GoogleFonts.inter(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: textDark,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Iconify(
+                      Ph.x_bold,
+                      size: 20,
+                      color: textGray,
+                    ),
                     onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
-              const Divider(height: 24),
+              const Divider(height: 24, color: Color(0xFFF4F4F5)),
               Text(
-                'SalinTinig is a speech-to-text capstone reading application designed to assist elementary students in reinforcing their reading comprehension, speed, and pronunciation through immersive stories and quizzes.',
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3F3F46), height: 1.5),
+                'SalinTinig is a speech-to-text capstone reading application designed to assist elementary teachers and students in conducting DepEd Phil-IRI reading assessments, tracking fluency speed, and managing oral reading progress.',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF3F3F46),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('App Version', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                  Text('v1.0.0 (Build 24)', style: GoogleFonts.inter(color: const Color(0xFF71717A), fontWeight: FontWeight.w600)),
+                  Text(
+                    'App Version',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      color: textDark,
+                    ),
+                  ),
+                  Text(
+                    'v1.0.0 (Build 24)',
+                    style: GoogleFonts.inter(
+                      color: textGray,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -378,6 +1070,10 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
+        const primaryColor = Color(0xFFD34426);
+        const textDark = Color(0xFF18181B);
+        const textGray = Color(0xFF71717A);
+
         return Container(
           height: MediaQuery.of(context).size.height * 0.7,
           decoration: const BoxDecoration(
@@ -387,108 +1083,210 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               topRight: Radius.circular(24),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE4E4E7),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Help / FAQ',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Iconify(
+                          Ph.question_bold,
+                          size: 20,
+                          color: primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Help / FAQ',
+                        style: GoogleFonts.inter(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: textDark,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Iconify(
+                      Ph.x_bold,
+                      size: 20,
+                      color: textGray,
+                    ),
                     onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
-              const Divider(height: 24),
+              const Divider(height: 24, color: Color(0xFFF4F4F5)),
               Expanded(
                 child: ListView(
                   physics: const BouncingScrollPhysics(),
                   children: [
                     ExpansionTile(
-                      title: Text('What is SalinTinig?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'What is SalinTinig?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'SalinTinig is an automated Phil-IRI assessment and oral reading analysis platform designed for DepEd schools to monitor student reading proficiency levels in real time.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How are student reading levels classified?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How are student reading levels classified?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Reading levels (Independent, Instructional, Frustrational, Non-Reader) are automatically calculated based on Oral Reading Score (%) and Comprehension Score (%) following official DepEd Phil-IRI guidelines.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How do I generate and export Phil-IRI Form 1 to 4?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How do I generate and export Phil-IRI Form 1 to 4?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Navigate to the Phil - IRI Records tab in the navigation bar to access pre-formatted templates, enter assessment scores, or export official DepEd Form 1–4 summary records.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How do class activities and oral reading practice work?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How do class activities and oral reading practice work?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Go to Class Activities to create custom practice passages, assign reading tasks, and view real-time student recordings and submission progress.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('What notifications do I receive on my dashboard?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'What notifications do I receive on my dashboard?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'You will receive real-time alerts for student Phil-IRI oral reading assessment completions, class progress alerts, and school announcements.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('How do Faculty-in-Charge (FIC) grade-level permissions work?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'How do Faculty-in-Charge (FIC) grade-level permissions work?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'If designated as Faculty-in-Charge for a grade level, you can view summary reading statistics, section performance, and faculty records across all sections in your assigned grade level.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     ExpansionTile(
-                      title: Text('Need additional support?', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        'Need additional support?',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Contact your school administrator or reach out to DepEd IT support at support.salintinig@deped.gov.ph.',
-                            style: GoogleFonts.inter(height: 1.4, color: const Color(0xFF3F3F46)),
+                            style: GoogleFonts.inter(
+                              height: 1.4,
+                              color: const Color(0xFF3F3F46),
+                            ),
                           ),
                         ),
                       ],
@@ -498,50 +1296,6 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  void _showDeactivateDialog() {
-    Feedback.forTap(context);
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Deactivate Account',
-            style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFFDC2626)),
-          ),
-          content: Text(
-            'Are you sure you want to deactivate your account? You can reactivate it anytime by logging back in.',
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700]),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                AppToast.warning(context, 'Deactivation request sent.');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                'Deactivate',
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
         );
       },
     );
@@ -564,11 +1318,17 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
             } else {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const TeacherOverviewPage()),
+                MaterialPageRoute(
+                  builder: (context) => const TeacherOverviewPage(),
+                ),
               );
             }
           },
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: Colors.black,
+          ),
         ),
         centerTitle: true,
         title: Text(
@@ -583,43 +1343,59 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 24.0),
+          padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 32.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Other Settings Section Header
               Text(
                 'Other Settings',
                 style: GoogleFonts.inter(
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: Colors.black,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Card Group 1: Profile details, Password, Notifications
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
                     _buildSettingsTile(
-                      iconName: Ph.lock_key,
+                      iconName: Ph.user,
+                      title: 'Profile details',
+                      onTap: _showProfileDetails,
+                    ),
+                    const Divider(
+                      height: 1,
+                      indent: 56,
+                      endIndent: 16,
+                      color: Color(0xFFF1F1F4),
+                    ),
+                    _buildSettingsTile(
+                      iconName: Ph.lock,
                       title: 'Password',
                       onTap: _showChangePasswordModal,
                     ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                    const Divider(
+                      height: 1,
+                      indent: 56,
+                      endIndent: 16,
+                      color: Color(0xFFF1F1F4),
+                    ),
                     _buildSettingsTile(
                       iconName: Ph.bell,
                       title: 'Notifications',
@@ -630,20 +1406,20 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
               ),
               const SizedBox(height: 16),
 
-              // Card Group 2: About application, Help / FAQ, Clear App Cache, Deactivate my account
+              // Card Group 2: About application, Help / FAQ, Clear App Cache (Deactivate removed)
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
                     _buildSettingsTile(
@@ -651,29 +1427,33 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
                       title: 'About application',
                       onTap: _showAboutApplicationModal,
                     ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
+                    const Divider(
+                      height: 1,
+                      indent: 56,
+                      endIndent: 16,
+                      color: Color(0xFFF1F1F4),
+                    ),
                     _buildSettingsTile(
-                      iconName: Ph.chat_dots,
+                      iconName: Ph.chat_teardrop_text,
                       title: 'Help / FAQ',
                       onTap: _showHelpFAQModal,
                     ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildSettingsTile(
-                      iconName: Ph.arrows_clockwise,
-                      title: 'Clear App Cache',
-                      onTap: _clearAppCache,
+                    const Divider(
+                      height: 1,
+                      indent: 56,
+                      endIndent: 16,
+                      color: Color(0xFFF1F1F4),
                     ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                     _buildSettingsTile(
-                      iconName: Ph.trash,
-                      title: 'Deactivate my account',
-                      isDestructive: true,
-                      onTap: _showDeactivateDialog,
+                      iconName: Ph.arrows_counter_clockwise,
+                      title: 'Clear App Cache',
+                      isLoading: _isClearingCache,
+                      onTap: _clearAppCache,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -685,16 +1465,17 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
     required String iconName,
     required String title,
     required VoidCallback onTap,
-    bool isDestructive = false,
+    bool isLoading = false,
   }) {
-    final iconColor = isDestructive ? const Color(0xFFDC2626) : Colors.grey[700]!;
-    final iconBg = isDestructive ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC);
-    final textColor = isDestructive ? const Color(0xFFDC2626) : Colors.black;
+    final iconColor = Colors.grey[700]!;
+    const iconBg = Color(0xFFF8FAFC);
+    const textColor = Colors.black;
 
     return Material(
       color: Colors.transparent,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           width: 38,
           height: 38,
@@ -714,15 +1495,26 @@ class _TeacherSettingsPageState extends State<TeacherSettingsPage> {
             color: textColor,
           ),
         ),
-        trailing: Icon(
-          Icons.chevron_right_rounded,
-          size: 20,
-          color: isDestructive ? const Color(0xFFDC2626).withValues(alpha: 0.7) : Colors.grey[400],
-        ),
-        onTap: () {
-          Feedback.forTap(context);
-          onTap();
-        },
+        trailing: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFD34426),
+                ),
+              )
+            : Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: Colors.grey[400],
+              ),
+        onTap: isLoading
+            ? null
+            : () {
+                Feedback.forTap(context);
+                onTap();
+              },
       ),
     );
   }
