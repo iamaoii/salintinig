@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/common/home_page.dart';
 import 'package:salintinig/pages/parent/parent_announcements_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/parent_portal_cache_service.dart';
+import 'package:salintinig/widgets/app_toast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ParentSettingsPage extends StatefulWidget {
   const ParentSettingsPage({super.key});
@@ -19,10 +22,86 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
   bool _pushNotifications = true;
   bool _emailWeeklyReports = true;
   bool _readingAlerts = true;
+  bool _isClearingCache = false;
+
+  // Clear App Cache with exact memory & temp cleanup visual feedback
+  Future<void> _clearAppCache() async {
+    Feedback.forTap(context);
+    setState(() => _isClearingCache = true);
+
+    int freedBytes = 0;
+    try {
+      final tempDir = Directory.systemTemp;
+      if (tempDir.existsSync()) {
+        final entities = tempDir.listSync();
+        for (final entity in entities) {
+          try {
+            if (entity is File) {
+              final name = entity.path.toLowerCase();
+              if (name.contains('mic_test') ||
+                  name.endsWith('.m4a') ||
+                  name.endsWith('.tmp') ||
+                  name.endsWith('.webp') ||
+                  name.endsWith('.jpg') ||
+                  name.endsWith('.png')) {
+                freedBytes += entity.lengthSync();
+                entity.deleteSync();
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      await ParentPortalCacheService.invalidate();
+      await Future.delayed(const Duration(milliseconds: 500));
+    } catch (e) {
+      debugPrint('[ParentSettingsPage] Error clearing cache: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingCache = false);
+        AppToast.success(
+          context,
+          freedBytes > 0
+              ? 'Temporary cache cleared (${(freedBytes / 1024).toStringAsFixed(1)} KB freed). Account remains logged in!'
+              : 'Temporary cache cleared successfully! Account remains logged in.',
+        );
+      }
+    }
+  }
 
   // 1. Profile Details Modal
-  void _showProfileDetailsModal() {
+  Future<void> _showProfileDetailsModal() async {
     Feedback.forTap(context);
+    final prefs = await SharedPreferences.getInstance();
+    final rawAccessCode = prefs.getString('parent_access_code') ?? '';
+    final cachedData = ParentPortalCacheService.cachedParentView;
+
+    final user = AuthService.currentUser?.rawUser;
+    final childData = cachedData ?? user?['linkedChild'] ?? user?['student'] ?? user;
+
+    final lrn = (childData?['lrn'] ?? childData?['studentLrn'] ?? user?['lrn'] ?? '').toString().trim();
+    final studentName = (cachedData?['studentName'] ??
+            childData?['name'] ??
+            childData?['studentName'] ??
+            'Student')
+        .toString()
+        .trim();
+    final parentName = (childData?['parentName'] ??
+            childData?['parent_name'] ??
+            user?['parentName'] ??
+            user?['parent_name'] ??
+            user?['name'] ??
+            'Parent Security Access')
+        .toString()
+        .trim();
+    final grade = (cachedData?['gradeLevel'] ?? childData?['gradeLevel'] ?? childData?['grade'] ?? 'Grade 4').toString().trim();
+    final section = (cachedData?['section'] ?? cachedData?['sectionName'] ?? childData?['sectionName'] ?? childData?['section_name'] ?? '').toString().trim();
+    final gradeSection = [grade, if (section.isNotEmpty && section.toLowerCase() != 'unassigned') section]
+        .where((item) => item.trim().isNotEmpty)
+        .join(' - ');
+
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -55,11 +134,11 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                 ],
               ),
               const Divider(height: 24),
-              _buildModalInfoRow('Full Name', 'Mrs. Doechii Carganilla'),
-              _buildModalInfoRow('Email Address', 'parent.carganilla@gmail.com'),
-              _buildModalInfoRow('Contact Number', '+63 917 123 4567'),
-              _buildModalInfoRow('Active Child', 'Doechii Carganilla'),
-              _buildModalInfoRow('Grade & Section', 'Grade 4 - FYANG'),
+              _buildModalInfoRow('Parent / Guardian Name', parentName),
+              _buildModalInfoRow('Student LRN (12-Digit)', lrn.isNotEmpty ? lrn : '12-Digit LRN'),
+              if (rawAccessCode.isNotEmpty) _buildModalInfoRow('Parent Security Access Code', rawAccessCode),
+              _buildModalInfoRow('Active Student', studentName),
+              _buildModalInfoRow('Grade & Section', gradeSection.isEmpty ? 'Not assigned' : gradeSection),
               const SizedBox(height: 16),
             ],
           ),
@@ -97,113 +176,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
     );
   }
 
-  // 2. Change Password Modal
-  void _showChangePasswordModal() {
-    Feedback.forTap(context);
-    final currentController = TextEditingController();
-    final newController = TextEditingController();
-    final confirmController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Change Password',
-                    style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              TextField(
-                controller: currentController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  labelStyle: GoogleFonts.inter(fontSize: 14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: newController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  labelStyle: GoogleFonts.inter(fontSize: 14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: confirmController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  labelStyle: GoogleFonts.inter(fontSize: 14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Password updated successfully!'),
-                      backgroundColor: Color(0xFF059669),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B64D8),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(
-                  'Update Password',
-                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // 3. Notification Settings Modal
+  // 2. Notification Settings Modal
   void _showNotificationSettingsModal() {
     Feedback.forTap(context);
     showModalBottomSheet(
@@ -385,7 +358,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                     ),
                     _buildFaqAccordion(
                       'How do I contact my child\'s teacher?',
-                      'Tap the "Contact" button on the parent overview home screen or open the Contact Section Teacher action from the top menu to call or message Ms. Maria Santos directly.',
+                      'Please use the official school communication channel or contact the section adviser through the contact details provided by the school.',
                     ),
                   ],
                 ),
@@ -397,53 +370,9 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
     );
   }
 
-  // Deactivate Account Dialog
-  void _showDeactivateDialog() {
-    Feedback.forTap(context);
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Deactivate Account?',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: Colors.red[700]),
-          ),
-          content: Text(
-            'Are you sure you want to deactivate your parent account? You will lose access to your child\'s real-time Phil-IRI reports and teacher announcements.',
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HomePage()),
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[600],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('Deactivate', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
-    const primaryBlue = Color(0xFF1B64D8);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -485,7 +414,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
               ),
               const SizedBox(height: 14),
 
-              // Card Group 1: Profile details, Password, Notifications
+              // Card Group 1: Profile details, Notifications
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -508,12 +437,6 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
                     _buildSettingsTile(
-                      iconName: Ph.lock_key,
-                      title: 'Password',
-                      onTap: _showChangePasswordModal,
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildSettingsTile(
                       iconName: Ph.bell,
                       title: 'Notifications',
                       onTap: _showNotificationSettingsModal,
@@ -523,7 +446,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
               ),
               const SizedBox(height: 16),
 
-              // Card Group 2: About application, Help / FAQ, Clear App Cache, Deactivate my account
+              // Card Group 2: About application, Help / FAQ, Clear App Cache
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -554,58 +477,10 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                     _buildSettingsTile(
                       iconName: Ph.arrows_clockwise,
                       title: 'Clear App Cache',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('App cache cleared successfully!'),
-                            backgroundColor: Color(0xFF059669),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9)),
-                    _buildSettingsTile(
-                      iconName: Ph.trash,
-                      title: 'Deactivate my account',
-                      isDestructive: true,
-                      onTap: _showDeactivateDialog,
+                      onTap: _isClearingCache ? () {} : _clearAppCache,
+                      isLoading: _isClearingCache,
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Bottom Right Log Out Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Feedback.forTap(context);
-                    AuthService.showLogoutDialog(context, portalName: 'parent portal');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryBlue,
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Iconify(
-                    Ph.sign_out,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    'Log Out',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -620,6 +495,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
     required String title,
     required VoidCallback onTap,
     bool isDestructive = false,
+    bool isLoading = false,
   }) {
     const primaryBlue = Color(0xFF1B64D8);
     final iconColor = isDestructive ? Colors.red[600]! : primaryBlue;
@@ -657,11 +533,21 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: Colors.grey[400],
-              ),
+              if (isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                  ),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Colors.grey[400],
+                ),
             ],
           ),
         ),

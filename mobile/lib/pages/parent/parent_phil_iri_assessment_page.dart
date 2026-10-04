@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
@@ -6,10 +5,9 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/parent/parent_announcements_page.dart';
 import 'package:salintinig/pages/parent/parent_assessment_result_detail_page.dart';
-import 'package:salintinig/services/api_service.dart';
-import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/parent_portal_cache_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:salintinig/widgets/parent_portal_skeletons.dart';
 
 class ParentPhilIriAssessmentPage extends StatefulWidget {
   const ParentPhilIriAssessmentPage({super.key});
@@ -44,48 +42,10 @@ class _ParentPhilIriAssessmentPageState extends State<ParentPhilIriAssessmentPag
 
   Future<void> _fetchAssessments() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      String lrn = prefs.getString('parent_linked_child_lrn') ?? '';
-      String accessCode = prefs.getString('parent_access_code') ?? '';
-
-      if (lrn.isEmpty) {
-        final rawChildStr = prefs.getString('parent_linked_child');
-        if (rawChildStr != null && rawChildStr.isNotEmpty) {
-          try {
-            final childMap = jsonDecode(rawChildStr) as Map<String, dynamic>;
-            lrn = (childMap['lrn'] ?? childMap['studentLrn'] ?? '').toString().trim();
-            if (accessCode.isEmpty) {
-              accessCode = (childMap['accessCode'] ?? childMap['access_code'] ?? '').toString().trim();
-            }
-          } catch (_) {}
-        }
-      }
-
-      if (lrn.isEmpty) {
-        final user = AuthService.currentUser;
-        final raw = user?.rawUser;
-        final child = raw?['linkedChild'] ?? raw?['student'] ?? raw;
-        if (child is Map) {
-          lrn = (child['lrn'] ?? child['studentLrn'] ?? '').toString().trim();
-          if (accessCode.isEmpty) {
-            accessCode = (child['accessCode'] ?? child['access_code'] ?? '').toString().trim();
-          }
-        }
-      }
-
-      if (lrn.isEmpty) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      final queryParams = StringBuffer('?lrn=$lrn');
-      if (accessCode.isNotEmpty) {
-        queryParams.write('&accessCode=$accessCode');
-      }
-
-      final response = await ApiService.get('/student/assessment/parent-view$queryParams');
-      if (response.success && response.data is Map<String, dynamic>) {
-        final data = response.data as Map<String, dynamic>;
+      final data = await ParentPortalCacheService.getParentView(
+        forceRefresh: _allAssessments.isNotEmpty,
+      );
+      if (data is Map<String, dynamic>) {
         final rawList = data['assignedActivities'];
         if (rawList is List) {
           _allAssessments = rawList
@@ -181,7 +141,10 @@ class _ParentPhilIriAssessmentPageState extends State<ParentPhilIriAssessmentPag
       body: RefreshIndicator(
         color: _primaryBlue,
         backgroundColor: Colors.white,
-        onRefresh: _fetchAssessments,
+        onRefresh: () async {
+          await ParentPortalCacheService.invalidate();
+          await _fetchAssessments();
+        },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -239,12 +202,7 @@ class _ParentPhilIriAssessmentPageState extends State<ParentPhilIriAssessmentPag
               const SizedBox(height: 20),
 
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  ),
-                )
+                ParentPortalSkeletons.assessmentList()
               else ...[
                 // 3. Assigned / Active Assessments Section
                 if (activeList.isNotEmpty) ...[

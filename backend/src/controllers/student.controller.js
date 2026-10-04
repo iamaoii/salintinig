@@ -507,6 +507,28 @@ async function createStudent(req, res) {
       return res.status(400).json({ success: false, error: 'LRN must be exactly 12 numeric digits.' });
     }
 
+    const cleanLrn = String(lrn).trim();
+    if (isDbConfigured()) {
+      const { rows: existingLrn } = await db.query(
+        `SELECT student_id FROM students WHERE lrn = $1`,
+        [cleanLrn]
+      );
+      if (existingLrn && existingLrn.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `LRN ${cleanLrn} is already registered to an existing student in system records.`,
+        });
+      }
+    } else {
+      const lrnExists = studentsStore.some((s) => String(s.lrn).trim() === cleanLrn);
+      if (lrnExists) {
+        return res.status(400).json({
+          success: false,
+          error: `LRN ${cleanLrn} is already registered to an existing student in system records.`,
+        });
+      }
+    }
+
     if (!firstName || !lastName) {
       if (name) {
         const parsed = parseNameString(name);
@@ -1196,6 +1218,7 @@ async function importStudentsCSV(req, res) {
     } catch (nErr) {
       console.warn('Batch import audit notice:', nErr.message);
     }
+
 
     return res.json({
       success: true,
@@ -2664,6 +2687,100 @@ async function getStudentActiveAssignment(req, res) {
   }
 }
 
+async function buildParentPracticeProgress(studentId) {
+  const emptyProgress = {
+    analytics: {
+      storiesReadCount: 0,
+      storiesThisWeek: 0,
+      totalPracticeSessions: 0,
+      averageActivityScore: 0,
+      skills: {
+        comprehension: { accuracy: 0, count: 0 },
+        vocabulary: { accuracy: 0, count: 0 },
+        pronunciation: { accuracy: 0, count: 0 },
+        sentence: { accuracy: 0, count: 0 },
+      },
+    },
+    badges: [],
+    recentActivities: [],
+  };
+
+  try {
+    const [badges, summaryRes, recentRes] = await Promise.all([
+      badgeService.getStudentBadgesProgress(studentId),
+      db.query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM student_story_progress WHERE student_id = $1 AND status = 'completed') AS "storiesReadCount",
+           (SELECT COUNT(*)::int FROM student_story_progress WHERE student_id = $1 AND status = 'completed'
+             AND completed_at >= date_trunc('week', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')) AS "storiesThisWeek",
+           (SELECT COUNT(*)::int FROM story_attempts WHERE student_id = $1) AS "storyCount",
+           (SELECT COALESCE(ROUND(AVG(CASE WHEN total_questions > 0 THEN (score::numeric / total_questions) * 100 ELSE 0 END)), 0)::int FROM story_attempts WHERE student_id = $1) AS "storyAverage",
+           (SELECT COUNT(*)::int FROM vocabulary_attempts WHERE student_id = $1) AS "vocabularyCount",
+           (SELECT COALESCE(ROUND(AVG(score)), 0)::int FROM vocabulary_attempts WHERE student_id = $1) AS "vocabularyAverage",
+           (SELECT COUNT(*)::int FROM pronunciation_attempts WHERE student_id = $1) AS "pronunciationCount",
+           (SELECT COALESCE(ROUND(AVG(score)), 0)::int FROM pronunciation_attempts WHERE student_id = $1) AS "pronunciationAverage",
+           (SELECT COUNT(*)::int FROM sentence_attempts WHERE student_id = $1) AS "sentenceCount",
+           (SELECT COALESCE(ROUND(AVG(score)), 0)::int FROM sentence_attempts WHERE student_id = $1) AS "sentenceAverage"`,
+        [studentId]
+      ),
+      db.query(
+        `SELECT * FROM (
+           SELECT sa.attempt_id::text AS id, rm.title, 'story' AS "activityType", 'Story Reading' AS "typeLabel",
+             CASE WHEN sa.total_questions > 0 THEN ROUND((sa.score::numeric / sa.total_questions) * 100)::int ELSE 0 END AS score,
+             'Quiz Score' AS "scoreLabel", COALESCE(sa.time_spent_seconds, 0)::int AS "durationSeconds", sa.created_at AS "occurredAt"
+           FROM story_attempts sa JOIN reading_materials rm ON rm.material_id = sa.material_id WHERE sa.student_id = $1
+           UNION ALL
+           SELECT va.attempt_id::text, 'Vocabulary Matching Challenge', 'vocabulary', 'Vocabulary Practice', va.score::int, 'Score', 0, va.created_at
+           FROM vocabulary_attempts va WHERE va.student_id = $1
+           UNION ALL
+           SELECT pa.attempt_id::text, 'Pronunciation Challenge', 'pronunciation', 'Speech Practice', pa.score::int, 'Accuracy', 0, pa.created_at
+           FROM pronunciation_attempts pa WHERE pa.student_id = $1
+           UNION ALL
+           SELECT se.attempt_id::text, 'Sentence Builder Drill', 'sentence', 'Grammar Practice', se.score::int, 'Score', 0, se.created_at
+           FROM sentence_attempts se WHERE se.student_id = $1
+         ) recent ORDER BY "occurredAt" DESC LIMIT 50`,
+        [studentId]
+      ),
+    ]);
+
+    const summary = summaryRes.rows[0] || {};
+    const counts = {
+      story: Number(summary.storyCount || 0),
+      vocabulary: Number(summary.vocabularyCount || 0),
+      pronunciation: Number(summary.pronunciationCount || 0),
+      sentence: Number(summary.sentenceCount || 0),
+    };
+    const averages = {
+      story: Number(summary.storyAverage || 0),
+      vocabulary: Number(summary.vocabularyAverage || 0),
+      pronunciation: Number(summary.pronunciationAverage || 0),
+      sentence: Number(summary.sentenceAverage || 0),
+    };
+    const totalSessions = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const scoreTotal = Object.keys(counts).reduce((sum, key) => sum + (counts[key] * averages[key]), 0);
+
+    return {
+      analytics: {
+        storiesReadCount: Number(summary.storiesReadCount || 0),
+        storiesThisWeek: Number(summary.storiesThisWeek || 0),
+        totalPracticeSessions: totalSessions,
+        averageActivityScore: totalSessions > 0 ? Math.round(scoreTotal / totalSessions) : 0,
+        skills: {
+          comprehension: { accuracy: averages.story, count: counts.story },
+          vocabulary: { accuracy: averages.vocabulary, count: counts.vocabulary },
+          pronunciation: { accuracy: averages.pronunciation, count: counts.pronunciation },
+          sentence: { accuracy: averages.sentence, count: counts.sentence },
+        },
+      },
+      badges: Array.isArray(badges) ? badges : [],
+      recentActivities: recentRes.rows || [],
+    };
+  } catch (error) {
+    console.warn('[buildParentPracticeProgress] notice:', error.message);
+    return emptyProgress;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/student/assessment/parent-view?lrn=<lrn>&accessCode=<code>
 // Public endpoint (no JWT required) - validates parent access code then
@@ -2996,6 +3113,8 @@ async function getParentChildAssignments(req, res) {
       console.error('[getParentChildAssignments] assignment query error:', queryErr.message);
     }
 
+    const practiceProgress = await buildParentPracticeProgress(targetStudentId);
+
     return res.json({
       success: true,
       hasAssignment: assignedActivities.length > 0,
@@ -3008,6 +3127,7 @@ async function getParentChildAssignments(req, res) {
       gradeLevel: targetGrade,
       section: targetSection,
       sectionName: targetSection,
+      practiceProgress,
     });
   } catch (error) {
     console.error('[getParentChildAssignments] unhandled error:', error);

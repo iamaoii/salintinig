@@ -6,6 +6,7 @@ import EnterNewPassword from './pages/auth/EnterNewPassword.jsx';
 import PasswordChangedSuccess from './pages/auth/PasswordChangedSuccess.jsx';
 import SignupEmail from './pages/auth/SignupEmail.jsx';
 import RequestSent from './pages/auth/RequestSent.jsx';
+import TermsAndPrivacy from './pages/legal/TermsAndPrivacy.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx';
 import { isLoggedIn, getUserRole } from './lib/auth.js';
 
@@ -61,6 +62,21 @@ import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
 import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
 import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
 
+function isPoliciesSubdomain() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  return (
+    host.includes('policies.') ||
+    host.includes('privacy.') ||
+    host.includes('terms.') ||
+    path.startsWith('/policies') ||
+    path.startsWith('/terms') ||
+    path.startsWith('/privacy') ||
+    path.startsWith('/legal')
+  );
+}
+
 function HomeRedirect() {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
   const role = getUserRole();
@@ -69,6 +85,14 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  if (isPoliciesSubdomain()) {
+    return (
+      <Routes>
+        <Route path="*" element={<TermsAndPrivacy />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
@@ -79,6 +103,13 @@ export default function App() {
       <Route path="/forgot-password/success" element={<PasswordChangedSuccess />} />
       <Route path="/signup" element={<SignupEmail />} />
       <Route path="/signup/success" element={<RequestSent />} />
+      <Route path="/overview" element={<TermsAndPrivacy />} />
+      <Route path="/terms" element={<TermsAndPrivacy />} />
+      <Route path="/privacy" element={<TermsAndPrivacy />} />
+      <Route path="/technologies" element={<TermsAndPrivacy />} />
+      <Route path="/faq" element={<TermsAndPrivacy />} />
+      <Route path="/legal" element={<TermsAndPrivacy />} />
+      <Route path="/legal/*" element={<TermsAndPrivacy />} />
       <Route path="/dashboard" element={<Navigate to="/teacher" replace />} />
       <Route path="/dashboard/*" element={<Navigate to="/teacher" replace />} />
 

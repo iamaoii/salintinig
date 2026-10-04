@@ -262,7 +262,7 @@ export default function AdminStudentRecords() {
     }
 
     if (existingStudentFound) {
-      await handleTransferInSubmit();
+      showToast(`LRN ${formData.lrn} is already registered to ${existingStudentFound.name} and cannot be reused.`);
       return;
     }
 
@@ -788,7 +788,9 @@ export default function AdminStudentRecords() {
                 grade: '',
                 section: '',
                 personalEmail: '',
+                parentEmail: '',
               });
+              setExistingStudentFound(null);
               setEditingStudent(null);
               setShowAddModal(true);
             }}
@@ -1042,6 +1044,7 @@ export default function AdminStudentRecords() {
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingStudent(null);
+                  setExistingStudentFound(null);
                 }}
                 className="rounded-lg p-1 text-ink/40 hover:bg-ink/5 hover:text-ink cursor-pointer"
               >
@@ -1080,13 +1083,13 @@ export default function AdminStudentRecords() {
               </div>
 
               {existingStudentFound && (
-                <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-purple-900 animate-in fade-in">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900 animate-in fade-in">
                   <div className="flex items-center gap-2 font-bold text-xs">
-                    <UserSwitch size={16} className="text-purple-600 shrink-0" />
-                    <span>Existing Student Found (Transfer In)</span>
+                    <WarningCircle size={16} className="text-red-600 shrink-0" weight="fill" />
+                    <span>LRN Already Registered</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-purple-800 leading-snug">
-                    Record for <strong>{existingStudentFound.name}</strong> was located in system records. Submitting this form will transfer and enroll the student into <strong>{formData.grade} - {formData.section}</strong> while carrying over all historical Phil-IRI reading logs.
+                  <p className="mt-1 text-[11px] text-red-800 leading-snug">
+                    LRN <strong>{formData.lrn}</strong> is already assigned to student <strong>{existingStudentFound.name}</strong>{existingStudentFound.grade ? ` (${existingStudentFound.grade} - ${existingStudentFound.section || ''})` : ''}. Each student LRN is unique and cannot be registered again.
                   </p>
                 </div>
               )}
@@ -1222,6 +1225,7 @@ export default function AdminStudentRecords() {
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingStudent(null);
+                    setExistingStudentFound(null);
                   }}
                   className="rounded-full border border-ink/10 bg-cream px-4 py-2 text-xs font-medium text-ink/70 hover:bg-ink/5 cursor-pointer"
                 >
@@ -1229,7 +1233,12 @@ export default function AdminStudentRecords() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 cursor-pointer"
+                  disabled={Boolean(existingStudentFound)}
+                  className={`rounded-full px-5 py-2 text-xs font-medium text-cream shadow-sm transition-colors ${
+                    existingStudentFound
+                      ? 'bg-brand-blue/40 cursor-not-allowed opacity-60'
+                      : 'bg-brand-blue hover:bg-blue-700 cursor-pointer'
+                  }`}
                 >
                   {editingStudent ? 'Save Changes' : 'Create Record'}
                 </button>

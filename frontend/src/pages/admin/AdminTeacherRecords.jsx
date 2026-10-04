@@ -244,9 +244,25 @@ export default function AdminTeacherRecords() {
     setCurrentPage(1);
   };
 
+  const existingTeacherFound = useMemo(() => {
+    if (editingTeacher || !formData.employeeId || !formData.employeeId.trim()) return null;
+    const cleanEmpId = formData.employeeId.trim().toLowerCase();
+    return (
+      teachers.find(
+        (t) =>
+          (t.employeeId && t.employeeId.trim().toLowerCase() === cleanEmpId) ||
+          (t.id && t.id.trim().toLowerCase() === cleanEmpId)
+      ) || null
+    );
+  }, [formData.employeeId, teachers, editingTeacher]);
+
   // Handlers
   const handleSaveTeacher = async (e) => {
     e.preventDefault();
+    if (existingTeacherFound && !editingTeacher) {
+      showToast(`DepEd Employee ID ${formData.employeeId} is already assigned to ${existingTeacherFound.name}.`);
+      return;
+    }
     try {
       const token = getToken();
       const teacherName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
@@ -1138,6 +1154,18 @@ export default function AdminTeacherRecords() {
                 />
               </div>
 
+              {existingTeacherFound && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-900 animate-in fade-in">
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <WarningCircle size={16} className="text-red-600 shrink-0" weight="fill" />
+                    <span>Employee ID Already Registered</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-red-800 leading-snug">
+                    Employee ID <strong>{formData.employeeId}</strong> is already assigned to teacher <strong>{existingTeacherFound.name}</strong>. Each DepEd Employee ID must be unique and cannot be registered again.
+                  </p>
+                </div>
+              )}
+
               {/* First Name */}
               <div>
                 <label className="font-semibold text-ink">
@@ -1271,7 +1299,12 @@ export default function AdminTeacherRecords() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-full bg-brand-blue px-5 py-2 text-xs font-medium text-cream shadow-sm hover:bg-blue-700 cursor-pointer"
+                  disabled={Boolean(existingTeacherFound && !editingTeacher)}
+                  className={`rounded-full px-5 py-2 text-xs font-medium text-cream shadow-sm transition-colors ${
+                    existingTeacherFound && !editingTeacher
+                      ? 'bg-brand-blue/40 cursor-not-allowed opacity-60'
+                      : 'bg-brand-blue hover:bg-blue-700 cursor-pointer'
+                  }`}
                 >
                   {editingTeacher ? 'Save Changes' : 'Create Record'}
                 </button>

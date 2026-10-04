@@ -1,14 +1,13 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/parent/parent_announcements_page.dart';
-import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/pages/parent/parent_badges_page.dart';
+import 'package:salintinig/services/parent_portal_cache_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
-import 'package:salintinig/widgets/user_avatar.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:salintinig/widgets/parent_portal_skeletons.dart';
 
 class ParentProgressReportsPage extends StatefulWidget {
   const ParentProgressReportsPage({super.key});
@@ -22,157 +21,21 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
 
   bool _isLoading = true;
   String _selectedChild = 'Student';
-  String _studentFirstName = 'Student';
-  String _childGradeSection = 'Grade 4';
-  String _activeBadgeTab = 'all'; // 'all', 'unlocked', 'locked'
 
   static const Color _primaryBlue = Color(0xFF1B64D8);
   static const Color _bgCanvas = Color(0xFFFCFAF7);
 
-  // Mocked/Derived Student Analytics & Progress Data (Non-Phil-IRI)
+  // Populated from the parent-authorized progress payload.
   final Map<String, dynamic> _practiceAnalytics = {
-    'storiesReadCount': 14,
-    'totalPracticeMinutes': 148,
-    'averageActivityScore': 92.5,
-    'badgesUnlockedCount': 8,
-    'totalBadgesCount': 10,
-    'quizComprehensionPct': 0.94,
-    'vocabularyPct': 0.91,
-    'pronunciationPct': 0.88,
-    'sentenceBuilderPct': 0.90,
-    'activityCompletionPct': 0.85,
+    'storiesReadCount': 0,
+    'storiesThisWeek': 0,
+    'totalPracticeSessions': 0,
+    'averageActivityScore': 0,
+    'skills': <String, dynamic>{},
   };
 
-  final List<Map<String, dynamic>> _badgesList = [
-    {
-      'id': 'first_step',
-      'title': 'First Step',
-      'description': 'Completed first reading practice activity',
-      'asset': 'assets/badges/first_step_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Aug 12, 2026',
-    },
-    {
-      'id': 'im_a_star',
-      'title': 'I\'m a Star',
-      'description': 'Scored 100% on a story comprehension quiz',
-      'asset': 'assets/badges/im_a_star_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Aug 15, 2026',
-    },
-    {
-      'id': 'sounds_right',
-      'title': 'Sounds Right',
-      'description': 'Completed pronunciation drill with 90%+ accuracy',
-      'asset': 'assets/badges/sounds_right_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Aug 20, 2026',
-    },
-    {
-      'id': 'sentence_builder',
-      'title': 'Sentence Builder',
-      'description': 'Mastered sentence arrangement practice',
-      'asset': 'assets/badges/sentence_builder_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Aug 24, 2026',
-    },
-    {
-      'id': 'streak_7',
-      'title': '7-Day Streak',
-      'description': 'Practiced reading for 7 consecutive days',
-      'asset': 'assets/badges/six_seven_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Sep 01, 2026',
-    },
-    {
-      'id': 'both_worlds',
-      'title': 'Bilingual Reader',
-      'description': 'Completed stories in both Tagalog & English',
-      'asset': 'assets/badges/both_worlds_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Sep 08, 2026',
-    },
-    {
-      'id': 'streak_10',
-      'title': '10-Day Streak',
-      'description': 'Maintained a 10-day active reading streak',
-      'asset': 'assets/badges/ten_day_streak_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Sep 18, 2026',
-    },
-    {
-      'id': 'triple_crown',
-      'title': 'Triple Crown',
-      'description': 'Completed 3 practice activities in a single day',
-      'asset': 'assets/badges/triple_crowned_badge.webp',
-      'isUnlocked': true,
-      'dateUnlocked': 'Oct 02, 2026',
-    },
-    {
-      'id': 'night_owl',
-      'title': 'Night Owl',
-      'description': 'Completed evening story reading session',
-      'asset': 'assets/badges/night_owl_badge.webp',
-      'isUnlocked': false,
-      'dateUnlocked': null,
-    },
-    {
-      'id': 'streak_20',
-      'title': '20-Day Master',
-      'description': 'Reach a 20-day active reading streak milestone',
-      'asset': 'assets/badges/twenty_day_streak_badge.webp',
-      'isUnlocked': false,
-      'dateUnlocked': null,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _recentActivities = [
-    {
-      'title': 'Ang Matalinong Pagong at Matsing',
-      'type': 'Story Reading',
-      'date': 'Yesterday',
-      'duration': '12 mins',
-      'scoreText': '95% Quiz Score',
-      'scoreColor': Color(0xFF059669),
-      'iconSvg': PhIcons.bookOpenBold,
-    },
-    {
-      'title': 'Vocabulary Matching Challenge',
-      'type': 'Practice Mini-Game',
-      'date': '2 days ago',
-      'duration': '8 mins',
-      'scoreText': '100% Score',
-      'scoreColor': Color(0xFF1B64D8),
-      'iconSvg': Ph.game_controller,
-    },
-    {
-      'title': 'Si Langgam at si Tipaklong',
-      'type': 'Oral Reading Practice',
-      'date': '4 days ago',
-      'duration': '15 mins',
-      'scoreText': '88% Accuracy',
-      'scoreColor': Color(0xFF7C3AED),
-      'iconSvg': PhIcons.userSoundBold,
-    },
-    {
-      'title': 'Sentence Builder Drill',
-      'type': 'Grammar Practice',
-      'date': '5 days ago',
-      'duration': '6 mins',
-      'scoreText': '90% Score',
-      'scoreColor': Color(0xFFD97706),
-      'iconSvg': Ph.puzzle_piece,
-    },
-    {
-      'title': 'Ang Pambansang Bayani',
-      'type': 'Story Reading',
-      'date': '1 week ago',
-      'duration': '10 mins',
-      'scoreText': '92% Quiz Score',
-      'scoreColor': Color(0xFF059669),
-      'iconSvg': PhIcons.bookOpenBold,
-    },
-  ];
+  final List<Map<String, dynamic>> _badgesList = [];
+  final List<Map<String, dynamic>> _recentActivities = [];
 
   @override
   void initState() {
@@ -182,44 +45,47 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
 
   Future<void> _loadChildDetails() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final rawChildStr = prefs.getString('parent_linked_child');
-      Map<String, dynamic>? childMap;
-      if (rawChildStr != null && rawChildStr.isNotEmpty) {
-        try {
-          childMap = jsonDecode(rawChildStr) as Map<String, dynamic>;
-        } catch (_) {}
+      _practiceAnalytics
+        ..clear()
+        ..addAll({
+          'storiesReadCount': 0,
+          'storiesThisWeek': 0,
+          'totalPracticeSessions': 0,
+          'averageActivityScore': 0,
+          'skills': <String, dynamic>{},
+        });
+      _badgesList.clear();
+      _recentActivities.clear();
+
+      final responseData = await ParentPortalCacheService.getParentView(
+        forceRefresh: _badgesList.isNotEmpty || _recentActivities.isNotEmpty,
+      );
+      if (responseData is Map) {
+        _selectedChild = (responseData?['studentName'] ?? responseData?['studentFirstName'] ?? 'Student')
+            .toString()
+            .trim();
+        final progress = responseData?['practiceProgress'];
+        if (progress is Map) {
+          final analytics = progress['analytics'];
+          if (analytics is Map) {
+            _practiceAnalytics
+              ..clear()
+              ..addAll(Map<String, dynamic>.from(analytics));
+          }
+          final badges = progress['badges'];
+          if (badges is List) {
+            _badgesList.addAll(
+              badges.whereType<Map>().map((badge) => Map<String, dynamic>.from(badge)),
+            );
+          }
+          final activities = progress['recentActivities'];
+          if (activities is List) {
+            _recentActivities.addAll(
+              activities.whereType<Map>().map((activity) => Map<String, dynamic>.from(activity)),
+            );
+          }
+        }
       }
-
-      final user = AuthService.currentUser?.rawUser;
-      final child = childMap ?? user?['linkedChild'] ?? user?['student'] ?? user;
-
-      final fullName = (child?['name'] ?? child?['studentName'] ?? 'Student')
-          .toString()
-          .trim();
-      final nameParts = fullName.isEmpty || fullName == 'Student'
-          ? <String>[]
-          : fullName.split(RegExp(r'\s+'));
-      _studentFirstName = (child?['studentFirstName'] ?? child?['firstName'] ??
-              (nameParts.isNotEmpty ? nameParts.first : 'Student'))
-          .toString();
-      final lastName = (child?['lastName'] ?? child?['last_name'] ??
-              (nameParts.length > 1 ? nameParts.last : ''))
-          .toString()
-          .trim();
-      _selectedChild = lastName.isNotEmpty ? '$_studentFirstName $lastName' : _studentFirstName;
-
-      final grade = child?['gradeLevel'] ?? child?['grade'] ?? 'Grade 4';
-      final section = (child?['sectionName'] ??
-              child?['section_name'] ??
-              child?['section'])
-          ?.toString()
-          .trim();
-      _childGradeSection = section != null &&
-              section.isNotEmpty &&
-              section.toLowerCase() != 'unassigned'
-          ? '$grade - $section'
-          : grade.toString();
     } catch (e) {
       debugPrint('[ParentProgressReports] Error loading child details: $e');
     }
@@ -230,22 +96,18 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
   }
 
   Future<void> _refreshProgress() async {
+    await ParentPortalCacheService.invalidate();
     await _loadChildDetails();
-  }
-
-  List<Map<String, dynamic>> _filteredBadges() {
-    if (_activeBadgeTab == 'unlocked') {
-      return _badgesList.where((b) => b['isUnlocked'] == true).toList();
-    } else if (_activeBadgeTab == 'locked') {
-      return _badgesList.where((b) => b['isUnlocked'] == false).toList();
-    }
-    return _badgesList;
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredBadges = _filteredBadges();
     final unlockedCount = _badgesList.where((b) => b['isUnlocked'] == true).length;
+    final recentBadges = _badgesList.where((b) => b['isUnlocked'] == true).toList()
+      ..sort((a, b) => DateTime.tryParse((b['earnedAt'] ?? '').toString())
+              ?.compareTo(DateTime.tryParse((a['earnedAt'] ?? '').toString()) ?? DateTime(1970))
+          ?? 0);
+    final badgePreview = recentBadges.take(4).toList();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -281,8 +143,10 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
+            ? SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                child: ParentPortalSkeletons.progress(),
               )
             : RefreshIndicator(
                 color: _primaryBlue,
@@ -305,7 +169,7 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                       child: _buildMetricCard(
                         title: 'Stories Read',
                         value: '${_practiceAnalytics['storiesReadCount']} Completed',
-                        badgeText: '3 This Week',
+                        badgeText: '${_practiceAnalytics['storiesThisWeek'] ?? 0} This Week',
                         badgeColor: const Color(0xFF059669),
                         iconSvg: PhIcons.bookOpenBold,
                       ),
@@ -313,9 +177,9 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildMetricCard(
-                        title: 'Practice Time',
-                        value: '${_practiceAnalytics['totalPracticeMinutes']} mins',
-                        badgeText: 'Avg 21m/day',
+                        title: 'Practice Sessions',
+                        value: '${_practiceAnalytics['totalPracticeSessions'] ?? 0} Completed',
+                        badgeText: 'Recorded Attempts',
                         badgeColor: _primaryBlue,
                         iconSvg: Ph.clock,
                       ),
@@ -328,8 +192,8 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                     Expanded(
                       child: _buildMetricCard(
                         title: 'Activity Score',
-                        value: '${_practiceAnalytics['averageActivityScore']}% Avg',
-                        badgeText: 'High Accuracy',
+                        value: '${_practiceAnalytics['averageActivityScore'] ?? 0}% Avg',
+                        badgeText: 'All Activities',
                         badgeColor: const Color(0xFF7C3AED),
                         iconSvg: Ph.check_circle,
                       ),
@@ -339,7 +203,9 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                       child: _buildMetricCard(
                         title: 'Badges Earned',
                         value: '$unlockedCount / ${_badgesList.length} Unlocked',
-                        badgeText: '${((unlockedCount / _badgesList.length) * 100).round()}% Completed',
+                        badgeText: _badgesList.isEmpty
+                            ? 'No Badge Data'
+                            : '${((unlockedCount / _badgesList.length) * 100).round()}% Completed',
                         badgeColor: const Color(0xFFD97706),
                         iconSvg: Ph.trophy,
                       ),
@@ -359,60 +225,33 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                 _buildAnalyticsBreakdownCard(),
                 const SizedBox(height: 28),
 
-                // 4. Earned Badges & Achievements Showcase
+                // 4. Badge preview
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildSectionHeader(
-                      title: 'Earned Badges',
-                      subtitle: '$unlockedCount of ${_badgesList.length} badges unlocked',
-                      iconSvg: Ph.medal_bold,
-                      iconColor: const Color(0xFFD97706),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(12),
+                    Expanded(
+                      child: _buildSectionHeader(
+                        title: 'Student Badges',
+                        subtitle: '$unlockedCount of ${_badgesList.length} badges unlocked',
+                        iconSvg: PhIcons.shieldBold,
+                        iconColor: _primaryBlue,
                       ),
-                      child: Text(
-                        '$unlockedCount Unlocked',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFFB45309),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildBadgeFilterTabs(),
-                const SizedBox(height: 14),
-                _buildBadgesGrid(filteredBadges),
-                const SizedBox(height: 28),
-
-                // 5. Recent Practice Activities & Read Stories Log
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildSectionHeader(
-                      title: 'Recent Practice Activities',
-                      subtitle: 'Recent story reads and practice exercises',
-                      iconSvg: Ph.clock_counter_clockwise_bold,
-                      iconColor: _primaryBlue,
                     ),
                     TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Showing all student practice activities...'),
-                            behavior: SnackBarBehavior.floating,
+                        Feedback.forTap(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ParentBadgesPage(
+                              badges: _badgesList,
+                              studentName: _selectedChild,
+                            ),
                           ),
                         );
                       },
                       child: Text(
-                        'See All',
+                        'See all',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -423,7 +262,28 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                ..._recentActivities.map((act) => _buildActivityTile(act)),
+                _buildBadgePreviewCard(badgePreview),
+                const SizedBox(height: 28),
+
+                // 5. Recent Practice Activities & Read Stories Log
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: _buildSectionHeader(
+                        title: 'Recent Practice Activities',
+                        subtitle: 'Showing the latest 5 completed activities',
+                        iconSvg: Ph.clock_counter_clockwise_bold,
+                        iconColor: _primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_recentActivities.isEmpty)
+                  _buildEmptyDataCard('No completed practice activities yet.')
+                else
+                  ..._recentActivities.take(5).map((act) => _buildActivityTile(act)),
               ],
             ),
           ),
@@ -434,11 +294,12 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
 
   Widget _buildHeroBannerCard() {
     return Container(
+      width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
-          colors: [_primaryBlue, Color(0xFF195ECB)],
+          colors: [_primaryBlue, Color(0xFF2563EB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -453,108 +314,40 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
       child: Stack(
         children: [
           Positioned(
-            right: -10,
-            top: -10,
-            bottom: -10,
-            width: 180,
-            child: Opacity(
-              opacity: 0.18,
-              child: Image.asset(
-                'assets/teacher page/logo_bg.webp',
-                fit: BoxFit.contain,
-                alignment: Alignment.centerRight,
-              ),
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Image.asset(
+              'assets/teacher page/logo_bg.webp',
+              fit: BoxFit.fitHeight,
+              alignment: Alignment.centerRight,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.fromLTRB(20, 22, 92, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Iconify(Ph.student, color: Colors.white, size: 16),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                _selectedChild,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _childGradeSection,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: _primaryBlue,
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Reading Activity & Progress',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.4,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Student Activity & Progress',
-                            style: GoogleFonts.inter(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Track $_studentFirstName\'s stories read, practice performance analytics, and earned badges.',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.92),
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 250),
+                  child: Text(
+                    'Track stories read, practice scores, recent activities, and earned badges.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.92),
+                      height: 1.4,
                     ),
-                    const SizedBox(width: 12),
-                    InitialsAvatar(
-                      name: _selectedChild,
-                      radius: 24,
-                      fontSize: 16,
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -682,6 +475,19 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
   }
 
   Widget _buildAnalyticsBreakdownCard() {
+    final rawSkills = _practiceAnalytics['skills'];
+    final skills = rawSkills is Map ? rawSkills : const <String, dynamic>{};
+
+    Map<String, dynamic> skill(String key) {
+      final value = skills[key];
+      return value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+    }
+
+    final comprehension = skill('comprehension');
+    final vocabulary = skill('vocabulary');
+    final pronunciation = skill('pronunciation');
+    final sentence = skill('sentence');
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -700,46 +506,50 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
         children: [
           _buildProgressBarItem(
             label: 'Story Quiz Comprehension',
-            valueText: '${(_practiceAnalytics['quizComprehensionPct'] * 100).round()}%',
-            progress: _practiceAnalytics['quizComprehensionPct'],
+            valueText: _skillValueText(comprehension),
+            progress: _skillProgress(comprehension),
             color: _primaryBlue,
             iconSvg: Ph.brain,
           ),
           const SizedBox(height: 16),
           _buildProgressBarItem(
             label: 'Vocabulary & Word Recognition',
-            valueText: '${(_practiceAnalytics['vocabularyPct'] * 100).round()}%',
-            progress: _practiceAnalytics['vocabularyPct'],
+            valueText: _skillValueText(vocabulary),
+            progress: _skillProgress(vocabulary),
             color: const Color(0xFF059669),
             iconSvg: Ph.puzzle_piece,
           ),
           const SizedBox(height: 16),
           _buildProgressBarItem(
             label: 'Speech & Pronunciation Drill',
-            valueText: '${(_practiceAnalytics['pronunciationPct'] * 100).round()}%',
-            progress: _practiceAnalytics['pronunciationPct'],
+            valueText: _skillValueText(pronunciation),
+            progress: _skillProgress(pronunciation),
             color: const Color(0xFF7C3AED),
             iconSvg: PhIcons.userSoundBold,
           ),
           const SizedBox(height: 16),
           _buildProgressBarItem(
             label: 'Grammar & Sentence Arrangement',
-            valueText: '${(_practiceAnalytics['sentenceBuilderPct'] * 100).round()}%',
-            progress: _practiceAnalytics['sentenceBuilderPct'],
+            valueText: _skillValueText(sentence),
+            progress: _skillProgress(sentence),
             color: const Color(0xFFD97706),
             iconSvg: Ph.pencil_line,
-          ),
-          const SizedBox(height: 16),
-          _buildProgressBarItem(
-            label: 'Practice Activity Completion',
-            valueText: '${(_practiceAnalytics['activityCompletionPct'] * 100).round()}%',
-            progress: _practiceAnalytics['activityCompletionPct'],
-            color: const Color(0xFF0D9488),
-            iconSvg: Ph.check_circle,
           ),
         ],
       ),
     );
+  }
+
+  String _skillValueText(Map<String, dynamic> skill) {
+    final count = (skill['count'] as num?)?.toInt() ?? 0;
+    final accuracy = (skill['accuracy'] as num?)?.round() ?? 0;
+    return count > 0 ? '$accuracy%' : 'No data';
+  }
+
+  double _skillProgress(Map<String, dynamic> skill) {
+    final count = (skill['count'] as num?)?.toInt() ?? 0;
+    final accuracy = (skill['accuracy'] as num?)?.toDouble() ?? 0;
+    return count > 0 ? (accuracy / 100).clamp(0.0, 1.0).toDouble() : 0.0;
   }
 
   Widget _buildProgressBarItem({
@@ -793,159 +603,113 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
     );
   }
 
-  Widget _buildBadgeFilterTabs() {
-    return Row(
-      children: [
-        _buildBadgePill(id: 'all', label: 'All Badges (${_badgesList.length})'),
-        const SizedBox(width: 8),
-        _buildBadgePill(
-          id: 'unlocked',
-          label: 'Unlocked (${_badgesList.where((b) => b['isUnlocked'] == true).length})',
-        ),
-        const SizedBox(width: 8),
-        _buildBadgePill(
-          id: 'locked',
-          label: 'In Progress (${_badgesList.where((b) => b['isUnlocked'] == false).length})',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBadgePill({required String id, required String label}) {
-    final isSelected = _activeBadgeTab == id;
-
-    return InkWell(
-      onTap: () {
-        Feedback.forTap(context);
-        setState(() => _activeBadgeTab = id);
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? _primaryBlue : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? _primaryBlue : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF64748B),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBadgesGrid(List<Map<String, dynamic>> badges) {
+  Widget _buildBadgePreviewCard(List<Map<String, dynamic>> badges) {
     if (badges.isEmpty) {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        ),
         child: Text(
-          'No badges found in this category.',
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+          'No earned badges yet.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+          ),
         ),
       );
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.15,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: badges.length,
-      itemBuilder: (context, index) {
-        final badge = badges[index];
-        final isUnlocked = badge['isUnlocked'] == true;
-
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isUnlocked ? Colors.white : const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isUnlocked ? const Color(0xFFFCD34D) : const Color(0xFFE2E8F0),
-              width: isUnlocked ? 1.2 : 1,
+    return GestureDetector(
+      onTap: () {
+        Feedback.forTap(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ParentBadgesPage(
+              badges: _badgesList,
+              studentName: _selectedChild,
             ),
-            boxShadow: isUnlocked
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ColorFiltered(
-                colorFilter: isUnlocked
-                    ? const ColorFilter.mode(Colors.transparent, BlendMode.dst)
-                    : const ColorFilter.matrix([
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0,      0,      0,      0.4, 0,
-                      ]),
-                child: Image.asset(
-                  badge['asset'],
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                badge['title'],
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isUnlocked ? const Color(0xFF0F172A) : const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                badge['description'],
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF64748B),
-                  height: 1.2,
-                ),
-              ),
-            ],
           ),
         );
       },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: badges.map((badge) {
+            final isUnlocked = badge['isUnlocked'] == true;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: ColorFiltered(
+                    colorFilter: isUnlocked
+                        ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
+                        : const ColorFilter.matrix([
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0, 0, 0, 0.4, 0,
+                          ]),
+                    child: Image.asset(
+                      (badge['badgeAsset'] ?? 'assets/badges/first_step_badge.webp').toString(),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.workspace_premium,
+                        size: 44,
+                        color: Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 
   Widget _buildActivityTile(Map<String, dynamic> act) {
     final title = (act['title'] ?? '').toString();
-    final type = (act['type'] ?? '').toString();
-    final date = (act['date'] ?? '').toString();
-    final duration = (act['duration'] ?? '').toString();
-    final scoreText = (act['scoreText'] ?? '').toString();
-    final scoreColor = (act['scoreColor'] as Color?) ?? _primaryBlue;
-    final iconSvg = (act['iconSvg'] as String?) ?? PhIcons.bookOpenBold;
+    final activityType = (act['activityType'] ?? 'story').toString();
+    final type = (act['typeLabel'] ?? 'Practice Activity').toString();
+    final date = _formatActivityDate(act['occurredAt']);
+    final durationSeconds = (act['durationSeconds'] as num?)?.round() ?? 0;
+    final duration = durationSeconds > 0 ? '${(durationSeconds / 60).ceil()} min' : 'Recorded';
+    final score = (act['score'] as num?)?.round() ?? 0;
+    final scoreText = '$score% ${act['scoreLabel'] ?? 'Score'}';
+    final scoreColor = activityType == 'story'
+        ? const Color(0xFF059669)
+        : activityType == 'pronunciation'
+            ? const Color(0xFF7C3AED)
+            : activityType == 'sentence'
+                ? const Color(0xFFD97706)
+                : _primaryBlue;
+    final iconSvg = activityType == 'story'
+        ? PhIcons.bookOpenBold
+        : activityType == 'pronunciation'
+            ? PhIcons.userSoundBold
+            : activityType == 'sentence'
+                ? Ph.puzzle_piece
+                : Ph.game_controller;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1017,6 +781,39 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  String _formatActivityDate(dynamic value) {
+    final parsed = DateTime.tryParse((value ?? '').toString())?.toLocal();
+    if (parsed == null) return 'Date unavailable';
+    final difference = DateTime.now().difference(parsed);
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    if (difference.inDays == 1) return 'Yesterday';
+    if (difference.inDays < 7) return '${difference.inDays} days ago';
+    return '${parsed.month}/${parsed.day}/${parsed.year}';
+  }
+
+  Widget _buildEmptyDataCard(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF64748B),
+        ),
       ),
     );
   }

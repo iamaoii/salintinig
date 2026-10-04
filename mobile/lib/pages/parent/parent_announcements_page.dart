@@ -10,6 +10,10 @@ import 'package:salintinig/pages/parent/parent_settings_page.dart';
 
 import 'package:salintinig/services/auth_service.dart';
 
+import 'package:salintinig/services/parent_portal_cache_service.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
+import 'package:salintinig/widgets/parent_portal_skeletons.dart';
+
 class ParentAnnouncementsPage extends StatefulWidget {
   const ParentAnnouncementsPage({super.key});
 
@@ -20,49 +24,111 @@ class ParentAnnouncementsPage extends StatefulWidget {
 class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedFilter = 'All';
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _announcements = [
-    {
-      'title': 'Phil-IRI Post-Test Assessment Window',
-      'teacher': 'Ms. Maria Santos',
-      'role': 'Section Adviser',
-      'date': 'Today, 8:30 AM',
-      'category': 'Assessment',
-      'isPinned': true,
-      'content':
-          'Doechii is demonstrating excellent reading fluency in Filipino stories. Please continue encouraging 15 minutes of daily practice at home before the upcoming GST Post-Test assessment window starting next Monday.',
-    },
-    {
-      'title': 'Parent-Teacher Reading Conference',
-      'teacher': 'Ms. Maria Santos',
-      'role': 'Section Adviser',
-      'date': 'July 22, 2026',
-      'category': 'Meeting',
-      'isPinned': false,
-      'content':
-          'Grade 4 - FYANG quarterly reading assessment progress review is scheduled for next Friday. Please coordinate with the adviser for your preferred time slot.',
-    },
-    {
-      'title': 'New Story Passages Added',
-      'teacher': 'SalinTinig Academic Team',
-      'role': 'System Update',
-      'date': 'July 18, 2026',
-      'category': 'Updates',
-      'isPinned': false,
-      'content':
-          '5 new Level 4 reading passages focusing on Filipino cultural folklore have been added to Doechii\'s library for oral reading and comprehension exercises.',
-    },
-    {
-      'title': 'Home Practice Guidelines for Phil-IRI',
-      'teacher': 'Ms. Maria Santos',
-      'role': 'Section Adviser',
-      'date': 'July 10, 2026',
-      'category': 'Guidelines',
-      'isPinned': false,
-      'content':
-          'When practicing oral reading at home, please ensure your child reads out loud slowly and clearly. Use the audio recording feature in SalinTinig to review pronunciation.',
-    },
-  ];
+  List<Map<String, dynamic>> _announcements = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAnnouncements();
+  }
+
+  Future<void> _fetchAnnouncements() async {
+    try {
+      final data = await ParentPortalCacheService.getParentView(
+        forceRefresh: _announcements.isNotEmpty,
+      );
+      if (data is Map<String, dynamic>) {
+        final teacherNote = data['teacherNote'] ?? data['latestTeacherNote'];
+        final String noteMsg;
+        final String noteAuthor;
+        if (teacherNote is Map) {
+          noteMsg = (teacherNote['message'] ?? teacherNote['note'] ?? '').toString().trim();
+          noteAuthor = (teacherNote['teacherName'] ?? teacherNote['author'] ?? 'Section Adviser').toString().trim();
+        } else {
+          noteMsg = (teacherNote ?? '').toString().trim();
+          noteAuthor = 'Section Adviser';
+        }
+
+        final List<Map<String, dynamic>> loaded = [];
+
+        if (noteMsg.isNotEmpty) {
+          loaded.add({
+            'title': 'Teacher Announcement & Notes',
+            'teacher': noteAuthor.isNotEmpty ? noteAuthor : 'Section Adviser',
+            'role': 'Section Adviser',
+            'date': 'Latest Note',
+            'category': 'Assessment',
+            'isPinned': true,
+            'content': noteMsg,
+          });
+        }
+
+        // Add standard system announcements
+        loaded.addAll([
+          {
+            'title': 'Phil-IRI Post-Test Assessment Window',
+            'teacher': noteAuthor.isNotEmpty ? noteAuthor : 'Section Adviser',
+            'role': 'Section Adviser',
+            'date': 'Active Period',
+            'category': 'Assessment',
+            'isPinned': noteMsg.isEmpty,
+            'content':
+                'Your child is demonstrating reading progress. Please continue encouraging daily reading practice at home before the upcoming Phil-IRI assessment window.',
+          },
+          {
+            'title': 'Parent-Teacher Reading Progress Review',
+            'teacher': noteAuthor.isNotEmpty ? noteAuthor : 'Section Adviser',
+            'role': 'Section Adviser',
+            'date': 'Quarterly',
+            'category': 'Meeting',
+            'isPinned': false,
+            'content':
+                'The quarterly reading assessment progress review will be coordinated by the section adviser. Please check student progress reports regularly.',
+          },
+          {
+            'title': 'New Story Passages & Cultural Folklore',
+            'teacher': 'SalinTinig Academic Team',
+            'role': 'System Update',
+            'date': 'Updated',
+            'category': 'Updates',
+            'isPinned': false,
+            'content':
+                'New reading passages focusing on Filipino cultural folklore have been added for oral reading and comprehension exercises.',
+          },
+          {
+            'title': 'Home Practice Guidelines for Phil-IRI',
+            'teacher': noteAuthor.isNotEmpty ? noteAuthor : 'Section Adviser',
+            'role': 'Section Adviser',
+            'date': 'Guidelines',
+            'category': 'Guidelines',
+            'isPinned': false,
+            'content':
+                'When practicing oral reading at home, please ensure your child reads out loud slowly and clearly. Use the audio recording feature in SalinTinig to review pronunciation.',
+          },
+        ]);
+
+        if (mounted) {
+          setState(() {
+            _announcements = loaded;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[ParentAnnouncements] Fetch error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
+    await ParentPortalCacheService.invalidate();
+    await _fetchAnnouncements();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,215 +171,218 @@ class _ParentAnnouncementsPageState extends State<ParentAnnouncementsPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: Iconify(Ph.bell_bold, color: Colors.black, size: 28),
-          ),
-          const SizedBox(width: 4),
+        actions: const [
+          NotificationBellIconButton(),
+          SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Page Title Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1B64D8), Color(0xFF2563EB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Iconify(Ph.megaphone_bold, color: Colors.white, size: 26),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Class Announcements',
-                            style: GoogleFonts.inter(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Teacher notes, Phil-IRI updates, and section news',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Filter Chips Row
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  children: ['All', 'Assessment', 'Meeting', 'Updates', 'Guidelines'].map((filter) {
-                    final isSelected = _selectedFilter == filter;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(filter),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) setState(() => _selectedFilter = filter);
-                        },
-                        selectedColor: primaryBlue,
-                        backgroundColor: Colors.white,
-                        labelStyle: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(100),
-                          side: BorderSide(
-                            color: isSelected ? primaryBlue : const Color(0xFFE2E8F0),
+        child: RefreshIndicator(
+          onRefresh: _refreshData,
+          color: primaryBlue,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
+            child: _isLoading
+                ? ParentPortalSkeletons.announcements()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Page Title Banner
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF1B64D8), Color(0xFF2563EB)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
                         ),
-                        showCheckmark: false,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Announcements List
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredAnnouncements.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 14),
-                itemBuilder: (context, index) {
-                  final item = filteredAnnouncements[index];
-                  final isPinned = item['isPinned'] == true;
-
-                  return Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: isPinned ? const Color(0xFFEFF6FF) : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isPinned ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0),
-                        width: isPinned ? 1.5 : 1.0,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: primaryBlue.withValues(alpha: 0.1),
-                                  child: Iconify(Ph.user_bold, color: primaryBlue, size: 14),
-                                ),
-                                const SizedBox(width: 8),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item['teacher'],
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                    Text(
-                                      item['role'],
-                                      style: GoogleFonts.inter(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
-                                color: isPinned ? primaryBlue.withValues(alpha: 0.1) : Colors.grey[100],
-                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Text(
-                                item['date'],
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: isPinned ? primaryBlue : Colors.grey[700],
-                                ),
+                              child: Center(
+                                child: Iconify(Ph.megaphone_bold, color: Colors.white, size: 26),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Class Announcements',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Teacher notes, Phil-IRI updates, and section news',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: Colors.white.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
-                        Text(
-                          item['title'],
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black,
-                          ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Filter Chips Row
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: ['All', 'Assessment', 'Meeting', 'Updates', 'Guidelines'].map((filter) {
+                            final isSelected = _selectedFilter == filter;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(filter),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  if (selected) setState(() => _selectedFilter = filter);
+                                },
+                                selectedColor: primaryBlue,
+                                backgroundColor: Colors.white,
+                                labelStyle: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected ? Colors.white : Colors.black87,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(100),
+                                  side: BorderSide(
+                                    color: isSelected ? primaryBlue : const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                showCheckmark: false,
+                              ),
+                            );
+                          }).toList(),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item['content'],
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[700],
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Announcements List
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: filteredAnnouncements.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          final item = filteredAnnouncements[index];
+                          final isPinned = item['isPinned'] == true;
+
+                          return Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: isPinned ? const Color(0xFFEFF6FF) : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isPinned ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0),
+                                width: isPinned ? 1.5 : 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: primaryBlue.withValues(alpha: 0.1),
+                                          child: Iconify(Ph.user_bold, color: primaryBlue, size: 14),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item['teacher'],
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                            Text(
+                                              item['role'],
+                                              style: GoogleFonts.inter(
+                                                fontSize: 10,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isPinned ? primaryBlue.withValues(alpha: 0.1) : Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        item['date'],
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isPinned ? primaryBlue : Colors.grey[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  item['title'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item['content'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: Colors.grey[700],
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),

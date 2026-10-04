@@ -8,10 +8,11 @@ import 'package:salintinig/pages/parent/parent_announcements_page.dart';
 import 'package:salintinig/pages/parent/parent_assessment_result_detail_page.dart';
 import 'package:salintinig/pages/parent/parent_phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/parent/parent_progress_reports_page.dart';
+import 'package:salintinig/services/parent_portal_cache_service.dart';
+import 'package:salintinig/widgets/parent_portal_skeletons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:salintinig/services/auth_service.dart';
-import 'package:salintinig/services/api_service.dart';
 
 class ParentOverviewPage extends StatefulWidget {
   final Map<String, dynamic>? linkedChild;
@@ -32,13 +33,14 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
   late String _childGradeSection;
   late String _parentName;
   late String _studentFirstName;
-  String _readingLevel = 'Pending Evaluation';
-  double _oralAccuracy = 0;
-  double _comprehension = 0;
-  int _wordsPerMinute = 0;
-  bool _hasFinalizedResult = false;
   bool _isLoadingAssignments = true;
   List<Map<String, dynamic>> _assignedActivities = [];
+  List<Map<String, dynamic>> _recentPracticeActivities = [];
+  Map<String, dynamic> _practiceAnalytics = {
+    'skills': <String, dynamic>{},
+  };
+  String _teacherNote = '';
+  String _teacherNoteAuthor = '';
 
   // Persisted child data keys
   static const String _kLinkedChild = 'parent_linked_child';
@@ -112,6 +114,10 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
 
   Future<void> _loadChildAssignments() async {
     try {
+      _recentPracticeActivities = [];
+      _practiceAnalytics = {'skills': <String, dynamic>{}};
+      _teacherNote = '';
+      _teacherNoteAuthor = '';
       // Use lrn already resolved in _initAndLoad (or fallback)
       String lrn = _childLrn;
       if (lrn.isEmpty) {
@@ -129,31 +135,36 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
         return;
       }
 
-      // Use the public parent-view endpoint (no JWT token needed)
-      final params = StringBuffer('?lrn=$lrn');
-      if (_childAccessCode.isNotEmpty) params.write('&accessCode=$_childAccessCode');
-
-      final response = await ApiService.get('/student/assessment/parent-view$params');
-      final data = response.data;
+      final data = await ParentPortalCacheService.getParentView(
+        forceRefresh: _assignedActivities.isEmpty && _recentPracticeActivities.isEmpty ? false : true,
+      );
       final activities = data is Map<String, dynamic> ? data['assignedActivities'] : null;
-      if (response.success && activities is List) {
+      if (activities is List) {
         _assignedActivities = activities
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
 
-        _hasFinalizedResult = _assignedActivities.any((item) => item['isFinalResult'] == true);
-        final profile = data['readingProfile'];
-        if (_hasFinalizedResult && profile is Map) {
-          _readingLevel = (profile['profileLevel'] ?? 'Pending Evaluation').toString();
-          _oralAccuracy = (profile['avgAccuracy'] as num?)?.toDouble() ?? 0;
-          _comprehension = (profile['avgComprehension'] as num?)?.toDouble() ?? 0;
-          _wordsPerMinute = (profile['avgWpm'] as num?)?.round() ?? 0;
+        final practiceProgress = data?['practiceProgress'];
+        final analytics = practiceProgress is Map ? practiceProgress['analytics'] : null;
+        _practiceAnalytics = analytics is Map
+            ? Map<String, dynamic>.from(analytics)
+            : {'skills': <String, dynamic>{}};
+        final recentActivities = practiceProgress is Map ? practiceProgress['recentActivities'] : null;
+        _recentPracticeActivities = recentActivities is List
+            ? recentActivities
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+            : [];
+
+        final note = data?['teacherNote'] ?? data?['latestTeacherNote'];
+        if (note is Map) {
+          _teacherNote = (note['message'] ?? note['note'] ?? '').toString().trim();
+          _teacherNoteAuthor = (note['teacherName'] ?? note['author'] ?? '').toString().trim();
         } else {
-          _readingLevel = 'Pending Evaluation';
-          _oralAccuracy = 0;
-          _comprehension = 0;
-          _wordsPerMinute = 0;
+          _teacherNote = (note ?? '').toString().trim();
+          _teacherNoteAuthor = '';
         }
       }
     } catch (_) {
@@ -200,93 +211,8 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
     setState(() => _applyChildDetails(restoredChild));
     // Reset loading state and reload
     setState(() => _isLoadingAssignments = true);
+    await ParentPortalCacheService.invalidate();
     await _loadChildAssignments();
-  }
-
-
-  void _showContactTeacherModal() {
-    Feedback.forTap(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Contact Section Teacher',
-                    style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFFEFF6FF),
-                  child: Iconify(Ph.user, color: const Color(0xFF1B64D8), size: 20),
-                ),
-                title: Text('Ms. Maria Santos', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                subtitle: Text('Grade 4 - FYANG Adviser', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Calling Ms. Maria Santos (+63 917 890 1234)...'), behavior: SnackBarBehavior.floating),
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1B64D8),
-                  side: const BorderSide(color: Color(0xFF1B64D8)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: Iconify(Ph.phone, color: const Color(0xFF1B64D8), size: 18),
-                label: Text('Call Teacher', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Opening direct message with teacher...'), behavior: SnackBarBehavior.floating),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B64D8),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: Iconify(Ph.chat_circle_text, color: Colors.white, size: 18),
-                label: Text('Send Message', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   void _showAnnouncementsModal() {
@@ -337,24 +263,24 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                   shrinkWrap: true,
                   children: [
                     _buildAnnouncementCard(
-                      teacherName: 'Ms. Maria Santos',
-                      date: 'Today, 8:30 AM',
+                      teacherName: 'Section Adviser',
+                      date: 'Latest update',
                       title: 'Phil-IRI Post-Test Assessment Window',
                       body: '$_studentFirstName is demonstrating excellent reading fluency in Filipino stories. Please continue encouraging 15 minutes of daily practice at home before the upcoming ORT assessment window.',
                       isPinned: true,
                     ),
                     const SizedBox(height: 12),
                     _buildAnnouncementCard(
-                      teacherName: 'Ms. Maria Santos',
-                      date: 'July 22, 2026',
+                      teacherName: 'Section Adviser',
+                      date: 'Class advisory',
                       title: 'Parent-Teacher Reading Conference',
-                      body: 'Grade 4 - FYANG quarterly reading assessment progress review is scheduled for next Friday. Please coordinate with the adviser for your preferred time slot.',
+                      body: '$_childGradeSection reading assessment progress reviews will be coordinated by the adviser. Please wait for the confirmed schedule.',
                       isPinned: false,
                     ),
                     const SizedBox(height: 12),
                     _buildAnnouncementCard(
                       teacherName: 'SalinTinig System',
-                      date: 'July 18, 2026',
+                      date: 'System update',
                       title: 'New Story Passages Available',
                       body: '5 new Level 4 reading passages have been added to $_studentFirstName\'s library for oral reading practice.',
                       isPinned: false,
@@ -701,10 +627,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
               const SizedBox(height: 12),
 
               if (_isLoadingAssignments)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: CircularProgressIndicator(color: Color(0xFF1B64D8))),
-                )
+                ParentPortalSkeletons.overview()
               else if (_assignedActivities.isEmpty)
                 _buildNoAssignmentsCard()
               else
@@ -714,124 +637,27 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                     const SizedBox(height: 10),
                   ];
                 }),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
-              // Phil-IRI Status & Stats Grid
-              Text(
-                'Current Reading Status',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Ph.book_open,
-                      title: 'Phil-IRI Level',
-                      value: _readingLevel,
-                      badgeColor: const Color(0xFF059669),
-                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Ph.timer,
-                      title: 'Reading Speed',
-                      value: _hasFinalizedResult ? '$_wordsPerMinute WPM' : '—',
-                      badgeColor: const Color(0xFF2563EB),
-                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
-                    ),
-                  ),
-                ],
-              ),
+              _buildAnalyticsSectionHeader(),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Ph.check_circle,
-                      title: 'Oral Accuracy',
-                      value: _hasFinalizedResult ? '${_oralAccuracy.toStringAsFixed(0)}%' : '—',
-                      badgeColor: const Color(0xFF1B64D8),
-                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Ph.brain,
-                      title: 'Comprehension',
-                      value: _hasFinalizedResult ? '${_comprehension.toStringAsFixed(0)}%' : '—',
-                      badgeColor: const Color(0xFF7C3AED),
-                      badgeText: _hasFinalizedResult ? 'Teacher Verified' : 'Not Final',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
+              _buildAnalyticsBreakdownCard(),
+              const SizedBox(height: 28),
 
-              // Teacher Announcement Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1B64D8).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Iconify(Ph.megaphone, color: const Color(0xFF1B64D8), size: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Teacher\'s Note from Ms. Maria Santos',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1D4ED8),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '"Doechii is demonstrating excellent reading fluency in Filipino stories. Please continue encouraging 15 minutes of daily practice at home before the upcoming ORT assessment window."',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: const Color(0xFF1E40AF),
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 22),
+              if (_teacherNote.isNotEmpty) ...[
+                _buildTeacherNoteCard(),
+                const SizedBox(height: 28),
+              ],
 
               // Child's Recent Activity Log
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Iconify(
+                    Ph.clock_counter_clockwise_bold,
+                    color: const Color(0xFF1B64D8),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     'Recent Reading Practice',
                     style: GoogleFonts.inter(
@@ -840,113 +666,18 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                       color: Colors.black,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Opening full practice history...'), behavior: SnackBarBehavior.floating),
-                      );
-                    },
-                    child: Text(
-                      'See All',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1B64D8),
-                      ),
-                    ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 6),
-              _buildActivityTile(
-                title: 'Ang Matalinong Pagong at Matsing',
-                subtitle: 'Completed Yesterday • GST Passage',
-                scoreText: '92% Accuracy',
-                scoreColor: const Color(0xFF059669),
-                icon: Ph.book_bookmark,
-              ),
-              const SizedBox(height: 10),
-              _buildActivityTile(
-                title: 'Si Langgam at si Tipaklong',
-                subtitle: 'Completed 3 days ago • Practice Game',
-                scoreText: '85% Score',
-                scoreColor: const Color(0xFF2563EB),
-                icon: Ph.game_controller,
-              ),
-              const SizedBox(height: 10),
-              _buildActivityTile(
-                title: 'Ang Pambansang Bayani',
-                subtitle: 'Completed 5 days ago • Oral Reading',
-                scoreText: '88% Accuracy',
-                scoreColor: const Color(0xFF1B64D8),
-                icon: Ph.microphone_stage,
-              ),
-              const SizedBox(height: 24),
-
-              // Contact Teacher Action Card
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Iconify(Ph.chat_dots, color: const Color(0xFF1B64D8), size: 22),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Have questions about $_studentFirstName?',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Reach out directly to Ms. Maria Santos',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: _showContactTeacherModal,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1B64D8),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Contact',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 12),
+              if (_recentPracticeActivities.isEmpty)
+                _buildNoRecentPracticeCard()
+              else
+                ..._recentPracticeActivities.take(3).expand((activity) {
+                  return [
+                    _buildPracticeActivityTile(activity),
+                    const SizedBox(height: 10),
+                  ];
+                }),
               const SizedBox(height: 20),
             ],
           ),
@@ -957,75 +688,296 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
 );
 }
 
-  Widget _buildStatCard({
-    required String icon,
-    required String title,
-    required String value,
-    required Color badgeColor,
-    required String badgeText,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildAnalyticsSectionHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Iconify(icon, color: badgeColor, size: 16),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badgeText,
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: badgeColor,
-                  ),
+              Iconify(Ph.chart_bar_bold, color: const Color(0xFF1B64D8), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Activity & Skill Analytics',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            title,
+        ),
+        TextButton(
+          onPressed: () {
+            Feedback.forTap(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ParentProgressReportsPage(),
+              ),
+            );
+          },
+          child: Text(
+            'See All',
             style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1B64D8),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              color: Colors.black,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnalyticsBreakdownCard() {
+    final rawSkills = _practiceAnalytics['skills'];
+    final skills = rawSkills is Map ? rawSkills : const <String, dynamic>{};
+
+    Map<String, dynamic> skill(String key) {
+      final value = skills[key];
+      return value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildProgressBarItem(
+            label: 'Story Quiz Comprehension',
+            valueText: _skillValueText(skill('comprehension')),
+            progress: _skillProgress(skill('comprehension')),
+            color: const Color(0xFF1B64D8),
+            iconSvg: Ph.brain,
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBarItem(
+            label: 'Vocabulary & Word Recognition',
+            valueText: _skillValueText(skill('vocabulary')),
+            progress: _skillProgress(skill('vocabulary')),
+            color: const Color(0xFF059669),
+            iconSvg: Ph.puzzle_piece,
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBarItem(
+            label: 'Speech & Pronunciation Drill',
+            valueText: _skillValueText(skill('pronunciation')),
+            progress: _skillProgress(skill('pronunciation')),
+            color: const Color(0xFF7C3AED),
+            iconSvg: PhIcons.userSoundBold,
+          ),
+          const SizedBox(height: 16),
+          _buildProgressBarItem(
+            label: 'Grammar & Sentence Arrangement',
+            valueText: _skillValueText(skill('sentence')),
+            progress: _skillProgress(skill('sentence')),
+            color: const Color(0xFFD97706),
+            iconSvg: Ph.pencil_line,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _skillValueText(Map<String, dynamic> skill) {
+    final count = (skill['count'] as num?)?.toInt() ?? 0;
+    final accuracy = (skill['accuracy'] as num?)?.round() ?? 0;
+    return count > 0 ? '$accuracy%' : 'No data';
+  }
+
+  double _skillProgress(Map<String, dynamic> skill) {
+    final count = (skill['count'] as num?)?.toInt() ?? 0;
+    final accuracy = (skill['accuracy'] as num?)?.toDouble() ?? 0;
+    return count > 0 ? (accuracy / 100).clamp(0.0, 1.0).toDouble() : 0.0;
+  }
+
+  Widget _buildProgressBarItem({
+    required String label,
+    required String valueText,
+    required double progress,
+    required Color color,
+    required String iconSvg,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Iconify(iconSvg, color: color, size: 16),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              valueText,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 7,
+            backgroundColor: const Color(0xFFF1F5F9),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeacherNoteCard() {
+    final author = _teacherNoteAuthor.isNotEmpty ? _teacherNoteAuthor : 'Teacher';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B64D8).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Iconify(Ph.megaphone, color: const Color(0xFF1B64D8), size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Teacher\'s Note from $author',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1D4ED8),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _teacherNote,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF1E40AF),
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPracticeActivityTile(Map<String, dynamic> activity) {
+    final activityType = (activity['activityType'] ?? 'story').toString();
+    final typeLabel = (activity['typeLabel'] ?? 'Practice Activity').toString();
+    final score = (activity['score'] as num?)?.round() ?? 0;
+    final scoreLabel = (activity['scoreLabel'] ?? 'Score').toString();
+    final durationSeconds = (activity['durationSeconds'] as num?)?.round() ?? 0;
+    final duration = durationSeconds > 0 ? ' - ${(durationSeconds / 60).ceil()} min' : '';
+
+    return _buildActivityTile(
+      title: (activity['title'] ?? 'Practice Activity').toString(),
+      subtitle: '${_formatActivityDate(activity['occurredAt'])} - $typeLabel$duration',
+      scoreText: '$score% $scoreLabel',
+      scoreColor: _activityColor(activityType),
+      icon: _activityIcon(activityType),
+    );
+  }
+
+  Widget _buildNoRecentPracticeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(
+        'No completed practice activities yet.',
+        textAlign: TextAlign.center,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+
+  Color _activityColor(String activityType) {
+    if (activityType == 'story') return const Color(0xFF059669);
+    if (activityType == 'pronunciation') return const Color(0xFF7C3AED);
+    if (activityType == 'sentence') return const Color(0xFFD97706);
+    return const Color(0xFF2563EB);
+  }
+
+  String _activityIcon(String activityType) {
+    if (activityType == 'story') return Ph.book_bookmark;
+    if (activityType == 'pronunciation') return Ph.microphone_stage;
+    if (activityType == 'sentence') return Ph.puzzle_piece;
+    return Ph.game_controller;
+  }
+
+  String _formatActivityDate(dynamic value) {
+    final parsed = DateTime.tryParse((value ?? '').toString())?.toLocal();
+    if (parsed == null) return 'Completed recently';
+    final difference = DateTime.now().difference(parsed);
+    if (difference.inMinutes < 1) return 'Completed just now';
+    if (difference.inHours < 1) return 'Completed ${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return 'Completed ${difference.inHours}h ago';
+    if (difference.inDays == 1) return 'Completed yesterday';
+    if (difference.inDays < 7) return 'Completed ${difference.inDays} days ago';
+    return 'Completed ${parsed.month}/${parsed.day}/${parsed.year}';
   }
 
   Widget _buildActivityTile({
@@ -1193,9 +1145,9 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
       if (wpm != null && wpm > 0) metrics.add('$wpm WPM');
     }
 
-    // Subtitle string: "Oral Reading • Pre-Test • Filipino"
+    // Subtitle string: "Oral Reading - Pre-Test - Filipino"
     final subtitleParts = [typeLabel, period, language].where((s) => s.isNotEmpty).toList();
-    final subtitle = subtitleParts.join(' • ');
+    final subtitle = subtitleParts.join(' - ');
 
     return Container(
       decoration: BoxDecoration(
@@ -1317,7 +1269,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          metrics.join('   •   '),
+                          metrics.join('   -   '),
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1488,3 +1440,4 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
         ),
       );
 }
+

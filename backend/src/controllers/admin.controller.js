@@ -159,6 +159,27 @@ async function createTeacher(req, res) {
 
     const cleanEmpId = employeeId.trim().toUpperCase();
 
+    if (process.env.DATABASE_URL) {
+      const { rows: existingEmp } = await db.query(
+        `SELECT teacher_id FROM teachers WHERE UPPER(teacher_no) = $1`,
+        [cleanEmpId]
+      );
+      if (existingEmp && existingEmp.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `DepEd Employee ID '${cleanEmpId}' is already registered in system records.`,
+        });
+      }
+    } else {
+      const existingTeacher = teachersStore.find((t) => String(t.employeeId || '').toUpperCase() === cleanEmpId);
+      if (existingTeacher) {
+        return res.status(400).json({
+          success: false,
+          error: `DepEd Employee ID '${cleanEmpId}' is already registered in system records.`,
+        });
+      }
+    }
+
     if (!firstName || !lastName) {
       if (name) {
         const parsed = parseNameString(name);

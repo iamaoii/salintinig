@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import bgFlag from '../../assets/backgrounds/bg-flag.webp';
 import bgClassroom from '../../assets/backgrounds/bg-classroom.webp';
 import bgClassroom2 from '../../assets/backgrounds/bg-classroom_2.webp';
@@ -74,8 +75,14 @@ export default function AuthLayout({ showBack = false, backTo = '/login', onBack
         <div className="w-full flex flex-1 flex-col items-center justify-center">{children}</div>
 
         <p className="text-sm sm:text-base text-ink/50 text-center max-w-2xl">
-          By signing in you accept the <span className="font-semibold">Terms of Service</span> and{' '}
-          <span className="font-semibold">Privacy Policy</span>
+          By signing in you accept the{' '}
+          <Link to="/terms" className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy" className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors">
+            Privacy Policy
+          </Link>
         </p>
       </div>
     </div>
