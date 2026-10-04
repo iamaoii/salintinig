@@ -4,6 +4,7 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/auth/registration_loading_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/common/policy_footer.dart';
 
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
@@ -273,34 +274,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                         isTablet ? 0 : 24,
                         24,
                       ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: const PolicyFooter(),
                     ),
                   ],
                 ),

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:salintinig/pages/auth/student_login_page.dart';
 import 'package:salintinig/pages/auth/teacher_login_page.dart';
 import 'package:salintinig/pages/auth/parent_login_page.dart';
+import 'package:salintinig/widgets/common/policy_footer.dart';
 import 'dart:ui' as ui;
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
@@ -188,32 +189,18 @@ class _HomePageState extends State<HomePage> {
                         isTablet ? 0 : 24,
                         isCompactHeight ? 8 : 16,
                       ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: isCompactHeight ? 11 : 12,
-                          ),
-                          children: [
-                            const TextSpan(
-                                text: 'By using this application you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const TextSpan(text: ' and '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      child: PolicyFooter(
+                        prefixText: 'By using this application you accept the ',
+                        baseStyle: GoogleFonts.inter(
+                          color: const Color(0xFF71717A),
+                          fontSize: isCompactHeight ? 12 : 13,
+                          height: 1.4,
+                        ),
+                        linkStyle: GoogleFonts.inter(
+                          color: const Color(0xFF27272A),
+                          fontSize: isCompactHeight ? 12 : 13,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),

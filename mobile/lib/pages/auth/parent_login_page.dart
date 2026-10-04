@@ -5,6 +5,7 @@ import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/common/policy_footer.dart';
 
 class ParentLoginPage extends StatefulWidget {
   const ParentLoginPage({super.key});
@@ -369,34 +370,7 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                         isTablet ? 0 : 24,
                         24,
                       ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF3F3F46),
-                              ),
-                            ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF3F3F46),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: const PolicyFooter(),
                     ),
                   ],
                 ),

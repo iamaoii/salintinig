@@ -38,6 +38,9 @@ dependencies:
   # Supabase - Database & Auth
   supabase_flutter: ^2.3.0
 
+  # URL Launcher
+  url_launcher: ^6.3.1
+
   # Audio Recording & Playback
   record: ^6.2.0
   audioplayers: ^6.1.0

@@ -416,43 +416,6 @@ class _ForceChangePasswordPageState extends State<ForceChangePasswordPage> {
                       ),
                     ),
 
-                    // ── 3. Bottom Footer (Terms of Service & Privacy Policy) ─
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        isTablet ? 0 : 24,
-                        0,
-                        isTablet ? 0 : 24,
-                        24,
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF3F3F46),
-                              ),
-                            ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF3F3F46),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

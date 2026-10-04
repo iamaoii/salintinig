@@ -8,6 +8,7 @@ import 'package:salintinig/pages/auth/forgot_password_page.dart';
 import 'package:salintinig/pages/auth/force_change_password_page.dart';
 import 'package:salintinig/pages/teacher/teacher_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/common/policy_footer.dart';
 
 class TeacherLoginPage extends StatefulWidget {
   const TeacherLoginPage({super.key});
@@ -449,34 +450,7 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
                         isTablet ? 0 : 24,
                         24,
                       ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: const PolicyFooter(),
                     ),
                   ],
                 ),
