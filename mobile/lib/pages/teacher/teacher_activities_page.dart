@@ -22,15 +22,9 @@ class TeacherActivitiesPage extends StatefulWidget {
 class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Tab State: 'phil-iri' or 'practice'
-  String _activeTab = 'phil-iri';
-
-  // Pagination & Search State
+  // Pagination State
   int _currentPage = 1;
   final int _itemsPerPage = 4;
-
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   String _assessmentFilter = 'all'; // 'all', 'oral', 'listening', 'silent'
 
   static List<Map<String, dynamic>>? _cachedPhilIriActivities;
@@ -42,65 +36,10 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
       _cachedPhilIriActivities ?? [];
   List<Map<String, dynamic>> _pendingReviews = _cachedPendingReviews ?? [];
 
-  // Default Mock Practice Activities
-  final List<Map<String, dynamic>> _practiceActivities = [
-    {
-      'id': 'practice_1',
-      'title': 'Pronunciation Challenge',
-      'subtitle': 'Speech & Phonetics Game',
-      'mode': 'practice',
-      'assessmentType': 'oral',
-      'period': 'practice',
-      'language': 'fil',
-      'badge': 'Practice',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 28,
-      'pendingCount': 7,
-      'totalAssigned': 35,
-    },
-    {
-      'id': 'practice_2',
-      'title': 'Vocabulary Matching Game',
-      'subtitle': 'Word & Meaning Pair Game',
-      'mode': 'practice',
-      'assessmentType': 'silent',
-      'period': 'practice',
-      'language': 'fil',
-      'badge': 'Practice',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 25,
-      'pendingCount': 10,
-      'totalAssigned': 35,
-    },
-    {
-      'id': 'practice_3',
-      'title': 'Sentence Reading & Quiz',
-      'subtitle': 'Fluency & Comprehension Game',
-      'mode': 'practice',
-      'assessmentType': 'listening',
-      'period': 'practice',
-      'language': 'eng',
-      'badge': 'Practice',
-      'status': 'open',
-      'activityStatus': 'open',
-      'doneCount': 30,
-      'pendingCount': 5,
-      'totalAssigned': 35,
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
     _fetchActivitiesData();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   Future<void> _fetchActivitiesData() async {
@@ -142,35 +81,19 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
     }
   }
 
-  List<Map<String, dynamic>> get _currentRawActivities {
-    if (_activeTab == 'practice') {
-      return _practiceActivities;
-    }
-    return _philIriActivities;
-  }
-
   List<Map<String, dynamic>> get _filteredActivities {
-    return _currentRawActivities.where((act) {
-      final title = (act['title'] ?? '').toString().toLowerCase();
-      final subtitle = (act['subtitle'] ?? '').toString().toLowerCase();
-      final matchesSearch =
-          _searchQuery.isEmpty ||
-          title.contains(_searchQuery.toLowerCase()) ||
-          subtitle.contains(_searchQuery.toLowerCase());
-
+    return _philIriActivities.where((act) {
       final typeStr = (act['assessmentType'] ?? act['type'] ?? '')
           .toString()
           .toLowerCase();
-      bool matchesFilter = true;
       if (_assessmentFilter == 'oral') {
-        matchesFilter = typeStr.contains('oral');
+        return typeStr.contains('oral');
       } else if (_assessmentFilter == 'listening') {
-        matchesFilter = typeStr.contains('listening');
+        return typeStr.contains('listening');
       } else if (_assessmentFilter == 'silent') {
-        matchesFilter = typeStr.contains('silent');
+        return typeStr.contains('silent');
       }
-
-      return matchesSearch && matchesFilter;
+      return true;
     }).toList();
   }
 
@@ -271,7 +194,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
       setState(() {
         _philIriActivities.removeWhere((a) => a['id'] == actId);
-        _practiceActivities.removeWhere((a) => a['id'] == actId);
       });
 
       if (mounted) {
@@ -790,24 +712,14 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: softBg,
-      drawer: const TeacherSidebarDrawer(activeRoute: 'Class Activities'),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _activeTab == 'phil-iri'
-            ? _navigateToAssignPage
-            : () {
-                AppToast.warning(
-                  context,
-                  'Practice activity creation opened...',
-                );
-              },
+      drawer: const TeacherSidebarDrawer(activeRoute: 'Phil-IRI Assessments'),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToAssignPage,
         backgroundColor: const Color(0xFFD34426),
         foregroundColor: Colors.white,
         elevation: 4,
-        icon: const Icon(Icons.add_rounded, size: 24),
-        label: Text(
-          _activeTab == 'phil-iri' ? 'Assign Phil-IRI' : 'Add Practice',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-        ),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add_rounded, size: 28),
       ),
       body: SafeArea(
         child: Column(
@@ -828,7 +740,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                     icon: const Iconify(Ph.list, size: 28, color: Colors.black),
                   ),
                   Text(
-                    'Activities',
+                    'Phil-IRI Assessments',
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -855,137 +767,8 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top Mode Tabs (Matching Web Concept)
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  Feedback.forTap(context);
-                                  setState(() {
-                                    _activeTab = 'phil-iri';
-                                    _currentPage = 1;
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _activeTab == 'phil-iri'
-                                        ? Colors.white
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: _activeTab == 'phil-iri'
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.05,
-                                              ),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : [],
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Iconify(
-                                        PhIcons.flagPennantBold,
-                                        color: _activeTab == 'phil-iri'
-                                            ? const Color(0xFFD34426)
-                                            : Colors.grey[600],
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Phil-IRI Assessments',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: _activeTab == 'phil-iri'
-                                              ? const Color(0xFFD34426)
-                                              : Colors.grey[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  Feedback.forTap(context);
-                                  setState(() {
-                                    _activeTab = 'practice';
-                                    _currentPage = 1;
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _activeTab == 'practice'
-                                        ? Colors.white
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: _activeTab == 'practice'
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.05,
-                                              ),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : [],
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Iconify(
-                                        PhIcons.flagPennantBold,
-                                        color: _activeTab == 'practice'
-                                            ? const Color(0xFFD34426)
-                                            : Colors.grey[600],
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Practice Mode',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: _activeTab == 'practice'
-                                              ? const Color(0xFFD34426)
-                                              : Colors.grey[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
                       // Pending Reviews Banner Alert (Matching Web concept)
-                      if (_activeTab == 'phil-iri' &&
-                          _pendingReviews.isNotEmpty) ...[
+                      if (_pendingReviews.isNotEmpty) ...[
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -1081,87 +864,57 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Search & Filter Row
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (val) => setState(() {
-                            _searchQuery = val;
-                            _currentPage = 1;
-                          }),
-                          style: GoogleFonts.inter(fontSize: 13),
-                          decoration: InputDecoration(
-                            icon: const Icon(
-                              Icons.search_rounded,
-                              size: 20,
-                              color: Colors.grey,
-                            ),
-                            hintText: 'Search assessment activity...',
-                            hintStyle: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.grey[400],
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      // Assessment Category Filter Row (Matching student side Phil-IRI page)
+                      Builder(
+                        builder: (context) {
+                          final oralCount = _philIriActivities.where((act) => (act['assessmentType'] ?? act['type'] ?? '').toString().toLowerCase().contains('oral')).length;
+                          final listeningCount = _philIriActivities.where((act) => (act['assessmentType'] ?? act['type'] ?? '').toString().toLowerCase().contains('listening')).length;
+                          final silentCount = _philIriActivities.where((act) => (act['assessmentType'] ?? act['type'] ?? '').toString().toLowerCase().contains('silent')).length;
 
-                      // Assessment Category Filter Chips
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          children:
-                              [
-                                {'id': 'all', 'label': 'All'},
-                                {'id': 'oral', 'label': 'Oral Reading'},
-                                {'id': 'listening', 'label': 'Listening'},
-                                {'id': 'silent', 'label': 'Silent Reading'},
-                              ].map((f) {
-                                final isSelected = _assessmentFilter == f['id'];
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text(
-                                      f['label']!,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[700],
-                                      ),
-                                    ),
-                                    selected: isSelected,
-                                    selectedColor: const Color(0xFFD34426),
-                                    backgroundColor: Colors.white,
-                                    side: BorderSide(
-                                      color: isSelected
-                                          ? const Color(0xFFD34426)
-                                          : const Color(0xFFE2E8F0),
-                                    ),
-                                    onSelected: (_) {
-                                      Feedback.forTap(context);
-                                      setState(() {
-                                        _assessmentFilter = f['id']!;
-                                        _currentPage = 1;
-                                      });
-                                    },
-                                  ),
-                                );
-                              }).toList(),
-                        ),
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: _buildCategoryTabPill(
+                                  keyId: 'all',
+                                  label: 'All',
+                                  iconSvg: Ph.squares_four,
+                                  count: _philIriActivities.length,
+                                  activeColor: const Color(0xFFD34426),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: _buildCategoryTabPill(
+                                  keyId: 'oral',
+                                  label: 'Oral',
+                                  iconSvg: PhIcons.userSoundBold,
+                                  count: oralCount,
+                                  activeColor: const Color(0xFFD34426),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: _buildCategoryTabPill(
+                                  keyId: 'listening',
+                                  label: 'Listening',
+                                  iconSvg: PhIcons.earBold,
+                                  count: listeningCount,
+                                  activeColor: const Color(0xFFD34426),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: _buildCategoryTabPill(
+                                  keyId: 'silent',
+                                  label: 'Silent',
+                                  iconSvg: PhIcons.bookOpenBold,
+                                  count: silentCount,
+                                  activeColor: const Color(0xFFD34426),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 18),
 
@@ -1170,9 +923,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            _activeTab == 'phil-iri'
-                                ? 'Phil-IRI Assessments'
-                                : 'Practice Activities',
+                            'Phil-IRI Assessments',
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -1227,9 +978,7 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _searchQuery.isNotEmpty
-                                    ? 'No activities match "$_searchQuery".'
-                                    : 'Tap the button below to assign a new Phil-IRI assessment to your class.',
+                                'Tap the button below to assign a new Phil-IRI assessment to your class.',
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
@@ -1299,10 +1048,6 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
                               iconSvg = PhIcons.bookOpenBold;
                               iconBg = const Color(0xFFD1FAE5);
                               iconColor = const Color(0xFF047857);
-                            } else if (typeStr.contains('practice')) {
-                              iconSvg = PhIcons.puzzlePieceBold;
-                              iconBg = const Color(0xFFF3E8FF);
-                              iconColor = const Color(0xFF7E22CE);
                             }
 
                             return Container(
@@ -1639,6 +1384,102 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTabPill({
+    required String keyId,
+    required String label,
+    required String iconSvg,
+    required int count,
+    required Color activeColor,
+  }) {
+    final isSelected = _assessmentFilter == keyId;
+
+    return InkWell(
+      onTap: () {
+        Feedback.forTap(context);
+        setState(() {
+          _assessmentFilter = keyId;
+          _currentPage = 1;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? activeColor : const Color(0xFFE5E7EB),
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Iconify(
+                  iconSvg,
+                  color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF374151),
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? Colors.white : const Color(0xFF4B5563),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

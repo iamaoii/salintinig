@@ -503,7 +503,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildQuickAccessCard(
-            label: 'Activities',
+            label: 'Phil-IRI Assessments',
             icon: PhIcons.flagPennantBold,
             onTap: () {
               Feedback.forTap(context);
@@ -976,7 +976,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
                 ),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 18),
                 label: Text(
-                  'Open Full Class Activities Page',
+                  'Open Full Phil-IRI Assessments Page',
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,

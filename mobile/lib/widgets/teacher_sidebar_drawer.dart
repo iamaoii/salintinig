@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/teacher/teacher_activities_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
@@ -124,15 +125,15 @@ class TeacherSidebarDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 4),
 
-              // Nav Item 4: Class Activities
+              // Nav Item 4: Phil-IRI Assessments
               _buildNavItem(
                 context,
-                icon: Ph.puzzle_piece,
-                label: 'Class Activities',
-                isSelected: activeRoute == 'Class Activities',
+                icon: PhIcons.flagPennantBold,
+                label: 'Phil-IRI Assessments',
+                isSelected: activeRoute == 'Phil-IRI Assessments' || activeRoute == 'Class Activities',
                 onTap: () {
                   Navigator.pop(context);
-                  if (activeRoute != 'Class Activities') {
+                  if (activeRoute != 'Phil-IRI Assessments' && activeRoute != 'Class Activities') {
                     final target = const TeacherActivitiesPage();
                     if (activeRoute == 'Overview' || activeRoute == 'Home') {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => target));
