@@ -1911,11 +1911,8 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
           hasGSTCards = true;
           underGSTCount = 20;
           aboveGSTCount = 5;
-        } else {
-          doneCount = 0;
-          notDoneCount = 35;
-          progressColor = title == 'FORM 2' ? const Color(0xFF059669) : const Color(0xFF2563EB);
-          secondaryColor = title == 'FORM 2' ? const Color(0xFFD1FAE5) : const Color(0xFFDBEAFE);
+          progressColor = const Color(0xFF2563EB);
+          secondaryColor = const Color(0xFFDBEAFE);
           hasGSTCards = false;
         }
 

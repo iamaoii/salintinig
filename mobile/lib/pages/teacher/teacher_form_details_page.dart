@@ -629,8 +629,9 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
   }
 
   Widget _buildFormDetailsSkeleton({required bool hasGSTCards}) {
-    final isForm3 = widget.formTitle == 'FORM 3A' || widget.formTitle == 'FORM 3B';
-    final isForm4 = widget.formTitle == 'FORM 4';
+    final isForm3Or4 = widget.formTitle == 'FORM 3A' ||
+        widget.formTitle == 'FORM 3B' ||
+        widget.formTitle == 'FORM 4';
     final isGST = widget.hasGSTCards;
 
     return Column(
@@ -815,129 +816,8 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
           const SizedBox(height: 20),
         ],
 
-        // Overview Section Skeleton (Form 3A, 3B, 4)
-        if (isForm3 || isForm4) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 18,
-                      height: 18,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE2E8F0),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 200,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE2E8F0),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 260,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // 3 KPI metric badges
-                Row(
-                  children: List.generate(
-                    3,
-                    (index) => Expanded(
-                      child: Container(
-                        margin: EdgeInsets.only(right: index == 2 ? 0 : 8),
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Distribution bar items
-                Container(
-                  width: 140,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...List.generate(
-                  3,
-                  (index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE2E8F0),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 80,
-                          height: 11,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE2E8F0),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          width: 36,
-                          height: 11,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE2E8F0),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
+        // Learner Records Section Skeleton for Forms 3A, 3B, 4
+        if (isForm3Or4) ...[
           // Learner Records Header Skeleton
           Row(
             children: [
@@ -951,7 +831,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
               ),
               const SizedBox(width: 8),
               Container(
-                width: 150,
+                width: 160,
                 height: 16,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE2E8F0),
@@ -962,7 +842,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
           ),
           const SizedBox(height: 6),
           Container(
-            width: 240,
+            width: 250,
             height: 12,
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
@@ -971,9 +851,9 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
           ),
           const SizedBox(height: 14),
 
-          // Learner Record Card Skeletons matching exact InitialsAvatar + name + status badge
+          // Learner Record Card Skeletons
           ...List.generate(
-            4,
+            5,
             (index) => Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
@@ -1007,7 +887,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                         ),
                         const SizedBox(height: 6),
                         Container(
-                          width: 100,
+                          width: 110,
                           height: 11,
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
@@ -1413,7 +1293,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
                         )
                       : ListView.separated(
                           itemCount: attempts.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
                           itemBuilder: (context, index) => _buildAttemptResultCard(attempts[index]),
                         ),
                 ),

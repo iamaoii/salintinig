@@ -77,38 +77,13 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
   void _onFormOpen(String formTitle, String subtitle) {
     Feedback.forTap(context);
 
-    int doneCount = 0;
-    int notDoneCount = 35;
-    Color progressColor = const Color(0xFFF87171);
-    Color secondaryColor = const Color(0xFFFEE2E2);
-    bool hasGSTCards = false;
-    int underGSTCount = 0;
-    int aboveGSTCount = 0;
-
-    if (formTitle == 'FORM 1A') {
-      doneCount = 35;
-      notDoneCount = 0;
-      progressColor = const Color(0xFF059669); // Green 100%
-      secondaryColor = const Color(0xFFE2E8F0);
-      hasGSTCards = true;
-      underGSTCount = 30;
-      aboveGSTCount = 5;
-    } else if (formTitle == 'FORM 1B') {
-      doneCount = 25;
-      notDoneCount = 10;
-      progressColor = const Color(0xFFEAB308); // Yellow 75%
-      secondaryColor = const Color(0xFFFEF3C7);
-      hasGSTCards = true;
-      underGSTCount = 20;
-      aboveGSTCount = 5;
-    } else {
-      // FORM 2, FORM 3A, FORM 3B, FORM 4
-      doneCount = 0;
-      notDoneCount = 35;
-      progressColor = formTitle == 'FORM 2' ? const Color(0xFF059669) : const Color(0xFF2563EB);
-      secondaryColor = formTitle == 'FORM 2' ? const Color(0xFFD1FAE5) : const Color(0xFFDBEAFE);
-      hasGSTCards = false;
-    }
+    final bool hasGSTCards = formTitle == 'FORM 1A' || formTitle == 'FORM 1B';
+    final Color progressColor = hasGSTCards
+        ? (formTitle == 'FORM 1A' ? const Color(0xFF059669) : const Color(0xFFEAB308))
+        : const Color(0xFF2563EB);
+    final Color secondaryColor = hasGSTCards
+        ? (formTitle == 'FORM 1A' ? const Color(0xFFE2E8F0) : const Color(0xFFFEF3C7))
+        : const Color(0xFFDBEAFE);
 
     Navigator.push(
       context,
@@ -116,13 +91,9 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
         builder: (context) => TeacherFormDetailsPage(
           formTitle: formTitle,
           formSubtitle: subtitle,
-          doneCount: doneCount,
-          notDoneCount: notDoneCount,
           progressColor: progressColor,
           secondaryColor: secondaryColor,
           hasGSTCards: hasGSTCards,
-          underGSTCount: underGSTCount,
-          aboveGSTCount: aboveGSTCount,
         ),
       ),
     );
