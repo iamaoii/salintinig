@@ -4,11 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/parent/parent_announcements_page.dart';
 import 'package:salintinig/pages/parent/parent_assessment_result_detail_page.dart';
 import 'package:salintinig/pages/parent/parent_phil_iri_assessment_page.dart';
 import 'package:salintinig/pages/parent/parent_progress_reports_page.dart';
 import 'package:salintinig/services/parent_portal_cache_service.dart';
+import 'package:salintinig/widgets/notification_bell_icon_button.dart';
+import 'package:salintinig/widgets/parent_sidebar_drawer.dart';
 import 'package:salintinig/widgets/parent_portal_skeletons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -215,14 +216,6 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
     await _loadChildAssignments();
   }
 
-  void _showAnnouncementsModal() {
-    Feedback.forTap(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ParentAnnouncementsPage()),
-    );
-  }
-
   Widget build(BuildContext context) {
     const softBg = Color(0xFFFCFAF7);
 
@@ -238,6 +231,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        drawerEnableOpenDragGesture: false,
         backgroundColor: softBg,
         drawer: buildParentSidebarDrawer(context, activeIndex: 0),
       appBar: AppBar(
@@ -269,10 +263,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: _showAnnouncementsModal,
-            icon: Iconify(Ph.bell, color: Colors.black, size: 28),
-          ),
+          const NotificationBellIconButton(),
           const SizedBox(width: 4),
         ],
       ),

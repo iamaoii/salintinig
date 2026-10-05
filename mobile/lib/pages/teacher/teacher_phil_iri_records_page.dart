@@ -130,6 +130,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: softBg,
       drawer: const TeacherSidebarDrawer(activeRoute: 'Phil-IRI Records'),
       body: SafeArea(

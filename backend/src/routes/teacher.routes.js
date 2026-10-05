@@ -34,8 +34,9 @@ router.get('/grade-level', async (req, res) => {
       `SELECT t.teacher_id, t.first_name, t.middle_name, t.last_name,
               fic.grade_level AS fic_grade_level
        FROM teachers t
+       JOIN users u ON u.user_id = t.user_id
        JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
-       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
        WHERE t.user_id = $1 AND fic.status = 'active'
        LIMIT 1`,
       [userId]
@@ -178,8 +179,9 @@ router.post('/grade-level/sections', async (req, res) => {
     const tRes = await db.query(
       `SELECT t.teacher_id, fic.grade_level
        FROM teachers t
+       JOIN users u ON u.user_id = t.user_id
        JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
-       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
        WHERE t.user_id = $1 AND fic.status = 'active'
        LIMIT 1`,
       [userId]
@@ -192,15 +194,25 @@ router.post('/grade-level/sections', async (req, res) => {
     const gradeLevel = tRes.rows[0].grade_level;
     const schoolRes = await db.query(`SELECT school_id FROM users WHERE user_id = $1 LIMIT 1`, [userId]);
     const schoolId = schoolRes.rows[0]?.school_id;
-    const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+    const syRes = await db.query(
+      'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+      [schoolId]
+    );
     const syId = syRes.rows[0]?.school_year_id;
+    if (!syId) {
+      return res.status(400).json({ success: false, error: 'No active school year found for this school.' });
+    }
     const cleanAdviserId = adviserId && adviserId !== 'none' ? adviserId : null;
 
     // Strict 1-to-1 constraint: Unassign teacher from any existing class first
     if (cleanAdviserId) {
       await db.query(
-        `UPDATE classes SET advisor_teacher_id = NULL WHERE advisor_teacher_id::text = $1 OR advisor_teacher_id IN (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1)`,
-        [String(cleanAdviserId)]
+        `UPDATE classes
+         SET advisor_teacher_id = NULL
+         WHERE school_id = $2
+           AND school_year_id = $3
+           AND (advisor_teacher_id::text = $1 OR advisor_teacher_id IN (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1))`,
+        [String(cleanAdviserId), schoolId, syId]
       );
     }
 
@@ -229,17 +241,27 @@ router.put('/grade-level/sections/:id', async (req, res) => {
 
     // Verify FIC owns this grade level
     const tRes = await db.query(
-      `SELECT fic.grade_level FROM teachers t
+      `SELECT fic.grade_level, u.school_id
+       FROM teachers t
+       JOIN users u ON u.user_id = t.user_id
        JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
-       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
        WHERE t.user_id = $1 AND fic.status = 'active' LIMIT 1`,
       [userId]
     );
     if (!tRes.rows || tRes.rows.length === 0) return res.status(403).json({ success: false, error: 'Not authorized.' });
     const gradeLevel = tRes.rows[0].grade_level;
+    const schoolId = tRes.rows[0].school_id;
 
     // Verify target section belongs to this grade level
-    const secRes = await db.query(`SELECT class_id, grade_level FROM classes WHERE class_id::text = $1 LIMIT 1`, [id]);
+    const secRes = await db.query(
+      `SELECT c.class_id, c.grade_level
+       FROM classes c
+       JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+       WHERE c.class_id::text = $1 AND c.school_id = $2
+       LIMIT 1`,
+      [id, schoolId]
+    );
     if (!secRes.rows || secRes.rows.length === 0 || secRes.rows[0].grade_level !== gradeLevel) {
       return res.status(403).json({ success: false, error: 'Section does not belong to your grade level.' });
     }
@@ -249,8 +271,12 @@ router.put('/grade-level/sections/:id', async (req, res) => {
     // Strict 1-to-1 constraint: Unassign teacher from any existing class first
     if (cleanAdviserId) {
       await db.query(
-        `UPDATE classes SET advisor_teacher_id = NULL WHERE (advisor_teacher_id::text = $1 OR advisor_teacher_id IN (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1)) AND class_id::text != $2`,
-        [String(cleanAdviserId), String(id)]
+        `UPDATE classes
+         SET advisor_teacher_id = NULL
+         WHERE school_id = $3
+           AND (advisor_teacher_id::text = $1 OR advisor_teacher_id IN (SELECT teacher_id FROM teachers WHERE teacher_id::text = $1 OR teacher_no = $1))
+           AND class_id::text != $2`,
+        [String(cleanAdviserId), String(id), schoolId]
       );
     }
 
@@ -259,8 +285,8 @@ router.put('/grade-level/sections/:id', async (req, res) => {
        SET section_name = COALESCE(NULLIF($1, ''), section_name),
            advisor_teacher_id = $2,
            updated_at = CURRENT_TIMESTAMP
-       WHERE class_id::text = $3`,
-      [sectionName?.trim() || null, cleanAdviserId, id]
+       WHERE class_id::text = $3 AND school_id = $4`,
+      [sectionName?.trim() || null, cleanAdviserId, id, schoolId]
     );
 
     return res.json({ success: true, message: 'Section updated.' });
@@ -280,23 +306,27 @@ router.delete('/grade-level/sections/:id', async (req, res) => {
     const { id } = req.params;
 
     const tRes = await db.query(
-      `SELECT fic.grade_level FROM teachers t
+      `SELECT fic.grade_level, u.school_id
+       FROM teachers t
+       JOIN users u ON u.user_id = t.user_id
        JOIN faculty_in_charge fic ON fic.teacher_id = t.teacher_id
-       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+       JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
        WHERE t.user_id = $1 AND fic.status = 'active' LIMIT 1`,
       [userId]
     );
     if (!tRes.rows || tRes.rows.length === 0) return res.status(403).json({ success: false, error: 'Not authorized.' });
     const gradeLevel = tRes.rows[0].grade_level;
+    const schoolId = tRes.rows[0].school_id;
 
     // Verify section is in this grade level and has 0 students
     const secRes = await db.query(
       `SELECT c.class_id, c.grade_level, COUNT(sgh.student_id)::int AS student_count
        FROM classes c
        LEFT JOIN student_grade_history sgh ON sgh.class_id = c.class_id
-       WHERE c.class_id::text = $1
+       JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+       WHERE c.class_id::text = $1 AND c.school_id = $2
        GROUP BY c.class_id, c.grade_level`,
-      [id]
+      [id, schoolId]
     );
 
     if (!secRes.rows || secRes.rows.length === 0) {
@@ -309,7 +339,7 @@ router.delete('/grade-level/sections/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cannot delete a section with enrolled students. Contact the admin.' });
     }
 
-    await db.query(`DELETE FROM classes WHERE class_id::text = $1`, [id]);
+    await db.query(`DELETE FROM classes WHERE class_id::text = $1 AND school_id = $2`, [id, schoolId]);
     return res.json({ success: true, message: 'Section deleted.' });
   } catch (error) {
     console.error('Error deleting section (FIC):', error);

@@ -225,12 +225,14 @@ async function login(req, res) {
                     sch.school_name,
                     EXISTS(
                       SELECT 1 FROM faculty_in_charge fic
-                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+                      JOIN users fu ON fu.user_id = t.user_id
+                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = fu.school_id
                       WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
                     ) AS is_faculty_in_charge,
                     (
                       SELECT fic2.grade_level FROM faculty_in_charge fic2
-                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
+                      JOIN users fu2 ON fu2.user_id = t.user_id
+                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true AND sy2.school_id = fu2.school_id
                       WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
                       LIMIT 1
                     ) AS fic_grade_level,
@@ -238,8 +240,8 @@ async function login(req, res) {
              FROM teachers t
              LEFT JOIN users u ON t.user_id = u.user_id
              LEFT JOIN schools sch ON u.school_id = sch.school_id
-             LEFT JOIN school_years sy_active ON sy_active.is_active = true
-             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id AND (c.school_year_id = sy_active.school_year_id OR c.school_year_id IS NULL)
+             LEFT JOIN school_years sy_active ON sy_active.is_active = true AND sy_active.school_id = u.school_id
+             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id AND c.school_year_id = sy_active.school_year_id
              WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
              LIMIT 1`,
             [matchedUser.user_id, matchedUser.email || '']
@@ -277,9 +279,15 @@ async function login(req, res) {
           const stRes = await db.query(
             `SELECT st.student_id, st.first_name, st.middle_name, st.last_name, st.lrn, c.grade_level, c.section_name, sch.school_name
              FROM students st
-             LEFT JOIN student_grade_history sgh ON st.student_id = sgh.student_id AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
-             LEFT JOIN classes c ON sgh.class_id = c.class_id
              LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN school_years sy_active ON sy_active.school_id = u.school_id AND sy_active.is_active = true
+             LEFT JOIN student_grade_history sgh
+               ON st.student_id = sgh.student_id
+              AND (sgh.promotion_status = 'active' OR sgh.promotion_status IS NULL)
+              AND (sgh.school_year_id = sy_active.school_year_id OR sgh.class_id IN (
+                SELECT class_id FROM classes WHERE school_year_id = sy_active.school_year_id
+              ))
+             LEFT JOIN classes c ON sgh.class_id = c.class_id
              LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
              ORDER BY sgh.created_at DESC
@@ -378,7 +386,13 @@ async function getMe(req, res) {
         let activeSchoolYear = null;
         try {
           const syRes = await db.query(
-            `SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`
+            `SELECT sy.school_year
+             FROM school_years sy
+             JOIN users u ON u.school_id = sy.school_id
+             WHERE u.user_id = $1 AND sy.is_active = true
+             ORDER BY sy.created_at DESC
+             LIMIT 1`,
+            [userId]
           );
           if (syRes.rows && syRes.rows[0] && syRes.rows[0].school_year) {
             activeSchoolYear = syRes.rows[0].school_year;
@@ -413,13 +427,18 @@ async function getMe(req, res) {
                c.section_name,
                sch.school_name
              FROM students st
-             LEFT JOIN (
-               SELECT DISTINCT ON (student_id) student_id, class_id, grade_level
-               FROM student_grade_history
-               ORDER BY student_id, created_at DESC
-             ) sgh ON st.student_id = sgh.student_id
-             LEFT JOIN classes c ON sgh.class_id = c.class_id
              LEFT JOIN users u ON st.user_id = u.user_id
+             LEFT JOIN school_years sy_active ON sy_active.school_id = u.school_id AND sy_active.is_active = true
+             LEFT JOIN LATERAL (
+               SELECT sgh_inner.student_id, sgh_inner.class_id, sgh_inner.grade_level
+               FROM student_grade_history sgh_inner
+               LEFT JOIN classes c_inner ON c_inner.class_id = sgh_inner.class_id
+               WHERE sgh_inner.student_id = st.student_id
+                 AND (sgh_inner.school_year_id = sy_active.school_year_id OR c_inner.school_year_id = sy_active.school_year_id)
+               ORDER BY sgh_inner.created_at DESC
+               LIMIT 1
+             ) sgh ON true
+             LEFT JOIN classes c ON sgh.class_id = c.class_id
              LEFT JOIN schools sch ON u.school_id = sch.school_id
              WHERE st.user_id = $1 OR LOWER(st.lrn) = LOWER($2)
              LIMIT 1`,
@@ -459,19 +478,22 @@ async function getMe(req, res) {
                     sch.school_name,
                     EXISTS(
                       SELECT 1 FROM faculty_in_charge fic
-                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+                      JOIN users fu ON fu.user_id = t.user_id
+                      JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = fu.school_id
                       WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
                     ) AS is_faculty_in_charge,
                     (
                       SELECT fic2.grade_level FROM faculty_in_charge fic2
-                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
+                      JOIN users fu2 ON fu2.user_id = t.user_id
+                      JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true AND sy2.school_id = fu2.school_id
                       WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
                       LIMIT 1
                     ) AS fic_grade_level
              FROM teachers t
              LEFT JOIN users u ON t.user_id = u.user_id
              LEFT JOIN schools sch ON u.school_id = sch.school_id
-             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id
+             LEFT JOIN school_years sy_active ON sy_active.is_active = true AND sy_active.school_id = u.school_id
+             LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id AND c.school_year_id = sy_active.school_year_id
              WHERE t.user_id = $1 OR LOWER(t.teacher_no) = LOWER($2)
              LIMIT 1`,
             [userId, user.employeeId || '']

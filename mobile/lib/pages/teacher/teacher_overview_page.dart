@@ -158,6 +158,7 @@ class _TeacherOverviewPageState extends State<TeacherOverviewPage> {
       },
       child: Scaffold(
         key: _scaffoldKey,
+        drawerEnableOpenDragGesture: false,
         backgroundColor: softCreamBg,
         drawer: const TeacherSidebarDrawer(activeRoute: 'Overview'),
         body: SafeArea(

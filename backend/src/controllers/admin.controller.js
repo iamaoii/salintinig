@@ -463,15 +463,22 @@ async function createStudent(req, res) {
             // Link to class section
             if (section && section !== 'Unassigned') {
               const { rows: cRows } = await db.query(
-                `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
-                [grade || 'Grade 4', section]
+                `SELECT c.class_id, c.school_year_id
+                 FROM classes c
+                 JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
+                 WHERE c.school_id = $1
+                   AND LOWER(c.grade_level) = LOWER($2)
+                   AND LOWER(c.section_name) = LOWER($3)
+                 LIMIT 1`,
+                [schoolId, grade || 'Grade 4', section]
               );
               if (cRows && cRows[0]) {
                 await db.query(
-                  `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-                   VALUES ($1, $2, 'enrolled')
-                   ON CONFLICT DO NOTHING`,
-                  [studentId, cRows[0].class_id]
+                  `INSERT INTO student_grade_history (student_id, school_year_id, class_id, grade_level, promotion_status)
+                   VALUES ($1, $2, $3, $4, 'enrolled')
+                   ON CONFLICT (student_id, school_year_id)
+                   DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level, promotion_status = EXCLUDED.promotion_status`,
+                  [studentId, cRows[0].school_year_id, cRows[0].class_id, grade || 'Grade 4']
                 );
               }
             }
@@ -741,28 +748,45 @@ async function assignFaculty(req, res) {
         let teacherIdToUse = teacherId;
         let foundTeacherName = teacherName || '';
 
-        // Search for teacher by ID, teacher_no, or full name in database
-        if (teacherIdToUse || teacherName) {
-          const { rows: tRows } = await db.query(
-            `SELECT teacher_id, CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) AS name
-             FROM teachers
-             WHERE teacher_id::text = $1 OR teacher_no = $1 OR CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) = $2 OR CONCAT(first_name, ' ', last_name) = $2
-             LIMIT 1`,
-            [teacherIdToUse || '', teacherName || '']
-          );
-          if (tRows && tRows.length > 0) {
-            teacherIdToUse = tRows[0].teacher_id;
-            foundTeacherName = tRows[0].name;
-          }
-        }
-
         if (targetGrade) {
-          const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+          const syRes = await db.query(
+            'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+            [schoolId]
+          );
           const syId = syRes.rows[0]?.school_year_id || null;
+          if (!syId) {
+            return res.status(400).json({ success: false, error: 'No active school year found for this school.' });
+          }
+
+          // Search for teacher by stable ID/employee number, scoped to this school.
+          if (teacherIdToUse || teacherName) {
+            const { rows: tRows } = await db.query(
+              `SELECT
+                 t.teacher_id,
+                 CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name
+               FROM teachers t
+               JOIN users u ON u.user_id = t.user_id
+               WHERE u.school_id = $3
+                 AND (
+                   t.teacher_id::text = $1
+                   OR t.teacher_no = $1
+                   OR CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) = $2
+                   OR CONCAT(t.first_name, ' ', t.last_name) = $2
+                 )
+               LIMIT 1`,
+              [teacherIdToUse || '', teacherName || '', schoolId]
+            );
+            if (tRows && tRows.length > 0) {
+              teacherIdToUse = tRows[0].teacher_id;
+              foundTeacherName = tRows[0].name;
+            } else if (teacherIdToUse) {
+              return res.status(404).json({ success: false, error: 'Selected teacher was not found in this school.' });
+            }
+          }
 
           // Always delete existing Faculty-in-Charge for this grade level
           await db.query(
-            `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND (school_id = $2 OR school_id IS NULL) AND (school_year_id = $3 OR school_year_id IS NULL)`,
+            `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND school_id = $2 AND school_year_id = $3`,
             [targetGrade, schoolId, syId]
           );
 
@@ -778,8 +802,13 @@ async function assignFaculty(req, res) {
           // Assign class adviser if sectionAssigned is provided
           if (teacherIdToUse && sectionAssigned && sectionAssigned !== 'Unassigned') {
             await db.query(
-              `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-              [teacherIdToUse, targetGrade, sectionAssigned]
+              `UPDATE classes
+               SET advisor_teacher_id = $1
+               WHERE grade_level = $2
+                 AND section_name = $3
+                 AND school_id = $4
+                 AND school_year_id = $5`,
+              [teacherIdToUse, targetGrade, sectionAssigned, schoolId, syId]
             );
           }
 
@@ -1073,7 +1102,10 @@ async function getSystemStats(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true LIMIT 1');
+        const syRes = await db.query(
+          'SELECT school_year_id, school_year FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+          [schoolId]
+        );
         const activeSyId = syRes.rows[0]?.school_year_id || null;
         if (syRes.rows[0]?.school_year) {
           activeSchoolYear = syRes.rows[0].school_year;
@@ -1412,7 +1444,7 @@ async function createSection(req, res) {
       try {
         const schoolId = await getAdminSchoolId(req);
         const syRes = await db.query(
-          'SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1',
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
           [schoolId]
         );
         const syId = syRes.rows[0]?.school_year_id || null;
@@ -1539,10 +1571,12 @@ async function getFacultyAssignments(req, res) {
             t.teacher_id AS "teacherId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS "facultyInCharge"
           FROM faculty_in_charge fic
-          JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+          JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = fic.school_id
           JOIN teachers t ON fic.teacher_id = t.teacher_id
           JOIN users u ON t.user_id = u.user_id
-          WHERE fic.status = 'active' AND u.school_id = $1
+          WHERE fic.status = 'active'
+            AND fic.school_id = $1
+            AND u.school_id = $1
         `, [schoolId]);
 
         return res.json({ success: true, assignments: rows || [] });
@@ -1699,7 +1733,10 @@ async function performStudentRollover(newSchoolYearId, schoolId) {
  */
 async function getPendingEvaluationsCount(schoolId) {
   try {
-    const activeSyRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1', [schoolId]);
+    const activeSyRes = await db.query(
+      'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+      [schoolId]
+    );
     const activeSyId = activeSyRes.rows[0]?.school_year_id;
     if (!activeSyId) return 0;
 
@@ -1837,7 +1874,10 @@ async function getStudentSectioning(req, res) {
     if (process.env.DATABASE_URL) {
       try {
         const schoolId = await getAdminSchoolId(req);
-        const syRes = await db.query('SELECT school_year_id, school_year FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1', [schoolId]);
+        const syRes = await db.query(
+          'SELECT school_year_id, school_year FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+          [schoolId]
+        );
         const activeSy = syRes.rows[0];
         const activeSyId = activeSy?.school_year_id || null;
 
@@ -1895,41 +1935,66 @@ async function assignStudentsToSection(req, res) {
 
     if (process.env.DATABASE_URL) {
       try {
+        const schoolId = await getAdminSchoolId(req);
         const syRes = await db.query(
-          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true LIMIT 1',
+          'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
           [schoolId]
         );
         const activeSyId = syRes.rows[0]?.school_year_id || null;
+        if (!activeSyId) {
+          return res.status(400).json({ success: false, error: 'No active school year found for this school.' });
+        }
 
         let targetClassId = classId;
+        if (targetClassId) {
+          const { rows: classRows } = await db.query(
+            `SELECT class_id FROM classes
+             WHERE class_id::text = $1::text
+               AND school_id = $2
+               AND school_year_id = $3
+             LIMIT 1`,
+            [targetClassId, schoolId, activeSyId]
+          );
+          targetClassId = classRows[0]?.class_id || null;
+        }
         if (!targetClassId && sectionName && gradeLevel) {
           const { rows } = await db.query(
-            `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
-            [gradeLevel, sectionName]
+            `SELECT class_id FROM classes
+             WHERE school_id = $1
+               AND school_year_id = $2
+               AND LOWER(grade_level) = LOWER($3)
+               AND LOWER(section_name) = LOWER($4)
+             LIMIT 1`,
+            [schoolId, activeSyId, gradeLevel, sectionName]
           );
           targetClassId = rows[0]?.class_id || null;
+        }
+        if (!targetClassId) {
+          return res.status(400).json({ success: false, error: 'Target section was not found in the active school year.' });
         }
 
         for (const sid of studentIds) {
           // Find latest student_grade_history row for this student
           const existingHistory = await db.query(
-            `SELECT history_id FROM student_grade_history WHERE student_id = $1 ORDER BY created_at DESC LIMIT 1`,
-            [sid]
+            `SELECT history_id FROM student_grade_history
+             WHERE student_id = $1 AND school_year_id = $2
+             ORDER BY created_at DESC LIMIT 1`,
+            [sid, activeSyId]
           );
 
           if (existingHistory.rows.length > 0) {
             const historyId = existingHistory.rows[0].history_id;
             await db.query(
               `UPDATE student_grade_history 
-               SET class_id = $1, grade_level = COALESCE($2, grade_level) 
-               WHERE history_id = $3`,
-              [targetClassId, gradeLevel, historyId]
+               SET class_id = $1, grade_level = COALESCE($2, grade_level), school_year_id = $3
+               WHERE history_id = $4`,
+              [targetClassId, gradeLevel, activeSyId, historyId]
             );
           } else {
             await db.query(
-              `INSERT INTO student_grade_history (student_id, class_id, grade_level, promotion_status)
-               VALUES ($1, $2, $3, 'pending')`,
-              [sid, targetClassId, gradeLevel]
+              `INSERT INTO student_grade_history (student_id, school_year_id, class_id, grade_level, promotion_status)
+               VALUES ($1, $2, $3, $4, 'pending')`,
+              [sid, activeSyId, targetClassId, gradeLevel]
             );
           }
         }
@@ -2024,7 +2089,12 @@ async function getAdminInfo(req, res) {
 
         // 2. Fetch Active School Year
         const syRes = await db.query(
-          `SELECT school_year AS "schoolYear" FROM school_years WHERE is_active = true LIMIT 1`
+          `SELECT school_year AS "schoolYear"
+           FROM school_years
+           WHERE school_id = $1 AND is_active = true
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [schoolInfo?.schoolId || null]
         );
         if (syRes.rows && syRes.rows[0]) {
           activeSchoolYear = syRes.rows[0].schoolYear;

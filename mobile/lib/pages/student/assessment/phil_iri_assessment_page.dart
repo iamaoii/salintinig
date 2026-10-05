@@ -539,8 +539,7 @@ class _PhilIriAssessmentPageState extends State<PhilIriAssessmentPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      drawerEnableOpenDragGesture: true,
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: softCreamBg,
       drawer: StudentSidebarDrawer(
         currentIndex: 1, // Phil-IRI Assessment page index

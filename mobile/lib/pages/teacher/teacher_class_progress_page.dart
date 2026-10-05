@@ -148,6 +148,7 @@ class _TeacherClassProgressPageState extends State<TeacherClassProgressPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: softBg,
       drawer: const TeacherSidebarDrawer(activeRoute: 'Student Dashboard'),
       body: SafeArea(

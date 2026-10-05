@@ -268,6 +268,7 @@ class _TeacherFormDetailsPageState extends State<TeacherFormDetailsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: softBg,
       drawer: const TeacherSidebarDrawer(activeRoute: 'Phil-IRI Records'),
       body: SafeArea(
