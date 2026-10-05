@@ -79,8 +79,6 @@ export default function AuthLayout({ showBack = false, backTo = '/login', onBack
           By signing in you accept the{' '}
           <a
             href={getPoliciesUrl('/terms')}
-            target="_blank"
-            rel="noopener noreferrer"
             className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors"
           >
             Terms of Service
@@ -88,8 +86,6 @@ export default function AuthLayout({ showBack = false, backTo = '/login', onBack
           and{' '}
           <a
             href={getPoliciesUrl('/privacy')}
-            target="_blank"
-            rel="noopener noreferrer"
             className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors"
           >
             Privacy Policy

@@ -8,6 +8,8 @@ import PasswordChangedSuccess from './pages/auth/PasswordChangedSuccess.jsx';
 import SignupEmail from './pages/auth/SignupEmail.jsx';
 import RequestSent from './pages/auth/RequestSent.jsx';
 import TermsAndPrivacy from './pages/legal/TermsAndPrivacy.jsx';
+import MobileDownloadPage from './pages/download/MobileDownloadPage.jsx';
+import MobileAppPrompt from './components/common/MobileAppPrompt.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx';
 import { isLoggedIn, getUserRole } from './lib/auth.js';
 
@@ -115,8 +117,9 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<HomeRedirect />} />
+    <>
+      <Routes>
+        <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPasswordEmail />} />
       <Route path="/forgot-password/code" element={<EnterCode />} />
@@ -124,6 +127,9 @@ export default function App() {
       <Route path="/forgot-password/success" element={<PasswordChangedSuccess />} />
       <Route path="/signup" element={<SignupEmail />} />
       <Route path="/signup/success" element={<RequestSent />} />
+      <Route path="/download" element={<MobileDownloadPage />} />
+      <Route path="/download-app" element={<MobileDownloadPage />} />
+      <Route path="/mobile" element={<MobileDownloadPage />} />
       <Route path="/overview" element={<PolicyRedirect defaultPath="/overview" />} />
       <Route path="/terms" element={<PolicyRedirect defaultPath="/terms" />} />
       <Route path="/privacy" element={<PolicyRedirect defaultPath="/privacy" />} />
@@ -306,5 +312,7 @@ export default function App() {
         <Route path="grade-level/faculty/:id" element={<FicTeacherProfilePage />} />
       </Route>
     </Routes>
+    <MobileAppPrompt />
+    </>
   );
 }
