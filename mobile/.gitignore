@@ -44,3 +44,10 @@ app.*.map.json
 .env.*
 *.env
 !.env.example
+
+# Android signing credentials
+key.properties
+!key.properties.example
+*.jks
+*.keystore
+
