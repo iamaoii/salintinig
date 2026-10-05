@@ -28,9 +28,10 @@ const getUserNotifications = async (req, res) => {
         const sQuery = await db.query(
           `SELECT c.grade_level, c.section_name 
            FROM students s
+           JOIN users u ON u.user_id = s.user_id
            JOIN student_grade_history sgh ON sgh.student_id = s.student_id
            JOIN classes c ON sgh.class_id = c.class_id
-           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true
+           JOIN school_years sy ON c.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
            WHERE s.user_id = $1 
            ORDER BY sgh.created_at DESC 
            LIMIT 1`,
@@ -77,17 +78,19 @@ const getUserNotifications = async (req, res) => {
           `SELECT c.grade_level, c.section_name,
                   EXISTS(
                     SELECT 1 FROM faculty_in_charge fic
-                    JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+                    JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = u.school_id
                     WHERE fic.teacher_id = t.teacher_id AND fic.status = 'active'
                   ) AS is_faculty_in_charge,
                   (
                     SELECT fic2.grade_level FROM faculty_in_charge fic2
-                    JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true
+                    JOIN school_years sy2 ON fic2.school_year_id = sy2.school_year_id AND sy2.is_active = true AND sy2.school_id = u.school_id
                     WHERE fic2.teacher_id = t.teacher_id AND fic2.status = 'active'
                     LIMIT 1
                   ) AS fic_grade_level
            FROM teachers t
-           LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id
+           JOIN users u ON u.user_id = t.user_id
+           LEFT JOIN school_years sy_active ON sy_active.school_id = u.school_id AND sy_active.is_active = true
+           LEFT JOIN classes c ON t.teacher_id = c.advisor_teacher_id AND c.school_year_id = sy_active.school_year_id
            WHERE t.user_id = $1 LIMIT 1`,
           [userId]
         );

@@ -55,6 +55,7 @@ router.post('/students/transfer-in', studentController.transferInStudent);
 router.post('/students', studentController.createStudent);
 router.put('/students/:lrn', studentController.updateStudent);
 router.patch('/students/:lrn/status', studentController.toggleStudentStatus);
+router.post('/students/:lrn/reset-password', studentController.resetStudentPassword);
 router.delete('/students/:lrn', studentController.deleteStudent);
 router.post('/students/import-csv', studentController.importStudentsCSV);
 

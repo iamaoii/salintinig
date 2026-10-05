@@ -357,9 +357,9 @@ class AuthService {
     String? frame,
   }) async {
     final res = await ApiService.post('/auth/profile', {
-      'nickname': ?nickname,
-      'avatarUrl': ?avatarUrl,
-      'frame': ?frame,
+      'nickname': nickname,
+      'avatarUrl': avatarUrl,
+      'frame': frame,
     });
     if (res.success && res.data != null && res.data['user'] != null) {
       final userMap = res.data['user'] as Map<String, dynamic>;

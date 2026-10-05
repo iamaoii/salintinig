@@ -839,7 +839,9 @@ async function approveAccountRequest(req, res) {
               // 2. Link student to active school year & grade level in student_grade_history
               try {
                 const { rows: syRows } = await db.query(
-                  `SELECT school_year_id FROM school_years WHERE (school_id = $1 OR school_id IS NULL) AND is_active = true ORDER BY created_at DESC LIMIT 1`,
+                  `SELECT school_year_id FROM school_years
+                   WHERE school_id = $1 AND is_active = true
+                   ORDER BY created_at DESC LIMIT 1`,
                   [targetRequest.school_id]
                 );
                 const activeSyId = syRows && syRows[0] ? syRows[0].school_year_id : null;
@@ -1442,9 +1444,9 @@ async function verifyOralReadingResult(req, res) {
             );
             if (sCheck.rows?.[0]?.session_id) {
               targetSessionId = sCheck.rows[0].session_id;
-            } else if (profileLabel === 'Frustration' || profileLabel === 'Independent') {
+            } else if (['Frustration', 'Instructional', 'Independent'].includes(profileLabel)) {
               // Auto-initialize adaptive session from baseline result
-              const { computeInitialStep } = require('../services/adaptiveEngine.js');
+              const { computeInitialStep, evaluateNextStep } = require('../services/adaptiveEngine.js');
               let baselineGradeLevel = 'Grade 3';
               
               // Get passage grade level or student grade history
@@ -1462,7 +1464,21 @@ async function verifyOralReadingResult(req, res) {
 
               const initialStep = computeInitialStep(baselineGradeLevel, profileLabel);
               if (!initialStep.noPhase2Needed) {
-                const syRes = await db.query(`SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1`);
+                const initialProgression = evaluateNextStep(baselineGradeLevel, profileLabel, {
+                  currentState: 'INITIAL_PASSAGE',
+                  language: langCode,
+                  existingAttempts: [],
+                });
+                const syRes = await db.query(
+                  `SELECT sy.school_year_id
+                   FROM school_years sy
+                   JOIN users u ON u.school_id = sy.school_id
+                   JOIN students s ON s.user_id = u.user_id
+                   WHERE s.student_id = $1 AND sy.is_active = true
+                   ORDER BY sy.created_at DESC
+                   LIMIT 1`,
+                  [resolvedStudentId]
+                );
                 const schoolYearId = syRes.rows?.[0]?.school_year_id || null;
 
                 // Find assigned teacher from assessment or current logged-in teacher
@@ -1490,14 +1506,24 @@ async function verifyOralReadingResult(req, res) {
                      student_id, language, assessment_type,
                      baseline_grade_level, baseline_profile_level,
                      current_grade_level, direction, search_state, status,
+                     independent_level, instructional_level, frustration_level, step_count,
                      school_year_id, assigned_by_teacher_id
-                   ) VALUES ($1, $2, 'oral', $3, $4, $5, $6, $7, $8, $9, $10)
+                   ) VALUES ($1, $2, 'oral', $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $13)
                    RETURNING session_id`,
                   [
                     resolvedStudentId, langCode,
                     baselineGradeLevel, profileLabel,
-                    baselineGradeLevel, initialStep.direction, 'INITIAL_PASSAGE',
-                    initialStep.status === 'NEEDS_REVIEW' ? 'needs_review' : 'in_progress',
+                    initialProgression.nextGradeLevel || baselineGradeLevel,
+                    initialProgression.action === 'stepUp' ? 'stepping_up' : initialProgression.action === 'stepDown' ? 'stepping_down' : initialStep.direction,
+                    initialProgression.nextState || 'INITIAL_PASSAGE',
+                    initialProgression.status === 'NEEDS_REVIEW'
+                      ? 'needs_review'
+                      : initialProgression.action === 'complete'
+                        ? (initialProgression.status === 'COMPLETE' ? 'completed' : 'terminated')
+                        : 'in_progress',
+                    initialProgression.profile?.independentLevel || null,
+                    initialProgression.profile?.instructionalLevel || null,
+                    initialProgression.profile?.frustrationLevel || null,
                     schoolYearId,
                     assignedTeacherId,
                   ]
@@ -1511,35 +1537,43 @@ async function verifyOralReadingResult(req, res) {
                   );
                 }
 
-                // If starting target grade level differs from baseline OR if creating next step passage:
-                // Auto-create assessment assignment at initialStep.firstGradeLevel for Phase 2
-                const initPassageRes = await db.query(
-                  `SELECT passage_id, title, grade_level, word_count
-                   FROM phil_iri_passages
-                   WHERE LOWER(grade_level) = LOWER($1)
-                     AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
-                     AND status != 'archived'
-                     AND passage_id != (SELECT COALESCE(passage_id, '00000000-0000-0000-0000-000000000000') FROM assessments WHERE assessment_id = $3)
-                   ORDER BY created_at DESC LIMIT 1`,
-                  [initialStep.firstGradeLevel, langCode, resolvedAssessmentId || '00000000-0000-0000-0000-000000000000']
-                );
-
-                if (initPassageRes.rows?.[0]) {
-                  await db.query(
-                    `INSERT INTO assessments (
-                       student_id, passage_id, assigned_by_teacher_id,
-                       assessment_type, assessment_period, status,
-                       adaptive_session_id, adaptive_step_number
-                     ) VALUES ($1, $2, $3, 'oral', 'pre_test', 'open', $4, 1)`,
-                    [
-                      resolvedStudentId,
-                      initPassageRes.rows[0].passage_id,
-                      assignedTeacherId,
-                      targetSessionId,
-                    ]
+                if (initialProgression.nextGradeLevel && initialProgression.action !== 'complete') {
+                  const initPassageRes = await db.query(
+                    `SELECT passage_id, title, grade_level, word_count
+                     FROM phil_iri_passages
+                     WHERE LOWER(grade_level) = LOWER($1)
+                       AND LOWER(COALESCE(language, 'fil')) = LOWER($2)
+                       AND status != 'archived'
+                       AND passage_id != (SELECT COALESCE(passage_id, '00000000-0000-0000-0000-000000000000') FROM assessments WHERE assessment_id = $3)
+                     ORDER BY created_at DESC LIMIT 1`,
+                    [initialProgression.nextGradeLevel, langCode, resolvedAssessmentId || '00000000-0000-0000-0000-000000000000']
                   );
+
+                  if (initPassageRes.rows?.[0]) {
+                    await db.query(
+                      `INSERT INTO assessments (
+                         student_id, passage_id, assigned_by_teacher_id,
+                         assessment_type, assessment_period, status,
+                         adaptive_session_id, adaptive_step_number
+                       ) VALUES ($1, $2, $3, 'oral', 'pre_test', 'open', $4, 2)`,
+                      [
+                        resolvedStudentId,
+                        initPassageRes.rows[0].passage_id,
+                        assignedTeacherId,
+                        targetSessionId,
+                      ]
+                    );
+                  }
                 }
                 newlyCreatedSession = true;
+                adaptiveProgression = {
+                  nextAction: initialProgression.action,
+                  nextGradeLevel: initialProgression.nextGradeLevel || null,
+                  currentResult: profileLabel,
+                  passageGradeLevel: baselineGradeLevel,
+                  reason: initialProgression.reason,
+                  atBoundary: initialProgression.atBoundary,
+                };
               }
             }
           }
@@ -2215,7 +2249,15 @@ async function getTeacherClassStudents(req, res) {
       // Fallback for active school year if not resolved yet
       if (!schoolYear) {
         try {
-          const syRes = await db.query(`SELECT school_year FROM school_years WHERE is_active = true LIMIT 1`);
+          const syRes = await db.query(
+            `SELECT sy.school_year
+             FROM school_years sy
+             JOIN users u ON u.school_id = sy.school_id
+             WHERE u.user_id = $1 AND sy.is_active = true
+             ORDER BY sy.created_at DESC
+             LIMIT 1`,
+            [userId]
+          );
           if (syRes.rows?.[0]?.school_year) {
             schoolYear = syRes.rows[0].school_year;
           }
@@ -2711,7 +2753,7 @@ async function updateStudentPromotionByTeacher(req, res) {
     if (process.env.DATABASE_URL) {
       const schoolId = await getAdminSchoolId(req);
       const activeSyRes = await db.query(
-        'SELECT school_year_id FROM school_years WHERE is_active = true AND (school_id = $1 OR school_id IS NULL) LIMIT 1',
+        'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
         [schoolId]
       );
       if (!activeSyRes.rows || activeSyRes.rows.length === 0) {

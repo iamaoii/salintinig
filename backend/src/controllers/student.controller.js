@@ -638,23 +638,34 @@ async function createStudent(req, res) {
 
             const { rows: existingClass } = await db.query(
               `SELECT class_id FROM classes 
-               WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
-                 AND LOWER(section_name) = LOWER($3) 
+               WHERE (school_id = $1 OR school_id IS NULL)
+                 AND (LOWER(grade_level) = LOWER($2) OR LOWER(grade_level) = LOWER($3)) 
+                 AND LOWER(section_name) = LOWER($4) 
                LIMIT 1`,
-              [targetGrade, gradeNum, section]
+              [adminSchoolId, targetGrade, gradeNum, section]
             );
 
             if (existingClass && existingClass[0]) {
               classId = existingClass[0].class_id;
             } else {
               const { rows: newClass } = await db.query(
-                `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-                [targetGrade, section]
+                `INSERT INTO classes (school_id, school_year_id, grade_level, section_name)
+                 VALUES ($1, (
+                   SELECT school_year_id FROM school_years
+                   WHERE school_id = $1 AND is_active = true
+                   ORDER BY created_at DESC
+                   LIMIT 1
+                 ), $2, $3)
+                 RETURNING class_id`,
+                [adminSchoolId, targetGrade, section]
               );
               if (newClass && newClass[0]) classId = newClass[0].class_id;
             }
 
-            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const syRes = await db.query(
+              'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+              [adminSchoolId]
+            );
             const activeSyId = syRes.rows[0]?.school_year_id || null;
 
             await db.query(
@@ -738,31 +749,39 @@ async function updateStudent(req, res) {
             const targetGrade = rawGrade.toLowerCase().startsWith('grade') ? rawGrade : `Grade ${gradeNum}`;
             const targetSection = String(section).trim();
 
-            // Find or create target class
+            const syRes = await db.query(
+              'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+              [adminSchoolId]
+            );
+            const activeSyId = syRes.rows[0]?.school_year_id || null;
+
+            if (!activeSyId) {
+              throw new Error('No active school year found for this school.');
+            }
+
+            // Find or create target class within this school year
             let classId = null;
             const { rows: existingClass } = await db.query(
               `SELECT class_id FROM classes 
                WHERE (LOWER(grade_level) = LOWER($1) OR LOWER(grade_level) = LOWER($2)) 
                  AND LOWER(section_name) = LOWER($3) 
+                 AND school_id = $4
+                 AND school_year_id = $5
                LIMIT 1`,
-              [targetGrade, gradeNum, targetSection]
+              [targetGrade, gradeNum, targetSection, adminSchoolId, activeSyId]
             );
 
             if (existingClass && existingClass[0]) {
               classId = existingClass[0].class_id;
             } else {
               const { rows: newClass } = await db.query(
-                `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-                [targetGrade, targetSection]
+                `INSERT INTO classes (school_id, school_year_id, grade_level, section_name) VALUES ($1, $2, $3, $4) RETURNING class_id`,
+                [adminSchoolId, activeSyId, targetGrade, targetSection]
               );
               if (newClass && newClass[0]) classId = newClass[0].class_id;
             }
 
           if (classId) {
-            // Find active school year
-            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
-            const activeSyId = syRes.rows[0]?.school_year_id || null;
-
             // Check if history row exists for the active school year or latest history record
             const { rows: latestHist } = await db.query(
               `SELECT sgh.history_id, sgh.promotion_status 
@@ -891,6 +910,93 @@ async function toggleStudentStatus(req, res) {
   } catch (err) {
     console.error('Error toggling student status:', err);
     return res.status(500).json({ success: false, error: 'Failed to update student status.' });
+  }
+}
+
+/**
+ * POST /api/admin/students/:lrn/reset-password - Reset a student's login password
+ */
+async function resetStudentPassword(req, res) {
+  try {
+    const { lrn } = req.params;
+    const adminSchoolId = await getAdminSchoolId(req);
+
+    if (!lrn) {
+      return res.status(400).json({ success: false, error: 'Student LRN is required.' });
+    }
+
+    if (!isDbConfigured()) {
+      return res.status(503).json({ success: false, error: 'Database is not configured.' });
+    }
+
+    const { rows } = await db.query(
+      `SELECT
+         s.student_id,
+         s.first_name,
+         s.middle_name,
+         s.last_name,
+         s.lrn,
+         u.user_id,
+         u.email,
+         u.school_id,
+         sch.school_name
+       FROM students s
+       JOIN users u ON u.user_id = s.user_id
+       LEFT JOIN schools sch ON sch.school_id = u.school_id
+       WHERE TRIM(s.lrn) = TRIM($1)
+         AND ($2::text IS NULL OR u.school_id = $2)
+       LIMIT 1`,
+      [String(lrn), adminSchoolId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Student not found in your school.' });
+    }
+
+    const student = rows[0];
+    const tempPassword = generateTempPassword();
+    const bcrypt = require('bcryptjs');
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPass = bcrypt.hashSync(tempPassword, salt);
+
+    await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           must_change_password = true,
+           status = 'active',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [hashedPass, student.user_id]
+    );
+
+    let emailSent = false;
+    if (student.email) {
+      try {
+        const fullName = [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(' ');
+        const result = await sendWelcomeEmailWithTempPassword({
+          to: student.email,
+          fullName,
+          role: 'Student',
+          tempPassword,
+          schoolName: student.school_name || 'your school',
+        });
+        emailSent = Boolean(result?.success);
+      } catch (emailErr) {
+        console.warn('Student password reset email notice:', emailErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: emailSent
+        ? `Student password reset. Temporary password sent to ${student.email}.`
+        : 'Student password reset. Email was not sent, so use the returned temporary password.',
+      tempPassword,
+      emailSent,
+    });
+  } catch (err) {
+    console.error('Error resetting student password:', err);
+    return res.status(500).json({ success: false, error: 'Failed to reset student password.' });
   }
 }
 
@@ -1152,7 +1258,10 @@ async function importStudentsCSV(req, res) {
                 console.warn(`âš ï¸ Skipped grade/section binding: Class "${grade} - ${section}" does not exist in database.`);
               }
 
-            const syRes = await db.query('SELECT school_year_id FROM school_years WHERE is_active = true LIMIT 1');
+            const syRes = await db.query(
+              'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+              [adminSchoolId]
+            );
             const activeSyId = syRes.rows[0]?.school_year_id || null;
 
             await db.query(
@@ -1309,28 +1418,45 @@ async function transferInStudent(req, res) {
           }
 
           // 2. Ensure section/class exists and create new active grade history entry
+          const schoolId = await getAdminSchoolId(req);
+          const { rows: syRows } = await db.query(
+            `SELECT school_year_id FROM school_years
+             WHERE school_id = $1 AND is_active = true
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [schoolId]
+          );
+          const activeSyId = syRows[0]?.school_year_id || null;
           let classId = null;
           const { rows: existingClass } = await db.query(
-            `SELECT class_id FROM classes WHERE grade_level = $1 AND section_name = $2 LIMIT 1`,
-            [grade, section]
+            `SELECT class_id FROM classes
+             WHERE school_id = $1
+               AND school_year_id = $2
+               AND LOWER(grade_level) = LOWER($3)
+               AND LOWER(section_name) = LOWER($4)
+             LIMIT 1`,
+            [schoolId, activeSyId, grade, section]
           );
 
           if (existingClass && existingClass[0]) {
             classId = existingClass[0].class_id;
           } else {
             const { rows: newClass } = await db.query(
-              `INSERT INTO classes (grade_level, section_name) VALUES ($1, $2) RETURNING class_id`,
-              [grade, section]
+              `INSERT INTO classes (school_id, school_year_id, grade_level, section_name)
+               VALUES ($1, $2, $3, $4)
+               RETURNING class_id`,
+              [schoolId, activeSyId, grade, section]
             );
             if (newClass && newClass[0]) classId = newClass[0].class_id;
           }
 
-          if (classId) {
+          if (classId && activeSyId) {
             await db.query(
-              `INSERT INTO student_grade_history (student_id, class_id, promotion_status)
-               VALUES ($1, $2, 'active')
-               ON CONFLICT (student_id, class_id) DO UPDATE SET promotion_status = 'active'`,
-              [studentId, classId]
+              `INSERT INTO student_grade_history (student_id, school_year_id, class_id, grade_level, promotion_status)
+               VALUES ($1, $2, $3, $4, 'active')
+               ON CONFLICT (student_id, school_year_id)
+               DO UPDATE SET class_id = EXCLUDED.class_id, grade_level = EXCLUDED.grade_level, promotion_status = 'active'`,
+              [studentId, activeSyId, classId, grade]
             );
           }
 
@@ -1341,7 +1467,6 @@ async function transferInStudent(req, res) {
 
           // Audit Log & Notification for Student Transfer-In
           try {
-            const schoolId = await getAdminSchoolId(req);
             const adminUserId = req.user?.userId || req.user?.user_id || req.user?.id;
             const sName = transferredStudent.name;
 
@@ -2792,8 +2917,8 @@ async function getParentChildAssignments(req, res) {
     const cleanLrn = (queryLrn || '').toString().trim();
     const cleanCode = (queryCode || '').toString().trim().toUpperCase();
 
-    if (!cleanLrn) {
-      return res.status(400).json({ success: false, error: 'Student LRN is required.' });
+    if (!cleanLrn || !cleanCode) {
+      return res.status(400).json({ success: false, error: 'Student LRN and parent access code are required.' });
     }
     if (!process.env.DATABASE_URL) {
       return res.json({ success: true, hasAssignment: false, assignedActivities: [] });
@@ -2805,30 +2930,21 @@ async function getParentChildAssignments(req, res) {
     let resolvedLrn = cleanLrn;
 
     try {
-      if (cleanCode) {
-        const validateRes = await db.query(
-          `SELECT s.student_id, s.lrn
-           FROM students s
-           JOIN student_parents sp ON s.student_id = sp.student_id
-           WHERE TRIM(s.lrn) = $1 AND UPPER(TRIM(sp.access_code)) = $2
-           LIMIT 1`,
-          [cleanLrn, cleanCode]
-        );
-        if (validateRes.rows[0]) {
-          targetStudentId = validateRes.rows[0].student_id;
-          resolvedLrn = validateRes.rows[0].lrn || cleanLrn;
-        } else {
-          return res.status(403).json({ success: false, error: 'Invalid access code for this student.' });
-        }
+      const validateRes = await db.query(
+        `SELECT s.student_id, s.lrn
+         FROM students s
+         JOIN student_parents sp ON s.student_id = sp.student_id
+         WHERE TRIM(s.lrn) = $1
+           AND UPPER(TRIM(sp.access_code)) = $2
+           AND COALESCE(sp.is_active, true) = true
+         LIMIT 1`,
+        [cleanLrn, cleanCode]
+      );
+      if (validateRes.rows[0]) {
+        targetStudentId = validateRes.rows[0].student_id;
+        resolvedLrn = validateRes.rows[0].lrn || cleanLrn;
       } else {
-        const sRes = await db.query(
-          `SELECT student_id, lrn FROM students WHERE TRIM(lrn) = $1 LIMIT 1`,
-          [cleanLrn]
-        );
-        if (sRes.rows[0]) {
-          targetStudentId = sRes.rows[0].student_id;
-          resolvedLrn = sRes.rows[0].lrn || cleanLrn;
-        }
+        return res.status(403).json({ success: false, error: 'Invalid or inactive access code for this student.' });
       }
 
       if (targetStudentId) {
@@ -2836,6 +2952,7 @@ async function getParentChildAssignments(req, res) {
           `SELECT c.grade_level, c.section_name
            FROM student_grade_history sgh
            JOIN classes c ON sgh.class_id = c.class_id
+           JOIN school_years sy ON sy.school_year_id = c.school_year_id AND sy.is_active = true
            WHERE sgh.student_id = $1
            ORDER BY sgh.created_at DESC LIMIT 1`,
           [targetStudentId]
@@ -5320,6 +5437,7 @@ module.exports = {
   createStudent,
   updateStudent,
   toggleStudentStatus,
+  resetStudentPassword,
   deleteStudent,
   importStudentsCSV,
   checkExistingStudent,

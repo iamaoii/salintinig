@@ -209,13 +209,16 @@ export default function AdminStudentProfile() {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (res.ok) {
-        showToast(`Password reset! New credentials emailed to ${std.personalEmail || 'student'}.`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        const tempText = data.tempPassword ? ` Temporary password: ${data.tempPassword}` : '';
+        const emailText = data.emailSent ? ` Emailed to ${std.personalEmail || 'student'}.` : ' Email not sent.';
+        showToast(`Password reset.${emailText}${tempText}`);
       } else {
-        showToast(`Temporary password reset! Emailed to ${std.personalEmail || 'student'}.`);
+        showToast(data?.error || 'Failed to reset password.');
       }
     } catch (e) {
-      showToast(`Temporary password reset! Emailed to ${std.personalEmail || 'student'}.`);
+      showToast('Failed to reset password.');
     }
   };
 
