@@ -68,7 +68,7 @@ export default function MobileAppPrompt() {
               Continue in the app
             </h3>
             <p className="text-xs text-[#5f6368] leading-relaxed mt-1">
-              Enjoy faster assessment recording, offline progress tracking, and a smoother experience on Android.
+              Enjoy faster assessment recording, real-time progress tracking, and a smoother experience on Android.
             </p>
           </div>
         </div>

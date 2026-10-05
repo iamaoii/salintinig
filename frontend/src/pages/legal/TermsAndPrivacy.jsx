@@ -49,6 +49,24 @@ export default function TermsAndPrivacy() {
     else setActiveTab('overview');
   }, [location.pathname]);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -179,10 +197,12 @@ export default function TermsAndPrivacy() {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 -ml-2 rounded-full text-[#5f6368] hover:bg-[#f1f3f4] transition-colors cursor-pointer"
+                className="md:hidden p-2 -ml-2 rounded-full text-[#5f6368] hover:bg-[#f1f3f4] active:bg-[#e8eaed] transition-colors cursor-pointer"
                 aria-label="Toggle navigation menu"
               >
-                {mobileMenuOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
+                <div className={`transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'rotate-90 scale-95' : 'rotate-0 scale-100'}`}>
+                  {mobileMenuOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
+                </div>
               </button>
 
               <button
@@ -238,57 +258,74 @@ export default function TermsAndPrivacy() {
           </nav>
         </div>
 
-        {/* Mobile Slide-Out Drawer Navigation (Matching Google Blue Pill Rounded Right Style) */}
-        {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 z-50 flex print:hidden">
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-              onClick={() => setMobileMenuOpen(false)}
-            />
+        {/* Mobile Slide-Out Drawer Navigation (Google Blue Pill Rounded Right Style with Smooth Animation) */}
+        <div
+          className={`md:hidden fixed inset-0 z-50 flex print:hidden transition-all duration-300 ${
+            mobileMenuOpen ? 'pointer-events-auto opacity-100 visible' : 'pointer-events-none opacity-0 invisible delay-300'
+          }`}
+          aria-hidden={!mobileMenuOpen}
+        >
+          {/* Backdrop with Smooth Fade & Backdrop Blur */}
+          <div
+            className={`fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out touch-none overscroll-contain ${
+              mobileMenuOpen ? 'opacity-100' : 'opacity-0'
+            }`}
+            onClick={() => setMobileMenuOpen(false)}
+            onTouchMove={(e) => e.preventDefault()}
+          />
 
-            {/* Slide Drawer Content */}
-            <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col pt-5 pb-6 overflow-y-auto z-10">
-              
-              {/* Drawer Title Header (Matching Google's Header format) */}
-              <div className="px-6 pb-5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img src={logo} alt="SalinTinig" className="h-6 w-auto" />
-                  <span className="text-base text-[#202124] leading-none">
-                    <span className="font-semibold text-[#202124]">SalinTinig</span>{' '}
-                    <span className="font-normal text-[#5f6368] text-sm">Privacy & Terms</span>
-                  </span>
-                </div>
+          {/* Slide Drawer Content with Smooth Cubic-Bezier Easing */}
+          <div
+            className={`relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col pt-5 pb-6 overflow-y-auto overscroll-contain z-10 transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+          >
+            {/* Drawer Title Header (Matching Google's Header format) */}
+            <div className="px-6 pb-5 flex items-center justify-between border-b border-[#f1f3f4]">
+              <div className="flex items-center gap-2">
+                <img src={logo} alt="SalinTinig" className="h-6 w-auto" />
+                <span className="text-base text-[#202124] leading-none">
+                  <span className="font-semibold text-[#202124]">SalinTinig</span>{' '}
+                  <span className="font-normal text-[#5f6368] text-sm">Privacy & Terms</span>
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1.5 rounded-full text-[#5f6368] hover:bg-[#f1f3f4] transition-colors cursor-pointer"
+                aria-label="Close menu"
+              >
+                <X size={20} weight="bold" />
+              </button>
+            </div>
 
-              {/* Drawer Menu Nav Items (Google Blue Pill Rounded Right Style) */}
-              <div className="pt-2 space-y-1 pr-4">
-                {[
-                  { id: 'overview', label: 'Overview' },
-                  { id: 'privacy', label: 'Privacy Policy' },
-                  { id: 'terms', label: 'Terms of Service' },
-                  { id: 'technologies', label: 'Technologies' },
-                  { id: 'faq', label: 'FAQ' },
-                ].map((tab) => {
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => handleTabChange(tab.id)}
-                      className={`w-full text-left py-3 px-6 text-sm transition-all cursor-pointer rounded-r-full ${
-                        isActive
-                          ? 'bg-[#e8f0fe] text-[#1a73e8] font-bold'
-                          : 'text-[#3c4043] font-normal hover:bg-[#f8f9fa]'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Drawer Menu Nav Items (Google Blue Pill Rounded Right Style) */}
+            <div className="pt-4 space-y-1 pr-4">
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'privacy', label: 'Privacy Policy' },
+                { id: 'terms', label: 'Terms of Service' },
+                { id: 'technologies', label: 'Technologies' },
+                { id: 'faq', label: 'FAQ' },
+              ].map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`w-full text-left py-3 px-6 text-sm transition-all duration-200 cursor-pointer rounded-r-full ${
+                      isActive
+                        ? 'bg-[#e8f0fe] text-[#1a73e8] font-bold'
+                        : 'text-[#3c4043] font-normal hover:bg-[#f8f9fa] hover:text-[#202124]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
+        </div>
       </header>
 
       {/* PAGE BODY ACCORDING TO ACTIVE TAB */}

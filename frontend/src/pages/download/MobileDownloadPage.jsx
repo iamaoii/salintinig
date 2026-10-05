@@ -53,15 +53,6 @@ export default function MobileDownloadPage() {
               </span>
             </Link>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <a 
-              href={getMainAppUrl('/login')}
-              className="text-xs sm:text-sm font-semibold text-[#1a73e8] hover:bg-[#f8f9fa] px-3.5 py-2 rounded-full border border-[#dadce0] transition-colors"
-            >
-              Sign In
-            </a>
-          </div>
         </div>
       </header>
 
@@ -93,7 +84,7 @@ export default function MobileDownloadPage() {
               </div>
 
               <p className="text-sm sm:text-base text-[#3c4043] leading-relaxed mb-6">
-                Bring SalinTinig with you on your Android device. Perform Phil-IRI oral reading assessment tasks, record student speech, track reading levels, and sync offline assessment data directly with your school portal account.
+                Bring SalinTinig with you on your Android device. Perform Phil-IRI oral reading assessment tasks, record student speech, track reading levels, and sync assessment data directly with your school portal account.
               </p>
 
               {/* Primary Download CTA Button */}
@@ -237,7 +228,6 @@ export default function MobileDownloadPage() {
           <div className="flex items-center gap-4">
             <Link to="/terms" className="hover:text-[#202124] transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-[#202124] transition-colors">Privacy</Link>
-            <a href={getMainAppUrl('/login')} className="text-[#1a73e8] font-semibold hover:underline">Sign In</a>
           </div>
         </div>
       </footer>
