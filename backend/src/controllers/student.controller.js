@@ -2925,14 +2925,16 @@ async function getParentChildAssignments(req, res) {
     }
 
     let targetStudentId = null;
-    let targetGrade = 'Grade 4';
-    let targetSection = 'Unassigned';
+    let targetSchoolId = null;
+    let targetGrade = null;
+    let targetSection = null;
     let resolvedLrn = cleanLrn;
 
     try {
       const validateRes = await db.query(
-        `SELECT s.student_id, s.lrn
+        `SELECT s.student_id, s.lrn, u.school_id
          FROM students s
+         JOIN users u ON u.user_id = s.user_id
          JOIN student_parents sp ON s.student_id = sp.student_id
          WHERE TRIM(s.lrn) = $1
            AND UPPER(TRIM(sp.access_code)) = $2
@@ -2942,6 +2944,7 @@ async function getParentChildAssignments(req, res) {
       );
       if (validateRes.rows[0]) {
         targetStudentId = validateRes.rows[0].student_id;
+        targetSchoolId = validateRes.rows[0].school_id || null;
         resolvedLrn = validateRes.rows[0].lrn || cleanLrn;
       } else {
         return res.status(403).json({ success: false, error: 'Invalid or inactive access code for this student.' });
@@ -3186,7 +3189,7 @@ async function getParentChildAssignments(req, res) {
           period:         periodLabel,
           rawPeriod:      row.period,
           language:       langLabel,
-          gradeLevel:     row.gradeLevel || targetGrade,
+          gradeLevel:     row.gradeLevel || targetGrade || null,
           passageSet:     setLabel,
           assignedAt:     row.assignedAt,
           dueDate:        row.dueDate,
@@ -3231,6 +3234,120 @@ async function getParentChildAssignments(req, res) {
     }
 
     const practiceProgress = await buildParentPracticeProgress(targetStudentId);
+    let parentAnnouncements = [];
+
+    try {
+      const teacherNoteRes = await db.query(
+        `SELECT
+           a.assessment_id::text AS id,
+           a.instructions AS message,
+           a.created_at,
+           COALESCE(NULLIF(TRIM(CONCAT(t.first_name, ' ', t.last_name)), ''), 'Section Adviser') AS author,
+           LOWER(COALESCE(a.assessment_type, 'assessment')) AS assessment_type,
+           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS assessment_period
+         FROM assessments a
+         LEFT JOIN teachers t ON t.teacher_id = a.assigned_by_teacher_id
+         WHERE a.student_id = $1
+           AND NULLIF(TRIM(COALESCE(a.instructions, '')), '') IS NOT NULL
+           AND LOWER(COALESCE(a.status, 'open')) != 'cancelled'
+         ORDER BY a.created_at DESC
+         LIMIT 10`,
+        [targetStudentId]
+      );
+
+      const notificationRes = targetSchoolId
+        ? await db.query(
+            `SELECT
+               notification_id::text AS id,
+               title,
+               message,
+               notification_type,
+               created_at
+             FROM notifications
+             WHERE (school_id = $1 OR school_id IS NULL)
+               AND user_id IS NULL
+               AND (
+                 notification_type IS NULL
+                 OR notification_type NOT IN ('account_request', 'account_approval', 'account_rejection', 'admin_audit', 'teacher')
+               )
+             ORDER BY created_at DESC
+             LIMIT 60`,
+            [targetSchoolId]
+          )
+        : { rows: [] };
+
+      const gradeText = String(targetGrade || '').toLowerCase().trim();
+      const sectionText = String(targetSection || '').toLowerCase().trim();
+      const gradeNeedle = gradeText ? `grade ${gradeText.replace(/^grade\s+/i, '')}` : '';
+      const parentVisibleTypes = new Set(['announcement', 'general', 'parent', 'student', 'assessment', 'phil_iri', 'activity']);
+      const broadParentTypes = new Set(['announcement', 'general', 'parent']);
+
+      const notificationItems = (notificationRes.rows || []).filter((row) => {
+        const type = (row.notification_type || 'announcement').toString().toLowerCase();
+        const text = `${row.title || ''} ${row.message || ''}`.toLowerCase();
+        const mentionsSection = sectionText && text.includes(sectionText);
+        const mentionsGrade = gradeNeedle && text.includes(gradeNeedle);
+        const isBroadParentType = parentVisibleTypes.has(type);
+        const isGeneralParentNotice = broadParentTypes.has(type)
+          && !text.includes('grade ')
+          && !text.includes('section ')
+          && !text.includes('csv import')
+          && !text.includes('account request');
+
+        if (mentionsSection || mentionsGrade) return true;
+        if (isBroadParentType && isGeneralParentNotice) return true;
+        return false;
+      }).slice(0, 20).map((row) => {
+        const type = (row.notification_type || 'announcement').toString().toLowerCase();
+        const category =
+          type === 'activity' ? 'Updates' :
+          type === 'assessment' || type === 'phil_iri' ? 'Assessment' :
+          type === 'parent' ? 'Meeting' :
+          'Updates';
+
+        return {
+          id: `notification-${row.id}`,
+          title: row.title || 'School Update',
+          content: row.message || '',
+          teacher: 'SalinTinig',
+          role: type === 'announcement' ? 'School Announcement' : 'System Update',
+          category,
+          createdAt: row.created_at,
+          date: row.created_at,
+          isPinned: false,
+          source: 'notification',
+        };
+      });
+
+      const teacherNoteItems = (teacherNoteRes.rows || []).map((row, index) => {
+        const periodLabel = row.assessment_period === 'post_test' ? 'Post-Test' : 'Pre-Test';
+        const typeLabel =
+          row.assessment_type === 'oral' ? 'Oral Reading' :
+          row.assessment_type === 'listening' ? 'Listening' :
+          row.assessment_type === 'silent' ? 'Silent Reading' :
+          'Phil-IRI';
+
+        return {
+          id: `teacher-note-${row.id}`,
+          title: `${typeLabel} ${periodLabel} Note`,
+          content: row.message,
+          teacher: row.author || 'Section Adviser',
+          role: 'Section Adviser',
+          category: 'Assessment',
+          createdAt: row.created_at,
+          date: row.created_at,
+          isPinned: index === 0,
+          source: 'assessment_instruction',
+        };
+      });
+
+      parentAnnouncements = [...teacherNoteItems, ...notificationItems]
+        .filter((item) => item.content && String(item.content).trim().length > 0)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 30);
+    } catch (announcementErr) {
+      console.warn('[getParentChildAssignments] parent announcements notice:', announcementErr.message);
+    }
 
     return res.json({
       success: true,
@@ -3245,6 +3362,7 @@ async function getParentChildAssignments(req, res) {
       section: targetSection,
       sectionName: targetSection,
       practiceProgress,
+      parentAnnouncements,
     });
   } catch (error) {
     console.error('[getParentChildAssignments] unhandled error:', error);

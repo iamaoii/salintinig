@@ -710,6 +710,8 @@ class _TeacherActivitiesPageState extends State<TeacherActivitiesPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
       backgroundColor: softBg,
       drawer: const TeacherSidebarDrawer(activeRoute: 'Phil-IRI Assessments'),
       floatingActionButton: FloatingActionButton(

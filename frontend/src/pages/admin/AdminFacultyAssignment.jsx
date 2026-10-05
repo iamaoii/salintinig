@@ -176,7 +176,7 @@ export default function AdminFacultyAssignment() {
           { id: '3', gradeLevel: 'Grade 6', facultyInCharge: 'Unassigned', sectionsCount: 0, status: 'Active' },
         ].map((g) => {
           const found = fetchedAssignments.find((a) => a.gradeLevel === g.gradeLevel);
-          return found ? { ...g, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
+          return found ? { ...g, teacherId: found.teacherId, facultyInCharge: found.facultyInCharge, status: 'Assigned' } : g;
         });
         setAssignments(formattedAsg);
         cacheService.set('admin_faculty_assignments', formattedAsg);
@@ -564,7 +564,7 @@ export default function AdminFacultyAssignment() {
     try {
       const token = getToken();
       const teacherObj = selectedTeacherForGrade
-        ? teachers.find((t) => t.name === selectedTeacherForGrade || t.id === selectedTeacherForGrade)
+        ? teachers.find((t) => String(t.id) === String(selectedTeacherForGrade) || String(t.employeeId) === String(selectedTeacherForGrade))
         : null;
 
       const res = await fetch(getApiUrl('/api/admin/faculty-assignments'), {
@@ -575,18 +575,20 @@ export default function AdminFacultyAssignment() {
         },
         body: JSON.stringify({
           gradeLevel: assigningFacultyGrade,
-          teacherId: teacherObj ? teacherObj.id : null,
-          teacherName: selectedTeacherForGrade || '',
+          teacherId: selectedTeacherForGrade || null,
+          teacherName: teacherObj?.name || '',
         }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(
-          selectedTeacherForGrade
-            ? `Faculty-in-Charge for ${assigningFacultyGrade} updated to ${selectedTeacherForGrade}.`
+          teacherObj
+            ? `Faculty-in-Charge for ${assigningFacultyGrade} updated to ${teacherObj.name}.`
             : `Faculty-in-Charge for ${assigningFacultyGrade} set to Unassigned.`
         );
+        cacheService.invalidate('admin_faculty_assignments');
+        cacheService.invalidate('admin_teachers');
         fetchAssignmentData();
         setAssigningFacultyGrade(null);
       } else {
@@ -1159,7 +1161,7 @@ export default function AdminFacultyAssignment() {
                   type="button"
                   onClick={() => {
                     setAssigningFacultyGrade(item.gradeLevel);
-                    setSelectedTeacherForGrade(item.facultyInCharge === 'Unassigned' ? '' : item.facultyInCharge || '');
+                    setSelectedTeacherForGrade(item.teacherId || '');
                   }}
                   className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-ink/15 bg-white py-1.5 text-xs font-semibold text-ink/80 hover:bg-ink/5 transition-colors cursor-pointer"
                 >
@@ -1496,7 +1498,7 @@ export default function AdminFacultyAssignment() {
                 >
                   <option value="">Unassigned (No Faculty-in-Charge)</option>
                   {allTeachers.map((t) => (
-                    <option key={t.id || t.employeeId || t.name} value={t.name}>
+                    <option key={t.id || t.employeeId || t.name} value={t.id || t.employeeId}>
                       {t.name} ({t.employeeId})
                     </option>
                   ))}

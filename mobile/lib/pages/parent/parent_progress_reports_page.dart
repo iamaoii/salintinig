@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/constants/ph_icons.dart';
-import 'package:salintinig/pages/parent/parent_announcements_page.dart';
+import 'package:salintinig/widgets/parent_sidebar_drawer.dart';
 import 'package:salintinig/pages/parent/parent_badges_page.dart';
 import 'package:salintinig/services/parent_portal_cache_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
@@ -111,6 +111,8 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
       backgroundColor: _bgCanvas,
       drawer: buildParentSidebarDrawer(context, activeIndex: 2),
       appBar: AppBar(

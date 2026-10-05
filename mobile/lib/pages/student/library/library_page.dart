@@ -123,7 +123,7 @@ class _LibraryPageState extends State<LibraryPage> {
     return Scaffold(
       key: _scaffoldKey,
       drawerEnableOpenDragGesture: true,
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
       backgroundColor: softCreamBg,
       drawer: StudentSidebarDrawer(
         currentIndex: 2, // Library index

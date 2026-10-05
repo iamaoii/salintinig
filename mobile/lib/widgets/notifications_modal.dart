@@ -49,6 +49,15 @@ class _NotificationsModalState extends State<NotificationsModal> {
 
   Future<void> _deleteNotification(String id) async {
     Feedback.forTap(context);
+    AppNotification? notif;
+    for (final item in _service.notifications) {
+      if (item.id == id) {
+        notif = item;
+        break;
+      }
+    }
+    if (notif?.isLocal == true) return;
+
     try {
       await ApiService.delete('/notifications/$id');
       await _service.fetchNotifications();
@@ -336,7 +345,7 @@ class _NotificationsModalState extends State<NotificationsModal> {
                           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                           itemCount: displayedList.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 10),
+                          separatorBuilder: (context, index) => const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final n = displayedList[index];
 
@@ -346,15 +355,15 @@ class _NotificationsModalState extends State<NotificationsModal> {
                                   _service.markAsRead(n.id);
                                 }
                               },
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                               child: Container(
-                                padding: const EdgeInsets.all(14),
+                                padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
                                 decoration: BoxDecoration(
                                   color: n.isRead ? Colors.white : unreadCardBg,
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: n.isRead ? const Color(0xFFE2E8F0) : unreadCardBorder,
-                                    width: 1.2,
+                                    width: 1,
                                   ),
                                 ),
                                 child: Row(
@@ -367,79 +376,75 @@ class _NotificationsModalState extends State<NotificationsModal> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Expanded(
                                                 child: Text(
                                                   n.title,
                                                   style: GoogleFonts.inter(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 13.5,
+                                                    fontWeight: n.isRead ? FontWeight.w700 : FontWeight.w800,
                                                     color: const Color(0xFF0F172A),
+                                                    height: 1.25,
                                                   ),
                                                 ),
                                               ),
                                               if (!n.isRead) ...[
+                                                const SizedBox(width: 8),
                                                 Container(
                                                   width: 8,
                                                   height: 8,
+                                                  margin: const EdgeInsets.only(top: 5),
                                                   decoration: const BoxDecoration(
-                                                    color: Color(0xFFEF4444),
+                                                    color: Color(0xFF2563EB),
                                                     shape: BoxShape.circle,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 6),
                                               ],
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFF1F5F9),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  n.notificationType.toUpperCase(),
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: const Color(0xFF64748B),
-                                                  ),
-                                                ),
-                                              ),
                                             ],
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             n.message,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
                                             style: GoogleFonts.inter(
-                                              fontSize: 13,
+                                              fontSize: 12.5,
                                               fontWeight: FontWeight.w400,
-                                              color: const Color(0xFF334155),
+                                              color: const Color(0xFF475569),
                                               height: 1.35,
                                             ),
                                           ),
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                n.timeAgo,
-                                                style: GoogleFonts.inter(
-                                                  fontSize: 11,
-                                                  color: const Color(0xFF94A3B8),
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: () => _deleteNotification(n.id),
-                                                child: const Iconify(
-                                                  Ph.trash,
-                                                  size: 16,
-                                                  color: Color(0xFF94A3B8),
-                                                ),
-                                              ),
-                                            ],
+                                          const SizedBox(height: 7),
+                                          Text(
+                                            n.timeAgo,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: const Color(0xFF94A3B8),
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
+                                    if (!n.isLocal) ...[
+                                      const SizedBox(width: 6),
+                                      Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () => _deleteNotification(n.id),
+                                          borderRadius: BorderRadius.circular(999),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(5),
+                                            child: Iconify(
+                                              Ph.trash,
+                                              size: 16,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

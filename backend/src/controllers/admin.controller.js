@@ -748,31 +748,45 @@ async function assignFaculty(req, res) {
         let teacherIdToUse = teacherId;
         let foundTeacherName = teacherName || '';
 
-        // Search for teacher by ID, teacher_no, or full name in database
-        if (teacherIdToUse || teacherName) {
-          const { rows: tRows } = await db.query(
-            `SELECT teacher_id, CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) AS name
-             FROM teachers
-             WHERE teacher_id::text = $1 OR teacher_no = $1 OR CONCAT(first_name, ' ', COALESCE(middle_name || ' ', ''), last_name) = $2 OR CONCAT(first_name, ' ', last_name) = $2
-             LIMIT 1`,
-            [teacherIdToUse || '', teacherName || '']
-          );
-          if (tRows && tRows.length > 0) {
-            teacherIdToUse = tRows[0].teacher_id;
-            foundTeacherName = tRows[0].name;
-          }
-        }
-
         if (targetGrade) {
           const syRes = await db.query(
             'SELECT school_year_id FROM school_years WHERE school_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
             [schoolId]
           );
           const syId = syRes.rows[0]?.school_year_id || null;
+          if (!syId) {
+            return res.status(400).json({ success: false, error: 'No active school year found for this school.' });
+          }
+
+          // Search for teacher by stable ID/employee number, scoped to this school.
+          if (teacherIdToUse || teacherName) {
+            const { rows: tRows } = await db.query(
+              `SELECT
+                 t.teacher_id,
+                 CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS name
+               FROM teachers t
+               JOIN users u ON u.user_id = t.user_id
+               WHERE u.school_id = $3
+                 AND (
+                   t.teacher_id::text = $1
+                   OR t.teacher_no = $1
+                   OR CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) = $2
+                   OR CONCAT(t.first_name, ' ', t.last_name) = $2
+                 )
+               LIMIT 1`,
+              [teacherIdToUse || '', teacherName || '', schoolId]
+            );
+            if (tRows && tRows.length > 0) {
+              teacherIdToUse = tRows[0].teacher_id;
+              foundTeacherName = tRows[0].name;
+            } else if (teacherIdToUse) {
+              return res.status(404).json({ success: false, error: 'Selected teacher was not found in this school.' });
+            }
+          }
 
           // Always delete existing Faculty-in-Charge for this grade level
           await db.query(
-            `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND (school_id = $2 OR school_id IS NULL) AND (school_year_id = $3 OR school_year_id IS NULL)`,
+            `DELETE FROM faculty_in_charge WHERE grade_level = $1 AND school_id = $2 AND school_year_id = $3`,
             [targetGrade, schoolId, syId]
           );
 
@@ -788,8 +802,13 @@ async function assignFaculty(req, res) {
           // Assign class adviser if sectionAssigned is provided
           if (teacherIdToUse && sectionAssigned && sectionAssigned !== 'Unassigned') {
             await db.query(
-              `UPDATE classes SET advisor_teacher_id = $1 WHERE grade_level = $2 AND section_name = $3`,
-              [teacherIdToUse, targetGrade, sectionAssigned]
+              `UPDATE classes
+               SET advisor_teacher_id = $1
+               WHERE grade_level = $2
+                 AND section_name = $3
+                 AND school_id = $4
+                 AND school_year_id = $5`,
+              [teacherIdToUse, targetGrade, sectionAssigned, schoolId, syId]
             );
           }
 
@@ -1552,10 +1571,12 @@ async function getFacultyAssignments(req, res) {
             t.teacher_id AS "teacherId",
             CONCAT(t.first_name, ' ', COALESCE(t.middle_name || ' ', ''), t.last_name) AS "facultyInCharge"
           FROM faculty_in_charge fic
-          JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true
+          JOIN school_years sy ON fic.school_year_id = sy.school_year_id AND sy.is_active = true AND sy.school_id = fic.school_id
           JOIN teachers t ON fic.teacher_id = t.teacher_id
           JOIN users u ON t.user_id = u.user_id
-          WHERE fic.status = 'active' AND u.school_id = $1
+          WHERE fic.status = 'active'
+            AND fic.school_id = $1
+            AND u.school_id = $1
         `, [schoolId]);
 
         return res.json({ success: true, assignments: rows || [] });

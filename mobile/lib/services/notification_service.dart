@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:salintinig/services/api_service.dart';
+import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/services/parent_portal_cache_service.dart';
 
 class AppNotification {
   final String id;
@@ -8,6 +10,7 @@ class AppNotification {
   final String notificationType;
   final bool isRead;
   final DateTime createdAt;
+  final bool isLocal;
 
   AppNotification({
     required this.id,
@@ -16,6 +19,7 @@ class AppNotification {
     required this.notificationType,
     required this.isRead,
     required this.createdAt,
+    this.isLocal = false,
   });
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,23 @@ class AppNotification {
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      isLocal: json['isLocal'] == true,
+    );
+  }
+
+  factory AppNotification.fromParentAnnouncement(Map<String, dynamic> json) {
+    final rawDate = json['createdAt'] ?? json['created_at'] ?? json['date'];
+    final category = (json['category'] ?? json['notification_type'] ?? 'announcement').toString();
+    final id = (json['id'] ?? json['notification_id'] ?? '').toString();
+
+    return AppNotification(
+      id: id.isNotEmpty ? id : 'parent-${json.hashCode}',
+      title: (json['title'] ?? 'Notification').toString(),
+      message: (json['content'] ?? json['message'] ?? '').toString(),
+      notificationType: category.toLowerCase().replaceAll(' ', '_'),
+      isRead: true,
+      createdAt: rawDate != null ? DateTime.tryParse(rawDate.toString()) ?? DateTime.now() : DateTime.now(),
+      isLocal: true,
     );
   }
 
@@ -60,6 +81,22 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (AuthService.currentUser?.role.toLowerCase() == 'parent') {
+        final data = await ParentPortalCacheService.getParentView(forceRefresh: true);
+        final raw = data?['parentAnnouncements'];
+        if (raw is List) {
+          _notifications = raw
+              .whereType<Map>()
+              .map((n) => AppNotification.fromParentAnnouncement(Map<String, dynamic>.from(n)))
+              .where((n) => n.message.trim().isNotEmpty)
+              .toList();
+        } else {
+          _notifications = [];
+        }
+        _unreadCount = 0;
+        return;
+      }
+
       final res = await ApiService.get('/notifications');
       if (res.success && res.data != null) {
         final List raw = res.data['notifications'] ?? [];
@@ -78,6 +115,8 @@ class NotificationService extends ChangeNotifier {
   Future<void> markAsRead(String notificationId) async {
     // Optimistic update
     final index = _notifications.indexWhere((n) => n.id == notificationId);
+    if (index == -1) return;
+
     if (index != -1 && !_notifications[index].isRead) {
       _notifications[index] = AppNotification(
         id: _notifications[index].id,
@@ -86,12 +125,14 @@ class NotificationService extends ChangeNotifier {
         notificationType: _notifications[index].notificationType,
         isRead: true,
         createdAt: _notifications[index].createdAt,
+        isLocal: _notifications[index].isLocal,
       );
       if (_unreadCount > 0) _unreadCount--;
       notifyListeners();
     }
 
     try {
+      if (_notifications[index].isLocal) return;
       await ApiService.patch('/notifications/$notificationId/read', {});
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
@@ -109,12 +150,14 @@ class NotificationService extends ChangeNotifier {
         notificationType: n.notificationType,
         isRead: true,
         createdAt: n.createdAt,
+        isLocal: n.isLocal,
       );
     }).toList();
     _unreadCount = 0;
     notifyListeners();
 
     try {
+      if (AuthService.currentUser?.role.toLowerCase() == 'parent') return;
       await ApiService.patch('/notifications/read-all', {});
     } catch (e) {
       debugPrint('Error marking all notifications as read: $e');

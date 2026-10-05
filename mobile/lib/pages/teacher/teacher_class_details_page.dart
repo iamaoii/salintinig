@@ -96,6 +96,8 @@ class _TeacherClassDetailsPageState extends State<TeacherClassDetailsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
       backgroundColor: softBg,
       drawer: const TeacherSidebarDrawer(activeRoute: 'Class Details'),
       body: SafeArea(

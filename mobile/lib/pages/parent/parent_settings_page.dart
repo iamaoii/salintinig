@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
-import 'package:salintinig/pages/parent/parent_announcements_page.dart';
+import 'package:salintinig/widgets/parent_sidebar_drawer.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/parent_portal_cache_service.dart';
 import 'package:salintinig/widgets/app_toast.dart';
@@ -376,6 +376,8 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
       backgroundColor: softBg,
       drawer: buildParentSidebarDrawer(context, activeIndex: 5),
       appBar: AppBar(
