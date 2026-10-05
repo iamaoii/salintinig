@@ -8,7 +8,7 @@ export const mobileAppConfig = {
   latestApkUrl: "https://github.com/iamaoii/salintinig/releases/latest/download/SalinTinig-latest.apk",
   releasesUrl: "https://github.com/iamaoii/salintinig/releases",
   minimumAndroid: "Android 8.0 (Oreo) or later",
-  fileSize: "26.5 MB",
+  fileSize: "71.9 MB",
   updatedAt: "October 2026",
   developer: "SalinTinig Capstone Team",
 };
