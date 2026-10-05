@@ -109,8 +109,7 @@ class _ParentPhilIriAssessmentPageState extends State<ParentPhilIriAssessmentPag
     return Scaffold(
       backgroundColor: _bgCanvas,
       key: _scaffoldKey,
-      drawerEnableOpenDragGesture: true,
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
+      drawerEnableOpenDragGesture: false,
       drawer: buildParentSidebarDrawer(context, activeIndex: 1),
       appBar: AppBar(
         backgroundColor: _bgCanvas,

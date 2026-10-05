@@ -111,8 +111,7 @@ class _ParentProgressReportsPageState extends State<ParentProgressReportsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      drawerEnableOpenDragGesture: true,
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: _bgCanvas,
       drawer: buildParentSidebarDrawer(context, activeIndex: 2),
       appBar: AppBar(

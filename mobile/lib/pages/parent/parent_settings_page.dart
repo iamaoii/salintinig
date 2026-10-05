@@ -376,8 +376,7 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      drawerEnableOpenDragGesture: true,
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
+      drawerEnableOpenDragGesture: false,
       backgroundColor: softBg,
       drawer: buildParentSidebarDrawer(context, activeIndex: 5),
       appBar: AppBar(

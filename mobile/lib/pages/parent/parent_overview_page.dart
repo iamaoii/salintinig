@@ -231,8 +231,7 @@ class _ParentOverviewPageState extends State<ParentOverviewPage> {
       },
       child: Scaffold(
         key: _scaffoldKey,
-        drawerEnableOpenDragGesture: true,
-        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.05,
+        drawerEnableOpenDragGesture: false,
         backgroundColor: softBg,
         drawer: buildParentSidebarDrawer(context, activeIndex: 0),
       appBar: AppBar(
