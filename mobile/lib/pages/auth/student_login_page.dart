@@ -4,10 +4,11 @@ import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:flutter/gestures.dart';
 import 'package:salintinig/pages/auth/force_change_password_page.dart';
-import 'package:salintinig/pages/auth/registration_page.dart';
+import 'package:salintinig/pages/auth/student_contact_admin_page.dart';
 import 'package:salintinig/pages/auth/forgot_password_page.dart';
 import 'package:salintinig/pages/student/student_overview_page.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:salintinig/widgets/common/policy_footer.dart';
 
 class StudentLoginPage extends StatefulWidget {
   const StudentLoginPage({super.key});
@@ -38,7 +39,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const RegistrationPage(),
+        builder: (context) => const StudentContactAdminPage(),
       ),
     ).then((_) {
       _resetState();
@@ -449,34 +450,7 @@ class _StudentLoginPageState extends State<StudentLoginPage> {
                         isTablet ? 0 : 24,
                         24,
                       ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF71717A),
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
-                          children: [
-                            const TextSpan(text: 'By signing in you accept the '),
-                            TextSpan(
-                              text: 'Terms of Service',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const TextSpan(text: '\nand '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF3F3F46),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: const PolicyFooter(),
                     ),
                   ],
                 ),

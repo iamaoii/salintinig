@@ -330,7 +330,7 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar Selection Section Card
+              // Avatar Selection Card (clean white rounded container matching student edit profile)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -346,57 +346,63 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                         GestureDetector(
                           onTap: _showPhotoPickerOptions,
                           child: Container(
-                            width: 90,
-                            height: 90,
+                            width: 96,
+                            height: 96,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFFD34426), width: 2.5),
-                              color: const Color(0xFFFDF4F2),
+                              border: Border.all(color: Colors.white, width: 3),
+                              color: const Color(0xFFF1F5F9),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: ClipOval(
                               child: _pickedImage != null
                                   ? Image.file(
                                       File(_pickedImage!.path),
                                       fit: BoxFit.cover,
-                                      width: 90,
-                                      height: 90,
+                                      width: 96,
+                                      height: 96,
                                     )
                                   : (_base64Image == ''
                                       ? InitialsAvatar(
                                           name: _firstNameController.text.isNotEmpty ? '${_firstNameController.text} ${_lastNameController.text}' : widget.currentName,
                                           imageUrl: null,
-                                          radius: 42,
-                                          fontSize: 26,
+                                          radius: 46,
+                                          fontSize: 28,
                                         )
                                       : InitialsAvatar(
                                           name: _firstNameController.text.isNotEmpty ? '${_firstNameController.text} ${_lastNameController.text}' : widget.currentName,
                                           imageUrl: (AuthService.currentUser?.rawUser?['profileImage'] ?? AuthService.currentUser?.rawUser?['profile_image'])?.toString(),
-                                          radius: 42,
-                                          fontSize: 26,
+                                          radius: 46,
+                                          fontSize: 28,
                                         )),
                             ),
                           ),
                         ),
                         Positioned(
-                          bottom: 0,
                           right: 0,
-                          child: GestureDetector(
-                            onTap: _showPhotoPickerOptions,
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFD34426),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.15),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                          bottom: 0,
+                          child: Material(
+                            color: const Color(0xFFD34426),
+                            shape: const CircleBorder(),
+                            elevation: 3,
+                            shadowColor: const Color(0xFFD34426).withValues(alpha: 0.4),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: _showPhotoPickerOptions,
+                              child: const Padding(
+                                padding: EdgeInsets.all(9.0),
+                                child: Iconify(
+                                  Ph.camera_bold,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
                               ),
-                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
                             ),
                           ),
                         ),
@@ -405,22 +411,26 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
                     const SizedBox(height: 14),
                     OutlinedButton.icon(
                       onPressed: _showPhotoPickerOptions,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFD34426),
-                        side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
-                        backgroundColor: const Color(0xFFFDF4F2),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(100),
-                        ),
+                      icon: const Iconify(
+                        Ph.upload_simple_bold,
+                        size: 16,
+                        color: Color(0xFFD34426),
                       ),
-                      icon: const Icon(Icons.photo_camera_rounded, size: 16, color: Color(0xFFD34426)),
                       label: Text(
-                        'Change Profile Picture',
+                        'Upload New Photo',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
+                          color: const Color(0xFFD34426),
                         ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
+                        backgroundColor: const Color(0xFFFDF4F2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                       ),
                     ),
                   ],
@@ -428,49 +438,31 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
               ),
               const SizedBox(height: 20),
 
-              // Personal Info Fields Container
-              _buildSectionTitle('Personal Details', Ph.user),
-              const SizedBox(height: 10),
+              // Personal Details Container (Editable Fields Only)
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Column(
-                  children: [
-                    _buildInputField('First Name', _firstNameController, Ph.user),
-                    const SizedBox(height: 14),
-                    _buildInputField('Middle Name (Optional)', _middleNameController, Ph.user),
-                    const SizedBox(height: 14),
-                    _buildInputField('Last Name', _lastNameController, Ph.user),
-                    const SizedBox(height: 14),
-                    _buildInputField('Designation / Position', _titleController, Ph.briefcase, isReadOnly: true),
-                    const SizedBox(height: 14),
-                    _buildInputField('School Name', _schoolController, Ph.buildings, isReadOnly: true),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-
-              // Account & Class Fields Container
-              _buildSectionTitle('Account & Assignment', Ph.identification_card),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildInputField('Employee ID', _empIdController, Ph.identification_badge, isReadOnly: true),
-                    const SizedBox(height: 14),
-                    _buildInputField('Email Address', _emailController, Ph.envelope_simple),
-                    const SizedBox(height: 14),
-                    _buildInputField('Assigned Class', _classController, Ph.users_three, isReadOnly: true),
+                    _buildInputField('First Name', _firstNameController, Ph.user_bold),
+                    const SizedBox(height: 16),
+                    _buildInputField('Middle Name (Optional)', _middleNameController, Ph.user_bold),
+                    const SizedBox(height: 16),
+                    _buildInputField('Last Name', _lastNameController, Ph.user_bold),
+                    const SizedBox(height: 16),
+                    _buildInputField('Email Address', _emailController, Ph.envelope_simple_bold),
                   ],
                 ),
               ),
@@ -513,81 +505,45 @@ class _TeacherEditProfilePageState extends State<TeacherEditProfilePage> {
     );
   }
 
-  Widget _buildSectionTitle(String title, String iconName) {
-    return Row(
-      children: [
-        Iconify(iconName, color: const Color(0xFFD34426), size: 18),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: Colors.black87,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildInputField(
     String label,
     TextEditingController controller,
-    String iconName, {
-    bool isReadOnly = false,
-  }) {
+    String iconName,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Iconify(
+              iconName,
+              color: const Color(0xFFD34426),
+              size: 16,
+            ),
+            const SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey[700],
+                color: const Color(0xFF1E293B),
               ),
             ),
-            if (isReadOnly)
-              Text(
-                'Read Only',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[500],
-                ),
-              ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextField(
           controller: controller,
-          enabled: !isReadOnly,
-          readOnly: isReadOnly,
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: isReadOnly ? Colors.grey[700] : Colors.black,
+            color: const Color(0xFF0F172A),
           ),
           decoration: InputDecoration(
-            prefixIcon: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Iconify(
-                iconName,
-                color: isReadOnly ? Colors.grey[500]! : const Color(0xFFD34426),
-                size: 18,
-              ),
-            ),
             filled: true,
-            fillColor: isReadOnly ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
+            fillColor: const Color(0xFFF8FAFC),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),

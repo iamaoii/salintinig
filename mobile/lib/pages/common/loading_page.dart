@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
@@ -7,6 +8,7 @@ import 'package:salintinig/pages/student/student_overview_page.dart';
 import 'package:salintinig/pages/parent/parent_overview_page.dart';
 import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoadingPage extends StatefulWidget {
   const LoadingPage({super.key});
@@ -82,10 +84,30 @@ class _LoadingPageState extends State<LoadingPage> with SingleTickerProviderStat
   Future<void> _navigateToNextScreen() async {
     if (!mounted) return;
     
-    // Auto-login session restoration (Social Media App style)
+    // 1. Parent session restoration (checked first to prevent stale JWT token conflicts)
+    var user = AuthService.currentUser;
+    if (user != null && user.role.toLowerCase() == 'parent') {
+      final linkedChild = (user.rawUser?['linkedChild'] ?? user.rawUser?['student'] ?? user.rawUser) as Map<String, dynamic>?;
+      _navigateWithTransition(ParentOverviewPage(linkedChild: linkedChild));
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('parent_linked_child');
+      if (raw != null && raw.isNotEmpty) {
+        final linkedChild = jsonDecode(raw) as Map<String, dynamic>;
+        final accessCode = prefs.getString('parent_access_code') ?? '';
+        await AuthService.loginParent(linkedChild, accessCode);
+        if (!mounted) return;
+        _navigateWithTransition(ParentOverviewPage(linkedChild: linkedChild));
+        return;
+      }
+    } catch (_) {}
+
+    // 2. Student & Teacher session restoration via JWT token
     final token = ApiService.authToken;
     if (token != null && token.isNotEmpty) {
-      var user = AuthService.currentUser;
       if (user == null) {
         final res = await AuthService.fetchMe();
         if (res.statusCode == 401 ||
@@ -110,35 +132,28 @@ class _LoadingPageState extends State<LoadingPage> with SingleTickerProviderStat
         if (role == 'student') {
           targetWidget = const StudentOverviewPage();
         } else if (role == 'parent') {
-          targetWidget = const ParentOverviewPage();
+          targetWidget = ParentOverviewPage(
+            linkedChild: user.rawUser?['linkedChild'] ?? user.rawUser?['student'] ?? user.rawUser,
+          );
         } else {
           targetWidget = const TeacherOverviewPage();
         }
 
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => targetWidget,
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
-              );
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: scaleAnimation, child: child),
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 700),
-          ),
-        );
+        _navigateWithTransition(targetWidget);
         return;
       }
     }
 
     if (!mounted) return;
 
+    _navigateWithTransition(const OnboardingPage());
+  }
+
+  void _navigateWithTransition(Widget target) {
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const OnboardingPage(),
+        pageBuilder: (context, animation, secondaryAnimation) => target,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(
             CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),

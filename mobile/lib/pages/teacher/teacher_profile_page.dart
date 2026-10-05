@@ -15,13 +15,6 @@ class TeacherProfilePage extends StatefulWidget {
 }
 
 class _TeacherProfilePageState extends State<TeacherProfilePage> {
-  String? _customTeacherName;
-  String? _customEmailAddress;
-  String? _customEmployeeId;
-  String? _customTitle;
-  String? _customSchool;
-  String? _customAssignedClass;
-
   @override
   void initState() {
     super.initState();
@@ -39,9 +32,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   Map<String, dynamic>? get _raw => _user?.rawUser;
 
   String get _teacherName {
-    if (_customTeacherName != null && _customTeacherName!.isNotEmpty) {
-      return _customTeacherName!;
-    }
     final name = _user?.displayName;
     if (name != null && name.isNotEmpty) {
       return name;
@@ -50,9 +40,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   String get _emailAddress {
-    if (_customEmailAddress != null && _customEmailAddress!.isNotEmpty) {
-      return _customEmailAddress!;
-    }
     final email = _user?.email;
     if (email != null && email.isNotEmpty) {
       return email;
@@ -61,9 +48,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   String get _employeeId {
-    if (_customEmployeeId != null && _customEmployeeId!.isNotEmpty) {
-      return _customEmployeeId!;
-    }
     final empNo = _raw?['teacher_no'] ??
         _raw?['teacherNo'] ??
         _raw?['id_no'] ??
@@ -76,9 +60,6 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   String get _teacherTitle {
-    if (_customTitle != null && _customTitle!.isNotEmpty) {
-      return _customTitle!;
-    }
     final pos = _raw?['title'] ?? _raw?['position'] ?? _raw?['designation'];
     if (pos != null && pos.toString().isNotEmpty) {
       return pos.toString();
@@ -87,13 +68,10 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     if (grade != null && grade.isNotEmpty) {
       return 'Grade $grade Teacher';
     }
-    return 'Grade IV Teacher';
+    return 'Grade Teacher';
   }
 
   String get _schoolName {
-    if (_customSchool != null && _customSchool!.isNotEmpty) {
-      return _customSchool!;
-    }
     final school = _raw?['school_name'] ?? _raw?['schoolName'] ?? _raw?['school'];
     if (school != null && school.toString().isNotEmpty) {
       return school.toString();
@@ -102,16 +80,13 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   }
 
   String get _assignedClass {
-    if (_customAssignedClass != null && _customAssignedClass!.isNotEmpty) {
-      return _customAssignedClass!;
-    }
     final sec = _user?.sectionName ?? '';
     final grade = _user?.gradeLevel ?? '';
     if (sec.toLowerCase().startsWith('grade')) return sec;
     if (sec.isNotEmpty && grade.isNotEmpty) return 'Grade $grade - $sec';
     if (sec.isNotEmpty) return sec;
     if (grade.isNotEmpty) return 'Grade $grade';
-    return 'Grade 4 - FYANG';
+    return 'Assigned Class';
   }
 
   String? get _teacherImageUrl {
@@ -122,7 +97,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   Future<void> _openEditProfilePage() async {
     Feedback.forTap(context);
     final user = AuthService.currentUser;
-    final result = await Navigator.push<Map<String, dynamic>>(
+    await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (context) => TeacherEditProfilePage(
@@ -140,15 +115,8 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
       ),
     );
 
-    if (result != null && mounted) {
-      setState(() {
-        _customTeacherName = result['name'] as String?;
-        _customTitle = result['title'] as String?;
-        _customSchool = result['school'] as String?;
-        _customEmployeeId = result['employeeId'] as String?;
-        _customEmailAddress = result['email'] as String?;
-        _customAssignedClass = result['assignedClass'] as String?;
-      });
+    if (mounted) {
+      await _refreshProfile();
     }
   }
 
@@ -194,94 +162,83 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
             padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 60.0),
             child: Column(
               children: [
-                // Header Profile Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                // Clean Center Avatar & Info (matching Student Profile design)
+                const SizedBox(height: 12),
+                Center(
+                  child: InitialsAvatar(
+                    radius: 54,
+                    imageUrl: _teacherImageUrl,
+                    name: _teacherName,
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // Teacher Name
+                Center(
+                  child: Text(
+                    _teacherName,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Subtitle (Line 1: Orange Section/Class; Line 2: Grey School Name)
+                Center(
                   child: Column(
                     children: [
-                      // Profile Avatar using InitialsAvatar with DB Image support
-                      Container(
-                        width: 86,
-                        height: 86,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFD34426), width: 2.5),
-                          color: const Color(0xFFFDF4F2),
-                        ),
-                        child: InitialsAvatar(
-                          name: _teacherName,
-                          imageUrl: _teacherImageUrl,
-                          radius: 40,
-                          fontSize: 26,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Teacher Name & Credentials
                       Text(
-                        _teacherName,
+                        _assignedClass,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _teacherTitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                           color: const Color(0xFFD34426),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         _schoolName,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _openEditProfilePage,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFD34426),
-                          side: const BorderSide(color: Color(0xFFFBE8E6), width: 1.5),
-                          backgroundColor: const Color(0xFFFDF4F2),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                        icon: Iconify(Ph.pencil_simple, color: const Color(0xFFD34426), size: 16),
-                        label: Text(
-                          'Edit Profile',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          color: const Color(0xFF71717A),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
+
+                // Edit Profile Button (matching Student Profile rounded button style)
+                Center(
+                  child: InkWell(
+                    onTap: _openEditProfilePage,
+                    borderRadius: BorderRadius.circular(100),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAEAEA),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      child: Text(
+                        'Edit Profile',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF555558),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 // Account & Personal Info Section
                 _buildSectionHeader('Account Details', Ph.user),

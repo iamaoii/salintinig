@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
+import 'package:salintinig/constants/ph_icons.dart';
 import 'package:salintinig/pages/teacher/teacher_activities_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_details_page.dart';
 import 'package:salintinig/pages/teacher/teacher_class_progress_page.dart';
@@ -28,7 +29,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
 
     final rawSection = user?.sectionName ?? '';
     final grade = user?.gradeLevel ?? '';
-    String displaySectionTitle = 'Grade 4 - Fyang';
+    String displaySectionTitle = '';
     if (rawSection.toLowerCase().startsWith('grade')) {
       displaySectionTitle = rawSection;
     } else if (rawSection.isNotEmpty && grade.isNotEmpty) {
@@ -107,7 +108,7 @@ class TeacherSidebarDrawer extends StatelessWidget {
               // Nav Item 3: Phil-IRI Records
               _buildNavItem(
                 context,
-                icon: Ph.exam,
+                icon: Ph.article,
                 label: 'Phil-IRI Records',
                 isSelected: activeRoute == 'Phil-IRI Records',
                 onTap: () {
@@ -124,15 +125,15 @@ class TeacherSidebarDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 4),
 
-              // Nav Item 4: Class Activities
+              // Nav Item 4: Phil-IRI Assessments
               _buildNavItem(
                 context,
-                icon: Ph.puzzle_piece,
-                label: 'Class Activities',
-                isSelected: activeRoute == 'Class Activities',
+                icon: PhIcons.flagPennantBold,
+                label: 'Phil-IRI Assessments',
+                isSelected: activeRoute == 'Phil-IRI Assessments' || activeRoute == 'Class Activities',
                 onTap: () {
                   Navigator.pop(context);
-                  if (activeRoute != 'Class Activities') {
+                  if (activeRoute != 'Phil-IRI Assessments' && activeRoute != 'Class Activities') {
                     final target = const TeacherActivitiesPage();
                     if (activeRoute == 'Overview' || activeRoute == 'Home') {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => target));
@@ -178,36 +179,52 @@ class TeacherSidebarDrawer extends StatelessWidget {
               const Divider(color: Colors.white30, height: 24, thickness: 1),
 
               // Footer Action 1: My Profile
-              Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: InitialsAvatar(
-                    name: teacherName,
-                    imageUrl: teacherImageUrl,
-                    radius: 12,
-                    fontSize: 10,
-                  ),
-                  title: Text(
-                    'My Profile',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: activeRoute == 'My Profile' ? FontWeight.w800 : FontWeight.w600,
-                      color: Colors.white,
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Material(
+                  color: activeRoute == 'My Profile' ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (activeRoute != 'My Profile') {
+                        final target = const TeacherProfilePage();
+                        if (activeRoute == 'Overview' || activeRoute == 'Home') {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => target));
+                        } else {
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
+                        }
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: activeRoute == 'My Profile' ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          InitialsAvatar(
+                            name: teacherName,
+                            imageUrl: teacherImageUrl,
+                            radius: 12,
+                            fontSize: 10,
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            'My Profile',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: activeRoute == 'My Profile' ? FontWeight.w700 : FontWeight.w600,
+                              color: activeRoute == 'My Profile' ? primaryColor : Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (activeRoute != 'My Profile') {
-                      final target = const TeacherProfilePage();
-                      if (activeRoute == 'Overview' || activeRoute == 'Home') {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => target));
-                      } else {
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => target));
-                      }
-                    }
-                  },
                 ),
               ),
 

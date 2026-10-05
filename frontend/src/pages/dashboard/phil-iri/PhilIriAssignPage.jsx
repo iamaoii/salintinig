@@ -795,9 +795,6 @@ export default function PhilIriAssignPage() {
                   const stdId = std.student_id || std.id;
                   const isChecked = selectedStudents.has(stdId);
                   const name = std.name || `${std.firstName || ''} ${std.lastName || ''}`.trim() || 'Student';
-                  const level = std.level || 'Pending Evaluation';
-                  const badgeStyle = LEVEL_TAG[level] || LEVEL_TAG['Pending Evaluation'];
-
                   const gstRec = computeGstRecommendation(std, selectedLanguage);
                   const isOralNotRequired = assessmentType === 'oral' && gstRec.isExempt;
 
@@ -843,16 +840,13 @@ export default function PhilIriAssignPage() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeStyle}`}>
-                              {level}
-                            </span>
-                            {assessmentType === 'oral' && selectedLanguage && (
+                          {assessmentType === 'oral' && selectedLanguage && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="inline-block rounded-md bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 text-[9px] font-bold">
                                 {gstRec.label}
                               </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

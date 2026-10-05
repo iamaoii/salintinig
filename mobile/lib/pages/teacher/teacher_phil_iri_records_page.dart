@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ph.dart';
 import 'package:salintinig/pages/teacher/teacher_form_details_page.dart';
+import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/notification_service.dart';
 import 'package:salintinig/widgets/notification_bell_icon_button.dart';
 import 'package:salintinig/widgets/teacher_sidebar_drawer.dart';
@@ -20,11 +21,18 @@ class TeacherPhilIriRecordsPage extends StatefulWidget {
 
 class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isLoadingRecords = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
 
   final List<Map<String, dynamic>> _forms = [
     {
       'title': 'FORM 1A',
-      'subtitle': 'Filipino GST',
+      'subtitle': 'Talaan ng Pangkatang Pagtatasa ng Klase (TPPK)',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFFEF08A),
@@ -34,7 +42,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 1B',
-      'subtitle': 'English GST',
+      'subtitle': 'Screening Test Class Reading Record (STCRR)',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFDBEAFE),
@@ -43,18 +51,8 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
       'buttonColor': const Color(0xFFEAB308),
     },
     {
-      'title': 'FORM 2',
-      'subtitle': 'School Reading Profile',
-      'bgColor': Colors.white,
-      'borderColor': const Color(0xFFE2E8F0),
-      'iconBg': const Color(0xFFD1FAE5),
-      'iconColor': const Color(0xFF059669),
-      'icon': Ph.article,
-      'buttonColor': const Color(0xFF1D4ED8),
-    },
-    {
       'title': 'FORM 3A',
-      'subtitle': 'Filipino ORT Assessment',
+      'subtitle': 'Talaan ng Indibidwal na Pagtatasa sa Pagbabasa',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFFEF08A),
@@ -64,7 +62,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 3B',
-      'subtitle': 'English ORT Assessment',
+      'subtitle': 'Individual Reading Profile',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFDBEAFE),
@@ -74,7 +72,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
     },
     {
       'title': 'FORM 4',
-      'subtitle': 'Individual Summary Record',
+      'subtitle': 'Running Record Form',
       'bgColor': Colors.white,
       'borderColor': const Color(0xFFE2E8F0),
       'iconBg': const Color(0xFFD1FAE5),
@@ -87,38 +85,13 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
   void _onFormOpen(String formTitle, String subtitle) {
     Feedback.forTap(context);
 
-    int doneCount = 0;
-    int notDoneCount = 35;
-    Color progressColor = const Color(0xFFF87171);
-    Color secondaryColor = const Color(0xFFFEE2E2);
-    bool hasGSTCards = false;
-    int underGSTCount = 0;
-    int aboveGSTCount = 0;
-
-    if (formTitle == 'FORM 1A') {
-      doneCount = 35;
-      notDoneCount = 0;
-      progressColor = const Color(0xFF059669); // Green 100%
-      secondaryColor = const Color(0xFFE2E8F0);
-      hasGSTCards = true;
-      underGSTCount = 30;
-      aboveGSTCount = 5;
-    } else if (formTitle == 'FORM 1B') {
-      doneCount = 25;
-      notDoneCount = 10;
-      progressColor = const Color(0xFFEAB308); // Yellow 75%
-      secondaryColor = const Color(0xFFFEF3C7);
-      hasGSTCards = true;
-      underGSTCount = 20;
-      aboveGSTCount = 5;
-    } else {
-      // FORM 2, FORM 3A, FORM 3B, FORM 4
-      doneCount = 0;
-      notDoneCount = 35;
-      progressColor = const Color(0xFFF87171);
-      secondaryColor = const Color(0xFFFEE2E2);
-      hasGSTCards = false;
-    }
+    final bool hasGSTCards = formTitle == 'FORM 1A' || formTitle == 'FORM 1B';
+    final Color progressColor = hasGSTCards
+        ? (formTitle == 'FORM 1A' ? const Color(0xFF059669) : const Color(0xFFEAB308))
+        : const Color(0xFF2563EB);
+    final Color secondaryColor = hasGSTCards
+        ? (formTitle == 'FORM 1A' ? const Color(0xFFE2E8F0) : const Color(0xFFFEF3C7))
+        : const Color(0xFFDBEAFE);
 
     Navigator.push(
       context,
@@ -126,13 +99,9 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
         builder: (context) => TeacherFormDetailsPage(
           formTitle: formTitle,
           formSubtitle: subtitle,
-          doneCount: doneCount,
-          notDoneCount: notDoneCount,
           progressColor: progressColor,
           secondaryColor: secondaryColor,
           hasGSTCards: hasGSTCards,
-          underGSTCount: underGSTCount,
-          aboveGSTCount: aboveGSTCount,
         ),
       ),
     );
@@ -140,8 +109,19 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
 
   Future<void> _refreshRecords() async {
     Feedback.forTap(context);
-    NotificationService().fetchNotifications();
-    await Future.delayed(const Duration(milliseconds: 300));
+    await _loadRecords(forceRefresh: true);
+  }
+
+  Future<void> _loadRecords({bool forceRefresh = false}) async {
+    if (mounted) setState(() => _isLoadingRecords = true);
+    try {
+      await Future.wait([
+        AuthService.fetchClassStudents(forceRefresh: forceRefresh),
+        NotificationService().fetchNotifications(),
+      ]);
+    } finally {
+      if (mounted) setState(() => _isLoadingRecords = false);
+    }
   }
 
   @override
@@ -194,7 +174,7 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                     Row(
                       children: [
                         const Iconify(
-                          Ph.files_bold,
+                          Ph.article_bold,
                           color: Color(0xFFD34426),
                           size: 24,
                         ),
@@ -211,7 +191,10 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // List of Forms
+                    // Form cards are shown only after the class context has loaded.
+                    if (_isLoadingRecords)
+                      _buildRecordsSkeleton()
+                    else
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -230,87 +213,86 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
 
                         return InkWell(
                           onTap: () => _onFormOpen(title, subtitle),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           child: Container(
-                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: bgColor,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: borderColor),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              // Icon container
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: iconBg,
-                                  borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                                child: Center(
-                                  child: Iconify(icon, color: iconColor, size: 22),
+                              ],
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 14.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Left Icon Container
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: iconBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Center(
+                                    child: Iconify(icon, color: iconColor, size: 24),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Title & Subtitle
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black,
+                                const SizedBox(width: 14),
+                                // Middle Title & Subtitle
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        title,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF0F172A),
+                                          letterSpacing: -0.2,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      subtitle,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[600],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        subtitle,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF64748B),
+                                          height: 1.25,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              // Open Button
-                              ElevatedButton(
-                                onPressed: () => _onFormOpen(title, subtitle),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: buttonColor,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
+                                const SizedBox(width: 10),
+                                // Right Open Pill Button
+                                Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(
+                                  decoration: BoxDecoration(
+                                    color: buttonColor,
                                     borderRadius: BorderRadius.circular(100),
                                   ),
-                                ),
-                                child: Text(
-                                  'Open',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                  child: Text(
+                                    'Open',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      );
+                        );
                     },
                     ),
                     const SizedBox(height: 24),
@@ -323,5 +305,55 @@ class _TeacherPhilIriRecordsPageState extends State<TeacherPhilIriRecordsPage> {
       ),
     ),
   );
+  }
+
+  Widget _buildRecordsSkeleton() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 5,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => Container(
+        height: 78,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(width: 76, height: 14, color: const Color(0xFFE2E8F0)),
+                  const SizedBox(height: 8),
+                  Container(width: 170, height: 11, color: const Color(0xFFF1F5F9)),
+                ],
+              ),
+            ),
+            Container(
+              width: 56,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

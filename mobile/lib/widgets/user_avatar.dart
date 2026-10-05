@@ -12,17 +12,19 @@ const List<Color> _kAvatarColors = [
   Color(0xFF0891b2), // cyan
 ];
 
-/// Ports JS Avatar.jsx colorFor function (returns Cyan Teal #0891b2 for student accounts).
+/// Ports JS Avatar.jsx colorFor function. Uses a djb2-style hash of the name
+/// to pick a color — identical algorithm to the web, so avatars look the same on both platforms.
+///
+/// Key: JavaScript's `<<` coerces its operand to Int32 before shifting.
+/// Dart uses 64-bit ints, so we must call .toSigned(32) on the shift sub-expression
+/// to get the exact same bit pattern JS produces.
 Color _colorFor(String name) {
-  final user = AuthService.currentUser;
-  if (user?.role.toLowerCase() == 'student' || name.toLowerCase().contains('student')) {
-    return const Color(0xFF0891B2); // Cyan Teal (#0891b2) matching web student avatar
-  }
-
-  if (name.isEmpty) return _kAvatarColors[5];
+  if (name.isEmpty) return _kAvatarColors[0];
   int hash = 0;
   for (int i = 0; i < name.length; i++) {
-    hash = name.codeUnitAt(i) + ((hash << 5) - hash);
+    // Mirror JS: `hash.charCodeAt(i) + ((hash << 5) - hash)`
+    // where (hash << 5) in JS returns an Int32.
+    hash = name.codeUnitAt(i) + ((hash << 5).toSigned(32) - hash);
   }
   return _kAvatarColors[hash.abs() % _kAvatarColors.length];
 }

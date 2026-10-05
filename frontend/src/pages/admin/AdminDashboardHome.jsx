@@ -344,7 +344,7 @@ export default function AdminDashboardHome() {
                   {pendingCount} Pending
                 </span>
               </div>
-              <p className="text-xs text-ink/50">Teachers requesting credentials via Contact Admin form</p>
+              <p className="text-xs text-ink/50">Teachers & Students requesting credentials via Contact Admin form</p>
             </div>
           </div>
 
@@ -385,23 +385,29 @@ export default function AdminDashboardHome() {
             <h4 className="text-sm font-bold text-ink">No Account Activation Requests</h4>
             <p className="text-xs text-ink/60 leading-relaxed">
               {requestFilter === 'all'
-                ? 'There are currently no account activation requests submitted by teachers.'
+                ? 'There are currently no account activation requests submitted.'
                 : `No ${requestFilter} account activation requests found.`}
             </p>
           </div>
         ) : (
           <div className="mt-3 divide-y divide-ink/10 overflow-x-auto">
             {filteredRequests.map((req) => {
-              const tName = req.full_name || [req.first_name, req.middle_name, req.last_name].filter(Boolean).join(' ') || 'Teacher';
+              const userRole = (req.role || 'Teacher').toLowerCase() === 'student' ? 'Student' : 'Teacher';
+              const tName = req.full_name || [req.first_name, req.middle_name, req.last_name].filter(Boolean).join(' ') || userRole;
               return (
                 <div key={req.request_id || req.email} className="flex items-center justify-between py-2.5 px-2 hover:bg-ink/[0.02] rounded-xl transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue font-bold text-sm">
-                      {(tName || 'T')[0]}
+                      {(tName || 'U')[0]}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold text-ink">{tName}</h4>
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                          userRole === 'Student' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {userRole}
+                        </span>
                         <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
                           req.status === 'approved' ? 'bg-green-100 text-green-700' :
                           req.status === 'rejected' ? 'bg-red-100 text-red-700' :
@@ -410,7 +416,9 @@ export default function AdminDashboardHome() {
                           {req.status ? req.status.toUpperCase() : 'PENDING'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-ink/60">{req.email} &bull; ID: {req.teacher_no || 'N/A'} &bull; School ID: {req.school_id}</p>
+                      <p className="text-[11px] text-ink/60">
+                        {req.email} &bull; {userRole === 'Student' ? 'LRN' : 'ID'}: {req.id_number || req.teacher_no || 'N/A'} {req.grade_level ? `• ${req.grade_level}` : ''} &bull; School ID: {req.school_id}
+                      </p>
                     </div>
                   </div>
 

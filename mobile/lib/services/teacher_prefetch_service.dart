@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:salintinig/services/api_service.dart';
 import 'package:salintinig/services/auth_service.dart';
 import 'package:salintinig/services/notification_service.dart';
+import 'package:salintinig/services/teacher_portal_cache_service.dart';
 
 /// Background prefetch service for Teacher Portal to ensure 0-delay page loads.
 class TeacherPrefetchService {
@@ -24,8 +24,8 @@ class TeacherPrefetchService {
 
         await Future.wait([
           AuthService.fetchMe(),
-          AuthService.fetchClassStudents(forceRefresh: true),
-          ApiService.get('/teacher/assessments/phil-iri-activities'),
+          AuthService.fetchClassStudents(),
+          TeacherPortalCacheService.warm(),
           NotificationService().fetchNotifications(),
         ]);
 

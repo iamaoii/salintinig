@@ -101,7 +101,7 @@ export default function StudentProfile() {
         return {
           id: b.id || b.badge_id || b.badgeName,
           name: b.badgeName || b.name,
-          image: b.iconPath ? getApiUrl(b.iconPath) : (found?.image || defaultBadges[0]?.image),
+          image: found?.image || (b.iconPath ? getApiUrl(b.iconPath) : defaultBadges[0]?.image),
           description: b.description || found?.description,
         };
       })
