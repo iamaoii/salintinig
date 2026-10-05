@@ -17,9 +17,40 @@ import logo from '../../assets/logo/logo.webp';
 import { mobileAppConfig } from '../../config/mobileApp';
 import { getMainAppUrl } from '../../utils/urlUtils';
 
+const GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/iamaoii/salintinig/releases/latest';
+
+function formatBytes(bytes) {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return mobileAppConfig.fileSize;
+  const mb = size / (1024 * 1024);
+  return `${mb.toFixed(1)} MB`;
+}
+
+function formatReleaseDate(dateString) {
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return mobileAppConfig.updatedAt;
+  return parsed.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function normalizeVersion(tagName, releaseName) {
+  const raw = (tagName || releaseName || mobileAppConfig.version).toString().trim();
+  return raw.replace(/^v/i, '').replace(/^SalinTinig\s+/i, '').trim() || mobileAppConfig.version;
+}
+
 export default function MobileDownloadPage() {
   const [showHowToInstall, setShowHowToInstall] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(mobileAppConfig.latestApkUrl);
+  const [releaseMeta, setReleaseMeta] = useState({
+    version: mobileAppConfig.version,
+    versionCode: mobileAppConfig.versionCode,
+    apkFilename: mobileAppConfig.apkFilename,
+    fileSize: mobileAppConfig.fileSize,
+    updatedAt: mobileAppConfig.updatedAt,
+    isLive: false,
+  });
   const [pageUrl, setPageUrl] = useState('');
 
   useEffect(() => {
@@ -34,6 +65,48 @@ export default function MobileDownloadPage() {
         setPageUrl(`${window.location.origin}/download`);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLatestRelease() {
+      try {
+        const response = await fetch(GITHUB_LATEST_RELEASE_API, {
+          headers: {
+            Accept: 'application/vnd.github+json',
+          },
+        });
+        if (!response.ok) return;
+
+        const release = await response.json();
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        const latestAsset =
+          assets.find((asset) => asset.name === 'SalinTinig-latest.apk') ||
+          assets.find((asset) => /^SalinTinig-v.*\.apk$/i.test(asset.name || '')) ||
+          assets.find((asset) => /\.apk$/i.test(asset.name || ''));
+
+        if (!latestAsset || !isMounted) return;
+
+        setDownloadUrl(latestAsset.browser_download_url || mobileAppConfig.latestApkUrl);
+        setReleaseMeta({
+          version: normalizeVersion(release.tag_name, release.name),
+          versionCode: null,
+          apkFilename: latestAsset.name || mobileAppConfig.apkFilename,
+          fileSize: formatBytes(latestAsset.size),
+          updatedAt: formatReleaseDate(latestAsset.updated_at || release.published_at || release.created_at),
+          isLive: true,
+        });
+      } catch (error) {
+        console.warn('Unable to fetch latest mobile release metadata:', error);
+      }
+    }
+
+    loadLatestRelease();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
@@ -91,7 +164,7 @@ export default function MobileDownloadPage() {
               <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
                 <a
                   href={downloadUrl}
-                  download={mobileAppConfig.apkFilename}
+                  download={releaseMeta.apkFilename}
                   className="inline-flex items-center justify-center gap-3 px-7 py-3.5 rounded-full bg-[#1a73e8] text-white font-bold text-sm sm:text-base hover:bg-[#1557b0] transition-colors shadow-md hover:shadow-lg active:scale-[0.99] cursor-pointer"
                 >
                   <DownloadSimple size={22} weight="bold" />
@@ -103,11 +176,13 @@ export default function MobileDownloadPage() {
               <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-[#f1f3f4] text-xs text-[#5f6368]">
                 <div>
                   <span className="block text-[#9aa0a6] uppercase text-[10px] font-bold tracking-wider">Version</span>
-                  <span className="font-semibold text-[#202124]">{mobileAppConfig.version} ({mobileAppConfig.versionCode})</span>
+                  <span className="font-semibold text-[#202124]">
+                    {releaseMeta.version}{releaseMeta.versionCode ? ` (${releaseMeta.versionCode})` : ''}
+                  </span>
                 </div>
                 <div>
                   <span className="block text-[#9aa0a6] uppercase text-[10px] font-bold tracking-wider">File Size</span>
-                  <span className="font-semibold text-[#202124]">{mobileAppConfig.fileSize}</span>
+                  <span className="font-semibold text-[#202124]">{releaseMeta.fileSize}</span>
                 </div>
                 <div>
                   <span className="block text-[#9aa0a6] uppercase text-[10px] font-bold tracking-wider">Requirement</span>
@@ -115,7 +190,7 @@ export default function MobileDownloadPage() {
                 </div>
                 <div>
                   <span className="block text-[#9aa0a6] uppercase text-[10px] font-bold tracking-wider">Updated</span>
-                  <span className="font-semibold text-[#202124]">{mobileAppConfig.updatedAt}</span>
+                  <span className="font-semibold text-[#202124]">{releaseMeta.updatedAt}</span>
                 </div>
               </div>
             </div>
@@ -176,7 +251,7 @@ export default function MobileDownloadPage() {
                 <li className="flex items-start gap-3">
                   <span className="flex items-center justify-center shrink-0 h-6 w-6 rounded-full bg-[#1a73e8] text-white font-bold text-xs">1</span>
                   <div>
-                    <span className="font-bold text-[#202124]">Download the APK:</span> Tap the <strong>Download for Android</strong> button above or scan the QR code to save <code className="bg-[#f1f3f4] px-1.5 py-0.5 rounded text-xs font-mono text-[#202124]">SalinTinig-v1.0.0.apk</code> to your device.
+                    <span className="font-bold text-[#202124]">Download the APK:</span> Tap the <strong>Download for Android</strong> button above or scan the QR code to save <code className="bg-[#f1f3f4] px-1.5 py-0.5 rounded text-xs font-mono text-[#202124]">{releaseMeta.apkFilename}</code> to your device.
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
