@@ -5,6 +5,7 @@ import bgClassroom from '../../assets/backgrounds/bg-classroom.webp';
 import bgClassroom2 from '../../assets/backgrounds/bg-classroom_2.webp';
 import logo from '../../assets/logo/logo.webp';
 import BackButton from '../common/BackButton.jsx';
+import { getPoliciesUrl } from '../../utils/urlUtils';
 
 const BACKGROUNDS = [bgFlag, bgClassroom, bgClassroom2];
 let sharedIndex = 0;
@@ -76,13 +77,23 @@ export default function AuthLayout({ showBack = false, backTo = '/login', onBack
 
         <p className="text-sm sm:text-base text-ink/50 text-center max-w-2xl">
           By signing in you accept the{' '}
-          <Link to="/terms" className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors">
+          <a
+            href={getPoliciesUrl('/terms')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors"
+          >
             Terms of Service
-          </Link>{' '}
+          </a>{' '}
           and{' '}
-          <Link to="/privacy" className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors">
+          <a
+            href={getPoliciesUrl('/privacy')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-ink/80 hover:text-brand-blue underline underline-offset-2 transition-colors"
+          >
             Privacy Policy
-          </Link>
+          </a>
         </p>
       </div>
     </div>

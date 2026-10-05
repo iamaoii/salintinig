@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { getMainAppUrl } from '../../utils/urlUtils';
 import {
   ShieldCheck,
   FileText,
@@ -904,10 +905,10 @@ export default function TermsAndPrivacy() {
           
           {/* Left / Top: Logo + System Tagline */}
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1">
-            <Link to="/" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group">
+            <a href={getMainAppUrl('/')} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group">
               <img src={logo} alt="SalinTinig" className="h-5 w-auto grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
               <span className="font-semibold text-[#202124] group-hover:underline">SalinTinig</span>
-            </Link>
+            </a>
             <span className="hidden sm:inline">&bull;</span>
             <span className="text-[#5f6368] block sm:inline">DepEd Phil-IRI Automated Assessment System</span>
           </div>
@@ -926,9 +927,9 @@ export default function TermsAndPrivacy() {
             <button onClick={() => handleTabChange('faq')} className="hover:text-[#202124] transition-colors cursor-pointer">
               FAQ
             </button>
-            <Link to="/login" className="text-[#1a73e8] font-medium hover:underline">
+            <a href={getMainAppUrl('/login')} className="text-[#1a73e8] font-medium hover:underline">
               Sign In
-            </Link>
+            </a>
           </div>
         </div>
       </footer>

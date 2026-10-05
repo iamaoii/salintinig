@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Login from './pages/auth/Login.jsx';
 import ForgotPasswordEmail from './pages/auth/ForgotPasswordEmail.jsx';
 import EnterCode from './pages/auth/EnterCode.jsx';
@@ -62,6 +63,15 @@ import SuperAdminPassages from './pages/super-admin/SuperAdminPassages.jsx';
 import SuperAdminStories from './pages/super-admin/SuperAdminStories.jsx';
 import SuperAdminSettings from './pages/super-admin/SuperAdminSettings.jsx';
 
+import { getPoliciesUrl, getMainAppUrl } from './utils/urlUtils';
+
+function ExternalRedirect({ to }) {
+  useEffect(() => {
+    window.location.href = to;
+  }, [to]);
+  return null;
+}
+
 function isPoliciesSubdomain() {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname.toLowerCase();
@@ -70,11 +80,20 @@ function isPoliciesSubdomain() {
     host.includes('policies.') ||
     host.includes('privacy.') ||
     host.includes('terms.') ||
-    path.startsWith('/policies') ||
-    path.startsWith('/terms') ||
-    path.startsWith('/privacy') ||
-    path.startsWith('/legal')
+    path.startsWith('/policies')
   );
+}
+
+function PolicyRedirect({ defaultPath = '/terms' }) {
+  const location = useLocation();
+  const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+
+  if (host && host !== 'localhost' && host !== '127.0.0.1' && !host.includes('policies.')) {
+    const targetUrl = getPoliciesUrl(location.pathname || defaultPath);
+    return <ExternalRedirect to={targetUrl} />;
+  }
+
+  return <TermsAndPrivacy />;
 }
 
 function HomeRedirect() {
@@ -88,6 +107,8 @@ export default function App() {
   if (isPoliciesSubdomain()) {
     return (
       <Routes>
+        <Route path="/login" element={<ExternalRedirect to={getMainAppUrl('/login')} />} />
+        <Route path="/signup" element={<ExternalRedirect to={getMainAppUrl('/signup')} />} />
         <Route path="*" element={<TermsAndPrivacy />} />
       </Routes>
     );
@@ -103,13 +124,13 @@ export default function App() {
       <Route path="/forgot-password/success" element={<PasswordChangedSuccess />} />
       <Route path="/signup" element={<SignupEmail />} />
       <Route path="/signup/success" element={<RequestSent />} />
-      <Route path="/overview" element={<TermsAndPrivacy />} />
-      <Route path="/terms" element={<TermsAndPrivacy />} />
-      <Route path="/privacy" element={<TermsAndPrivacy />} />
-      <Route path="/technologies" element={<TermsAndPrivacy />} />
-      <Route path="/faq" element={<TermsAndPrivacy />} />
-      <Route path="/legal" element={<TermsAndPrivacy />} />
-      <Route path="/legal/*" element={<TermsAndPrivacy />} />
+      <Route path="/overview" element={<PolicyRedirect defaultPath="/overview" />} />
+      <Route path="/terms" element={<PolicyRedirect defaultPath="/terms" />} />
+      <Route path="/privacy" element={<PolicyRedirect defaultPath="/privacy" />} />
+      <Route path="/technologies" element={<PolicyRedirect defaultPath="/technologies" />} />
+      <Route path="/faq" element={<PolicyRedirect defaultPath="/faq" />} />
+      <Route path="/legal" element={<PolicyRedirect defaultPath="/legal" />} />
+      <Route path="/legal/*" element={<PolicyRedirect defaultPath="/legal" />} />
       <Route path="/dashboard" element={<Navigate to="/teacher" replace />} />
       <Route path="/dashboard/*" element={<Navigate to="/teacher" replace />} />
 
