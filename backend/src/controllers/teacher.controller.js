@@ -1131,8 +1131,7 @@ async function getPendingOralReviews(req, res) {
     if (process.env.DATABASE_URL) {
       const userId = req.user?.userId || req.user?.user_id || req.user?.id;
       // Use DISTINCT ON to deduplicate: for each assessment, only return the
-      // latest attempt that has an audio recording (prevents duplicate review
-      // cards caused by race-condition double-submits).
+      // latest attempt (preferring attempts with audio recordings).
       const query = `
         SELECT DISTINCT ON (a.assessment_id)
           a.assessment_id AS "assessmentId",
@@ -1164,10 +1163,22 @@ async function getPendingOralReviews(req, res) {
         JOIN oral_reading_results orr ON orr.assessment_attempt_id = aa.attempt_id
         WHERE LOWER(COALESCE(orr.verification_status, 'pending')) != 'verified'
           AND LOWER(COALESCE(a.status, 'open')) != 'completed'
-          AND orr.audio_recording_url IS NOT NULL
-          AND orr.audio_recording_url != ''
-          AND su.school_id = (SELECT school_id FROM users WHERE user_id = $1)
-        ORDER BY a.assessment_id, aa.completed_at DESC
+          AND (
+            (su.school_id IS NOT NULL AND su.school_id = (SELECT school_id FROM users WHERE user_id = $1))
+            OR su.school_id IS NULL
+            OR (SELECT school_id FROM users WHERE user_id = $1) IS NULL
+            OR EXISTS (
+              SELECT 1 FROM teachers t
+              JOIN classes c ON c.advisor_teacher_id = t.teacher_id
+              JOIN student_grade_history sgh ON sgh.class_id = c.class_id
+              WHERE t.user_id = $1 AND sgh.student_id = s.student_id
+            )
+            OR EXISTS (
+              SELECT 1 FROM teachers t
+              WHERE t.user_id = $1 AND a.assigned_by_teacher_id = t.teacher_id
+            )
+          )
+        ORDER BY a.assessment_id, (orr.audio_recording_url IS NOT NULL AND orr.audio_recording_url != '') DESC, aa.completed_at DESC NULLS LAST
       `;
       const { rows } = await db.query(query, [userId]);
       return res.json({ success: true, pendingReviews: rows });
@@ -1233,7 +1244,21 @@ async function getOralReviewDetail(req, res) {
           )
         )
         WHERE (aa.attempt_id::text = $1 OR a.assessment_id::text = $1)
-          AND student_user.school_id = (SELECT school_id FROM users WHERE user_id = $2)
+          AND (
+            (student_user.school_id IS NOT NULL AND student_user.school_id = (SELECT school_id FROM users WHERE user_id = $2))
+            OR student_user.school_id IS NULL
+            OR (SELECT school_id FROM users WHERE user_id = $2) IS NULL
+            OR EXISTS (
+              SELECT 1 FROM teachers t
+              JOIN classes c ON c.advisor_teacher_id = t.teacher_id
+              JOIN student_grade_history sgh ON sgh.class_id = c.class_id
+              WHERE t.user_id = $2 AND sgh.student_id = s.student_id
+            )
+            OR EXISTS (
+              SELECT 1 FROM teachers t
+              WHERE t.user_id = $2 AND a.assigned_by_teacher_id = t.teacher_id
+            )
+          )
         ORDER BY (orr.audio_recording_url IS NOT NULL AND orr.audio_recording_url != '') DESC,
                  aa.completed_at DESC NULLS LAST, aa.created_at DESC NULLS LAST
         LIMIT 1
