@@ -352,6 +352,7 @@ async function getStudentByLrn(req, res) {
                  COALESCE(orr.accuracy_percentage, orr.fluency_score, 0) AS accuracy_score,
                  COALESCE(orr.comprehension_score, srr.comprehension_score, 0) AS comprehension_score,
                  COALESCE(orr.reading_rate_wpm, 0) AS reading_rate_wpm,
+                  COALESCE(orr.verified_miscues_json, orr.ai_miscues_json) AS miscues_json,
                  a.reading_level_result AS "readingLevelResult"
                FROM assessments a
                LEFT JOIN phil_iri_passages p ON a.passage_id = p.passage_id
@@ -395,6 +396,7 @@ async function getStudentByLrn(req, res) {
                 comprehensionScore: Math.round(Number(r.comprehension_score || 0)),
                 readingSpeed: Math.round(Number(r.reading_rate_wpm || 0) / 60),
                 readingLevelResult: r.readingLevelResult,
+                miscuesJson: r.miscues_json,
                 completedAt: r.completed_at,
                 action: isDone ? 'View result' : 'Open',
               };
