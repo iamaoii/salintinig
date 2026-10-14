@@ -1,9 +1,9 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { jsPDF } from 'jspdf';
-import { Clock, Prohibit, UserSwitch, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../../components/dashboard/progress/StatCard.jsx';
@@ -13,6 +13,7 @@ import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
 import { StudentProfileSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { decodeSecureToken } from '../../../lib/securityToken.js';
+import { cacheService } from '../../../services/cacheService.js';
 import systemLogo from '../../../assets/logo/logo.png';
 
 import { defaultBadges, defaultStories } from '../../../data/studentAchievements.js';
@@ -31,8 +32,6 @@ function withPlaceholders(items) {
   }));
   return [...items, ...placeholders];
 }
-
-import { cacheService } from '../../../services/cacheService.js';
 
 export default function StudentProfile() {
   const { lrn: rawLrn } = useParams();
@@ -1012,6 +1011,69 @@ export default function StudentProfile() {
       y += 6;
     }
 
+    // Actionable Pedagogical Insights & Remedial Guidance (Panel Compliance)
+    if (pedagogicalInsights.hasData) {
+      checkOverflow(45);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text('Actionable Pedagogical Insights & Remedial Guidance', margin, y);
+      y += 6;
+
+      // Primary Diagnosis Box
+      pdf.setFillColor(254, 252, 232);
+      pdf.setDrawColor(245, 158, 11);
+      pdf.setLineWidth(0.2);
+      const diagText = `${pedagogicalInsights.diagnosisTitle}: ${pedagogicalInsights.diagnosisText}`;
+      const diagLines = pdf.splitTextToSize(diagText, contentWidth - 8);
+      const diagBoxH = Math.max(12, diagLines.length * 4 + 6);
+      pdf.rect(margin, y, contentWidth, diagBoxH, 'FD');
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(146, 64, 14);
+      pdf.text(diagLines, margin + 4, y + 5);
+      y += diagBoxH + 6;
+
+      // 3 Remedial Pillar Recommendations
+      const pillarCardW = (contentWidth - 6) / 3;
+      const pillars = [
+        { title: 'Phonics & Decoding', items: pedagogicalInsights.phonicsItems },
+        { title: 'Guided Oral Reading', items: pedagogicalInsights.guidedItems },
+        { title: 'Comprehension Focus', items: pedagogicalInsights.compItems },
+      ];
+
+      checkOverflow(35);
+      const pillarStartY = y;
+      let maxCardH = 28;
+
+      pillars.forEach((p, idx) => {
+        const px = margin + idx * (pillarCardW + 3);
+        pdf.setFillColor(250, 250, 250);
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.2);
+        pdf.rect(px, pillarStartY, pillarCardW, maxCardH, 'FD');
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(p.title.toUpperCase(), px + 3, pillarStartY + 4.5);
+
+        let itemY = pillarStartY + 8.5;
+        p.items.slice(0, 3).forEach((item) => {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(6.5);
+          pdf.setTextColor(30, 41, 59);
+          const lineStr = `• ${item.title}: ${item.desc}`;
+          const splitLines = pdf.splitTextToSize(lineStr, pillarCardW - 6);
+          pdf.text(splitLines.slice(0, 2), px + 3, itemY);
+          itemY += Math.min(splitLines.length, 2) * 3 + 1;
+        });
+      });
+
+      y = pillarStartY + maxCardH + 8;
+    }
+
     // Teacher Observations & Signatures (Sharp Thin Black Border)
     checkOverflow(40);
     pdf.setFillColor(255, 255, 255);
@@ -1435,7 +1497,7 @@ export default function StudentProfile() {
                     {pedagogicalInsights.hasData && (
                       <div className="space-y-2">
                         <p className="text-xs font-bold uppercase tracking-wider text-ink/70">
-                          Recommended Classroom Interventions
+                          Targeted Pedagogical & Remedial Interventions
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
