@@ -2251,89 +2251,6 @@ async function getPhilIriAnalytics(req, res) {
       Object.assign(workflow, rows[0] || {});
     }
     return res.json({ success: true, analytics: workflow });
-
-    let analytics = {
-      summary: {
-        totalEvaluated: 0,
-        independent: 0,
-        instructional: 0,
-        frustration: 0,
-        nonReader: 0,
-        pending: 0,
-        proficiencyRate: 0,
-      },
-      byGrade: {
-        'Grade 1': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 2': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 3': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 4': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 5': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 6': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-        'Grade 7': { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 },
-      },
-    };
-
-    if (process.env.DATABASE_URL) {
-      try {
-        const schoolId = await getAdminSchoolId(req);
-        const { rows } = await db.query(`
-          SELECT 
-            COALESCE(c.grade_level, 'Grade 4') AS grade,
-            COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation') AS level,
-            COUNT(s.student_id)::int AS count
-          FROM students s
-          JOIN users u ON s.user_id = u.user_id
-          LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-          LEFT JOIN classes c ON sgh.class_id = c.class_id
-          LEFT JOIN reading_profiles rp ON rp.student_id = s.student_id
-          LEFT JOIN (
-            SELECT DISTINCT ON (student_id) student_id, reading_level_result
-            FROM assessments
-            ORDER BY student_id, created_at DESC
-          ) a ON a.student_id = s.student_id
-          WHERE u.school_id = $1
-          GROUP BY COALESCE(c.grade_level, 'Grade 4'), COALESCE(a.reading_level_result, rp.fil_oral_profile_label, 'Pending Evaluation')
-        `, [schoolId]);
-
-        rows.forEach((r) => {
-          const count = Number(r.count) || 0;
-          const levelKey = (r.level || '').toLowerCase();
-          const gradeKey = r.grade || 'Grade 4';
-
-          if (!analytics.byGrade[gradeKey]) {
-            analytics.byGrade[gradeKey] = { independent: 0, instructional: 0, frustration: 0, nonReader: 0, pending: 0, total: 0 };
-          }
-
-          if (levelKey.includes('independent')) {
-            analytics.summary.independent += count;
-            analytics.byGrade[gradeKey].independent += count;
-          } else if (levelKey.includes('instructional')) {
-            analytics.summary.instructional += count;
-            analytics.byGrade[gradeKey].instructional += count;
-          } else if (levelKey.includes('frustration')) {
-            analytics.summary.frustration += count;
-            analytics.byGrade[gradeKey].frustration += count;
-          } else if (levelKey.includes('non-reader') || levelKey.includes('non reader')) {
-            analytics.summary.nonReader += count;
-            analytics.byGrade[gradeKey].nonReader += count;
-          } else {
-            analytics.summary.pending += count;
-            analytics.byGrade[gradeKey].pending += count;
-          }
-
-          analytics.byGrade[gradeKey].total += count;
-        });
-
-        const totalEvaluated = analytics.summary.independent + analytics.summary.instructional + analytics.summary.frustration + analytics.summary.nonReader;
-        analytics.summary.totalEvaluated = totalEvaluated;
-        const proficientCount = analytics.summary.independent + analytics.summary.instructional;
-        analytics.summary.proficiencyRate = totalEvaluated > 0 ? Math.round((proficientCount / totalEvaluated) * 100) : 0;
-      } catch (dbErr) {
-        console.warn('DB Phil-IRI analytics notice:', dbErr.message);
-      }
-    }
-
-    return res.json({ success: true, analytics });
   } catch (error) {
     console.error('Error fetching Phil-IRI analytics:', error);
     return res.status(500).json({ success: false, error: 'Failed to fetch Phil-IRI analytics.' });
@@ -2343,24 +2260,42 @@ async function getPhilIriAnalytics(req, res) {
 async function getAdaptiveOralReports(req, res) {
   try {
     const schoolId = await getAdminSchoolId(req);
+    const activeClassJoin = `
+      LEFT JOIN (
+        SELECT DISTINCT ON (sgh_inner.student_id)
+          sgh_inner.student_id,
+          sgh_inner.class_id,
+          sgh_inner.grade_level,
+          c_inner.section_name
+        FROM student_grade_history sgh_inner
+        LEFT JOIN classes c_inner ON sgh_inner.class_id = c_inner.class_id
+        LEFT JOIN school_years sy ON (c_inner.school_year_id = sy.school_year_id OR sgh_inner.school_year_id = sy.school_year_id)
+        WHERE (sy.is_active = TRUE OR sy.school_year_id IS NULL)
+          AND LOWER(COALESCE(sgh_inner.promotion_status, '')) NOT IN ('dropped', 'transferred')
+        ORDER BY sgh_inner.student_id, sgh_inner.created_at DESC
+      ) sgh ON sgh.student_id = s.student_id
+    `;
+
     const [{ rows: profiles }, { rows: students }, { rows: gstSubmissions }, { rows: sections }] = await Promise.all([
       db.query(`
         SELECT DISTINCT ON (s.student_id, LOWER(COALESCE(a.language, 'fil')), LOWER(COALESCE(a.assessment_period, 'pre_test')))
           s.student_id AS id, s.lrn,
           COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
-          COALESCE(c.grade_level, 'Unassigned') AS grade,
-          COALESCE(c.section_name, 'Unassigned') AS section,
+          COALESCE(sgh.grade_level, 'Unassigned') AS grade,
+          COALESCE(sgh.section_name, 'Unassigned') AS section,
           LOWER(COALESCE(a.language, 'fil')) AS language,
           LOWER(COALESCE(a.assessment_period, 'pre_test')) AS period,
           to_jsonb(a)->>'independent_level' AS "independentLevel",
           to_jsonb(a)->>'instructional_level' AS "instructionalLevel",
           COALESCE(to_jsonb(a)->>'frustration_level', to_jsonb(a)->>'frustrational_level') AS "frustrationalLevel",
+          to_jsonb(a)->>'baseline_grade_level' AS "baselineGradeLevel",
+          to_jsonb(a)->>'baseline_profile_level' AS "baselineProfileLevel",
+          COALESCE((to_jsonb(a)->>'step_count')::int, 0) AS "stepCount",
           a.status
         FROM phil_iri_adaptive_sessions a
         JOIN students s ON s.student_id = a.student_id
         JOIN users u ON u.user_id = s.user_id
-        LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-        LEFT JOIN classes c ON c.class_id = sgh.class_id
+        ${activeClassJoin}
         WHERE u.school_id = $1 AND LOWER(COALESCE(a.assessment_type, 'oral')) = 'oral'
         ORDER BY s.student_id, LOWER(COALESCE(a.language, 'fil')), LOWER(COALESCE(a.assessment_period, 'pre_test')),
           CASE WHEN LOWER(COALESCE(a.status, '')) = 'completed' THEN 0 ELSE 1 END,
@@ -2370,14 +2305,13 @@ async function getAdaptiveOralReports(req, res) {
         SELECT DISTINCT ON (s.student_id)
           s.student_id AS id, s.lrn,
           COALESCE(NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''), s.lrn) AS name,
-          COALESCE(c.grade_level, 'Unassigned') AS grade,
-          COALESCE(c.section_name, 'Unassigned') AS section
+          COALESCE(sgh.grade_level, 'Unassigned') AS grade,
+          COALESCE(sgh.section_name, 'Unassigned') AS section
         FROM students s
         JOIN users u ON u.user_id = s.user_id
-        LEFT JOIN student_grade_history sgh ON sgh.student_id = s.student_id
-        LEFT JOIN classes c ON c.class_id = sgh.class_id
+        ${activeClassJoin}
         WHERE u.school_id = $1 AND LOWER(COALESCE(u.status, 'active')) = 'active'
-        ORDER BY s.student_id, sgh.created_at DESC NULLS LAST
+        ORDER BY s.student_id
       `, [schoolId]),
       db.query(`
         SELECT submission_id, class_id, section_name, grade_level, test_language, form_code, form_data, above_14_count, below_14_count, total_assessed, updated_at
@@ -2655,7 +2589,6 @@ async function deletePassage(req, res) {
   }
 }
 
-/**
 /**
  * GET /api/admin/phil-iri/periods — Fetch screening periods
  */

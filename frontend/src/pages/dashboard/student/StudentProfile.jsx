@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { jsPDF } from 'jspdf';
-import { CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, Clock } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../../components/dashboard/progress/StatCard.jsx';
@@ -15,6 +15,11 @@ import { getToken } from '../../../lib/auth.js';
 import { decodeSecureToken } from '../../../lib/securityToken.js';
 import { cacheService } from '../../../services/cacheService.js';
 import systemLogo from '../../../assets/logo/logo.png';
+import {
+  getAccuracyInterpretation,
+  getComprehensionInterpretation,
+  getReadingSpeedInterpretation,
+} from '../../../utils/readingAnalyticsHelper.js';
 
 import { defaultBadges, defaultStories } from '../../../data/studentAchievements.js';
 
@@ -752,10 +757,14 @@ export default function StudentProfile() {
     const overallAvgComp = evidenceAverage('comprehensionScore');
     const overallAvgSpeed = evidenceAverage('readingSpeed');
 
+    const pdfAccInfo = getAccuracyInterpretation(overallAvgAccuracy);
+    const pdfCompInfo = getComprehensionInterpretation(overallAvgComp);
+    const pdfSpeedInfo = getReadingSpeedInterpretation(overallAvgSpeed);
+
     const metrics = [
-      { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: 'Oral Reading Precision' },
-      { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: 'Understanding & Recall' },
-      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: 'Words Per Second Rate' },
+      { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: pdfAccInfo.badge },
+      { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: pdfCompInfo.badge },
+      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: pdfSpeedInfo.badge },
     ];
 
     const cardW = (contentWidth - 8) / 3;
@@ -774,12 +783,12 @@ export default function StudentProfile() {
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(12);
       pdf.setTextColor(22, 95, 213);
-      pdf.text(m.val, cx + 4, y + 13);
+      pdf.text(m.val, cx + 4, y + 12.5);
 
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(6.5);
-      pdf.setTextColor(110, 110, 110);
-      pdf.text(m.desc, cx + 4, y + 17.5);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(`Rating: ${m.desc}`, cx + 4, y + 17.5);
     });
 
     y += 28;
@@ -1210,27 +1219,52 @@ export default function StudentProfile() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard
-              value={evidenceAverage('accuracyScore')}
-              unit="%"
-              label={'Average\nAccuracy'}
-              iconName="ph:target"
-              iconBg="bg-[#DBEAFE] text-[#2563EB]"
-            />
-            <StatCard
-              value={evidenceAverage('comprehensionScore')}
-              unit="%"
-              label={'Average\nComprehension'}
-              iconName="ph:lightbulb"
-              iconBg="bg-[#D1FAE5] text-[#059669]"
-            />
-            <StatCard
-              value={evidenceAverage('readingSpeed')}
-              unit=" WPS"
-              label={'Average\nReading Speed'}
-              iconName="ph:gauge"
-              iconBg="bg-[#FEF3C7] text-[#D97706]"
-            />
+            {(() => {
+              const accVal = evidenceAverage('accuracyScore');
+              const compVal = evidenceAverage('comprehensionScore');
+              const spdVal = evidenceAverage('readingSpeed');
+              const accInfo = getAccuracyInterpretation(accVal);
+              const compInfo = getComprehensionInterpretation(compVal);
+              const spdInfo = getReadingSpeedInterpretation(spdVal);
+
+              return (
+                <>
+                  <StatCard
+                    value={accVal}
+                    unit="%"
+                    label={'Average\nAccuracy'}
+                    iconName="ph:target"
+                    iconBg="bg-[#DBEAFE] text-[#2563EB]"
+                    badge={accInfo.badge}
+                    badgeColor={accInfo.color}
+                    scale={accInfo.scale}
+                    description={accInfo.description}
+                  />
+                  <StatCard
+                    value={compVal}
+                    unit="%"
+                    label={'Average\nComprehension'}
+                    iconName="ph:lightbulb"
+                    iconBg="bg-[#D1FAE5] text-[#059669]"
+                    badge={compInfo.badge}
+                    badgeColor={compInfo.color}
+                    scale={compInfo.scale}
+                    description={compInfo.description}
+                  />
+                  <StatCard
+                    value={spdVal}
+                    unit=" WPS"
+                    label={'Average\nReading Speed'}
+                    iconName="ph:gauge"
+                    iconBg="bg-[#FEF3C7] text-[#D97706]"
+                    badge={spdInfo.badge}
+                    badgeColor={spdInfo.color}
+                    scale={spdInfo.scale}
+                    description={spdInfo.description}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
 
