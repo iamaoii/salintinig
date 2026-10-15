@@ -21,7 +21,7 @@ export default function StudentDashboardLayout() {
     return null;
   };
 
-  const initialInfo = cachedHeader || deriveHeaderFromUser(initialUser) || { section: 'Grade 4 - Fyang', schoolYear: 'S.Y. 2026-2027' };
+  const initialInfo = cachedHeader || deriveHeaderFromUser(initialUser) || { section: initialUser?.section || 'My Advisory Class', schoolYear: initialUser?.schoolYear ? `S.Y. ${String(initialUser.schoolYear).replace(/^S\.?Y\.?\s*/i, '')}` : '' };
 
   const [headerInfo, setHeaderInfo] = useState(initialInfo);
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,7 @@ export default function StudentDashboardLayout() {
         } catch (e) {}
 
         if (!sec || sec === 'Unassigned Section') {
-          sec = 'Grade 4 - Fyang';
+          sec = initialUser?.section || 'My Advisory Class';
         }
 
         if (!sy) {
@@ -67,7 +67,7 @@ export default function StudentDashboardLayout() {
           } catch (e) {}
         }
 
-        const newHeader = { section: sec || 'Grade 4 - Fyang', schoolYear: sy || 'S.Y. 2026-2027' };
+        const newHeader = { section: sec || 'My Advisory Class', schoolYear: sy || '' };
         setHeaderInfo(newHeader);
         cacheService.set('student_header_info', newHeader);
         setLoading(false);
@@ -98,7 +98,7 @@ export default function StudentDashboardLayout() {
           )}
         </div>
 
-        <div className="mt-8">
+        <div className="mt-5">
           <Outlet />
         </div>
       </div>
