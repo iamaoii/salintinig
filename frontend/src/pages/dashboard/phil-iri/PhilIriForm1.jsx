@@ -1349,9 +1349,9 @@ export default function PhilIriForm1({ language }) {
                   <th rowSpan={2} className="border border-gray-400 p-2 w-[8%]">{isTagalog ? 'Markang ≥ 14' : 'SCORE ≥ 14'}</th>
                 </tr>
                 <tr className="bg-[#e2e2e2] font-bold text-gray-900 uppercase border border-gray-400">
-                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Literal' : 'LITERAL'}</th>
-                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Paghihinuha (Inferential)' : 'INFERENTIAL'}</th>
-                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Kritikal' : 'CRITICAL'}</th>
+                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Literal (7)' : 'LITERAL (7)'}</th>
+                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Paghihinuha (Inferential) (7)' : 'INFERENTIAL (7)'}</th>
+                  <th className="border border-gray-400 p-1.5 w-[7%] text-[10px]">{isTagalog ? 'Kritikal (6)' : 'CRITICAL (6)'}</th>
                 </tr>
               </thead>
               <tbody>

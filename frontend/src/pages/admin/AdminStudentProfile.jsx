@@ -28,6 +28,11 @@ import { decodeSecureToken } from '../../lib/securityToken.js';
 
 import Avatar from '../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../components/dashboard/progress/StatCard.jsx';
+import {
+  getAccuracyInterpretation,
+  getComprehensionInterpretation,
+  getReadingSpeedInterpretation,
+} from '../../utils/readingAnalyticsHelper.js';
 import AchievementActivityRow from '../../components/dashboard/activity/AchievementActivityRow.jsx';
 import BadgeCard from '../../components/dashboard/student/BadgeCard.jsx';
 import StoryRow from '../../components/dashboard/student/StoryRow.jsx';
@@ -369,27 +374,52 @@ export default function AdminStudentProfile() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard
-              value={evidenceAverage('accuracyScore')}
-              unit="%"
-              label={'Average\nAccuracy'}
-              iconName="ph:target"
-              iconBg="bg-[#DBEAFE] text-[#2563EB]"
-            />
-            <StatCard
-              value={evidenceAverage('comprehensionScore')}
-              unit="%"
-              label={'Average\nComprehension'}
-              iconName="ph:lightbulb"
-              iconBg="bg-[#D1FAE5] text-[#059669]"
-            />
-            <StatCard
-              value={evidenceAverage('readingSpeed')}
-              unit="wps"
-              label={'Average\nReading Speed'}
-              iconName="ph:lightning"
-              iconBg="bg-[#FEF08A] text-[#CA8A04]"
-            />
+            {(() => {
+              const accVal = evidenceAverage('accuracyScore');
+              const compVal = evidenceAverage('comprehensionScore');
+              const spdVal = evidenceAverage('readingSpeed');
+              const accInfo = getAccuracyInterpretation(accVal);
+              const compInfo = getComprehensionInterpretation(compVal);
+              const spdInfo = getReadingSpeedInterpretation(spdVal);
+
+              return (
+                <>
+                  <StatCard
+                    value={accVal}
+                    unit="%"
+                    label={'Average\nAccuracy'}
+                    iconName="ph:target"
+                    iconBg="bg-[#DBEAFE] text-[#2563EB]"
+                    badge={accInfo.badge}
+                    badgeColor={accInfo.color}
+                    scale={accInfo.scale}
+                    description={accInfo.description}
+                  />
+                  <StatCard
+                    value={compVal}
+                    unit="%"
+                    label={'Average\nComprehension'}
+                    iconName="ph:lightbulb"
+                    iconBg="bg-[#D1FAE5] text-[#059669]"
+                    badge={compInfo.badge}
+                    badgeColor={compInfo.color}
+                    scale={compInfo.scale}
+                    description={compInfo.description}
+                  />
+                  <StatCard
+                    value={spdVal}
+                    unit=" WPS"
+                    label={'Average\nReading Speed'}
+                    iconName="ph:gauge"
+                    iconBg="bg-[#FEF3C7] text-[#D97706]"
+                    badge={spdInfo.badge}
+                    badgeColor={spdInfo.color}
+                    scale={spdInfo.scale}
+                    description={spdInfo.description}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
 

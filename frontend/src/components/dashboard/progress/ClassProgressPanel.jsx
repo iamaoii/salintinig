@@ -5,6 +5,12 @@ import { Icon } from '@iconify/react';
 import StatCard from './StatCard.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { cacheService } from '../../../services/cacheService.js';
+import {
+  getAccuracyInterpretation,
+  getComprehensionInterpretation,
+  getReadingSpeedInterpretation,
+  getProfileCompletionInterpretation,
+} from '../../../utils/readingAnalyticsHelper.js';
 
 export default function ClassProgressPanel() {
   const cachedStats = cacheService.get('teacher_class_progress_stats');
@@ -13,6 +19,7 @@ export default function ClassProgressPanel() {
     boundaries: { frustration: 0, instructional: 0, independent: 0 },
     distributions: { frustration: {}, instructional: {}, independent: {} },
     completedProfiles: 0,
+    totalStudents: 0,
     averageAccuracy: 0,
     averageComprehension: 0,
     averageReadingSpeed: 0,
@@ -122,6 +129,7 @@ export default function ClassProgressPanel() {
             boundaries: { frustration, instructional, independent },
             distributions,
             completedProfiles,
+            totalStudents: targetList.length,
             averageAccuracy: avgAcc,
             averageReadingSpeed: avgSpd,
             averageComprehension: avgCmp,
@@ -161,17 +169,62 @@ export default function ClassProgressPanel() {
   // adaptive-boundary distributions. Keep rendering safe until fresh data wins.
   const safeDistributions = stats.distributions || { frustration: {}, instructional: {}, independent: {} };
   const boundaryConfig = {
-    independent: { label: 'Independent', color: 'bg-emerald-500', active: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-    instructional: { label: 'Instructional', color: 'bg-amber-400', active: 'bg-amber-50 text-amber-900 border-amber-200' },
-    frustration: { label: 'Frustrational', color: 'bg-rose-500', active: 'bg-rose-50 text-rose-800 border-rose-200' },
+    independent: {
+      label: 'Independent',
+      color: 'bg-emerald-500',
+      active: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      tag: 'Self-Reliant Passages',
+      explanation: 'Highest passage difficulty learners read on their own with ease (≥97% word accuracy & ≥80% comprehension).',
+    },
+    instructional: {
+      label: 'Instructional',
+      color: 'bg-amber-400',
+      active: 'bg-amber-50 text-amber-900 border-amber-200',
+      tag: 'Guided Teaching Passages',
+      explanation: 'Passage difficulty best suited for teacher-guided daily instruction (90-96% word accuracy & 59-79% comprehension).',
+    },
+    frustration: {
+      label: 'Frustrational',
+      color: 'bg-rose-500',
+      active: 'bg-rose-50 text-rose-800 border-rose-200',
+      tag: 'Diagnostic Difficulty Ceilings',
+      explanation: 'Passage difficulty where reading breaks down (<90% accuracy or ≤58% comprehension), marking their diagnostic ceiling.',
+    },
   };
   const selectedBoundaryConfig = boundaryConfig[selectedBoundary];
+
+  // In SalinTinig, passages are leveled from Grade 1 to 7.
+  // We clearly label these as "Reading Passage Levels" so teachers/panelists know
+  // they represent text difficulty levels tested, not different enrolled sections.
+  const enrolledGradeNum = 4; // Target class grade level
   const supportedGrades = language === 'en' ? [2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6, 7];
   const gradeDistribution = supportedGrades.map((gradeNumber) => {
-    const grade = `Grade ${gradeNumber}`;
-    return { grade, count: Number(safeDistributions[selectedBoundary]?.[grade] || 0) };
+    const rawGradeKey = `Grade ${gradeNumber}`;
+    const count = Number(safeDistributions[selectedBoundary]?.[rawGradeKey] || 0);
+
+    let levelTag = '';
+    if (gradeNumber === enrolledGradeNum) {
+      levelTag = 'At Grade 4 Level';
+    } else if (gradeNumber < enrolledGradeNum) {
+      levelTag = 'Below Grade 4';
+    } else {
+      levelTag = 'Above Grade 4';
+    }
+
+    return {
+      gradeNumber,
+      displayLabel: `Level ${gradeNumber} Passage`,
+      levelTag,
+      count,
+    };
   });
   const maxGradeCount = Math.max(...gradeDistribution.map((entry) => entry.count), 1);
+
+  // Compute descriptive interpretations for class metrics
+  const accuracyInfo = getAccuracyInterpretation(stats.averageAccuracy);
+  const compInfo = getComprehensionInterpretation(stats.averageComprehension);
+  const speedInfo = getReadingSpeedInterpretation(stats.averageReadingSpeed);
+  const completionInfo = getProfileCompletionInterpretation(stats.completedProfiles, stats.totalStudents);
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -202,42 +255,78 @@ export default function ClassProgressPanel() {
       </div>
 
       <div className="rounded-2xl border border-ink/10 bg-white p-3.5">
-        <p className="text-xs font-bold text-ink">Oral Adaptive Grade Distribution</p>
-        <p className="mt-0.5 text-[10px] text-ink/55">Select a boundary to view its grade-level distribution.</p>
+        <div>
+          <p className="text-xs font-bold text-ink">Reading Passage Difficulty Distribution</p>
+          <p className="text-[10px] text-ink/55">Phil-IRI passage levels mastered by Grade 4 learners</p>
+        </div>
+
         <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-ink/[0.03] p-1">
           {Object.entries(boundaryConfig).map(([key, config]) => (
-            <button key={key} type="button" onClick={() => setSelectedBoundary(key)} className={`rounded-md border px-1.5 py-1.5 text-[10px] font-bold transition-colors cursor-pointer ${selectedBoundary === key ? config.active : 'border-transparent text-ink/55 hover:bg-white hover:text-ink'}`}>
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSelectedBoundary(key)}
+              className={`rounded-md border px-1.5 py-1.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                selectedBoundary === key ? config.active : 'border-transparent text-ink/55 hover:bg-white hover:text-ink'
+              }`}
+            >
               {config.label}
             </button>
           ))}
         </div>
-        <div className="mt-3 space-y-2">
-          {gradeDistribution.map(({ grade, count }) => (
-            <div key={grade} className="grid grid-cols-[48px_1fr_18px] items-center gap-2 text-[10px]">
-              <span className="font-semibold text-ink/60">{grade}</span>
-              <div className="h-2 overflow-hidden rounded-full bg-ink/10">
-                {count > 0 && <div className={`h-full rounded-full ${selectedBoundaryConfig.color}`} style={{ width: `${(count / maxGradeCount) * 100}%` }} />}
+
+        <div className="mt-4 space-y-2.5">
+          {gradeDistribution.map(({ gradeNumber, displayLabel, levelTag, count }) => {
+            const isEnrolledGrade = gradeNumber === enrolledGradeNum;
+            return (
+              <div key={displayLabel} className="grid grid-cols-[125px_1fr_24px] items-center gap-3 text-[10px]">
+                <div className="flex flex-col justify-center leading-tight min-w-0 pr-1">
+                  <span className={`truncate text-[11px] ${isEnrolledGrade ? 'font-extrabold text-ink' : 'font-semibold text-ink/80'}`}>
+                    {displayLabel}
+                  </span>
+                  <span className={`text-[9px] mt-0.5 truncate ${isEnrolledGrade ? 'font-bold text-brand-blue' : 'text-ink/45'}`}>
+                    {levelTag}
+                  </span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-ink/[0.08]">
+                  {count > 0 && (
+                    <div
+                      className={`h-full rounded-full ${selectedBoundaryConfig.color} transition-all duration-300`}
+                      style={{ width: `${(count / maxGradeCount) * 100}%` }}
+                    />
+                  )}
+                </div>
+                <span className={`text-right font-bold text-ink ${isEnrolledGrade ? 'text-[11px] font-black' : 'text-[10px] text-ink/75'}`}>
+                  {count}
+                </span>
               </div>
-              <span className="text-right font-bold text-ink">{count}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <StatCard
           value={stats.averageAccuracy}
           unit="%"
           label={'Average\nAccuracy'}
           iconName="ph:target"
           iconBg="bg-[#DBEAFE] text-[#2563EB]"
+          badge={accuracyInfo.badge}
+          badgeColor={accuracyInfo.color}
+          scale={accuracyInfo.scale}
+          description={accuracyInfo.description}
           compact
         />
         <StatCard
-          value={stats.completedProfiles || 0}
+          value={`${stats.completedProfiles || 0}${stats.totalStudents ? ` / ${stats.totalStudents}` : ''}`}
           label={'Complete Adaptive\nProfiles'}
           iconName="ph:check-circle"
           iconBg="bg-violet-100 text-violet-700"
+          badge={completionInfo.badge}
+          badgeColor={completionInfo.color}
+          progressPct={completionInfo.pct}
+          description={completionInfo.description}
           compact
         />
         <StatCard
@@ -246,6 +335,10 @@ export default function ClassProgressPanel() {
           label={'Average\nReading Speed'}
           iconName="ph:lightning"
           iconBg="bg-[#FEF08A] text-[#CA8A04]"
+          badge={speedInfo.badge}
+          badgeColor={speedInfo.color}
+          scale={speedInfo.scale}
+          description={speedInfo.description}
           compact
         />
         <StatCard
@@ -254,6 +347,10 @@ export default function ClassProgressPanel() {
           label={'Average\nComprehension'}
           iconName="ph:lightbulb"
           iconBg="bg-[#D1FAE5] text-[#059669]"
+          badge={compInfo.badge}
+          badgeColor={compInfo.color}
+          scale={compInfo.scale}
+          description={compInfo.description}
           compact
         />
       </div>

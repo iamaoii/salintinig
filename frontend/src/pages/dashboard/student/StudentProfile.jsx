@@ -1,9 +1,9 @@
 import { getApiUrl } from '../../../config/api.js';
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { jsPDF } from 'jspdf';
-import { Clock, Prohibit, UserSwitch, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, Clock } from '@phosphor-icons/react';
 import BackButton from '../../../components/common/BackButton.jsx';
 import Avatar from '../../../components/dashboard/student/Avatar.jsx';
 import StatCard from '../../../components/dashboard/progress/StatCard.jsx';
@@ -13,11 +13,17 @@ import StoryRow from '../../../components/dashboard/student/StoryRow.jsx';
 import { StudentProfileSkeleton } from '../../../components/common/Skeleton.jsx';
 import { getToken } from '../../../lib/auth.js';
 import { decodeSecureToken } from '../../../lib/securityToken.js';
+import { cacheService } from '../../../services/cacheService.js';
 import systemLogo from '../../../assets/logo/logo.png';
+import {
+  getAccuracyInterpretation,
+  getComprehensionInterpretation,
+  getReadingSpeedInterpretation,
+} from '../../../utils/readingAnalyticsHelper.js';
 
 import { defaultBadges, defaultStories } from '../../../data/studentAchievements.js';
 
-const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Badges', 'Stories'];
+const ACHIEVEMENT_TABS = ['Phil-IRI Records', 'Badges', 'Stories', 'Actionable Insights'];
 
 const BADGE_COLUMNS = 5;
 
@@ -31,8 +37,6 @@ function withPlaceholders(items) {
   }));
   return [...items, ...placeholders];
 }
-
-import { cacheService } from '../../../services/cacheService.js';
 
 export default function StudentProfile() {
   const { lrn: rawLrn } = useParams();
@@ -154,6 +158,469 @@ export default function StudentProfile() {
     return { label, level, style, evidence };
   });
   const diagnosticEvidence = buildDiagnosticEvidence(selectedAdaptiveProfile, oralEvidence);
+
+  // Synthesize Unified Actionable Pedagogical Insights (DepEd Aligned)
+  const pedagogicalInsights = useMemo(() => {
+    const isTagalog = profileLanguage === 'fil';
+    const periodLabel = profilePeriod === 'post_test' ? 'Post-Test' : 'Pre-Test';
+    const langLabel = isTagalog ? 'Filipino' : 'English';
+
+    if (!oralEvidence || oralEvidence.length === 0) {
+      return {
+        hasData: false,
+        periodLabel,
+        langLabel,
+        diagnosisTitle: isTagalog ? 'Wala Pang Datos ng Pagtatasa' : 'No Assessment Data Yet',
+        diagnosisText: isTagalog
+          ? `Wala pang natapos na oral reading assessment para sa ${periodLabel} (${langLabel}).`
+          : `No completed oral reading assessments recorded for ${periodLabel} (${langLabel}).`,
+        phonicsItems: [],
+        guidedItems: [],
+        compItems: [],
+      };
+    }
+
+    // 1. Gather all miscues from oral assessment attempts in this period/language
+    const allMiscues = [];
+    oralEvidence.forEach((act) => {
+      let mList = act.miscuesJson;
+      if (typeof mList === 'string') {
+        try { mList = JSON.parse(mList); } catch (_) { mList = []; }
+      }
+      if (Array.isArray(mList)) {
+        allMiscues.push(...mList);
+      }
+    });
+
+    const miscueCounts = {
+      substitution: 0,
+      mispronunciation: 0,
+      omission: 0,
+      insertion: 0,
+      repetition: 0,
+      transposition: 0,
+      refusal_to_read: 0,
+    };
+
+    allMiscues.forEach((m) => {
+      const type = String(m.miscue_type || m.type || '').toLowerCase();
+      if (miscueCounts[type] !== undefined) {
+        miscueCounts[type]++;
+      }
+    });
+
+    const totalMiscues = Object.values(miscueCounts).reduce((a, b) => a + b, 0);
+
+    // 2. Average Scores and Evidence Passages
+    const avgAccuracy = evidenceAverage('accuracyScore');
+    const avgComp = evidenceAverage('comprehensionScore');
+    const avgSpeed = evidenceAverage('readingSpeed');
+
+    // Sort miscues to find top 2 error patterns
+    const sortedMiscues = Object.entries(miscueCounts)
+      .filter(([, count]) => count > 0)
+      .sort(([, a], [, b]) => b - a);
+
+    const primaryType = sortedMiscues[0]?.[0] || 'substitution';
+    const primaryCount = sortedMiscues[0]?.[1] || 0;
+    const secondaryType = sortedMiscues[1]?.[0] || null;
+    const secondaryCount = sortedMiscues[1]?.[1] || 0;
+
+    const dominantPct = totalMiscues > 0 ? Math.round((primaryCount / totalMiscues) * 100) : 0;
+
+    // Detailed Diagnosis Title & Narrative based on actual multi-dimensional metrics
+    let diagnosisTitle = '';
+    let diagnosisText = '';
+
+    if (totalMiscues === 0 && avgAccuracy >= 95 && avgComp >= 80) {
+      diagnosisTitle = isTagalog ? 'Matatag at Huwarang Katatasan sa Pagbasa' : 'Mastery & Exemplary Reading Fluency';
+      diagnosisText = isTagalog
+        ? `Walang naitalang makabuluhang pagkakamali sa pagbasa. May ${avgAccuracy}% kawastuhan at ${avgComp}% pag-unawa sa mga nasagutang pagsusuri.`
+        : `Zero significant reading miscues recorded. Demonstrates exemplary ${avgAccuracy}% accuracy and ${avgComp}% comprehension across evaluated selections.`;
+    } else if (primaryType === 'substitution' || primaryType === 'mispronunciation') {
+      const secNote = secondaryType ? (isTagalog ? ` na sinundan ng ${secondaryType} (${secondaryCount})` : ` followed by ${secondaryType} (${secondaryCount})`) : '';
+      diagnosisTitle = isTagalog
+        ? `Mataas ang Pagpapalit / Maling Pagbigkas (${dominantPct}% ng kabuuang mali)`
+        : `Predominant Substitutions & Mispronunciations (${dominantPct}% of total miscues)`;
+      diagnosisText = isTagalog
+        ? `Madalas humula ng salita batay sa unang katinig sa halip na basahin ang buong pantig${secNote}. Karaniwang lumilitaw sa mga di-pamilyar o mahahabang salita.`
+        : `Frequently substitutes target words based on initial consonants rather than sounding out the full syllabic structure${secNote}. Noticeable on longer, unfamiliar vocabulary.`;
+    } else if (primaryType === 'omission') {
+      diagnosisTitle = isTagalog
+        ? `Madalas na Pagkakaltas ng Salita at Panlapi (${dominantPct}% ng kabuuang mali)`
+        : `Frequent Word & Morphological Omissions (${dominantPct}% of total miscues)`;
+      diagnosisText = isTagalog
+        ? `Madalas lumaktaw ng mga maiikling kataga (hal. ang, mga, sa) o mga hulapi sa layuning pabilisin ang pagbasa.`
+        : `Consistently skips short function words (e.g., in, on, the) or inflectional endings, often as a result of rushing through sentences.`;
+    } else if (primaryType === 'repetition') {
+      diagnosisTitle = isTagalog
+        ? `Madalas na Pag-uulit at Pag-aatubili (${dominantPct}% ng kabuuang mali)`
+        : `Frequent Word Repetitions & Hesitation (${dominantPct}% of total miscues)`;
+      diagnosisText = isTagalog
+        ? `Umuulit ng mga salita o parirala dahil sa pag-aalinlangan sa pagbasa. Senyales ito ng mababang kumpiyansa o pagpupumilit na magwasto sa sarili.`
+        : `Repeats words or whole phrases due to hesitation and reading uncertainty. Suggests performance anxiety or difficulty maintaining forward momentum.`;
+    } else if (primaryType === 'insertion') {
+      diagnosisTitle = isTagalog
+        ? `Pagdaragdag ng mga Salitang Wala sa Teksto (${dominantPct}% ng kabuuang mali)`
+        : `Frequent Word Insertions (${dominantPct}% of total miscues)`;
+      diagnosisText = isTagalog
+        ? `Madalas magsingit ng mga salitang wala sa orihinal na teksto dahil sa labis na pag-asa sa konteksto kaysa sa nakasulat na salita.`
+        : `Inserts extra words not present in the text due to over-relying on predictive context rather than print fidelity.`;
+    } else if (primaryType === 'transposition') {
+      diagnosisTitle = isTagalog
+        ? `Pagpapalitan ng Ayos ng Salita / Transposisyon (${dominantPct}% ng kabuuang mali)`
+        : `Word Order Transposition (${dominantPct}% of total miscues)`;
+      diagnosisText = isTagalog
+        ? `Nagpapalit-palit ang pagkakasunod-sunod ng mga salita habang nagbabasa nang mabilis.`
+        : `Reverses the sequential order of words while reading quickly; requires visual phrase tracking anchors.`;
+    } else {
+      if (avgAccuracy < 80) {
+        diagnosisTitle = isTagalog ? 'Kailangan ng Masinsinang Remedial sa Pagbasa' : 'Intensive Word Decoding Remediation Needed';
+        diagnosisText = isTagalog
+          ? `Nasa antas Frustration (${avgAccuracy}% kawastuhan). Nangangailangan ng regular na paggabay sa pagkilala ng mga tunog at salita.`
+          : `Reading accuracy (${avgAccuracy}%) falls within Frustration boundaries. Requires structured, step-by-step decoding support.`;
+      } else if (avgComp < 60) {
+        diagnosisTitle = isTagalog ? 'Mababang Pag-unawa sa Detalye at Kahulugan' : 'Comprehension Gap on Inferential Concepts';
+        diagnosisText = isTagalog
+          ? `Kuntento ang bilis at pagbigkas ngunit bumababa ang marka sa mga tanong na nangangailangan ng mas malalim na pagsusuri (${avgComp}%).`
+          : `Accurately decodes text but exhibits difficulty synthesizing meaning, resulting in a ${avgComp}% comprehension average.`;
+      } else {
+        diagnosisTitle = isTagalog ? 'Matatag na Kasanayan sa Pagbasa' : 'Consistent Reading Progression';
+        diagnosisText = isTagalog
+          ? 'Nasa tamang antas ng pag-unlad ang mag-aaral para sa kanyang baitang.'
+          : 'Learner exhibits steady performance across evaluated passage levels.';
+      }
+    }
+
+    // Build Extensive 3-Pillar Interventions
+    const phonicsItems = [];
+    const guidedItems = [];
+    const compItems = [];
+
+    const currentFruLevel = selectedAdaptiveProfile?.frustrationalLevel;
+    const currentInsLevel = selectedAdaptiveProfile?.instructionalLevel;
+    const targetGrade = currentInsLevel
+      ? formatGrade(currentInsLevel)
+      : currentFruLevel
+      ? `Grade ${Math.max(1, parseInt(String(currentFruLevel).replace(/\D/g, '') || '4', 10) - 1)}`
+      : isTagalog ? 'mababang baitang' : 'lower grade';
+
+    // ── PILLAR 1: Phonics & Decoding (Multi-Branching Niche Options) ──
+    if (primaryType === 'substitution' || primaryType === 'mispronunciation') {
+      phonicsItems.push({
+        title: isTagalog ? 'Syllable Chunking' : 'Syllable Chunking',
+        desc: isTagalog
+          ? 'Hatiin sa pantig ang mahahabang salita bago basahin nang buo.'
+          : 'Break multi-syllabic words into manageable chunks before reading aloud.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Minimal Pairs' : 'Minimal Pairs',
+        desc: isTagalog
+          ? 'Sanayin ang magkatunog na titik (/b/ vs /p/, /d/ vs /t/).'
+          : 'Practice contrast pairs (/b/ vs /p/, /d/ vs /t/) to prevent phonetic slips.',
+      });
+      if (avgAccuracy < 85) {
+        phonicsItems.push({
+          title: isTagalog ? 'Sound Blends' : 'Medial & End Sounds',
+          desc: isTagalog
+            ? 'Bigyang-diin ang tunog sa gitna at dulo ng salita.'
+            : 'Focus on medial vowel and final consonant blends, not just the first letter.',
+        });
+      } else {
+        phonicsItems.push({
+          title: isTagalog ? 'Pagsusuri ng Diin' : 'Stress & Accentuation',
+          desc: isTagalog
+            ? 'Sanayin ang tamang diin sa mga salitang may magkaibang kahulugan (hal. búhay vs buháy).'
+            : 'Focus on correct word stress to preserve accurate word meaning while decoding.',
+        });
+      }
+    } else if (primaryType === 'omission') {
+      phonicsItems.push({
+        title: isTagalog ? 'Visual Tracking' : 'Visual Tracking',
+        desc: isTagalog
+          ? 'Gamitan ng daliri o bookmark ang bawat salita habang nagbabasa.'
+          : 'Use a finger or bookmark guide so words are not skipped.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Pagsasanay sa Panlapi' : 'Affix Drills',
+        desc: isTagalog
+          ? 'Sanayin ang unlapi, gitlapi, at hulapi upang marinig ang buong salita.'
+          : 'Target word endings and prefixes to avoid omitting morphemes.',
+      });
+      if (avgSpeed > 1.8) {
+        phonicsItems.push({
+          title: isTagalog ? 'Preno sa Bilis' : 'Pacing Anchor',
+          desc: isTagalog
+            ? 'Pabagalin nang kaunti ang bilis upang hindi malaktawan ang maliliit na kataga.'
+            : 'Slightly slow reading speed to prevent skimming over small connective words.',
+        });
+      } else {
+        phonicsItems.push({
+          title: isTagalog ? 'Articulatory Check' : 'Articulatory Check',
+          desc: isTagalog
+            ? 'Ipausal nang buo ang bawat titik lalo na ang huling katinig bago magpatuloy.'
+            : 'Ensure full vocal articulation of end consonants before moving forward.',
+        });
+      }
+    } else if (primaryType === 'repetition') {
+      phonicsItems.push({
+        title: isTagalog ? 'Sight Words Drill' : 'Sight Words',
+        desc: isTagalog
+          ? 'Mabilisang pagkilala sa mga pamilyar na salita upang mabawasan ang pag-aatubili.'
+          : 'Rapid word recognition drills to eliminate hesitation.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Kumpyansa sa Pagbasa' : 'Self-Correction',
+        desc: isTagalog
+          ? 'Puriin ang kusang pagwawasto nang walang bawas sa kumpyansa.'
+          : 'Encourage confident self-correction without penalty.',
+      });
+      if (avgSpeed < 1.0) {
+        phonicsItems.push({
+          title: isTagalog ? 'Forward Momentum' : 'Forward Momentum',
+          desc: isTagalog
+            ? 'Hikayating magpatuloy sa susunod na salita sa halip na ulitin ang buong linya.'
+            : 'Encourage reading straight through without resetting the phrase upon minor hesitations.',
+        });
+      } else {
+        phonicsItems.push({
+          title: isTagalog ? 'Smooth Flow' : 'Smooth Flow',
+          desc: isTagalog
+            ? 'Gumamit ng metronome o banayad na tapik sa mesa para sa steady na ritmo.'
+            : 'Use rhythmic tapping to establish a continuous, unbroken reading tempo.',
+        });
+      }
+    } else if (primaryType === 'insertion') {
+      phonicsItems.push({
+        title: isTagalog ? 'Text Anchoring' : 'Text Anchoring',
+        desc: isTagalog
+          ? 'Basahin lamang ang nakasulat at iwasang manghula ng karagdagang salita.'
+          : 'Read only the printed text without anticipating extra words.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Cloze Reading' : 'Cloze Practice',
+        desc: isTagalog
+          ? 'Sanayin ang eksaktong pagtutugma ng nawawalang salita sa pangungusap.'
+          : 'Practice filling in missing words to enforce text precision.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Line Masking' : 'Line Masking',
+        desc: isTagalog
+          ? 'Takpan ang susunod na linya gamit ang card upang maiwasan ang paghula sa unahan.'
+          : 'Cover upcoming sentences with a card to prevent skimming and anticipating text.',
+      });
+    } else if (primaryType === 'transposition') {
+      phonicsItems.push({
+        title: isTagalog ? 'Left-to-Right Tracking' : 'Directional Tracking',
+        desc: isTagalog
+          ? 'Ituro ang bawat salita mula kaliwa pakanan upang manatili sa tamang ayos.'
+          : 'Reinforce strict left-to-right eye sweeps using a pointing guide.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Syntax Modeling' : 'Word-Order Drills',
+        desc: isTagalog
+          ? 'Ipaayos ang mga ginulong salita (scrambled words) upang maranasan ang tamang pagkakasunod-sunod.'
+          : 'Practice unscrambling short sentences to solidify natural grammatical order.',
+      });
+      phonicsItems.push({
+        title: isTagalog ? 'Chunk Tracking' : 'Chunk Tracking',
+        desc: isTagalog
+          ? 'Basahin ang simuno bago ang panaguri nang may malinaw na pagitan.'
+          : 'Read subject and predicate in isolated chunks to prevent sequential flipping.',
+      });
+    } else {
+      if (avgAccuracy < 80) {
+        phonicsItems.push({
+          title: isTagalog ? 'Patinig at Katinig' : 'Phoneme Awareness',
+          desc: isTagalog
+            ? 'Muling balikan ang pagpapatunog ng mga payak na pantig at katinig.'
+            : 'Reinforce letter-sound correspondence with foundational sound cards.',
+        });
+        phonicsItems.push({
+          title: isTagalog ? 'Blending Drills' : 'Blending Drills',
+          desc: isTagalog
+            ? 'Pagsamahin ang mga tunog nang mabagal (hal. k-a-h-o-y -> kahoy).'
+            : 'Blend individual phonemes progressively into whole words.',
+        });
+      } else {
+        phonicsItems.push({
+          title: isTagalog ? 'Word Families' : 'Word Families',
+          desc: isTagalog
+            ? 'Palawakin ang talasalitaan gamit ang mga magkakamag-anak na salita.'
+            : 'Reinforce grade-appropriate word families and root words.',
+        });
+        phonicsItems.push({
+          title: isTagalog ? 'Phrase Chunking' : 'Phrase Reading',
+          desc: isTagalog
+            ? 'Sanayin ang pagbasa ng 2–3 salita nang sabay sa halip na paisa-isa.'
+            : 'Drill 2-3 word phrases to move smoothly beyond word-by-word reading.',
+        });
+      }
+    }
+
+    // ── PILLAR 2: Guided Oral Reading (Adaptive Niche Options) ──
+    if (avgSpeed < 0.8) {
+      guidedItems.push({
+        title: isTagalog ? 'Sprint Timed Re-reading' : 'Sprint Timed Drills',
+        desc: isTagalog
+          ? 'Basahin ang 1–2 pangungusap nang 3 beses upang masanay ang dila sa bilis.'
+          : 'Timed re-reading of 1–2 sentence strips to unlock higher oral processing speed.',
+      });
+    } else if (avgSpeed >= 0.8 && avgSpeed < 1.2) {
+      guidedItems.push({
+        title: isTagalog ? 'Choral Reading' : 'Choral Reading',
+        desc: isTagalog
+          ? 'Sabayang pagbasa kasama ang guro upang maiangat ang bilis patungong 1.2+ WPS.'
+          : 'Read synchronously with the teacher to elevate pace toward 1.2+ WPS.',
+      });
+    } else if (avgSpeed > 2.2 && avgAccuracy < 90) {
+      guidedItems.push({
+        title: isTagalog ? 'Bantas at Preno' : 'Pacing Regulation',
+        desc: isTagalog
+          ? 'Huminto sa tuldok at kuwit; unahin ang kawastuhan bago ang bilis.'
+          : 'Pause at commas and periods; prioritize accuracy over raw speed.',
+      });
+    } else {
+      guidedItems.push({
+        title: isTagalog ? 'Echo Reading' : 'Echo Reading',
+        desc: isTagalog
+          ? 'Ulitin ang binasang linya ng guro upang gayahin ang natural na intonasyon.'
+          : 'Model expressive phrasing by echoing the teacher’s intonation and pauses.',
+      });
+    }
+
+    // Dynamic Level Recommendation (Frustration vs Instructional vs Independent)
+    if (selectedAdaptiveProfile?.frustrationalLevel && selectedAdaptiveProfile?.instructionalLevel) {
+      guidedItems.push({
+        title: isTagalog ? 'Bridge Practice' : 'Targeted Bridge',
+        desc: isTagalog
+          ? `Magsanay sa antas ${formatGrade(selectedAdaptiveProfile.instructionalLevel)} bago sumubok muli sa ${formatGrade(selectedAdaptiveProfile.frustrationalLevel)}.`
+          : `Anchor on ${formatGrade(selectedAdaptiveProfile.instructionalLevel)} selections before re-attempting ${formatGrade(selectedAdaptiveProfile.frustrationalLevel)} content.`,
+      });
+    } else {
+      guidedItems.push({
+        title: isTagalog ? 'Leveled Practice' : 'Leveled Practice',
+        desc: isTagalog
+          ? `Magsanay sa mga seleksyon ng ${targetGrade} upang mapanatili ang mataas na tagumpay.`
+          : `Anchor reading practice on ${targetGrade} selections to sustain high success rates.`,
+      });
+    }
+
+    // Secondary Guided Intervention based on miscue/accuracy state
+    if (secondaryType === 'omission') {
+      guidedItems.push({
+        title: isTagalog ? 'Paired Sentence Check' : 'Paired Checking',
+        desc: isTagalog
+          ? 'Makipagtulungan sa katabi upang senyasan kapag may nalaktawang salita.'
+          : 'Partner reading with immediate peer-pointing whenever a word is skipped.',
+      });
+    } else if (secondaryType === 'repetition') {
+      guidedItems.push({
+        title: isTagalog ? 'Audio Recording' : 'Self-Listening',
+        desc: isTagalog
+          ? 'Iparinig sa bata ang kanyang nairecord na pagbasa upang marinig ang pag-aatubili.'
+          : 'Play back student audio recordings to self-monitor and diminish repeated starts.',
+      });
+    } else {
+      guidedItems.push({
+        title: isTagalog ? 'Paghahawan ng Balakid' : 'Pre-teaching',
+        desc: isTagalog
+          ? 'Talakayin ang 3–5 mahihirap na salita bago basahin ang kuwento.'
+          : 'Clarify 3–5 key vocabulary words before reading the text.',
+      });
+    }
+
+    // ── PILLAR 3: Comprehension Focus (Targeted Niche Options) ──
+    if (avgComp < 50) {
+      compItems.push({
+        title: isTagalog ? 'Literal na Detalye' : 'Text Evidence',
+        desc: isTagalog
+          ? 'Ihanap ng direktang patunay sa teksto ang tanong na "Sino, Saan, at Kailan".'
+          : 'Hunt for direct text proof to answer "Who, What, Where, and When".',
+      });
+      compItems.push({
+        title: isTagalog ? 'Story Map' : 'Story Map',
+        desc: isTagalog
+          ? 'Iayos ang Simula, Gitna, at Wakas gamit ang visual diagram.'
+          : 'Track Beginning, Middle, and Ending using a visual organizer.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Chunk & Check' : 'Chunk & Check',
+        desc: isTagalog
+          ? 'Huminto pagkatapos ng bawat talata upang tiyaking naunawaan ito.'
+          : 'Pause after every paragraph to verbally verify comprehension.',
+      });
+    } else if (avgComp >= 50 && avgComp < 70) {
+      compItems.push({
+        title: isTagalog ? 'Pahiwatig (Inferential)' : 'Inference Prompts',
+        desc: isTagalog
+          ? 'Itanong: "Bakit kaya ito nangyari?" batay sa pahiwatig sa teksto.'
+          : 'Ask: "Why did that happen?" using implicit clues from the narrative.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Paghula sa Kalalabasan' : 'Predictions',
+        desc: isTagalog
+          ? 'Huminto sa gitna at itanong kung ano ang susunod na mangyayari.'
+          : 'Pause mid-story and ask what is likely to happen next.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Oral Retelling' : 'Oral Retelling',
+        desc: isTagalog
+          ? 'Ipasalaysay muli ang kuwento gamit ang sariling mga salita nang hindi tinitingnan ang teksto.'
+          : 'Have the learner recount the story using their own words without looking at the text.',
+      });
+    } else if (avgComp >= 70 && avgComp < 85) {
+      compItems.push({
+        title: isTagalog ? 'Sanhi at Bunga' : 'Cause & Effect',
+        desc: isTagalog
+          ? 'Tukuyin ang dahilan kung bakit nagbago ang desisyon ng tauhan sa kuwento.'
+          : 'Identify why a character’s action triggered the turning point of the plot.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Paghahambing (Compare)' : 'Character Comparison',
+        desc: isTagalog
+          ? 'Paghambingin ang ugali ng dalawang tauhan gamit ang Venn diagram.'
+          : 'Compare character motivations and reactions using a simple Venn diagram.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Pangunahing Diwa' : 'Main Idea & Theme',
+        desc: isTagalog
+          ? 'Ibuod ang pinakamahalagang aral ng kuwento sa isang buong pangungusap.'
+          : 'Summarize the central moral or takeaway lesson in a single sentence.',
+      });
+    } else {
+      compItems.push({
+        title: isTagalog ? 'Kritikal na Pagsusuri' : 'Evaluative Prompts',
+        desc: isTagalog
+          ? 'Itanong: "Kung ikaw ang tauhan, gagawin mo rin ba ang ginawa niya?"'
+          : 'Prompt: "If you were the character, what would you have done differently?"',
+      });
+      compItems.push({
+        title: isTagalog ? 'Karanasan sa Buhay' : 'Text-to-Self',
+        desc: isTagalog
+          ? 'Iugnay ang tema ng kuwento sa sariling karanasan o lipunan.'
+          : 'Relate story themes to real-world personal experiences and community issues.',
+      });
+      compItems.push({
+        title: isTagalog ? 'Alternatibong Wakas' : 'Creative Ending',
+        desc: isTagalog
+          ? 'Lumikha ng kakaibang wakas ng kuwento kung nagbago ang pasya ng bida.'
+          : 'Draft an alternative ending based on what if a different choice was made.',
+      });
+    }
+
+    return {
+      hasData: true,
+      periodLabel,
+      langLabel,
+      diagnosisTitle,
+      diagnosisText,
+      phonicsItems,
+      guidedItems,
+      compItems,
+    };
+  }, [oralEvidence, selectedAdaptiveProfile, profileLanguage, profilePeriod]);
+
   const reportProfiles = (student.oralAdaptiveProfiles || []).map((profile) => {
     const language = String(profile.language || '').toLowerCase().startsWith('en') ? 'en' : 'fil';
     const period = String(profile.period || 'pre_test').toLowerCase();
@@ -290,10 +757,14 @@ export default function StudentProfile() {
     const overallAvgComp = evidenceAverage('comprehensionScore');
     const overallAvgSpeed = evidenceAverage('readingSpeed');
 
+    const pdfAccInfo = getAccuracyInterpretation(overallAvgAccuracy);
+    const pdfCompInfo = getComprehensionInterpretation(overallAvgComp);
+    const pdfSpeedInfo = getReadingSpeedInterpretation(overallAvgSpeed);
+
     const metrics = [
-      { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: 'Oral Reading Precision' },
-      { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: 'Understanding & Recall' },
-      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: 'Words Per Second Rate' },
+      { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: pdfAccInfo.badge },
+      { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: pdfCompInfo.badge },
+      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: pdfSpeedInfo.badge },
     ];
 
     const cardW = (contentWidth - 8) / 3;
@@ -312,12 +783,12 @@ export default function StudentProfile() {
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(12);
       pdf.setTextColor(22, 95, 213);
-      pdf.text(m.val, cx + 4, y + 13);
+      pdf.text(m.val, cx + 4, y + 12.5);
 
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(6.5);
-      pdf.setTextColor(110, 110, 110);
-      pdf.text(m.desc, cx + 4, y + 17.5);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(`Rating: ${m.desc}`, cx + 4, y + 17.5);
     });
 
     y += 28;
@@ -549,6 +1020,69 @@ export default function StudentProfile() {
       y += 6;
     }
 
+    // Actionable Pedagogical Insights & Remedial Guidance (Panel Compliance)
+    if (pedagogicalInsights.hasData) {
+      checkOverflow(45);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text('Actionable Pedagogical Insights & Remedial Guidance', margin, y);
+      y += 6;
+
+      // Primary Diagnosis Box
+      pdf.setFillColor(254, 252, 232);
+      pdf.setDrawColor(245, 158, 11);
+      pdf.setLineWidth(0.2);
+      const diagText = `${pedagogicalInsights.diagnosisTitle}: ${pedagogicalInsights.diagnosisText}`;
+      const diagLines = pdf.splitTextToSize(diagText, contentWidth - 8);
+      const diagBoxH = Math.max(12, diagLines.length * 4 + 6);
+      pdf.rect(margin, y, contentWidth, diagBoxH, 'FD');
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(146, 64, 14);
+      pdf.text(diagLines, margin + 4, y + 5);
+      y += diagBoxH + 6;
+
+      // 3 Remedial Pillar Recommendations
+      const pillarCardW = (contentWidth - 6) / 3;
+      const pillars = [
+        { title: 'Phonics & Decoding', items: pedagogicalInsights.phonicsItems },
+        { title: 'Guided Oral Reading', items: pedagogicalInsights.guidedItems },
+        { title: 'Comprehension Focus', items: pedagogicalInsights.compItems },
+      ];
+
+      checkOverflow(35);
+      const pillarStartY = y;
+      let maxCardH = 28;
+
+      pillars.forEach((p, idx) => {
+        const px = margin + idx * (pillarCardW + 3);
+        pdf.setFillColor(250, 250, 250);
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.2);
+        pdf.rect(px, pillarStartY, pillarCardW, maxCardH, 'FD');
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(p.title.toUpperCase(), px + 3, pillarStartY + 4.5);
+
+        let itemY = pillarStartY + 8.5;
+        p.items.slice(0, 3).forEach((item) => {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(6.5);
+          pdf.setTextColor(30, 41, 59);
+          const lineStr = `• ${item.title}: ${item.desc}`;
+          const splitLines = pdf.splitTextToSize(lineStr, pillarCardW - 6);
+          pdf.text(splitLines.slice(0, 2), px + 3, itemY);
+          itemY += Math.min(splitLines.length, 2) * 3 + 1;
+        });
+      });
+
+      y = pillarStartY + maxCardH + 8;
+    }
+
     // Teacher Observations & Signatures (Sharp Thin Black Border)
     checkOverflow(40);
     pdf.setFillColor(255, 255, 255);
@@ -685,27 +1219,52 @@ export default function StudentProfile() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard
-              value={evidenceAverage('accuracyScore')}
-              unit="%"
-              label={'Average\nAccuracy'}
-              iconName="ph:target"
-              iconBg="bg-[#DBEAFE] text-[#2563EB]"
-            />
-            <StatCard
-              value={evidenceAverage('comprehensionScore')}
-              unit="%"
-              label={'Average\nComprehension'}
-              iconName="ph:lightbulb"
-              iconBg="bg-[#D1FAE5] text-[#059669]"
-            />
-            <StatCard
-              value={evidenceAverage('readingSpeed')}
-              unit=" WPS"
-              label={'Average\nReading Speed'}
-              iconName="ph:gauge"
-              iconBg="bg-[#FEF3C7] text-[#D97706]"
-            />
+            {(() => {
+              const accVal = evidenceAverage('accuracyScore');
+              const compVal = evidenceAverage('comprehensionScore');
+              const spdVal = evidenceAverage('readingSpeed');
+              const accInfo = getAccuracyInterpretation(accVal);
+              const compInfo = getComprehensionInterpretation(compVal);
+              const spdInfo = getReadingSpeedInterpretation(spdVal);
+
+              return (
+                <>
+                  <StatCard
+                    value={accVal}
+                    unit="%"
+                    label={'Average\nAccuracy'}
+                    iconName="ph:target"
+                    iconBg="bg-[#DBEAFE] text-[#2563EB]"
+                    badge={accInfo.badge}
+                    badgeColor={accInfo.color}
+                    scale={accInfo.scale}
+                    description={accInfo.description}
+                  />
+                  <StatCard
+                    value={compVal}
+                    unit="%"
+                    label={'Average\nComprehension'}
+                    iconName="ph:lightbulb"
+                    iconBg="bg-[#D1FAE5] text-[#059669]"
+                    badge={compInfo.badge}
+                    badgeColor={compInfo.color}
+                    scale={compInfo.scale}
+                    description={compInfo.description}
+                  />
+                  <StatCard
+                    value={spdVal}
+                    unit=" WPS"
+                    label={'Average\nReading Speed'}
+                    iconName="ph:gauge"
+                    iconBg="bg-[#FEF3C7] text-[#D97706]"
+                    badge={spdInfo.badge}
+                    badgeColor={spdInfo.color}
+                    scale={spdInfo.scale}
+                    description={spdInfo.description}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -930,6 +1489,118 @@ export default function StudentProfile() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── 4. ACTIONABLE INSIGHTS TAB ── */}
+              {activeTab === 'Actionable Insights' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-3">
+                      <div>
+                        <h3 className="text-sm font-extrabold text-ink uppercase tracking-wider">
+                          Actionable Pedagogical Insights
+                        </h3>
+                        <p className="text-xs text-ink/60 mt-0.5">
+                          Target remedial strategies and classroom interventions based on student reading performance.
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-ink/[0.04] px-2.5 py-1 text-xs font-semibold text-ink/75 border border-ink/10">
+                        <span>{pedagogicalInsights.periodLabel} · {pedagogicalInsights.langLabel}</span>
+                      </div>
+                    </div>
+
+                    {/* Section 1: Primary Diagnosis */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-bold uppercase tracking-wider text-ink/70">
+                        Primary Diagnosis
+                      </p>
+                      <div className="rounded-xl border border-amber-300/80 bg-amber-50/70 p-3.5 space-y-1">
+                        <div className="flex items-center gap-2 text-amber-950 font-bold text-xs sm:text-sm">
+                          <Icon icon="ph:warning-circle-bold" className="size-4 text-amber-600 shrink-0" />
+                          <span>{pedagogicalInsights.diagnosisTitle}</span>
+                        </div>
+                        <p className="text-xs text-amber-900/90 leading-relaxed pl-6">
+                          {pedagogicalInsights.diagnosisText}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Recommended Interventions */}
+                    {pedagogicalInsights.hasData && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wider text-ink/70">
+                          Targeted Pedagogical & Remedial Interventions
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* Column 1: Phonics & Decoding */}
+                          <div className="rounded-xl border border-ink/10 bg-cream/40 p-4 space-y-2 hover:bg-cream/70 transition-colors">
+                            <div className="flex items-center gap-2 border-b border-ink/10 pb-2">
+                              <div className="flex size-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                                <Icon icon="ph:text-t-bold" className="size-4" />
+                              </div>
+                              <h4 className="text-xs font-bold text-ink">Phonics & Decoding</h4>
+                            </div>
+                            <ul className="space-y-2 text-xs text-ink/80 pt-1">
+                              {pedagogicalInsights.phonicsItems.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-brand-blue font-bold mt-0.5">•</span>
+                                  <div>
+                                    <span className="font-semibold text-ink">{item.title}: </span>
+                                    <span>{item.desc}</span>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Column 2: Guided Oral Reading */}
+                          <div className="rounded-xl border border-ink/10 bg-cream/40 p-4 space-y-2 hover:bg-cream/70 transition-colors">
+                            <div className="flex items-center gap-2 border-b border-ink/10 pb-2">
+                              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                                <Icon icon="ph:book-open-text-bold" className="size-4" />
+                              </div>
+                              <h4 className="text-xs font-bold text-ink">Guided Oral Reading</h4>
+                            </div>
+                            <ul className="space-y-2 text-xs text-ink/80 pt-1">
+                              {pedagogicalInsights.guidedItems.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-emerald-700 font-bold mt-0.5">•</span>
+                                  <div>
+                                    <span className="font-semibold text-ink">{item.title}: </span>
+                                    <span>{item.desc}</span>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Column 3: Comprehension Focus */}
+                          <div className="rounded-xl border border-ink/10 bg-cream/40 p-4 space-y-2 hover:bg-cream/70 transition-colors">
+                            <div className="flex items-center gap-2 border-b border-ink/10 pb-2">
+                              <div className="flex size-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
+                                <Icon icon="ph:brain-bold" className="size-4" />
+                              </div>
+                              <h4 className="text-xs font-bold text-ink">Comprehension Focus</h4>
+                            </div>
+                            <ul className="space-y-2 text-xs text-ink/80 pt-1">
+                              {pedagogicalInsights.compItems.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                                  <span className="text-purple-700 font-bold mt-0.5">•</span>
+                                  <div>
+                                    <span className="font-semibold text-ink">{item.title}: </span>
+                                    <span>{item.desc}</span>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
