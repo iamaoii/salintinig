@@ -408,7 +408,7 @@ export default function AdminStudentProfile() {
                   />
                   <StatCard
                     value={spdVal}
-                    unit=" WPS"
+                    unit=" WPM"
                     label={'Average\nReading Speed'}
                     iconName="ph:gauge"
                     iconBg="bg-[#FEF3C7] text-[#D97706]"

@@ -301,18 +301,18 @@ async function getStudentByLrn(req, res) {
             const totalAcc = accuracy.reduce((a, b) => a + b, 0);
             const totalComp = comprehension.reduce((a, b) => a + b, 0);
             
-            let totalWps = 0;
-            let wpsCount = 0;
+            let totalWpm = 0;
+            let wpmCount = 0;
             perfRows.forEach((r) => {
               const sec = Number(r.reading_time || 0);
               const words = Number(r.words_read || 0);
               const wpm = Number(r.reading_rate_wpm || 0);
               if (wpm > 0) {
-                totalWps += Math.round(wpm / 60);
-                wpsCount++;
+                totalWpm += wpm;
+                wpmCount++;
               } else if (sec > 0 && words > 0) {
-                totalWps += Math.round(words / sec);
-                wpsCount++;
+                totalWpm += Math.round((words / sec) * 60);
+                wpmCount++;
               }
             });
 
@@ -321,7 +321,8 @@ async function getStudentByLrn(req, res) {
             studentObj.comprehensionTrend = comprehension;
             studentObj.avgAccuracy = Math.round(totalAcc / accuracy.length);
             studentObj.avgComprehension = Math.round(totalComp / comprehension.length);
-            studentObj.avgWps = wpsCount > 0 ? Math.round(totalWps / wpsCount) : 0;
+            studentObj.avgWpm = wpmCount > 0 ? Math.round(totalWpm / wpmCount) : 0;
+            studentObj.avgWps = studentObj.avgWpm;
           } else {
             // Un-assessed student metrics
             studentObj.sessions = [];
@@ -329,6 +330,7 @@ async function getStudentByLrn(req, res) {
             studentObj.comprehensionTrend = [];
             studentObj.avgAccuracy = 0;
             studentObj.avgComprehension = 0;
+            studentObj.avgWpm = 0;
             studentObj.avgWps = 0;
           }
 
@@ -394,7 +396,7 @@ async function getStudentByLrn(req, res) {
                 status: r.status,
                 accuracyScore: Math.round(Number(r.accuracy_score || 0)),
                 comprehensionScore: Math.round(Number(r.comprehension_score || 0)),
-                readingSpeed: Math.round(Number(r.reading_rate_wpm || 0) / 60),
+                readingSpeed: Math.round(Number(r.reading_rate_wpm || 0)),
                 readingLevelResult: r.readingLevelResult,
                 miscuesJson: r.miscues_json,
                 completedAt: r.completed_at,

@@ -459,21 +459,22 @@ export default function StudentProfile() {
     }
 
     // ── PILLAR 2: Guided Oral Reading (Adaptive Niche Options) ──
-    if (avgSpeed < 0.8) {
+    const effectiveAvgSpeed = avgSpeed < 10 ? avgSpeed * 60 : avgSpeed;
+    if (effectiveAvgSpeed < 50) {
       guidedItems.push({
         title: isTagalog ? 'Sprint Timed Re-reading' : 'Sprint Timed Drills',
         desc: isTagalog
           ? 'Basahin ang 1–2 pangungusap nang 3 beses upang masanay ang dila sa bilis.'
           : 'Timed re-reading of 1–2 sentence strips to unlock higher oral processing speed.',
       });
-    } else if (avgSpeed >= 0.8 && avgSpeed < 1.2) {
+    } else if (effectiveAvgSpeed >= 50 && effectiveAvgSpeed < 80) {
       guidedItems.push({
         title: isTagalog ? 'Choral Reading' : 'Choral Reading',
         desc: isTagalog
-          ? 'Sabayang pagbasa kasama ang guro upang maiangat ang bilis patungong 1.2+ WPS.'
-          : 'Read synchronously with the teacher to elevate pace toward 1.2+ WPS.',
+          ? 'Sabayang pagbasa kasama ang guro upang maiangat ang bilis patungong 80+ WPM.'
+          : 'Read synchronously with the teacher to elevate pace toward 80+ WPM.',
       });
-    } else if (avgSpeed > 2.2 && avgAccuracy < 90) {
+    } else if (effectiveAvgSpeed > 130 && avgAccuracy < 90) {
       guidedItems.push({
         title: isTagalog ? 'Bantas at Preno' : 'Pacing Regulation',
         desc: isTagalog
@@ -764,7 +765,7 @@ export default function StudentProfile() {
     const metrics = [
       { label: 'Overall Average Accuracy', val: `${overallAvgAccuracy}%`, desc: pdfAccInfo.badge },
       { label: 'Overall Average Comprehension', val: `${overallAvgComp}%`, desc: pdfCompInfo.badge },
-      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPS`, desc: pdfSpeedInfo.badge },
+      { label: 'Average Reading Speed', val: `${overallAvgSpeed} WPM`, desc: pdfSpeedInfo.badge },
     ];
 
     const cardW = (contentWidth - 8) / 3;
@@ -1253,7 +1254,7 @@ export default function StudentProfile() {
                   />
                   <StatCard
                     value={spdVal}
-                    unit=" WPS"
+                    unit=" WPM"
                     label={'Average\nReading Speed'}
                     iconName="ph:gauge"
                     iconBg="bg-[#FEF3C7] text-[#D97706]"
