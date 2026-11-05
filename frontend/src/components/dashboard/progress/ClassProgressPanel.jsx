@@ -331,7 +331,7 @@ export default function ClassProgressPanel() {
         />
         <StatCard
           value={stats.averageReadingSpeed}
-          unit="wps"
+          unit=" WPM"
           label={'Average\nReading Speed'}
           iconName="ph:lightning"
           iconBg="bg-[#FEF08A] text-[#CA8A04]"
